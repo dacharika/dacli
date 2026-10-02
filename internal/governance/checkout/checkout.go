@@ -26,6 +26,18 @@ type Observation struct {
 // canonical local common Git directory, not a remote URL or host identity.
 // This historical observation cannot freeze bytes against concurrent writers.
 func Observe(locator string) (Observation, error) {
+	return observe(locator, false)
+}
+
+// ObserveRepositoryIdentity resolves only the canonical checkout and common Git
+// directory. Dirty files and changed commits are legitimate during lease use.
+// It shares Observe's bounded, override-stripped runner and never reads worktree
+// contents through status, filters, hooks or submodule commands.
+func ObserveRepositoryIdentity(locator string) (Observation, error) {
+	return observe(locator, true)
+}
+
+func observe(locator string, identityOnly bool) (Observation, error) {
 	if !filepath.IsAbs(locator) {
 		return Observation{}, ErrInvalid
 	}
@@ -66,6 +78,9 @@ func Observe(locator string) (Observation, error) {
 	common, err = filepath.EvalSymlinks(common)
 	if err != nil {
 		return Observation{}, ErrInvalid
+	}
+	if identityOnly {
+		return Observation{Locator: root, Repository: common, ObservedAt: time.Now().UTC()}, nil
 	}
 	commit, err := run("rev-parse", "--verify", "HEAD^{commit}")
 	if err != nil {

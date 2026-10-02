@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/mlnomadpy/dacli/internal/governance/checkout"
 )
 
 // LeaseAdmission is an owner-configured read adapter. It must freshly resolve
@@ -199,6 +201,17 @@ func retry(s *state, key, digest string) (Lease, bool, error) {
 	return op.Receipt, ok, nil
 }
 
+// checkLeaseCheckout is called only after authentication and historical retry
+// recovery, while the authority lock is held. Observation does not freeze the
+// filesystem: cooperative checkout isolation remains required.
+func checkLeaseCheckout(at Attempt) error {
+	obs, err := checkout.ObserveRepositoryIdentity(at.Observation.Locator)
+	if err != nil || obs.Locator != at.Observation.Locator || obs.Repository != at.Observation.Repository {
+		return ErrDenied
+	}
+	return nil
+}
+
 func (a *Authority) AcquireLease(token, session string, req AcquireLeaseRequest) (Lease, error) {
 	var result Lease
 	err := a.transaction(false, true, func(s *state) error {
@@ -232,7 +245,10 @@ func (a *Authority) AcquireLease(token, session string, req AcquireLeaseRequest)
 		if err := a.admission.AdmitLease(s.Binding.Workspace, at.ProjectID, at.Request.TaskID); err != nil {
 			return ErrDenied
 		}
-		// Admission may take time. Recheck the temporal boundary before reserving.
+		if err := checkLeaseCheckout(at); err != nil {
+			return err
+		}
+		// Admission and checkout observation may take time. Recheck the temporal boundary before reserving.
 		now = time.Now()
 		if _, err := authenticate(s, token, session, now); err != nil {
 			return err
@@ -282,7 +298,7 @@ func (a *Authority) changeLease(token, session, key, attempt, id string, fence u
 	}
 	err := a.transaction(false, true, func(s *state) error {
 		now := time.Now()
-		r, _, err := leaseAuth(s, token, session, attempt, action, now)
+		r, at, err := leaseAuth(s, token, session, attempt, action, now)
 		if err != nil {
 			return err
 		}
@@ -296,6 +312,13 @@ func (a *Authority) changeLease(token, session, key, attempt, id string, fence u
 		if receipt, ok, e := retry(s, key, digest); ok {
 			result = receipt
 			return e
+		}
+		if err := checkLeaseCheckout(at); err != nil {
+			return err
+		}
+		now = time.Now()
+		if _, _, err := leaseAuth(s, token, session, attempt, action, now); err != nil {
+			return err
 		}
 		if !currentLease(old, now) {
 			return ErrDenied

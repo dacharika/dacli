@@ -55,3 +55,12 @@ of uncertain reservations requires owner reconciliation, deferred here; crashed
 authority locks also remain conservative. Fences govern cooperating consumers;
 this API does not stop an existing writer or protect against a hostile OS user
 replacing authority files or changing symlinks between checks and writes.
+
+Fresh lease acquisition, renewal and release reobserve the registered canonical
+checkout locator and common Git directory after authentication, under the
+authority lock, before mutation. This identity-only observation tolerates dirty
+files and changed commits and uses the bounded checkout Git runner without
+status, filters or hooks. Exact authenticated historical operation retries may
+recover their recorded receipts after checkout replacement; those receipts do
+not grant current writer authority. Filesystem observation is not a freeze:
+cooperative checkout isolation is still required against concurrent replacement.
