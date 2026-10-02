@@ -12,6 +12,7 @@ import (
 	"unicode"
 
 	"github.com/mlnomadpy/dacli/internal/agentid"
+	"github.com/mlnomadpy/dacli/internal/application"
 	"github.com/mlnomadpy/dacli/internal/clikit"
 	"github.com/mlnomadpy/dacli/internal/eventlog"
 	"github.com/mlnomadpy/dacli/internal/model"
@@ -45,72 +46,30 @@ func cmdStatus(ctx *clikit.Ctx, args []string) error {
 		return err
 	}
 	project := f.Get("project")
-	w, _, err := clikit.OpenWorkspace(ctx)
+	w, id, err := clikit.OpenWorkspace(ctx)
 	if err != nil {
 		return err
 	}
-	if project != "" {
-		if _, err := store.LoadProject(w, project); err != nil {
-			return err
-		}
-	}
-	// pal is a no-op (Palette{}) unless ctx.Stdout is a real terminal, so
-	// this is byte-identical to the old output for --json, the MCP
-	// executor, and every test harness — see clikit.NewPalette.
-	pal := clikit.NewPalette(ctx)
-	ps, err := store.ListProjects(w)
+	r, err := application.NewCooperativeContext(w, id)
 	if err != nil {
 		return err
 	}
-	type projectStatus struct {
-		Slug                string `json:"slug"`
-		Title               string `json:"title"`
-		Open                int    `json:"open"`
-		Active              int    `json:"active"`
-		Blocked             int    `json:"blocked"`
-		Done                int    `json:"done"`
-		ImplementedUnlanded int    `json:"implemented_unlanded"`
+	result, err := application.Status(r, project)
+	if err != nil {
+		return err
 	}
-	var statuses []projectStatus
-	for _, p := range ps {
-		if project != "" && p.Slug != project {
-			continue
-		}
-		counts := map[model.Status]int{}
-		implemented := 0
-		ts, _ := store.ListTasks(w, p.Slug, "")
-		for _, t := range ts {
-			counts[t.Status]++
-			if t.CompletionState() == "implemented-unlanded" {
-				implemented++
-			}
-		}
-		statuses = append(statuses, projectStatus{Slug: p.Slug, Title: p.Title, Open: counts[model.StatusOpen], Active: counts[model.StatusActive], Blocked: counts[model.StatusBlocked], Done: counts[model.StatusDone], ImplementedUnlanded: implemented})
-		if ctx.JSON {
-			continue
-		}
-		slug := pal.Bold(fmt.Sprintf("%-16s", p.Slug)) // pad THEN color: escape codes must never count toward column width
-		fmt.Fprintf(ctx.Stdout, "%s open:%s active:%s blocked:%s done:%s implemented-unlanded:%s  %s\n",
-			slug,
-			pal.Dim(fmt.Sprint(counts[model.StatusOpen])),
-			pal.Yellow(fmt.Sprint(counts[model.StatusActive])),
-			pal.Red(fmt.Sprint(counts[model.StatusBlocked])),
-			pal.Green(fmt.Sprint(counts[model.StatusDone])),
-			pal.Yellow(fmt.Sprint(implemented)),
-			p.Title)
-	}
-	pending, _ := eventlog.List(w, eventlog.Query{Pending: true})
 	if ctx.JSON {
-		return clikit.EmitJSON(ctx, struct {
-			Schema        string          `json:"schema"`
-			ProjectFilter string          `json:"project_filter,omitempty"`
-			Projects      []projectStatus `json:"projects"`
-			PendingEvents int             `json:"pending_events"`
-		}{Schema: "workspace-status/v1", ProjectFilter: project, Projects: statuses, PendingEvents: len(pending)})
+		return clikit.EmitJSON(ctx, result)
 	}
-	if len(pending) > 0 {
-		fmt.Fprintf(ctx.Stdout, "%s\n", pal.Yellow(fmt.Sprintf("pending events: %d (run `dacli sync` as the owner to materialize)", len(pending))))
+	pal := clikit.NewPalette(ctx)
+	for _, p := range result.Projects {
+		slug := pal.Bold(fmt.Sprintf("%-16s", p.Slug))
+		fmt.Fprintf(ctx.Stdout, "%s open:%s active:%s blocked:%s done:%s implemented-unlanded:%s  %s\n", slug, pal.Dim(fmt.Sprint(p.Open)), pal.Yellow(fmt.Sprint(p.Active)), pal.Red(fmt.Sprint(p.Blocked)), pal.Green(fmt.Sprint(p.Done)), pal.Yellow(fmt.Sprint(p.ImplementedUnlanded)), p.Title)
 	}
+	if result.PendingEvents > 0 {
+		fmt.Fprintf(ctx.Stdout, "%s\n", pal.Yellow(fmt.Sprintf("pending events: %d (run `dacli sync` as the owner to materialize)", result.PendingEvents)))
+	}
+
 	return nil
 }
 

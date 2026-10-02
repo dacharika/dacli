@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/mlnomadpy/dacli/internal/agentid"
+	"github.com/mlnomadpy/dacli/internal/application"
 	"github.com/mlnomadpy/dacli/internal/clikit"
 	"github.com/mlnomadpy/dacli/internal/eventlog"
 	"github.com/mlnomadpy/dacli/internal/gates"
@@ -319,7 +320,11 @@ func cmdTaskList(ctx *clikit.Ctx, args []string) error {
 	if ctx.JSON {
 		return cmdTaskListJSON(ctx, args)
 	}
-	w, _, err := clikit.OpenWorkspace(ctx)
+	w, id, err := clikit.OpenWorkspace(ctx)
+	if err != nil {
+		return err
+	}
+	r, err := application.NewCooperativeContext(w, id)
 	if err != nil {
 		return err
 	}
@@ -335,7 +340,7 @@ func cmdTaskList(ctx *clikit.Ctx, args []string) error {
 	if serr != nil {
 		return clikit.Usagef("%v", serr)
 	}
-	ts, err := store.ListTasks(w, f.Get("project"), status)
+	ts, err := application.ListTasks(r, f.Get("project"), status)
 	if err != nil {
 		return err
 	}
@@ -380,7 +385,11 @@ type taskJSON struct {
 }
 
 func cmdTaskListJSON(ctx *clikit.Ctx, args []string) error {
-	w, _, err := clikit.OpenWorkspace(ctx)
+	w, id, err := clikit.OpenWorkspace(ctx)
+	if err != nil {
+		return err
+	}
+	r, err := application.NewCooperativeContext(w, id)
 	if err != nil {
 		return err
 	}
@@ -396,7 +405,7 @@ func cmdTaskListJSON(ctx *clikit.Ctx, args []string) error {
 	if serr != nil {
 		return clikit.Usagef("%v", serr)
 	}
-	ts, err := store.ListTasks(w, f.Get("project"), status)
+	ts, err := application.ListTasks(r, f.Get("project"), status)
 	if err != nil {
 		return err
 	}
@@ -425,7 +434,11 @@ func cmdTaskListJSON(ctx *clikit.Ctx, args []string) error {
 }
 
 func cmdTaskShow(ctx *clikit.Ctx, args []string) error {
-	w, _, err := clikit.OpenWorkspace(ctx)
+	w, id, err := clikit.OpenWorkspace(ctx)
+	if err != nil {
+		return err
+	}
+	r, err := application.NewCooperativeContext(w, id)
 	if err != nil {
 		return err
 	}
@@ -438,7 +451,7 @@ func cmdTaskShow(ctx *clikit.Ctx, args []string) error {
 	if len(f.Pos) == 0 {
 		return clikit.Usagef("usage: dacli task show <ref>")
 	}
-	t, err := store.FindTask(w, f.Pos[0])
+	t, err := application.GetTask(r, f.Pos[0])
 	if err != nil {
 		return err
 	}
