@@ -77,7 +77,7 @@ class Host:
         self.proc.stdin.close(); self.proc.stdout.close()
 
 
-def smoke(codex, dacli):
+def smoke(codex, dacli, schema5_dacli=None):
     from datetime import datetime, timedelta, timezone
     import zipfile
     with tempfile.TemporaryDirectory(prefix='dacli-plugin-native-') as tmp:
@@ -104,11 +104,45 @@ def smoke(codex, dacli):
         owner.write_text(json.dumps({'schema_version':1, 'workspace':str(workspace),
             'authority':str(private / 'authority.json'), 'installation_id':'public-plugin-fixture',
             'owner_credential_file':str(private / 'owner.token')})); owner.chmod(0o600)
-        run([dacli, 'native', 'bootstrap', '--config', str(owner)])
+        producer = schema5_dacli or dacli
+        run([producer, 'native', 'bootstrap', '--config', str(owner)])
         profile = private / 'session.json'
-        run([dacli, 'native', 'enroll', '--config', str(owner), '--task', 'fixture/001',
+        run([producer, 'native', 'enroll', '--config', str(owner), '--task', 'fixture/001',
              '--connection', str(profile), '--credential', str(private / 'session.token'), '--path', 'src'])
         session_id = json.loads(profile.read_text())['session_id']
+        migration = {}
+        if schema5_dacli:
+            authority = private / 'authority.json'
+            old_bytes = authority.read_bytes(); old_state = json.loads(old_bytes)
+            assert old_state['Version'] == 5, 'producer did not create schema 5'
+            profile_bytes = profile.read_bytes()
+            owner_bytes = (private / 'owner.token').read_bytes()
+            session_bytes = (private / 'session.token').read_bytes()
+            def refused(argv, before):
+                result = subprocess.run(argv, cwd=workspace, env=env, input='',
+                    capture_output=True, text=True, timeout=30)
+                assert result.returncode == 3 and not result.stdout, 'expected policy refusal'
+                assert authority.read_bytes() == before, 'refusal changed authority'
+                for secret in (owner_bytes, session_bytes):
+                    assert secret.strip().decode() not in result.stderr, 'credential in diagnostic'
+            refused([dacli, 'native', 'serve', '--connection', str(profile)], old_bytes)
+            (private / 'owner.token').write_bytes(b'public-forged-owner-fixture')
+            refused([dacli, 'native', 'upgrade', '--config', str(owner)], old_bytes)
+            (private / 'owner.token').write_bytes(owner_bytes)
+            run([dacli, 'native', 'upgrade', '--config', str(owner)])
+            upgraded = authority.read_bytes(); new_state = json.loads(upgraded)
+            assert new_state['Version'] == 6
+            assert all(new_state[key] == value for key, value in old_state.items() if key != 'Version')
+            assert profile.read_bytes() == profile_bytes
+            assert (private / 'owner.token').read_bytes() == owner_bytes
+            assert (private / 'session.token').read_bytes() == session_bytes
+            refused([dacli, 'native', 'upgrade', '--config', str(owner)], upgraded)
+            refused([schema5_dacli, 'native', 'revoke', '--config', str(owner), '--session', session_id], upgraded)
+            migration = {'schema5_producer_binary_sha256':hashlib.sha256(Path(schema5_dacli).read_bytes()).hexdigest(),
+                'genuine_schema5_profile_migrated_to_6':True, 'pre_migration_new_server_exit':3,
+                'forged_owner_upgrade_exit':3, 'already_target_upgrade_exit':3,
+                'old_schema5_writer_exit':3, 'migration_preserved_existing_profile_and_credentials':True}
+
         archive = build(base / 'package.zip')
         with zipfile.ZipFile(archive) as packed:
             packed.extractall(base / 'marketplace')
@@ -214,11 +248,13 @@ def smoke(codex, dacli):
             'missing_connection_tools_unavailable':True, 'missing_native_profile_exit':missing_profile.returncode,
             'malformed_selection_exit':invalid.returncode,
             'fixture_only':True,'model_turn_requested':False,'dacli_spawn_used':False,
-            'shared_mcp_connection_shares_session_identity':True,'assurance':'cooperative-session'}
+            'shared_mcp_connection_shares_session_identity':True,'assurance':'cooperative-session', **migration}
 
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--codex', required=True); p.add_argument('--dacli', required=True)
+    p.add_argument('--schema5-dacli', help='genuine schema-5 binary for explicit owner migration smoke')
     a = p.parse_args()
-    print(json.dumps(smoke(str(Path(a.codex).resolve()), str(Path(a.dacli).resolve())), indent=2))
+    print(json.dumps(smoke(str(Path(a.codex).resolve()), str(Path(a.dacli).resolve()),
+        str(Path(a.schema5_dacli).resolve()) if a.schema5_dacli else None), indent=2))

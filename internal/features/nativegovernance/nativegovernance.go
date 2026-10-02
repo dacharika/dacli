@@ -17,6 +17,7 @@ import (
 )
 
 var Commands = []clikit.Command{
+	{Path: "native upgrade", Brief: "Owner-upgrade native authority from schema 5 to 6 without replacing credentials", Mutates: true, Usage: "dacli native upgrade --config <private-file>", Run: upgrade},
 	{Path: "native revoke", Brief: "Owner-revoke an exact native session using a private explicit owner configuration", Mutates: true, Usage: "dacli native revoke --config <private-file> --session <session-id>", Run: revoke},
 	{Path: "native serve", Brief: "Serve scoped native governance MCP using a private explicit session connection", Usage: "dacli native serve --connection <private-file>", Run: serve},
 	{Path: "native bootstrap", Brief: "Initialize an absent native authority and privately save its owner credential", Mutates: true, Usage: "dacli native bootstrap --config <private-file>", Run: bootstrap},
@@ -26,7 +27,7 @@ var Commands = []clikit.Command{
 // AuthenticatesExplicitly lists exactly the handlers exempt from the legacy grant gate.
 func AuthenticatesExplicitly(path string) bool {
 	switch path {
-	case "native bootstrap", "native enroll", "native revoke":
+	case "native bootstrap", "native enroll", "native revoke", "native upgrade":
 		return true
 	}
 	return false
@@ -264,5 +265,37 @@ func revoke(ctx *clikit.Ctx, args []string) error {
 		return denied()
 	}
 	fmt.Fprintln(ctx.Stdout, "Native session revoked.")
+	return nil
+}
+
+// Upgrade is deliberately exact, never startup migration, reset or downgrade.
+func upgrade(ctx *clikit.Ctx, args []string) error {
+	f, e := flags(args, "config")
+	if e != nil {
+		return e
+	}
+	if f.Get("config") == "" {
+		return clikit.Usagef("--config is required")
+	}
+	c, e := config(f.Get("config"))
+	if e != nil {
+		return e
+	}
+	w, e := native.ResolveWorkspace(c.Workspace, "")
+	if e != nil {
+		return denied()
+	}
+	owner, e := native.ReadCredential(c.OwnerCredentialFile)
+	if e != nil {
+		return denied()
+	}
+	a, e := sessions.Open(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID})
+	if e != nil {
+		return denied()
+	}
+	if e = a.UpgradePublication(owner); e != nil {
+		return clikit.Refusedf("native upgrade requires schema 5 and valid private owner authority; preserve storage for owner reconciliation")
+	}
+	fmt.Fprintln(ctx.Stdout, "Native authority upgraded from schema 5 to 6; existing credentials preserved.")
 	return nil
 }

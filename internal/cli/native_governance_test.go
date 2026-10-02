@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/mlnomadpy/dacli/internal/clikit"
+	"github.com/mlnomadpy/dacli/internal/governance/sessions"
 	"github.com/mlnomadpy/dacli/internal/mcp/native"
 	"github.com/mlnomadpy/dacli/internal/store"
 	"github.com/mlnomadpy/dacli/internal/workspace"
@@ -193,7 +194,7 @@ func TestNativeOwnerDispatcherUsesOnlyExplicitAuthority(t *testing.T) {
 	}
 }
 func TestNativeOwnerCommandsNeverReachLegacyMCP(t *testing.T) {
-	for _, path := range [][]string{{"native", "bootstrap"}, {"native", "enroll"}, {"native", "serve"}, {"native", "revoke"}} {
+	for _, path := range [][]string{{"native", "bootstrap"}, {"native", "enroll"}, {"native", "serve"}, {"native", "revoke"}, {"native", "upgrade"}} {
 		_, msg, code := executor(t.TempDir())(path, false)
 		if code != 3 || !strings.Contains(msg, "local-only") {
 			t.Fatalf("native command reached legacy MCP: %v code%d %s", path, code, msg)
@@ -243,5 +244,147 @@ func nativeLiveRequests(t *testing.T, server *native.Server) func(string, bool) 
 		case <-time.After(5 * time.Second):
 			t.Fatal("native response timeout")
 		}
+	}
+}
+
+func TestNativeUpgradeExplicitOwnerPreservesProfile(t *testing.T) {
+	for _, ambient := range []string{"", "invalid-legacy-token"} {
+		t.Run("ambient-"+ambient, func(t *testing.T) {
+			t.Setenv("DACLI_AGENT", ambient)
+			dir := t.TempDir()
+			w, err := workspace.Init(dir, "upgrade")
+			if err != nil {
+				t.Fatal(err)
+			}
+			private := t.TempDir()
+			authority := filepath.Join(private, "authority.json")
+			ownerFile := filepath.Join(private, "owner.token")
+			cfg := filepath.Join(private, "owner.json")
+			a, err := sessions.Open(authority, sessions.Binding{Workspace: w.ID, Installation: "fixture"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			owner, err := a.Bootstrap()
+			if err != nil {
+				t.Fatal(err)
+			}
+			session, token, err := a.Enroll(owner, sessions.Scope{Actions: []string{"read"}, Resources: []string{"workspace:" + w.ID}}, time.Now().Add(time.Hour))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = os.WriteFile(ownerFile, []byte(owner), 0600); err != nil {
+				t.Fatal(err)
+			}
+			raw, _ := json.Marshal(map[string]any{"schema_version": 1, "workspace": dir, "authority": authority, "installation_id": "fixture", "owner_credential_file": ownerFile})
+			if err = os.WriteFile(cfg, raw, 0600); err != nil {
+				t.Fatal(err)
+			}
+			current, err := os.ReadFile(authority)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var legacy map[string]json.RawMessage
+			if err = json.Unmarshal(current, &legacy); err != nil {
+				t.Fatal(err)
+			}
+			// Compatibility fixture only; smoke.py separately proves a genuine old binary producer.
+			legacy["Version"] = json.RawMessage("5")
+			for _, key := range []string{"PublicationPolicies", "PublicationDecisions", "PublicationConsumed"} {
+				delete(legacy, key)
+			}
+			old, err := json.Marshal(legacy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = os.WriteFile(authority, old, 0600); err != nil {
+				t.Fatal(err)
+			}
+			run := func(args ...string) (string, error) {
+				var out bytes.Buffer
+				ctx := &Ctx{Cwd: dir, Stdout: &out, Stderr: &out}
+				cmd, rest := dispatch(append([]string{"native", "upgrade"}, args...))
+				if cmd == nil {
+					t.Fatal("native upgrade missing")
+				}
+				err := invoke(ctx, cmd, rest)
+				return out.String(), err
+			}
+			if _, err = run("--help"); err != nil {
+				t.Fatal(err)
+			}
+			for _, args := range [][]string{{}, {"--json"}, {"--config", cfg, "--bogus"}, {"--config", cfg, "extra"}, {"--config", cfg, "--config", cfg}} {
+				if _, err = run(args...); clikit.ExitCode(err) != 2 {
+					t.Fatalf("upgrade usage accepted %v: %v", args, err)
+				}
+			}
+			unchanged := func(want []byte) {
+				t.Helper()
+				got, e := os.ReadFile(authority)
+				if e != nil || !bytes.Equal(got, want) {
+					t.Fatal("refused upgrade changed authority")
+				}
+			}
+			for _, bad := range []string{"missing-config", "missing-owner", "forged-owner"} {
+				configPath := cfg
+				switch bad {
+				case "missing-config":
+					configPath = filepath.Join(private, "absent")
+				case "missing-owner":
+					if err = os.Remove(ownerFile); err != nil {
+						t.Fatal(err)
+					}
+				case "forged-owner":
+					if err = os.WriteFile(ownerFile, []byte("forged"), 0600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if _, err = run("--config", configPath); clikit.ExitCode(err) != 3 {
+					t.Fatalf("invalid upgrade owner accepted (%s): %v", bad, err)
+				}
+				unchanged(old)
+			}
+			if err = os.WriteFile(ownerFile, []byte(owner), 0600); err != nil {
+				t.Fatal(err)
+			}
+			out, err := run("--config", cfg)
+			if err != nil {
+				t.Fatalf("explicit upgrade refused: %v", err)
+			}
+			if strings.Contains(out, owner) || strings.Contains(out, token) {
+				t.Fatal("upgrade leaked credential")
+			}
+			upgraded, err := os.ReadFile(authority)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var state map[string]json.RawMessage
+			if err = json.Unmarshal(upgraded, &state); err != nil {
+				t.Fatal(err)
+			}
+			if string(state["Version"]) != "6" {
+				t.Fatal("target schema not6")
+			}
+			for key, want := range legacy {
+				if key != "Version" && !bytes.Equal(state[key], want) {
+					t.Fatalf("upgrade changed old field %s", key)
+				}
+			}
+			if _, err = a.Authenticate(token, session.ID); err != nil {
+				t.Fatal("session lost", err)
+			}
+			if _, err = run("--config", cfg); clikit.ExitCode(err) != 3 {
+				t.Fatalf("already-target upgrade accepted: %v", err)
+			}
+			unchanged(upgraded)
+			for _, data := range [][]byte{[]byte("{malformed"), bytes.Replace(old, []byte(`"Version":5`), []byte(`"Version":99`), 1)} {
+				if err = os.WriteFile(authority, data, 0600); err != nil {
+					t.Fatal(err)
+				}
+				if _, err = run("--config", cfg); clikit.ExitCode(err) != 3 {
+					t.Fatalf("unsupported authority accepted: %v", err)
+				}
+				unchanged(data)
+			}
+		})
 	}
 }

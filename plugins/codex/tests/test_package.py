@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 import json
 import os
@@ -15,6 +16,20 @@ SPEC.loader.exec_module(PACKAGE)
 
 
 class PackageTests(unittest.TestCase):
+    def test_native_receipt_matches_current_package_and_migration_smoke(self):
+        receipt = json.loads((ROOT / 'receipts/native-install-0.159.2.json').read_text())
+        expected = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+                    for name in PACKAGE.FILES if not name.startswith('receipts/')}
+        self.assertEqual(receipt['plugin_source_sha256'], expected)
+        self.assertEqual(receipt['smoke_script_sha256'], hashlib.sha256((ROOT / 'scripts/smoke.py').read_bytes()).hexdigest())
+        self.assertTrue(receipt['genuine_schema5_profile_migrated_to_6'])
+        self.assertTrue(receipt['migration_preserved_existing_profile_and_credentials'])
+        for key in ('pre_migration_new_server_exit', 'forged_owner_upgrade_exit',
+                    'already_target_upgrade_exit', 'old_schema5_writer_exit'):
+            self.assertEqual(receipt[key], 3)
+        self.assertFalse(receipt['model_turn_requested'])
+        self.assertFalse(receipt['dacli_spawn_used'])
+
     def test_manifests_and_transport_match(self):
         portable = json.loads((ROOT / 'plugin.json').read_text())
         legacy = json.loads((ROOT / '.codex-plugin/plugin.json').read_text())

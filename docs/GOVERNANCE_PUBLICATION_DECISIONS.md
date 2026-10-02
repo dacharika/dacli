@@ -71,10 +71,11 @@ or native canonical acceptance.
 ## Storage and limits
 
 New authorities write schema 6. Existing schema-5 authorities require explicit
-`UpgradePublication(owner)`; opening never migrates. This migration is currently
-a Go owner API only: the existing native CLI/plugin commands cannot upgrade
-a schema-5 profile, and that profile will refuse until the owner explicitly
-migrates it. No startup or bootstrap path resets old storage. Existing explicit schema
+`UpgradePublication(owner)`; opening never migrates. The local owner command
+`dacli native upgrade --config /absolute/private/owner.json` exposes exactly
+that schema-5-to-6 migration. MCP/plugin tools cannot migrate authority; the
+owner runs the command explicitly and restarts the native process with its
+existing profile. Already-target and unsupported versions refuse unchanged. No startup or bootstrap path resets old storage. Existing explicit schema
 1–4 migration APIs now reach schema 6. Migrations retain existing sessions,
 revocations, task bindings, attempts, leases/fences, revisions, evidence, review
 grants, proposals and operation history. Unknown versions and old writers refuse.

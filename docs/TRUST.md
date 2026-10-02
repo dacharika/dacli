@@ -408,6 +408,9 @@ owner file, binds an existing canonical task and writes a scoped session and
 connection into new private files. `native revoke` authenticates the same explicit
 owner file and revokes an exact session; existing transports refuse subsequent
 requests. It preserves private files and prior work and does not stop host processes.
+`native upgrade` authenticates the explicit owner file and migrates only schema
+5 to 6, preserving credentials and history; unsupported or already-target
+authorities refuse without reset.
 These exact commands use native authority instead of the ambient legacy grant.
 These owner commands refuse invocation through MCP tools. Help remains a read.
 None replaces existing credentials or resets storage. Revoke sessions through the owning authority workflow; retain authority

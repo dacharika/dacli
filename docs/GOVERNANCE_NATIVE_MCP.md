@@ -60,8 +60,8 @@ are required; other platforms fail closed. Protect parent directories against
 other local writers. These checks are cooperative hygiene, not hostile-user
 confinement. If issuance is interrupted or a private file write fails, preserve
 all authority and private files for owner reconciliation; never retry by resetting
-storage. The commands do not silently migrate old schemas: use the existing
-explicit owner migration contract before opening an older authority.
+storage. The commands do not silently migrate old schemas. Use the exact owner migration
+below before opening a schema-5 authority with the current binary.
 
 Enrollment writes this connection shape (the secret stays in a separate file):
 
@@ -76,6 +76,28 @@ Enrollment writes this connection shape (the secret stays in a separate file):
   "credential_file": "/absolute/private/session.token"
 }
 ```
+
+## Explicit schema-5-to-6 upgrade
+
+For an existing schema-5 profile, preserve the owner configuration, authority,
+connection and credential files. Run this local owner command once:
+
+```sh
+dacli native upgrade --config /absolute/private/owner.json
+```
+
+It authenticates the explicit private owner credential and migrates exactly
+schema 5 to 6 through `Authority.UpgradePublication`. Existing sessions,
+attempts, leases, revisions, evidence, reviews and credential files survive.
+Restart the native MCP process using the same connection and credential.
+An already-schema-6, unsupported or malformed authority refuses with exit 3 and
+preserves authority bytes. Missing or forged owner files also refuse. Preserve
+storage for owner reconciliation; never bootstrap, reset or downgrade it as a
+retry. Older schema-5 binaries cannot write the upgraded authority.
+This command has no token arguments, is excluded from both MCP surfaces, and
+never takes migration authority from `DACLI_AGENT`. Older source schemas need
+their separately documented owner API migrations; this command is not a generic
+version selector or an automatic startup upgrade.
 
 ## Owner recovery and revocation
 
