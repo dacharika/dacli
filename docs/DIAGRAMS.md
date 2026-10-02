@@ -25,7 +25,7 @@ graph TD
         collab & insight & teamops & shortcuts & queues
         execution & stagegate & ghmirror & skillforge & vcs
         selfreport & acceptance & ship & catalog & orchestration & dashboard
-		reconciliation & cleanup & journal & slices & releasetrain
+		reconciliation & cleanup & journal & slices & releasetrain & nativegovernance
     end
 
     subgraph ENT["entities — domain objects, I/O assembly service, and serialized state transitions"]

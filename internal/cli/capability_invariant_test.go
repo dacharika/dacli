@@ -205,6 +205,9 @@ func TestEveryCommandDeclaresItsCapability(t *testing.T) {
 		// may create/merge a PR or delete its landed source branch. Authority
 		// changes are themselves durable project-policy writes.
 		"release train": true, "release train authority": true,
+		// Native provisioning validates private owner files instead of ambient
+		// legacy grants; dispatcher tests cover both authority boundaries.
+		"native bootstrap": true, "native enroll": true,
 	}
 
 	for i := range commands {
