@@ -12,8 +12,8 @@ import (
 const TaskWorktreeBaseSchema = "task-worktree-base/v1"
 
 // TaskWorktreeBase is the exact observed commit used to create or refresh a
-// task worktree. Source distinguishes a fresh remote observation from a local
-// fallback in repositories that intentionally have no origin.
+// task worktree. Source distinguishes explicit local landing, a fresh remote
+// observation, and a local fallback in repositories with no origin.
 type TaskWorktreeBase struct {
 	Schema     string `json:"schema"`
 	TaskID     string `json:"task_id"`
@@ -26,8 +26,9 @@ type TaskWorktreeBase struct {
 }
 
 // ResolveTaskWorktreeBase observes the task project's effective landing base.
-// If origin exists, observation is fresh and failure is final: silently using
-// a stale local ref would contaminate the new branch with unrelated history.
+// Explicit local landing uses its local branch, including unpublished landed
+// commits. PR and legacy policies freshly observe origin when it exists;
+// silently falling back after a failed observation would use stale history.
 func ResolveTaskWorktreeBase(w *workspace.Workspace, task *Task) (TaskWorktreeBase, error) {
 	project, err := LoadProject(w, task.Project)
 	if err != nil {
@@ -46,6 +47,19 @@ func ResolveTaskWorktreeBase(w *workspace.Workspace, task *Task) (TaskWorktreeBa
 		return TaskWorktreeBase{}, fmt.Errorf("cannot resolve a landing base for task %s", task.ID)
 	}
 	base := TaskWorktreeBase{Schema: TaskWorktreeBaseSchema, TaskID: task.ID, Project: task.Project, Branch: branch, Configured: configured}
+	// ResolveLanding defaults legacy projects to local for other consumers.
+	// Here only explicitly configured local authority changes the historical
+	// fresh-origin behavior; an absent mode must retain that compatibility.
+	if project.Landing.Mode == model.LandingLocal {
+		base.Ref = "refs/heads/" + branch
+		base.Source = "local-landing"
+		base.Commit, err = gitx.Run(w.Root, "rev-parse", "--verify", base.Ref+"^{commit}")
+		if err != nil {
+			return TaskWorktreeBase{}, fmt.Errorf("resolve local landing base %s: %w", branch, err)
+		}
+		base.Commit = strings.TrimSpace(base.Commit)
+		return base, nil
+	}
 
 	remotes, err := gitx.Run(w.Root, "remote")
 	if err != nil {
