@@ -10,10 +10,10 @@ import (
 
 // TaskBinding is an owner-attested reference, never a task status authority.
 type TaskBinding struct {
-	TaskID     string
-	ProjectID  string
-	Repository string
-	Ready      bool
+	TaskID           string
+	ProjectID        string
+	Repository       string
+	AdmissionEnabled bool
 }
 
 type AttemptRequest struct {
@@ -53,7 +53,7 @@ func validID(id string) bool {
 }
 
 // BindTask requires owner credentials. Existing references are immutable except
-// readiness, so a task cannot silently change repository or project identity.
+// admission policy, so a task cannot silently change repository or project identity.
 func (a *Authority) BindTask(owner string, b TaskBinding) error {
 	if !validID(b.TaskID) || !validID(b.ProjectID) || !filepath.IsAbs(b.Repository) {
 		return ErrDenied
@@ -80,6 +80,25 @@ func (a *Authority) RegisterAttempt(token, sessionID string, req AttemptRequest)
 	if !validID(req.RequestID) || !validID(req.TaskID) || len(req.HostLabel) > 256 {
 		return Attempt{}, ErrDenied
 	}
+	// Refuse unauthenticated observation requests before invoking even bounded
+	// local Git. This preflight is not a reusable authorization snapshot: the
+	// persistence transaction below reauthenticates and rechecks every binding.
+	if err := a.transaction(false, false, func(s *state) error {
+		r, err := authenticate(s, token, sessionID, time.Now())
+		if err != nil {
+			return err
+		}
+		if !subset([]string{"attempt.register"}, r.Scope.Actions) || !subset([]string{"task:" + req.TaskID}, r.Scope.Resources) {
+			return ErrDenied
+		}
+		b, ok := s.Tasks[req.TaskID]
+		if !ok || !b.AdmissionEnabled {
+			return ErrDenied
+		}
+		return nil
+	}); err != nil {
+		return Attempt{}, err
+	}
 	obs, err := checkout.Observe(req.Checkout)
 	if err != nil {
 		return Attempt{}, ErrDenied
@@ -94,7 +113,7 @@ func (a *Authority) RegisterAttempt(token, sessionID string, req AttemptRequest)
 			return ErrDenied
 		}
 		b, ok := s.Tasks[req.TaskID]
-		if !ok || !b.Ready || b.Repository != obs.Repository {
+		if !ok || !b.AdmissionEnabled || b.Repository != obs.Repository {
 			return ErrDenied
 		}
 		if s.Attempts == nil {

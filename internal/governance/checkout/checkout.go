@@ -37,6 +37,7 @@ func Observe(locator string) (Observation, error) {
 	defer cancel()
 	run := func(args ...string) (string, error) {
 		cmd := exec.CommandContext(ctx, "git", append([]string{"--no-optional-locks", "-c", "core.fsmonitor=false", "-C", root}, args...)...)
+		cmd.WaitDelay = 250 * time.Millisecond
 		for _, e := range os.Environ() {
 			if !strings.HasPrefix(e, "GIT_") {
 				cmd.Env = append(cmd.Env, e)
@@ -73,6 +74,29 @@ func Observe(locator string) (Observation, error) {
 	tree, err := run("rev-parse", "--verify", "HEAD^{tree}")
 	if err != nil {
 		return Observation{}, ErrInvalid
+	}
+	// Status may invoke clean/process filters, including included and worktree
+	// configuration. Refuse these repositories before inspecting worktree bytes.
+	keys, err := run("config", "--null", "--name-only", "--list")
+	if err != nil {
+		return Observation{}, ErrInvalid
+	}
+	for _, key := range strings.Split(keys, "\x00") {
+		key = strings.ToLower(key)
+		if strings.HasPrefix(key, "filter.") && (strings.HasSuffix(key, ".clean") || strings.HasSuffix(key, ".process")) {
+			return Observation{}, ErrInvalid
+		}
+	}
+	// A nested repository has its own executable configuration. Initial support
+	// excludes gitlinks rather than recursing into an uninspected submodule.
+	entries, err := run("ls-files", "--stage")
+	if err != nil {
+		return Observation{}, ErrInvalid
+	}
+	for _, entry := range strings.Split(entries, "\n") {
+		if strings.HasPrefix(entry, "160000 ") {
+			return Observation{}, ErrInvalid
+		}
 	}
 	dirty, err := run("status", "--porcelain=v1", "--untracked-files=all", "--ignore-submodules=none")
 	if err != nil || dirty != "" {
