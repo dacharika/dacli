@@ -9,17 +9,32 @@ import (
 	"github.com/mlnomadpy/dacli/internal/agentid"
 	"github.com/mlnomadpy/dacli/internal/clikit"
 	"github.com/mlnomadpy/dacli/internal/governance/contracts"
+	"github.com/mlnomadpy/dacli/internal/governance/sessions"
 	"github.com/mlnomadpy/dacli/internal/model"
 	"github.com/mlnomadpy/dacli/internal/workspace"
 )
 
 // RequestContext is a validated read binding. Its private fields prevent callers
-// from constructing an unchecked binding. Neither constructor authenticates a
-// credential: adapters must supply a principal they have already resolved.
+// from constructing an unchecked binding. It contains no bearer credential.
 type RequestContext struct {
 	workspace workspace.Workspace
 	principal string
 	session   string
+}
+
+// NewNativeContext authenticates a native session credential for this read request.
+// It proves session identity only, not human, host, or subagent identity. Adapters
+// must call it afresh for each request; contexts are not revocation-aware caches.
+func NewNativeContext(w *workspace.Workspace, authority *sessions.Authority, credential, session string) (RequestContext, error) {
+	if w == nil || w.ID == "" || !filepath.IsAbs(w.Root) {
+		return RequestContext{}, clikit.Refusedf("native read authority denied")
+	}
+	s, err := authority.Authorize(credential, session, w.ID, "read", "workspace:"+w.ID)
+	if err != nil {
+		// Authority errors and caller inputs never enter transport diagnostics.
+		return RequestContext{}, clikit.Refusedf("native read authority denied")
+	}
+	return bind(w, s.ID, s.ID)
 }
 
 // NewRequestContext validates a governance snapshot and binds the resolved human

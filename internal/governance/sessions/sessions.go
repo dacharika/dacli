@@ -293,6 +293,28 @@ func (a *Authority) Authenticate(token, id string) (Session, error) {
 	return result, err
 }
 
+// Authorize authenticates and checks exact action/resource scope against current
+// durable authority in one read transaction. Workspace is the selected resource
+// binding, not a caller assertion of identity. No wildcard matching is implied.
+func (a *Authority) Authorize(token, id, workspace, action, resource string) (Session, error) {
+	if a == nil || workspace == "" || a.binding.Workspace != workspace || action == "" || resource == "" {
+		return Session{}, ErrDenied
+	}
+	var result Session
+	err := a.transaction(false, false, func(s *state) error {
+		r, err := authenticate(s, token, id, time.Now())
+		if err != nil {
+			return err
+		}
+		if !subset([]string{action}, r.Scope.Actions) || !subset([]string{resource}, r.Scope.Resources) {
+			return ErrDenied
+		}
+		result = r.Session
+		return nil
+	})
+	return result, err
+}
+
 // Revoke requires the owner credential; all descendants become invalid immediately.
 func (a *Authority) Revoke(owner, id string) error {
 	return a.transaction(false, true, func(s *state) error {

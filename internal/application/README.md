@@ -38,3 +38,21 @@ compatibility there, and add a regression that rejects unchecked/wrong-workspace
 contexts. `TestApplicationDependencies` guards the package boundary;
 `TestMCPReadServiceParity` exercises both front ends. Mutation evidence must show
 the relevant guard failing before acceptance.
+
+`NewNativeContext` is the explicit native credential boundary. Supply a trusted
+`sessions.Authority`, the selected workspace, session ID and bearer credential
+out of band (never transport argv). It reloads current durable authority and
+requires an exact `read` action and `workspace:<selected workspace ID>` resource;
+wildcards and task-only resources do not authorize workspace-wide reads. Missing,
+invalid, expired, revoked, wrong-workspace or insufficient-scope credentials yield
+redacted policy refusals (exit 3). The authority also verifies installation
+binding against its durable state. No credential is retained in the context.
+
+This authenticates possession of a scoped DACLI session credential. The bound
+principal is the authenticated session ID; it does not establish authenticated
+human, host, or native subagent identity, and self-asserted labels are not
+credentials. Authenticate afresh with `NewNativeContext` for every request.
+Previously constructed contexts are snapshots and cannot certify ongoing
+revocation enforcement or mutation policy. The snapshot and cooperative
+constructors above remain legacy adapter boundaries with their existing trust
+requirements; they do not provide native credential authentication.
