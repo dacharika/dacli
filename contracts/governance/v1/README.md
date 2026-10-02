@@ -34,3 +34,27 @@ Enforcement modes (cooperative, guarded, authority-enforced, unsupported) are
 independent of assurance. Cancellation support is best-effort or unsupported.
 Revocation records invalidate future decisions without deleting history; live
 writes require transactional checks outside this structural snapshot validator.
+
+Authorization `action_digest` is required. Its SHA-256 input is the following
+ordered string descriptor (not JSON): domain `dacli-governance-action/v1`,
+authorization schema, workspace, authorization ID, human ID, action, target ID,
+resolved target environment, artifact ID, resolved artifact revision, resolved
+artifact digest, authorization revision, policy revision, issuance, expiry.
+Encode each string as its UTF-8 byte length in unsigned decimal without leading
+zeros, then `:`, then the exact bytes; concatenate without separators or BOM.
+Times are normalized to UTC RFC3339Nano (Go's shortest fractional-second form,
+with `Z`). Prefix the lowercase hexadecimal SHA-256 result with `sha256:`.
+Do not include `action_digest` itself. IDs are compared exactly; no Unicode or
+whitespace normalization is performed. `AuthorizationActionDigest` implements
+this encoding; the golden test pins its output against the fixture.
+
+The atomic single-use consumption identity is the pair `(workspace,
+authorization ID)`, not the digest and not the deployment decision ID. One
+snapshot cannot attach that authorization to two distinct deployment decisions.
+A live store must reserve/consume that pair transactionally with the deployment
+reservation and retain its replay record across retries, restarts and expiry.
+Replaying the same decision is a store-level idempotent lookup of the original
+result, not a second action. Snapshot validation cannot detect consumption in an
+omitted historical record. Changing an authorization's ID and recomputing its
+digest does not create human approval: authentication and approval verification
+remain mandatory; this unkeyed digest proves only metadata consistency.

@@ -138,3 +138,15 @@ must follow the request, and consumers must authenticate the observation before
 claiming cessation. Revocation and fencing remain mandatory even if host
 cancellation fails or is unsupported. Process killing is not a substitute for
 revoking authority.
+
+Authorization action descriptors use the canonical length-prefixed UTF-8
+encoding and SHA-256 algorithm specified in `contracts/governance/v1/README.md`.
+They bind the exact target environment, artifact digest, revision, policy,
+human, authorization identity and validity interval. Validation recomputes the
+digest against resolved records rather than trusting a caller's label.
+The consumption key is `(workspace, authorization ID)`. Distinct deployment
+decisions cannot reuse it within a snapshot; live services must enforce its
+single use transactionally across all history, including after expiry or
+restart. A retry of the same decision returns its recorded result and cannot
+execute again. Neither possession of the ID nor a matching unkeyed action digest
+proves approval, identity, delegation or authenticity.

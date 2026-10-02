@@ -3,6 +3,7 @@ package contracts
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -84,6 +85,7 @@ type Artifact struct {
 }
 type Authorization struct {
 	Record
+	ActionDigest   string    `json:"action_digest"`
 	Human          string    `json:"human"`
 	Action         string    `json:"action"`
 	Target         string    `json:"target"`
@@ -383,10 +385,13 @@ func (b Bundle) Validate() error {
 			return err
 		}
 		_, humanOK := humans[x.Human]
-		_, targetOK := targets[x.Target]
+		target, targetOK := targets[x.Target]
 		artifact, artifactOK := artifacts[x.Artifact]
 		if !humanOK || !targetOK || !artifactOK || x.Action != "deployment" || x.Revision != artifact.Revision || !required(x.PolicyRevision) || x.IssuedAt.IsZero() || !x.ExpiresAt.After(x.IssuedAt) {
 			return fmt.Errorf("invalid human authorization")
+		}
+		if x.ActionDigest != AuthorizationActionDigest(x, target, artifact) {
+			return fmt.Errorf("invalid authorization action digest")
 		}
 		auths[x.ID] = x
 	}
@@ -417,6 +422,7 @@ func (b Bundle) Validate() error {
 		}
 		decisions[d.ID] = d
 	}
+	consumed := map[string]bool{} // Workspace is already fixed by Bundle.Validate.
 	previousAction := map[string]string{"acceptance": "completion", "merge": "acceptance", "deployment": "merge"}
 	for _, d := range b.Decisions {
 		a, ok := attempts[d.Attempt]
@@ -446,6 +452,10 @@ func (b Bundle) Validate() error {
 			if !ok || !artifactOK || auth.Human != d.Human || auth.Action != d.Action || auth.Target != d.Target || auth.Artifact != d.Artifact || auth.Revision != d.Revision || artifact.Revision != d.Revision || auth.PolicyRevision != d.PolicyRevision || d.DecidedAt.Before(auth.IssuedAt) || !d.DecidedAt.Before(auth.ExpiresAt) {
 				return fmt.Errorf("%s: invalid deployment authorization binding", d.ID)
 			}
+			if consumed[d.Authorization] {
+				return fmt.Errorf("authorization reused by distinct deployment decisions")
+			}
+			consumed[d.Authorization] = true
 		} else if required(d.Target) || required(d.Artifact) || required(d.Authorization) {
 			return fmt.Errorf("unexpected deployment binding")
 		}
@@ -522,4 +532,21 @@ func (b Bundle) ValidateWrite(leaseID string, epoch, fence uint64, now time.Time
 		return nil
 	}
 	return fmt.Errorf("unknown write lease")
+}
+
+// AuthorizationActionDigest binds an authorization to its exact action metadata.
+// The descriptor is an ordered series of UTF-8 strings, each encoded as its
+// decimal byte length, a colon, and its bytes. Timestamps use UTC RFC3339Nano.
+// This digest is not a signature and never authenticates the named human.
+func AuthorizationActionDigest(a Authorization, target DeploymentTarget, artifact Artifact) string {
+	fields := []string{"dacli-governance-action/v1", a.Schema, a.Workspace, a.ID,
+		a.Human, a.Action, a.Target, target.Environment, a.Artifact, artifact.Revision,
+		artifact.Digest, a.Revision, a.PolicyRevision,
+		a.IssuedAt.UTC().Format(time.RFC3339Nano), a.ExpiresAt.UTC().Format(time.RFC3339Nano)}
+	var descriptor strings.Builder
+	for _, field := range fields {
+		fmt.Fprintf(&descriptor, "%d:", len(field))
+		descriptor.WriteString(field)
+	}
+	return fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(descriptor.String())))
 }

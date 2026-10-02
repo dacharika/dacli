@@ -225,7 +225,8 @@
       "revision": "git:0123456789abcdef",
       "policy_revision": "policy:1",
       "issued_at": "2026-10-02T00:00:00Z",
-      "expires_at": "2026-10-02T00:04:00Z"
+      "expires_at": "2026-10-02T00:04:00Z",
+      "action_digest": "sha256:fecf9f3e3f1d69414ba86aab3877f1bd0045f2a26db412f7496b91bda61fbc92"
     }
   ]
 }

@@ -115,6 +115,7 @@ func TestCorrectionFixtures(t *testing.T) {
 		})
 	}
 	for name, want := range map[string]string{
+		"authorization-digest-mismatch": "invalid authorization action digest", "authorization-reuse": "authorization reused",
 		"missing-enforcement": "invalid capability action", "unsupported-action": "unsupported action enforcement", "missing-authorization": "invalid deployment authorization binding", "authorization-target": "invalid deployment authorization binding", "authorization-artifact": "invalid deployment authorization binding", "authorization-policy": "invalid deployment authorization binding", "authorization-revision": "invalid human authorization", "authorization-expired": "invalid deployment authorization binding", "revoked-session": "revoked session", "invalid-cancellation": "invalid cancellation observation", "missing-version": "incompatible schema",
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -163,5 +164,28 @@ func TestFencedWriteRevocationPreservesHistory(t *testing.T) {
 	}
 	if err := b.ValidateWrite("missing", 1, 7, before); err == nil {
 		t.Fatal("accepted unknown lease")
+	}
+}
+
+func TestAuthorizationActionDigestBindings(t *testing.T) {
+	b := valid(t)
+	const want = "sha256:06ed8f2672eef46e3e78e22d7e6f610d2801e74af35865005e3c50f9c4dbbeba"
+	if got := AuthorizationActionDigest(b.Authorizations[0], b.Targets[0], b.Artifacts[0]); got != want {
+		t.Fatalf("canonical descriptor changed: got %s, want %s", got, want)
+	}
+	for name, mutate := range map[string]func(*Bundle){
+		"missing-digest":     func(b *Bundle) { b.Authorizations[0].ActionDigest = "" },
+		"target-environment": func(b *Bundle) { b.Targets[0].Environment += "-other" },
+		"artifact-bytes":     func(b *Bundle) { b.Artifacts[0].Digest = "sha256:" + strings.Repeat("b", 64) },
+		"policy":             func(b *Bundle) { b.Authorizations[0].PolicyRevision += "-other" },
+		"expiry":             func(b *Bundle) { b.Authorizations[0].ExpiresAt = b.Authorizations[0].ExpiresAt.Add(1) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			b := valid(t)
+			mutate(b)
+			if err := b.Validate(); err == nil || !strings.Contains(err.Error(), "authorization action digest") {
+				t.Fatalf("want action digest mismatch, got %v", err)
+			}
+		})
 	}
 }
