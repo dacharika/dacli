@@ -16,9 +16,11 @@ import (
 	"github.com/mlnomadpy/dacli/internal/governance/checkout"
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
 	"github.com/mlnomadpy/dacli/internal/store"
+	"github.com/mlnomadpy/dacli/internal/workspace"
 )
 
 type nativeFixture struct {
+	workspace                             *workspace.Workspace
 	authority                             *sessions.Authority
 	path, owner, workerToken, runnerToken string
 	worker, runner                        sessions.Session
@@ -112,7 +114,7 @@ func nativeSetup(t *testing.T, command string) nativeFixture {
 		t.Fatal(err)
 	}
 	req := NativeVerificationRequest{OperationKey: "verify", WorkerSession: worker.ID, AttemptID: at.ID, LeaseID: lease.ID, RevisionID: revision.ID, CheckID: check.ID, ExpectedFence: lease.Fence}
-	return nativeFixture{a, path, owner, workerToken, runnerToken, worker, runner, at, lease, revision, check, grant, req, executor}
+	return nativeFixture{w, a, path, owner, workerToken, runnerToken, worker, runner, at, lease, revision, check, grant, req, executor}
 }
 func TestNativeVerificationExecutesConfiguredCheckAndRestartRetry(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "count")

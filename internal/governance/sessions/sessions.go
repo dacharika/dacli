@@ -47,26 +47,29 @@ type record struct {
 	Hash string
 }
 type state struct {
-	Version    int
-	Binding    Binding
-	OwnerHash  string
-	Sessions   map[string]record
-	Tasks      map[string]TaskBinding
-	Attempts   map[string]Attempt
-	Leases     map[string]Lease
-	Operations map[string]operation
-	Fence      uint64
-	Revisions  map[string][]AttemptRevision
-	Grants     map[string]VerificationGrant
-	Evidence   map[string]Evidence
+	Version      int
+	Binding      Binding
+	OwnerHash    string
+	Sessions     map[string]record
+	Tasks        map[string]TaskBinding
+	Attempts     map[string]Attempt
+	Leases       map[string]Lease
+	Operations   map[string]operation
+	Fence        uint64
+	Revisions    map[string][]AttemptRevision
+	Grants       map[string]VerificationGrant
+	Evidence     map[string]Evidence
+	ReviewGrants map[string]ReviewGrant
+	Reviews      map[string]Review
 }
 
 // Authority contains no cached authority snapshot; each operation reloads under lock.
 type Authority struct {
-	path      string
-	binding   Binding
-	version   int
-	admission LeaseAdmission
+	path           string
+	binding        Binding
+	version        int
+	admission      LeaseAdmission
+	reviewObserver ReviewObserver
 }
 
 func Open(path string, binding Binding, admission ...LeaseAdmission) (*Authority, error) {
@@ -82,7 +85,7 @@ func Open(path string, binding Binding, admission ...LeaseAdmission) (*Authority
 	if err := regularOrAbsent(path); err != nil {
 		return nil, err
 	}
-	a := &Authority{path: path, binding: binding, version: 4}
+	a := &Authority{path: path, binding: binding, version: 5}
 	if len(admission) > 1 {
 		return nil, ErrDenied
 	}
@@ -167,7 +170,7 @@ func (a *Authority) transaction(create bool, write bool, fn func(*state) error) 
 	if err := regularOrAbsent(a.path); err != nil {
 		return err
 	}
-	s := state{Revisions: map[string][]AttemptRevision{}, Grants: map[string]VerificationGrant{}, Evidence: map[string]Evidence{}, Leases: map[string]Lease{}, Operations: map[string]operation{}, Version: a.version, Tasks: map[string]TaskBinding{}, Attempts: map[string]Attempt{}, Binding: a.binding, Sessions: map[string]record{}}
+	s := state{ReviewGrants: map[string]ReviewGrant{}, Reviews: map[string]Review{}, Revisions: map[string][]AttemptRevision{}, Grants: map[string]VerificationGrant{}, Evidence: map[string]Evidence{}, Leases: map[string]Lease{}, Operations: map[string]operation{}, Version: a.version, Tasks: map[string]TaskBinding{}, Attempts: map[string]Attempt{}, Binding: a.binding, Sessions: map[string]record{}}
 	data, err := os.ReadFile(a.path)
 	if create {
 		if !os.IsNotExist(err) {
@@ -175,7 +178,7 @@ func (a *Authority) transaction(create bool, write bool, fn func(*state) error) 
 		}
 	} else {
 		s = state{}
-		if err != nil || json.Unmarshal(data, &s) != nil || s.Version != a.version || s.Binding != a.binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version >= 3 && (s.Leases == nil || s.Operations == nil)) || (s.Version >= 4 && (s.Revisions == nil || s.Grants == nil || s.Evidence == nil)) {
+		if err != nil || json.Unmarshal(data, &s) != nil || s.Version != a.version || s.Binding != a.binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version >= 3 && (s.Leases == nil || s.Operations == nil)) || (s.Version >= 4 && (s.Revisions == nil || s.Grants == nil || s.Evidence == nil)) || (s.Version >= 5 && (s.ReviewGrants == nil || s.Reviews == nil)) {
 			return ErrStorage
 		}
 	}

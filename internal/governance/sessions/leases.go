@@ -58,6 +58,7 @@ type Lease struct {
 type operation struct {
 	Digest       string
 	Receipt      Lease
+	Review       *Review          `json:",omitempty"`
 	Revision     *AttemptRevision `json:",omitempty"`
 	Evidence     *Evidence        `json:",omitempty"`
 	ResultDigest string           `json:",omitempty"`
@@ -72,8 +73,9 @@ func (a *Authority) UpgradeLeases(owner string) error {
 		if len(owner) != 64 || hash(owner) != s.OwnerHash {
 			return ErrDenied
 		}
-		s.Version = 4
+		s.Version = 5
 		initializeEvidence(s)
+		initializeReviews(s)
 		s.Leases = map[string]Lease{}
 		s.Operations = map[string]operation{}
 		s.Fence = 0
