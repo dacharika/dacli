@@ -1,7 +1,7 @@
 {
   "name": "dacli-governance",
-  "version": "0.1.0",
-  "description": "Credential-bound local workspace tools and native agent governance workflow guidance.",
+  "version": "0.2.0",
+  "description": "Scoped native governance sessions for task attempts, leases and revision evidence.",
   "author": {
     "name": "Taha Bouhsine"
   },
@@ -12,7 +12,7 @@
   "interface": {
     "displayName": "dacli Governance Preview",
     "shortDescription": "Coordinate governed work",
-    "longDescription": "Native host workflow guidance and credential-bound local workspace tools. Cooperative preview; native governance session enrollment is not yet connected.",
+    "longDescription": "Owner-enrolled native session tools for tasks, external checkout attempts, leases and revision-bound self-reports. Cooperative local preview; shared MCP connections share one session identity.",
     "developerName": "Taha Bouhsine",
     "category": "Productivity",
     "capabilities": [

@@ -1,39 +1,41 @@
 ---
 name: governance-workflow
-description: Inspect a dacli workspace, coordinate task claims and evidence, and distinguish cooperative workspace tools from enforced native governance when working in Codex or another agent host.
+description: Use owner-enrolled native dacli sessions to inspect canonical tasks, register external checkout attempts, acquire leases and publish revision-bound self-reports through Codex.
 ---
 
-Use the host's own coding and collaboration tools. dacli is the workspace record
-and governance layer; this workflow does not require `dacli spawn` or parsing
-agent transcripts.
+Use the host's native coding and collaboration tools. Do not launch a nested
+Codex CLI or use `dacli spawn` to establish identity.
 
-1. Call the plugin's `whoami` with `schema_version: 1`. Confirm the returned
-   identity and grant before using any mutation. Missing/invalid credentials
-   are a refusal; do not use `--operator`, unset identity, or edit audit files
-   to bypass it. If the server is unavailable, report setup as incomplete.
-2. Call `status` and `get_context` with the schema version advertised by
-   `tools/list`. Read the repository's CONTRIBUTING.md and AGENTS.md. Inspect
-   existing tasks before proposing more; use explicit, observable acceptance
-   criteria. Follow task and path ownership boundaries.
-3. Work through native host tools. Use separate owner-provisioned credentials
-   and separate MCP server instances for independently acting sessions. Native
-   children sharing this server share its credential; host agent/session labels
-   do not provide authenticated dacli identity. Do not claim they do.
-4. Record decisions, findings and verification accurately. A read-only grant
-   proposes events for the owner to materialize. A task checklist or an agent's
-   narrative is not independently verified execution. Name actual commands,
-   results and remaining uncertainty. Never approve your own review or claim
-   revision-bound acceptance without the required authority and evidence.
-5. Policy refusals (exit 3) are final for an unchanged request. Follow the
-   stated recovery path. Leave final acceptance and publication to the owner
-   or an explicitly authorized process.
+1. Call `identity` with `schema_version: 1`. Confirm the enrolled session and
+   scope. Missing, expired or revoked credentials are a refusal. Ask the owner
+   to provision the explicit private native profile; never fall back to
+   `DACLI_AGENT`, `--operator`, a legacy MCP server or audit-file edits.
+2. Read `workspace_status`, `task_list` and `task_get` using their advertised
+   schemas. Read CONTRIBUTING.md and AGENTS.md with native host tools. Canonical
+   task records determine readiness; session labels and narratives do not.
+3. Create or select a clean real Git checkout with native host tools, then call
+   `register_attempt` with its absolute path and the canonical task ID. Call
+   `acquire_lease` for the exact permitted resources before working. Preserve
+   the returned attempt ID, lease ID and fence; renew with `renew_lease` before
+   expiry. Historical receipts alone never authorize later work.
+4. Make and commit changes through the authorized host workflow. Call
+   `publish_revision` only for a clean committed checkout under a current lease.
+   `submit_evidence` records an authenticated session's **self-report** bound to
+   that revision. It does not turn a claimed exit code into trusted runner or
+   CI evidence. Use unique operation keys and exact expected revision/fence.
+5. Release with `release_lease` when done. Leave trusted verification enrollment,
+   independent review and final acceptance to their separately authorized
+   workflows. These authority-granting operations are not plugin tools.
 
-This 0.1.0 preview connects the EXISTING cooperative workspace MCP surface.
-Native scoped session enrollment, revision/lease/evidence tools, independent
-review and atomic acceptance consumption are not exposed by this package yet.
-Do not substitute a legacy agent token for the native authority credential.
-Hooks are not bundled. With hooks disabled or unavailable, assurance remains
-cooperative/advisory. Even enabled hooks are not a proven universal enforcement
-boundary. Direct filesystem/shell actions can bypass the workspace MCP gates.
-If a request needs unavailable guarantees, report it as unsupported and stop
-that dependent action; keep independent authorized work moving.
+Use `tools/list` for exact required fields, including `schema_version: 1` and
+mutation `request` records. Policy refusals are final for unchanged requests.
+Report uncertainty and recovery needs instead of substituting a CLI escape.
+
+This 0.2.0 package exposes cooperative native session governance. All agents
+sharing one MCP process share its enrolled identity; host labels, `_meta` and
+thread/subagent IDs do not authenticate separate children or independent
+reviewers. Independent sessions need separately provisioned credentials and
+MCP processes. No hooks or containment guarantees are supplied. Direct host
+filesystem/shell actions can bypass cooperative gates. Self-reports, successful
+lease calls and plugin installation do not constitute acceptance or deployment
+authorization.

@@ -6,7 +6,7 @@ import zipfile
 
 FILES = ('plugin.json', 'mcp.json', '.mcp.json', '.codex-plugin/plugin.json',
          'LICENSE', 'README.md', 'skills/governance-workflow/SKILL.md', 'scripts/serve.py',
-         'receipts/install-0.159.2.json')
+         'receipts/native-install-0.159.2.json')
 
 
 def build(output, root=None):
@@ -17,7 +17,7 @@ def build(output, root=None):
     payloads = []
     for name in FILES:
         path = root / name
-        if path.is_symlink() or not path.is_file():
+        if any(part.is_symlink() for part in (path, *path.parents) if part != root and root in part.parents) or not path.is_file():
             raise ValueError('package requires regular file: ' + name)
         payloads.append((name, path.read_bytes()))
     # Read/validate before opening output, so a missing source cannot leave a

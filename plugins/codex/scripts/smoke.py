@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Install and exercise the plugin in a disposable home; no model or user auth.
-
-Only a deliberately minted test fixture credential is used. No native governance
-session enrollment is claimed. Codex app-server performs actual MCP discovery
-and a harmless whoami call on the installed package.
-"""
+"""Exercise real native governance through an isolated Codex app-server; no model turn."""
 import argparse
 import hashlib
 import json
@@ -17,7 +12,7 @@ import tempfile
 import threading
 import time
 
-from package import build
+from package import FILES, build
 
 
 def command(argv, cwd, env, decode=True):
@@ -25,6 +20,14 @@ def command(argv, cwd, env, decode=True):
     if p.returncode:
         raise RuntimeError('command failed: ' + ' '.join(argv[:3]))
     return json.loads(p.stdout) if decode else None
+
+
+class HostRPCError(RuntimeError):
+    def __init__(self, method, error):
+        super().__init__('host refused ' + method)
+        # Match the actual native protocol refusal forwarded by Codex. A
+        # transport failure or host approval denial is not revocation evidence.
+        self.native_refusal = error.get('code') == -32003 and error.get('message') == 'native session authority denied'
 
 
 class Host:
@@ -59,7 +62,7 @@ class Host:
             result = self.messages.get(timeout=max(0, deadline - time.monotonic()))
             if result.get('id') == self.next_id:
                 if 'error' in result:
-                    raise RuntimeError('host refused ' + method)
+                    raise HostRPCError(method, result['error'])
                 return result['result']
 
     def close(self):
@@ -75,22 +78,38 @@ class Host:
 
 
 def smoke(codex, dacli):
-    version = subprocess.check_output([codex, '--version'], text=True, timeout=10).strip()
-    with tempfile.TemporaryDirectory(prefix='dacli-plugin-smoke-') as tmp:
+    from datetime import datetime, timedelta, timezone
+    import zipfile
+    with tempfile.TemporaryDirectory(prefix='dacli-plugin-native-') as tmp:
         base = Path(tmp).resolve(); home = base / 'os-home'; home.mkdir()
         codex_home = base / 'codex-home'; codex_home.mkdir()
         workspace = base / 'workspace'; workspace.mkdir()
-        # No user config, workspace credentials, model login or MCP servers copied.
+        private = base / 'private'; private.mkdir(mode=0o700)
         env = {k: os.environ[k] for k in ('PATH', 'TMPDIR', 'SystemRoot') if k in os.environ}
-        env.update(HOME=str(home), CODEX_HOME=str(codex_home))
-        command([dacli, 'init', '--name', 'public-plugin-fixture'], workspace, env, decode=False)
-        token = 'dacli-public-fixture-only-credential'
-        agent = workspace / '.dacli/agents/a-plugin-fixture.md'
-        digest = 'sha256:' + hashlib.sha256(token.encode()).hexdigest()
-        agent.write_text('---\nid: a-plugin-fixture\nkind: agent\nrole: fixture-reader\ngrant: ro\ntoken_hash: ' + digest + '\n---\n# Public plugin test fixture\n')
-        credential = base / 'fixture.token'; credential.write_text(token); credential.chmod(0o600)
+        env.update(HOME=str(home), CODEX_HOME=str(codex_home), GIT_CONFIG_NOSYSTEM='1')
+        version = subprocess.check_output([codex, '--version'], env=env, cwd=workspace, stderr=subprocess.DEVNULL, text=True, timeout=10).strip()
+        if version != 'codex-cli 0.159.2':
+            raise RuntimeError('this measured harness requires Codex 0.159.2')
+        def run(args):
+            return command(args, workspace, env, decode=False)
+        def git(*args):
+            run(['git', '-c', 'user.name=Public Fixture', '-c', 'user.email=fixture@example.invalid', *args])
+        git('init', '-b', 'main')
+        run([dacli, 'init', '--name', 'public-native-plugin-fixture'])
+        run([dacli, 'project', 'add', 'Public fixture', '--slug', 'fixture'])
+        run([dacli, 'task', 'add', 'Implement public marker', '--project', 'fixture', '--accept', 'Public marker committed'])
+        (workspace / 'src').mkdir(); (workspace / 'src/marker.txt').write_text('initial public fixture\n')
+        git('add', '.'); git('commit', '-m', 'Public fixture base')
+        owner = private / 'owner.json'
+        owner.write_text(json.dumps({'schema_version':1, 'workspace':str(workspace),
+            'authority':str(private / 'authority.json'), 'installation_id':'public-plugin-fixture',
+            'owner_credential_file':str(private / 'owner.token')})); owner.chmod(0o600)
+        run([dacli, 'native', 'bootstrap', '--config', str(owner)])
+        profile = private / 'session.json'
+        run([dacli, 'native', 'enroll', '--config', str(owner), '--task', 'fixture/001',
+             '--connection', str(profile), '--credential', str(private / 'session.token'), '--path', 'src'])
+        session_id = json.loads(profile.read_text())['session_id']
         archive = build(base / 'package.zip')
-        import zipfile
         with zipfile.ZipFile(archive) as packed:
             packed.extractall(base / 'marketplace')
         market = base / 'marketplace'
@@ -106,45 +125,96 @@ def smoke(codex, dacli):
             assert len(missing) == 1 and missing[0]['toolsError'] and not missing[0]['tools']
         finally:
             server.close()
-        connection = home / '.config/dacli/plugin/connection.json'; connection.parent.mkdir(parents=True)
-        connection.write_text(json.dumps({'workspace': str(workspace), 'binary': dacli, 'credential_file': str(credential)}))
-        connection.chmod(0o600)
+        selection = home / '.config/dacli/plugin/connection.json'; selection.parent.mkdir(parents=True)
+        selection.write_text(json.dumps({'schema_version':1, 'binary':dacli, 'connection_file':str(profile)}))
+        selection.chmod(0o600)
         server = Host(codex, workspace, env)
         try:
             status = server.call('mcpServerStatus/list', {})['data']
-            assert len(status) == 1 and not status[0]['toolsError'], status[0].get('toolsError')
-            tools = sorted(status[0]['tools'])
-            assert 'whoami' in tools and 'get_context' in tools
-            skills = server.call('skills/list', {'cwds': [str(workspace)], 'forceReload': True})
+            assert len(status) == 1 and not status[0]['toolsError'], 'native discovery unavailable'
+            names = sorted(status[0]['tools'])
+            assert installed['version'] == '0.2.0'
+            assert names == sorted(['identity','workspace_status','task_list','task_get','register_attempt',
+                                    'acquire_lease','renew_lease','release_lease','publish_revision','submit_evidence'])
+            skills = server.call('skills/list', {'cwds':[str(workspace)], 'forceReload':True})
             assert 'governance-workflow' in json.dumps(skills)
-            thread = server.call('thread/start', {'cwd': str(workspace), 'ephemeral': True,
-                                                'approvalPolicy': 'never', 'sandbox': 'read-only'})
+            thread = server.call('thread/start', {'cwd':str(workspace), 'ephemeral':True,
+                                                 'approvalPolicy':'never', 'sandbox':'read-only'})
             tid = thread['thread']['id']
-            identity = server.call('mcpServer/tool/call', {'threadId': tid, 'server': status[0]['name'],
-                                                         'tool': 'whoami', 'arguments': {'schema_version': 1}})
-            content = identity.get('content', [])
-            assert not identity.get('isError')
-            assert content == [{'type': 'text', 'text': 'a-plugin-fixture (grant: ro, role: fixture-reader)\n'}], 'fixture identity mismatch'
+            def raw_call(tool, args):
+                return server.call('mcpServer/tool/call', {'threadId':tid, 'server':status[0]['name'],
+                    'tool':tool, 'arguments':dict(schema_version=1, **args)})
+            def call(tool, **args):
+                response = raw_call(tool, args)
+                assert not response.get('isError'), 'native tool refused: ' + tool
+                # Actual app-server versions may relay only the textual content.
+                result = response.get('structuredContent') or json.loads(response['content'][0]['text'])
+                assert result['ok'] and result['assurance'] == 'cooperative-session', 'native result refused: ' + tool
+                return result['data']
+            identity = call('identity'); assert identity['session_id'] == session_id
+            call('workspace_status', project='fixture')
+            tasks = call('task_list', project='fixture', status='open')
+            task = call('task_get', task='fixture/001')
+            task_id = task['task']['id']
+            assert any(t['id'] == task_id for t in tasks['tasks'])
+            attempt = call('register_attempt', request={'RequestID':'public-attempt', 'TaskID':task_id,
+                'Checkout':str(workspace), 'HostLabel':'public-untrusted-label'})
+            expiry = (datetime.now(timezone.utc)+timedelta(minutes=10)).isoformat().replace('+00:00','Z')
+            lease = call('acquire_lease', request={'OperationKey':'public-acquire', 'AttemptID':attempt['ID'],
+                'Resources':[{'Kind':'path','Path':'src'}], 'ExpiresAt':expiry})
+            (workspace / 'src/marker.txt').write_text('committed public native fixture\n')
+            git('add', 'src/marker.txt'); git('commit', '-m', 'Public native fixture revision')
+            revision = call('publish_revision', request={'OperationKey':'public-publish','AttemptID':attempt['ID'],
+                'LeaseID':lease['ID'],'ExpectedFence':lease['Fence'],'ExpectedRevision':0})
+            for key, ref in (('Commit', 'HEAD'), ('Tree', 'HEAD^{tree}')):
+                actual = subprocess.check_output(['git', 'rev-parse', ref], cwd=workspace, env=env, text=True, timeout=10).strip()
+                assert revision['Observation'][key] == actual, 'published revision mismatch'
+            assert revision['Observation']['Commit'] != attempt['Observation']['Commit']
+            evidence = call('submit_evidence', request={'OperationKey':'public-evidence', 'AttemptID':attempt['ID'],
+                'LeaseID':lease['ID'],'ExpectedFence':lease['Fence'],'RevisionID':revision['ID'],
+                'CheckID':'public-marker-check','ExitCode':0,
+                'OutputDigest':'sha256:'+hashlib.sha256(b'public self-report').hexdigest()})
+            assert evidence['Provenance'] == 'self-reported' and not evidence['GrantID']
+            assert evidence['IssuerSession'] == session_id and evidence['Revision']['ID'] == revision['ID']
+            call('release_lease', request={'OperationKey':'public-release', 'AttemptID':attempt['ID'],
+                'LeaseID':lease['ID'], 'ExpectedFence':lease['Fence']})
+            # Real owner command while the same server/thread remain live.
+            run([dacli, 'native', 'revoke', '--config', str(owner), '--session', session_id])
+            revoked = False
+            try:
+                response = raw_call('identity', {})
+                revoked = bool(response.get('isError')) and HostRPCError('identity', response).native_refusal
+            except HostRPCError as error:
+                revoked = error.native_refusal
+            assert revoked, 'exact native revocation refusal was not confirmed'
         finally:
             server.close()
-        # Verify the installed bootstrap directly refuses an empty credential.
-        credential.write_text('')
-        result = subprocess.run(['python3', str(Path(installed['installedPath']) / 'scripts/serve.py')],
-                                env=env, cwd=workspace, capture_output=True, text=True, timeout=10)
-        assert result.returncode == 3 and not result.stdout
-        credential.write_text('unrecognized-public-fixture')
+        profile.rename(private / 'retained-session.json')
+        missing_profile = subprocess.run(['python3', str(Path(installed['installedPath']) / 'scripts/serve.py')],
+            env=env, cwd=workspace, input='', capture_output=True, text=True, timeout=10)
+        assert missing_profile.returncode == 3 and not missing_profile.stdout
+        selection.write_text('{invalid')
         invalid = subprocess.run(['python3', str(Path(installed['installedPath']) / 'scripts/serve.py')],
-                                 env=env, cwd=workspace, input='', capture_output=True, text=True, timeout=10)
+            env=env, cwd=workspace, input='', capture_output=True, text=True, timeout=10)
         assert invalid.returncode == 3 and not invalid.stdout
-        assert 'unrecognized-public-fixture' not in invalid.stderr
-        return {'schema': 'dacli-plugin-smoke/v1', 'host_version': version,
-                'installed_version': installed['version'], 'native_host_tool_discovery': True,
-                'native_host_skill_discovery': True, 'tool_names': tools,
-                'native_host_whoami': {'id': 'a-plugin-fixture', 'grant': 'ro'},
-                'missing_connection_tools_unavailable': True, 'empty_credential_exit': result.returncode,
-                'invalid_credential_exit': invalid.returncode,
-                'fixture_only': True, 'model_turn_requested': False,
-                'native_governance_session_enrollment': False, 'assurance': 'cooperative/advisory'}
+        return {'schema':'dacli-plugin-native-smoke/v1', 'host_version':version,
+            'installed_version':installed['version'],
+            'observed_at':datetime.now(timezone.utc).isoformat(),
+            'dacli_binary_sha256':hashlib.sha256(Path(dacli).read_bytes()).hexdigest(),
+            'plugin_source_sha256':{name:hashlib.sha256((Path(__file__).resolve().parents[1] / name).read_bytes()).hexdigest()
+                                    for name in FILES if not name.startswith('receipts/')},
+            'smoke_script_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            'native_host_tool_discovery':True,
+            'native_host_skill_discovery':True, 'tool_names':names,
+            'native_owner_bootstrap_and_enrollment':True, 'native_identity_matches_enrollment':True,
+            'canonical_task_reads':True, 'external_git_attempt_registered':True,
+            'lease_acquired_and_released':True, 'committed_revision_published':True,
+            'revision_bound_evidence_provenance':evidence['Provenance'],
+            'same_live_host_refuses_after_owner_revocation':True,
+            'missing_connection_tools_unavailable':True, 'missing_native_profile_exit':missing_profile.returncode,
+            'malformed_selection_exit':invalid.returncode,
+            'fixture_only':True,'model_turn_requested':False,'dacli_spawn_used':False,
+            'shared_mcp_connection_shares_session_identity':True,'assurance':'cooperative-session'}
 
 
 if __name__ == '__main__':
