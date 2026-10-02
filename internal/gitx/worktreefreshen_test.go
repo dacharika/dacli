@@ -185,3 +185,84 @@ func TestAddWorktreeWithoutATrunkStillWorks(t *testing.T) {
 		t.Fatal("the worktree is unusable")
 	}
 }
+
+func TestAddWorktreeFromReusesRegisteredCheckoutAtExactBase(t *testing.T) {
+	root, branch, base := staleBranchRepo(t)
+	path := filepath.Join(t.TempDir(), "wt")
+	wtGit(t, root, "worktree", "add", path, branch)
+	wtGit(t, root, "checkout", "-q", "-b", "operator-feature")
+	wtCommit(t, root, "operator-only.txt")
+	freshened, err := AddWorktreeFrom(root, path, branch, base)
+	if err != nil || !freshened || revParse(path, "HEAD") != base {
+		t.Fatalf("registered ancestor not refreshed to exact base: freshened=%t err=%v HEAD=%s want=%s", freshened, err, revParse(path, "HEAD"), base)
+	}
+	if _, err := os.Stat(filepath.Join(path, "operator-only.txt")); !os.IsNotExist(err) {
+		t.Fatalf("reused tree inherited operator HEAD: %v", err)
+	}
+	if freshened, err := AddWorktreeFrom(root, path, branch, base); err != nil || freshened {
+		t.Fatalf("current reuse must succeed without freshening: %t %v", freshened, err)
+	}
+}
+
+func TestAddWorktreeFromPreservesDirtyAndDivergentRegisteredCheckout(t *testing.T) {
+	for _, state := range []string{"tracked", "untracked", "divergent"} {
+		t.Run(state, func(t *testing.T) {
+			root, branch, base := staleBranchRepo(t)
+			path := filepath.Join(t.TempDir(), "wt")
+			wtGit(t, root, "worktree", "add", path, branch)
+			name := "agent-work.txt"
+			if state == "tracked" {
+				name = "base.txt"
+			}
+			if err := os.WriteFile(filepath.Join(path, name), []byte("agent work"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if state == "divergent" {
+				wtGit(t, path, "add", name)
+				wtGit(t, path, "commit", "-qm", "agent work")
+			}
+			before := revParse(path, "HEAD")
+			if freshened, err := AddWorktreeFrom(root, path, branch, base); err != nil || freshened || revParse(path, "HEAD") != before {
+				t.Fatalf("%s tree changed or reuse failed: freshened=%t err=%v", state, freshened, err)
+			}
+			if data, err := os.ReadFile(filepath.Join(path, name)); err != nil || string(data) != "agent work" {
+				t.Fatalf("agent data changed: %q %v", data, err)
+			}
+		})
+	}
+}
+
+func TestAddWorktreeFromRefusesUnrelatedExistingPaths(t *testing.T) {
+	for _, state := range []string{"unregistered", "foreign", "wrong-branch", "branch-elsewhere", "replaced-registration"} {
+		t.Run(state, func(t *testing.T) {
+			root, branch, base := staleBranchRepo(t)
+			path := filepath.Join(t.TempDir(), "wt")
+			switch state {
+			case "wrong-branch":
+				wtGit(t, root, "worktree", "add", "-b", "other", path, "main")
+			case "branch-elsewhere":
+				wtGit(t, root, "worktree", "add", filepath.Join(t.TempDir(), "other"), branch)
+			case "replaced-registration":
+				wtGit(t, root, "worktree", "add", path, branch)
+				if err := os.Remove(filepath.Join(path, ".git")); err != nil {
+					t.Fatal(err)
+				}
+				wtGit(t, path, "init", "-q")
+				wtGit(t, path, "symbolic-ref", "HEAD", "refs/heads/"+branch)
+			case "foreign":
+				wtGit(t, root, "init", "-q", path)
+			case "unregistered":
+				if err := os.Mkdir(path, 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before := revParse(root, branch)
+			if _, err := AddWorktreeFrom(root, path, branch, base); err == nil {
+				t.Fatalf("accepted %s path as task checkout", state)
+			}
+			if after := revParse(root, branch); after != before {
+				t.Fatalf("rejected reuse moved branch: %s -> %s", before, after)
+			}
+		})
+	}
+}

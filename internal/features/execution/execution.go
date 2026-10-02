@@ -799,12 +799,9 @@ func cmdSpawn(ctx *clikit.Ctx, args []string) (retErr error) {
 		if err != nil {
 			return err
 		}
-		freshened, err := gitx.AddWorktreeFrom(w.Root, wtPath, fmt.Sprintf("dacli/%03d-%s", t.Seq, t.Slug), base.Ref)
+		freshened, err := gitx.AddWorktreeFrom(w.Root, wtPath, fmt.Sprintf("dacli/%03d-%s", t.Seq, t.Slug), base.Commit)
 		if err != nil {
-			// An existing worktree (a re-spawn) is fine; a real failure is not.
-			if !strings.Contains(err.Error(), "already exists") {
-				return err
-			}
+			return err
 		}
 		if freshened {
 			fmt.Fprintf(ctx.Stderr, "note: fast-forwarded %s to %s at %s before spawning — it was behind\n",
