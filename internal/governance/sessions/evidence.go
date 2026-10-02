@@ -70,7 +70,8 @@ func initializeEvidence(s *state) {
 }
 
 // UpgradeEvidence explicitly upgrades schema 3, preserving all prior records,
-// operation receipts and the global fence. Old writers refuse schema 4.
+// operation receipts and the global fence. It initializes the current review
+// schema too; old writers refuse the upgraded authority.
 func (a *Authority) UpgradeEvidence(owner string) error {
 	old := *a
 	old.version = 3
@@ -79,7 +80,8 @@ func (a *Authority) UpgradeEvidence(owner string) error {
 			return ErrDenied
 		}
 		initializeEvidence(s)
-		s.Version = 4
+		initializeReviews(s)
+		s.Version = 5
 		return nil
 	})
 }
