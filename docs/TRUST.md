@@ -405,10 +405,12 @@ token itself, relying entirely on the operator's own `gh auth` session
 `native bootstrap` initializes an absent native authority and writes its owner
 credential into a new private file. `native enroll` authenticates that explicit
 owner file, binds an existing canonical task and writes a scoped session and
-connection into new private files. These exact commands use native authority
-instead of the ambient legacy grant; both refuse invocation through MCP tools.
-Help remains a read. Neither command replaces existing credentials or resets
-storage. Revoke sessions through the owning authority workflow; retain authority
+connection into new private files. `native revoke` authenticates the same explicit
+owner file and revokes an exact session; existing transports refuse subsequent
+requests. It preserves private files and prior work and does not stop host processes.
+These exact commands use native authority instead of the ambient legacy grant.
+These owner commands refuse invocation through MCP tools. Help remains a read.
+None replaces existing credentials or resets storage. Revoke sessions through the owning authority workflow; retain authority
 history and reconcile interrupted issuance rather than deleting the workspace.
 See [native MCP setup](GOVERNANCE_NATIVE_MCP.md) for private-file requirements and
 cooperative assurance limits.
