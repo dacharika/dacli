@@ -47,22 +47,26 @@ type record struct {
 	Hash string
 }
 type state struct {
-	Version   int
-	Binding   Binding
-	OwnerHash string
-	Sessions  map[string]record
-	Tasks     map[string]TaskBinding
-	Attempts  map[string]Attempt
+	Version    int
+	Binding    Binding
+	OwnerHash  string
+	Sessions   map[string]record
+	Tasks      map[string]TaskBinding
+	Attempts   map[string]Attempt
+	Leases     map[string]Lease
+	Operations map[string]operation
+	Fence      uint64
 }
 
 // Authority contains no cached authority snapshot; each operation reloads under lock.
 type Authority struct {
-	path    string
-	binding Binding
-	version int
+	path      string
+	binding   Binding
+	version   int
+	admission LeaseAdmission
 }
 
-func Open(path string, binding Binding) (*Authority, error) {
+func Open(path string, binding Binding, admission ...LeaseAdmission) (*Authority, error) {
 	if !filepath.IsAbs(path) || binding.Workspace == "" || binding.Installation == "" {
 		return nil, ErrDenied
 	}
@@ -75,7 +79,14 @@ func Open(path string, binding Binding) (*Authority, error) {
 	if err := regularOrAbsent(path); err != nil {
 		return nil, err
 	}
-	return &Authority{path: path, binding: binding, version: 2}, nil
+	a := &Authority{path: path, binding: binding, version: 3}
+	if len(admission) > 1 {
+		return nil, ErrDenied
+	}
+	if len(admission) == 1 {
+		a.admission = admission[0]
+	}
+	return a, nil
 }
 
 // An authority-file alias is different from a directory alias: atomic rename
@@ -153,7 +164,7 @@ func (a *Authority) transaction(create bool, write bool, fn func(*state) error) 
 	if err := regularOrAbsent(a.path); err != nil {
 		return err
 	}
-	s := state{Version: a.version, Tasks: map[string]TaskBinding{}, Attempts: map[string]Attempt{}, Binding: a.binding, Sessions: map[string]record{}}
+	s := state{Leases: map[string]Lease{}, Operations: map[string]operation{}, Version: a.version, Tasks: map[string]TaskBinding{}, Attempts: map[string]Attempt{}, Binding: a.binding, Sessions: map[string]record{}}
 	data, err := os.ReadFile(a.path)
 	if create {
 		if !os.IsNotExist(err) {
@@ -161,7 +172,7 @@ func (a *Authority) transaction(create bool, write bool, fn func(*state) error) 
 		}
 	} else {
 		s = state{}
-		if err != nil || json.Unmarshal(data, &s) != nil || s.Version != a.version || s.Binding != a.binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version == 2 && (s.Tasks == nil || s.Attempts == nil)) {
+		if err != nil || json.Unmarshal(data, &s) != nil || s.Version != a.version || s.Binding != a.binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version == 3 && (s.Leases == nil || s.Operations == nil)) {
 			return ErrStorage
 		}
 	}

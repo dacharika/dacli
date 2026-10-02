@@ -2,11 +2,13 @@
 
 Sessions, credential hashes, revocations, owner task reference bindings and
 external attempt records share one locked, atomically replaced aggregate.
-Version 2 is the current schema. New bootstraps create version 2. Normal readers
-and writers refuse version 1 and unknown versions. An explicit `Upgrade(owner)`
+Version 3 is the current schema. New bootstraps create version 3. Normal readers
+and writers refuse versions 1 and 2 and unknown versions. An explicit `Upgrade(owner)`
 operation accepts only version 1 and the matching owner bearer credential;
-it retains binding, owner hash, session hashes, IDs and revocations exactly.
-Version 1 writers refuse version 2. Upgrade is not automatic on Open or auth.
+it retains binding, owner hash, session hashes, IDs and revocations exactly
+and upgrades directly to version 3. UpgradeLeases(owner) separately upgrades
+version 2 to version 3 and preserves task bindings and attempts as well.
+Version 1 and 2 writers refuse version 3. Upgrade is not automatic on Open or auth.
 Back up authority storage before the owner chooses a migration.
 
 `BindTask` requires the owner credential and binds a canonical task ID to a
@@ -45,4 +47,15 @@ are never stolen. Owners reconcile crashed writers before manual lock removal;
 unknown external effects must not be replayed automatically. No provider,
 network or external mutation runs under the authority lock.
 
-Owner admission policy enables attempt recording; it does not attest to the legacy task ready frontier. Future lease acquisition must query canonical task readiness separately. The observer refuses repositories with configured clean/process filters and indexed submodules before status, disables fsmonitor, and bounds inherited output pipes with WaitDelay. Unauthenticated requests are denied before observation; current authority is rechecked inside persistence. These are cooperative observations, not protection against concurrent hostile config rewrites.
+Owner admission policy enables attempt recording; it does not attest to the legacy task ready frontier. Lease acquisition queries canonical task readiness separately through the trusted application adapter. The observer refuses repositories with configured clean/process filters and indexed submodules before status, disables fsmonitor, and bounds inherited output pipes with WaitDelay. Unauthenticated requests are denied before observation; current authority is rechecked inside persistence. These are cooperative observations, not protection against concurrent hostile config rewrites.
+
+
+Durable fenced leases share this same aggregate. Acquire/Renew/Release authenticate
+current session and registered attempt under its lock; complete resource sets,
+operation receipts and the global fence counter commit together. The owner supplies
+a trusted read-only admission adapter backed by ReadyFrontierForProject. Legacy
+Markdown writers do not share this lock, so this is fresh graph observation rather
+than strict concurrent-readiness linearization. Expired/revoked reservations remain
+uncertain and cannot be silently reused. Only authenticated release frees them;
+owner reconciliation of abandoned reservations is a later bounded delivery. See
+internal/governance/sessions/README.md for exact scope, resource and retry semantics.
