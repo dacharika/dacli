@@ -2,19 +2,19 @@
   "schema": "dacli-plugin-native-smoke/v1",
   "host_version": "codex-cli 0.159.2",
   "installed_version": "0.2.0",
-  "observed_at": "2026-10-02T16:36:00.095187+00:00",
-  "dacli_binary_sha256": "b377272d7c33fa26523fb24027b7695eed9b3165e5cc85212515fafa05c629af",
+  "observed_at": "2026-10-02T17:21:30.275709+00:00",
+  "dacli_binary_sha256": "b7dfbbab8fe4d17827807a5c004fdc283883e00582cb8bc5e6fe61aab56d548f",
   "plugin_source_sha256": {
     "plugin.json": "e92268a04dfdc361680fad4df862998e7e03ffb6c7fdab31bd2523c6d342aff5",
     "mcp.json": "16622c2b3aac85f04f082fa262288a503f55cb6fc9f59fc806dea203db7e1854",
     ".mcp.json": "2969faaa58d54ab6fe7e6d342ce8c37b35d950b20cb8a9dc1ec411ee35d1d539",
     ".codex-plugin/plugin.json": "953afff306921a113ac9c1d3b89397c6b8c6ff2954227f5830ba99aa910bb7e8",
     "LICENSE": "4927bc79435b7bc5a9acc680e135c239a28baf42cafe262cf163777653b3f013",
-    "README.md": "eae9186e60c3d3fdeb1f56fbbd9075130b2ef59e05dbed902a6e57877264ac26",
+    "README.md": "c6c9e481f984c03ef8ac88b21ec83ecc0f31764977023e4d3cb116c5ee15a2f4",
     "skills/governance-workflow/SKILL.md": "8f08d23df7c24843f325ae62c1c2462f2c9722c1e520349cbfddbc711700c43e",
     "scripts/serve.py": "6c08983b6cf0e8fec7e84c12d9b8041b04005a0e1088baa88d5bdc2cf52a6c15"
   },
-  "smoke_script_sha256": "99066c53d23b238f7d4aa42ce0d6e3420ff084034372ccdd7b536322825c4fa7",
+  "smoke_script_sha256": "57de070c8dc75c5968e02731bf3557de92e875b2a0d1a68b7d4cdc42a4634963",
   "native_host_tool_discovery": true,
   "native_host_skill_discovery": true,
   "tool_names": [
@@ -44,5 +44,12 @@
   "model_turn_requested": false,
   "dacli_spawn_used": false,
   "shared_mcp_connection_shares_session_identity": true,
-  "assurance": "cooperative-session"
+  "assurance": "cooperative-session",
+  "schema5_producer_binary_sha256": "b377272d7c33fa26523fb24027b7695eed9b3165e5cc85212515fafa05c629af",
+  "genuine_schema5_profile_migrated_to_6": true,
+  "pre_migration_new_server_exit": 3,
+  "forged_owner_upgrade_exit": 3,
+  "already_target_upgrade_exit": 3,
+  "old_schema5_writer_exit": 3,
+  "migration_preserved_existing_profile_and_credentials": true
 }

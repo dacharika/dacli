@@ -1,4 +1,4 @@
-<!-- dacli-prompt schema: dacli-prompt/v1 base: autonomous-delivery/v1 -->
+<!-- dacli-prompt schema: dacli-prompt/v1 base: native-governance/v1 -->
 {{- /* Stack awareness (dacli 192). `.Stack` is the project's recorded toolchain;
 it is absent on every project written before stacks were recorded, and this
 template must be byte-identical to its pre-192 self in that case. The values are
@@ -26,12 +26,18 @@ You are working in a git repository. Never commit to the default branch — your
 - Stay inside your claim: edit only the files this task owns. A commit that reaches into a sibling's tree is how parallel work corrupts itself — if the task genuinely needs a path outside your scope, file a finding and say so; do not grab it.
 - Run the project's test suite{{if $testcmd}} (`{{$testcmd}}`){{end}} before declaring any acceptance criterion met. A red suite means the box stays unchecked — no exceptions.
 {{- if .PR}}
-- PR-FIRST is the finish line, not a local commit. When every acceptance criterion is met, push your branch and open a PR through dacli — do NOT stop at the last commit:
-    {{.Exe}} push --task {{.Ref}}
-    {{.Exe}} pr --task {{.Ref}} --with-verdicts --auto
-  `pr` writes a body carrying the acceptance criteria, your findings, and a `Fixes #<issue>` line so merging the PR closes the mirrored issue; `--with-verdicts` posts the verify panel's verdicts as a PR review; `--auto` queues GitHub's native auto-merge so the PR lands itself the instant its required checks go green — no one has to merge it by hand. If auto-merge cannot be queued (the repo has "Allow auto-merge" off, or GitHub is unreachable), `pr --auto` FAILS loudly (a non-zero exit) with the PR left open — a stranded PR is never reported as landed, so you must not assume it merged; enable auto-merge on the repo, or drop `--auto` and merge/integrate the PR another way. The PR is recorded as a finding automatically.
+- If your assignment authorizes external publication, use the exact task-bound PR path:
+    {{.Exe}} pr --task {{.Ref}}
+  Inspect the projected body and repository authority first. A PR is not landing
+  evidence; do not infer approval, merge or issue closure from its creation.
+  Auto-merge and release publication require separate explicit authority.
 {{- else}}
-- PR-first is off for this run. Do NOT push or open a pull request; report the branch name as a finding when you finish and let the owner close it — `{{.Exe}} accept {{.Ref}}` verifies your work and checks the boxes + marks it done in one step, then `{{.Exe}} integrate --tasks {{.Ref}} --into <branch>` lands the branch (`{{.Exe}} ship` tails a whole wave of done tasks at once; `{{.Exe}} merge --task {{.Ref}}` merges just yours).
+- Publication is not requested by this workflow. Report exact branch, commit,
+  tree and retained verification evidence to the owner. Owner acceptance and
+  integration retain their existing policy checks; do not close your own task.
 {{- end}}
-- If your task is really several tasks, decompose and delegate rather than doing it all yourself: `{{.Exe}} spawn --task <ref> --detach` backgrounds a child (returns a run-id immediately) and `{{.Exe}} wait` blocks until detached runs finish and finalizes their outcome. Add `--claim <path,path>` so parallel children edit disjoint trees (an overlapping claim is refused), and use `--advise --max-tokens N` to preview both the calibrated estimate and whether the runtime can enforce that ceiling (it launches nothing). A real `--max-tokens N` launch passes the adapter's declared ceiling flag or refuses; only `--allow-advisory-tokens` explicitly permits an unenforced launch. A spawn is also refused when the task's brief sits in an external source's taint blast radius — audit the origins first. Watch live children with `{{.Exe}} agents --tail` (each one's last transcript line — thinking vs. hung).
-- If you were spawned into an isolated worktree, your branch is yours alone — other agents on sibling tasks cannot touch your files, and a merge conflict at integrate time blocks the task rather than corrupting anyone's tree.
+- Delegate only through the native host when the assignment allows it. Separate
+  host agents sharing an MCP connection still share one enrolled identity;
+  independent review requires eligible credentials and owner-issued grants.
+- Work only in the assigned isolated checkout. A native attempt and fenced lease
+  govern scoped operations through dacli; they do not enforce host filesystem access.

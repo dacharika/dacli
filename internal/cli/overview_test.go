@@ -20,19 +20,16 @@ func TestInitPrintsGettingStarted(t *testing.T) {
 	}
 	for _, want := range []string{
 		"dacli whoami", "dacli project add", "dacli task add", "dacli next",
-		"dacli runtime add", "dacli spawn --task", "dacli overview",
+		"dacli native enroll --help", "dacli context <ref>", "dacli overview",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("getting-started missing %q:\n%s", want, out)
 		}
 	}
-	// 148: the research found this list dead-ended at `overview` with no path
-	// to a first agent run. `runtime add` must precede `spawn` — an adopter
-	// following the list top to bottom needs a runtime configured before
-	// spawn can find one.
-	if strings.Index(out, "dacli runtime add") > strings.Index(out, "dacli spawn --task") {
-		t.Errorf("expected `runtime add` before `spawn` in getting-started output:\n%s", out)
+	if strings.Contains(out, "dacli spawn") || strings.Contains(out, "dacli runtime add") {
+		t.Fatalf("onboarding recommends removed provider launchers: %s", out)
 	}
+
 }
 
 // --json is the machine caller's contract: it must not gain decorative text

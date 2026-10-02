@@ -23,8 +23,8 @@ jobs:
         with:
           # Go 1.22 test binaries lack the LC_UUID current macOS requires.
           go-version: "1.25.13"
-      - name: native process runtime tests
-        run: go test ./internal/procmon/ ./internal/features/execution/
+      - name: native authority and process observation tests
+        run: go test ./internal/procmon/ ./internal/governance/sessions/ ./internal/mcp/native/
 
   goreleaser:
     needs: macos-native

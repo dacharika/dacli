@@ -361,17 +361,11 @@ The file body should record *why the command has this exact shape* — the flag 
 
 ## Runtime — `.dacli/runtimes/<name>.md`
 
-**Implemented.** Full design in [RUNTIMES.md](RUNTIMES.md).
-
-Declares how to invoke one coding-agent CLI: `binary`, `detect`, `invoke` (prompt delivery mode and flags), `capabilities`, `exit_codes`, and `env_passthrough`.
-
-Three rules for anyone editing these by hand:
-
-- **Declared capabilities are assumptions until probed.** `dacli runtime doctor` verifies them against the installed binary and caches the result per machine. Probe results are never committed — capabilities belong to the install, not the project.
-- **`env_passthrough` lists variable *names* only.** Credential values never enter the workspace, which is committed to git.
-- **`dacli` never sets a runtime's dangerous-permission escape flags.** If one is genuinely needed, a human adds it to the adapter file, in a commit, with their name on it.
-
-The file body should record the runtime's quirks as they are discovered. That is the part that saves the next person a day.
+Historical adapter documents may remain in existing workspaces. Fields such as
+binary, invoke arguments, capabilities and environment names describe past
+launcher configuration. Current source does not provide runtime adapters or
+execute these files. Preserve them when needed to interpret retained receipts;
+do not put credential values into committed workspace documents.
 
 ## Template — `.dacli/templates/<name>/template.md`
 

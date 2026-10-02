@@ -14,14 +14,14 @@
 
   <header class="dacli-hero">
     <div class="dacli-hero__copy">
-      <p class="dacli-kicker"><span aria-hidden="true"></span> Agent-first delivery control plane</p>
+      <p class="dacli-kicker"><span aria-hidden="true"></span> Governance for native coding agents</p>
       <h1 class="dacli-h1">
         Keep coding agents moving.
         <em>Keep delivery under control.</em>
       </h1>
       <p class="dacli-hero__lede">
-        dacli keeps critical-path work moving through your chosen coding
-        harness—with isolated execution, exact-tree review, and GitHub delivery.
+        Your coding host runs the agents. dacli connects their work to canonical
+        tasks, scoped sessions, fenced leases and committed revision evidence.
       </p>
 
       <div class="dacli-actions">
@@ -32,46 +32,46 @@
 
       <div class="dacli-install" aria-label="Install dacli">
         <span class="dacli-install__prompt" aria-hidden="true">$</span>
-        <code>go install github.com/mlnomadpy/dacli/cmd/dacli@latest</code>
+        <code>go build -o ./dacli ./cmd/dacli</code>
         <a href="https://github.com/mlnomadpy/dacli/releases/tag/v0.3.1">v0.3.1</a>
       </div>
     </div>
 
-    <div class="dacli-cycle-console" role="img" aria-label="A bounded dacli cycle selecting critical-path work, isolating two workers, approving an exact tree, and observing a merged GitHub pull request">
+    <div class="dacli-cycle-console" role="img" aria-label="Illustrative native governance flow: authenticate session, register checkout, acquire lease and record exact revision evidence">
       <div class="dacli-console__topbar">
-        <span>cycle / 04</span>
-        <span class="dacli-console__live"><i aria-hidden="true"></i> governed</span>
+        <span>native / preview</span>
+        <span class="dacli-console__live"><i aria-hidden="true"></i> illustrative</span>
       </div>
       <div class="dacli-console__budget">
-        <span>rolling token window</span>
-        <strong>61% available</strong>
+        <span>execution and budgets</span>
+        <strong>owned by the host</strong>
         <div aria-hidden="true"><i></i></div>
       </div>
       <ol class="dacli-console__trace">
         <li class="is-done">
           <span class="dacli-console__index">01</span>
-          <div><small>selected</small><strong>t-184 · zero slack</strong></div>
-          <code>critical-path</code>
+          <div><small>authenticate</small><strong>Explicit scoped session</strong></div>
+          <code>identity</code>
         </li>
         <li class="is-done">
           <span class="dacli-console__index">02</span>
-          <div><small>isolated</small><strong>2 workers · disjoint claims</strong></div>
-          <code>codex</code>
+          <div><small>register</small><strong>External clean checkout</strong></div>
+          <code>register_attempt</code>
         </li>
         <li class="is-done">
           <span class="dacli-console__index">03</span>
-          <div><small>verified</small><strong>tests + acceptance evidence</strong></div>
-          <code>tree a61f</code>
+          <div><small>coordinate</small><strong>Current fenced lease</strong></div>
+          <code>acquire_lease</code>
         </li>
         <li class="is-active">
           <span class="dacli-console__index">04</span>
-          <div><small>reviewed</small><strong>exact tree approved</strong></div>
-          <code>independent</code>
+          <div><small>record</small><strong>Committed revision evidence</strong></div>
+          <code>publish_revision</code>
         </li>
         <li>
           <span class="dacli-console__index">05</span>
-          <div><small>observed</small><strong>PR merged on protected trunk</strong></div>
-          <code>github</code>
+          <div><small>report</small><strong>Self-report remains an assertion</strong></div>
+          <code>submit_evidence</code>
         </li>
       </ol>
       <div class="dacli-console__footer">
@@ -82,10 +82,10 @@
   </header>
 
   <section class="dacli-proofbar" aria-label="Product boundaries">
-    <div><strong>Bounded by policy</strong><span>cycles, tokens, WIP, timeouts</span></div>
-    <div><strong>One durable record</strong><span>briefs, runs, reviews, landing</span></div>
+    <div><strong>Bounded by policy</strong><span>scope, expiry, revision, fences</span></div>
+    <div><strong>One durable record</strong><span>tasks, leases, evidence, receipts</span></div>
     <div><strong>GitHub-first delivery</strong><span>issues, PRs, CI, merge truth</span></div>
-    <div><strong>Human release authority</strong><span>exceptions, STOP, publication</span></div>
+    <div><strong>Human release authority</strong><span>credentials, exceptions, publication</span></div>
   </section>
 
   <main>
@@ -104,28 +104,28 @@
         <article class="is-emphasis">
           <span class="dacli-authority__mark">D</span>
           <h3>What dacli controls</h3>
-          <p>Task graphs, routing, claims, worktrees, budgets, checkpoints, review identity, failure policy, and the exact GitHub landing transaction.</p>
+          <p>Authenticated requests, canonical task scope, external attempts, fenced leases, revision evidence and owner-issued decisions. Direct host filesystem actions remain outside these cooperative gates.</p>
         </article>
         <article>
           <span class="dacli-authority__mark">H</span>
           <h3>What stays human</h3>
-          <p>Product direction, credentials, exceptions, emergency stop, hybrid-provider authority, and every tag or public release decision.</p>
+          <p>Product direction, credentials, exceptions and release authority. The native host owns agent creation, model choice, sandbox and spending.</p>
         </article>
       </div>
     </section>
 
     <section class="dacli-section dacli-lifecycle">
       <div class="dacli-section__intro">
-        <p class="dacli-label">One governed transaction</p>
+        <p class="dacli-label">Explicit governance boundaries</p>
         <h2 class="dacli-h2">From the next critical task to evidence on trunk.</h2>
-        <p>Every transition consumes recorded state and produces the next inspectable checkpoint. A refusal is an answer; unknown external state fails closed.</p>
+        <p>Native operations reauthenticate current authority. A refusal is an answer; unknown evidence fails closed. Native final task acceptance remains future work.</p>
       </div>
       <ol class="dacli-lifecycle__rail">
         <li><span>01</span><div><small>Plan</small><h3>Select work that moves the critical path</h3><p>Dependencies, slack, priority, capacity, and path claims determine the ready frontier.</p></div></li>
-        <li><span>02</span><div><small>Execute</small><h3>Isolate workers before they write</h3><p>Each coding agent gets a scoped brief, bounded budget, declared harness, worktree, and non-overlapping claim.</p></div></li>
-        <li><span>03</span><div><small>Verify</small><h3>Run the contracts that changed</h3><p>Repository-aware routing chooses structured commands and working directories for the affected paths.</p></div></li>
-        <li><span>04</span><div><small>Review</small><h3>Exact-tree review, not a generic approval</h3><p>An independent reviewer binds its verdict to identity, branch, commit, and tree. Corrections require a fresh review.</p></div></li>
-        <li><span>05</span><div><small>Land</small><h3>Observe GitHub before recording completion</h3><p>Checks, reviews, merge state, and fresh trunk evidence must agree before acceptance and issue closure.</p></div></li>
+        <li><span>02</span><div><small>Execute</small><h3>Isolate workers before they write</h3><p>The host creates agents and isolated checkouts. Scoped attempts and fenced leases coordinate operations through the governance interface.</p></div></li>
+        <li><span>03</span><div><small>Verify</small><h3>Run the contracts that changed</h3><p>Record actual checks against the exact source. Self-reports are assertions; trusted runner evidence needs an owner-issued grant.</p></div></li>
+        <li><span>04</span><div><small>Review</small><h3>Exact-tree review, not a generic approval</h3><p>Independent native review requires eligible credential families, owner grants and exact revision evidence. A shared MCP connection shares one identity.</p></div></li>
+        <li><span>05</span><div><small>Land</small><h3>Observe GitHub before recording completion</h3><p>The owner inspects checks, reviews and fresh trunk evidence. Native publication decisions do not publish, merge or accept tasks themselves.</p></div></li>
       </ol>
     </section>
 
@@ -133,12 +133,12 @@
       <div class="dacli-dashboard-proof__copy">
         <p class="dacli-label">The record stays visible</p>
         <h2 class="dacli-h2">Operate the swarm from evidence, not chat history.</h2>
-        <p>The dashboard is a projection of the same durable workspace the CLI and MCP server use. Supervise loop phase, wave width, token reservations, model routing, outcome windows, worker state, dependency flow, and delivery blockers without creating a second source of truth.</p>
+        <p>The dashboard projects canonical tasks and retained delivery evidence. Historical loop, routing and usage panels remain readable for audit; they are not a native session monitor or current execution authority.</p>
         <ul>
           <li><strong>Explain every recommendation.</strong> Rank, rejected routes, claims, freshness, and the next safe action stay attached.</li>
-          <li><strong>Recover without guessing.</strong> Phase journals, handoffs, and exact remote identities make restart behavior explicit.</li>
+          <li><strong>Recover without guessing.</strong> Retained journals, handoffs and exact remote identities support conservative recovery and archival.</li>
           <li><strong>Measure improvement honestly.</strong> Adjacent windows retain sample size, task-size context, coverage, and exact drill-down evidence; missing cost stays unknown.</li>
-          <li><strong>Publish the minimum.</strong> Public repositories receive public-safe fields; internal evidence needs recorded authority and `--include-internal`.</li>
+          <li><strong>Publish the minimum.</strong> Public-safe task fields are the default for public repositories; internal evidence needs recorded authority and `--include-internal`.</li>
         </ul>
         <a class="dacli-text-link" href="DASHBOARD/">Read the dashboard guide <span aria-hidden="true">→</span></a>
         <a class="dacli-text-link dacli-text-link--secondary" href="dashboard-evidence/">Open representative evidence <span aria-hidden="true">↗</span></a>
@@ -164,19 +164,20 @@
 
     <section class="dacli-section dacli-quickstart">
       <div class="dacli-quickstart__copy">
-        <p class="dacli-label">Start with a bounded loop</p>
-        <h2 class="dacli-h2">Keep the harness explicit. Preview before launch.</h2>
-        <p>Use Codex throughout this run, negotiate the installed surface, and inspect the resolved policy before any worker starts. A multi-provider run requires an explicit allowlist plus `--hybrid`.</p>
-        <p class="dacli-release-note"><a href="https://github.com/mlnomadpy/dacli/releases/tag/v0.3.1">v0.3.1</a> includes verified archives, checksums, and SBOMs for macOS, Linux, and Windows.</p>
+        <p class="dacli-label">Start with the native preview</p>
+        <h2 class="dacli-h2">Use native agents. Enroll explicit authority.</h2>
+        <p>Build the reviewed checkout and follow the Codex plugin setup. Its bounded native catalog has no generic shell or CLI escape. Credentials stay private and owner provisioning remains explicit.</p>
+        <p><a href="https://github.com/mlnomadpy/dacli/blob/main/plugins/codex/README.md">Codex plugin setup</a></p>
+        <p class="dacli-release-note"><a href="https://github.com/mlnomadpy/dacli/releases/tag/v0.3.1">v0.3.1</a> archives contain the older launcher product, not this source checkout’s native preview.</p>
       </div>
-      <div class="dacli-terminal" aria-label="A five-command bounded dacli quickstart">
-        <div class="dacli-terminal__bar"><span>bounded-loop.sh</span><span>5 commands</span></div>
+      <div class="dacli-terminal" aria-label="Commands to inspect native setup before explicit owner provisioning">
+        <div class="dacli-terminal__bar"><span>native-setup.sh</span><span>5 commands</span></div>
         <ol>
           <li><span>01</span><code>dacli version --compatibility --json</code></li>
           <li><span>02</span><code>dacli capabilities --json</code></li>
-          <li><span>03</span><code>dacli adopt --provision-roles</code></li>
-          <li><span>04</span><code>dacli start --project &lt;slug&gt; --profile loop --harness codex --dry-run</code></li>
-          <li><span>05</span><code>dacli start --project &lt;slug&gt; --profile loop --harness codex</code></li>
+          <li><span>03</span><code>dacli native serve --help</code></li>
+          <li><span>04</span><code>dacli native enroll --help</code></li>
+          <li><span>05</span><code>dacli native revoke --help</code></li>
         </ol>
       </div>
     </section>
@@ -189,7 +190,7 @@
       <div class="dacli-questions__list">
         <details open>
           <summary>Does dacli switch coding CLIs when one fails?</summary>
-          <p>No. A Codex run stays on Codex. Cross-CLI routing requires an explicit harness allowlist and `--hybrid`; installing another CLI does not authorize fallback.</p>
+          <p>No. Coding-agent launchers and runtime adapters have been removed. Codex is the first measured native plugin integration; other hosts need their own conformance evidence.</p>
         </details>
         <details>
           <summary>Does it publish internal findings to GitHub?</summary>
@@ -197,7 +198,7 @@
         </details>
         <details>
           <summary>Can it run forever?</summary>
-          <p>Continuous operation is repeated bounded transactions with durable checkpoints—not an unbounded permission grant. Budgets, idle policy, no-progress halts, STOP, and human release authority remain active.</p>
+          <p>Repeated work belongs to the native host. dacli has no provider-driven loop or service supervisor. Every governance transition still needs current authority and evidence.</p>
         </details>
       </div>
     </section>

@@ -5,7 +5,6 @@ package insight
 
 import (
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -1307,37 +1306,6 @@ func cmdDoctor(ctx *clikit.Ctx, args []string) error {
 		if r.WIP > 0 {
 			if n, _ := store.ActiveInRole(w, r.Name); n > r.WIP {
 				report("wip-exceeded", fmt.Sprintf("role %s has %d active agents against a limit of %d", r.Name, n, r.WIP))
-			}
-		}
-		// A role couples a grant (what the workspace permits) with a runtime
-		// (what the process can actually do), and nothing else cross-checks them:
-		// the role file reads fine on its own. When they disagree the spawn is
-		// wasted before it starts — an rw grant on a runtime whose allowlist has
-		// no write tool burns a run when the child cannot edit (dacli 250), and a
-		// ro grant on a runtime with no read-only sandbox is refused outright
-		// (§ 8). Name every such role so the coupling is visible without opening
-		// two files by hand. A runtime the role names but the workspace has not
-		// defined makes no checkable claim, so it is skipped rather than guessed.
-		if r.Runtime != "" {
-			if rt, err := store.LoadRuntime(w, r.Runtime); err == nil {
-				// runtime doctor records its verdict against the exact adapter and
-				// installed binary. LoadRuntime deliberately returns declaration-only
-				// state, so hydrate that local evidence here just as spawn does before
-				// deciding whether an ro grant is enforceable. A missing binary leaves
-				// the verdict unknown and therefore safely reports the mismatch.
-				if path, lookErr := exec.LookPath(rt.Binary); lookErr == nil {
-					rt = store.HydrateRuntimeROProbe(w, rt, path)
-				}
-				grant := model.Grant(r.Grant)
-				if grant == "" {
-					grant = model.GrantRO // spawn's default when a role sets none
-				}
-				switch {
-				case grant == model.GrantRW && !store.RuntimeWritable(rt):
-					report("grant-runtime-mismatch", fmt.Sprintf("role %s declares grant rw but runtime %s grants no write tool — a spawn here burns a run when the child cannot edit; give it a write-capable runtime or correct the grant", r.Name, rt.Name))
-				case grant == model.GrantRO && !store.RuntimeEnforcesRO(rt):
-					report("grant-runtime-mismatch", fmt.Sprintf("role %s declares grant ro but runtime %s cannot enforce read-only — the spawn is refused unless --cooperative; give it a runtime with a read-only sandbox or correct the grant", r.Name, rt.Name))
-				}
 			}
 		}
 	}

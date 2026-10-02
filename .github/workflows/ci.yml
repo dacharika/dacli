@@ -92,7 +92,7 @@ jobs:
       # measures the locking rather than the happy path (dacli 359).
       #
       # -race is still worth running: it is the cheapest guard available and it
-      # covers the in-process supervisor paths.
+      # covers concurrent native authority and retained process-observation paths.
       - name: test (race + coverage)
         run: go test -race -coverprofile=coverage.out ./...
       # Global AND per-package floors. One aggregate hides the failure that
@@ -105,8 +105,8 @@ jobs:
       - name: process suites (repeated, race)
         run: |
           go test -race -count=5 ./internal/procmon/
-          go test -race -count=5 ./internal/features/execution/ \
-            -run 'TestExecRuntimeDetached|TestAlive|TestKillTree|TestRecordRoundTrip'
+          go test -race -count=5 ./internal/governance/sessions/ \
+            -run 'TestLeaseCrashPreservesLockAndAuthority|TestLeaseLostReplyReplayAcrossProcesses'
       - name: build
         run: go build ./cmd/dacli
       # Share this build with cross-compile below instead of every job running

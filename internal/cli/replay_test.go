@@ -1,6 +1,11 @@
 package cli
 
 import (
+	"github.com/mlnomadpy/dacli/internal/agentid"
+	"github.com/mlnomadpy/dacli/internal/model"
+	"github.com/mlnomadpy/dacli/internal/store"
+	"github.com/mlnomadpy/dacli/internal/ulid"
+	"github.com/mlnomadpy/dacli/internal/workspace"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,25 +16,38 @@ import (
 // A cooperative child claims + reports across a run; replay reconstructs what
 // it was told and what it did, in time order.
 func TestReplayReconstructsRun(t *testing.T) {
-	bin := buildDacli(t)
 	dir := t.TempDir()
 	run(t, dir, 0, "init", "--name", "x")
 	run(t, dir, 0, "project", "add", "P", "--slug", "p", "--goal", "One write path.")
 	run(t, dir, 0, "task", "add", "Audit the write paths", "--project", "p", "--accept", "writers listed")
 
-	// A child that reports two things through the real binary, so its events
-	// land in the log attributed to the spawned child id.
-	script := strings.Join([]string{
-		"cat > /dev/null",
-		bin + ` note add finding "found the direct writer" --project p --about 001 --body "settle.go:112"`,
-		bin + ` note add finding "and a second writer" --project p --about 001 --body "batch.go:40"`,
-	}, "\n")
-	scriptPath := filepath.Join(dir, "child.sh")
-	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\n"+script), 0o755); err != nil {
+	// Preserve an actual brief and events without re-launching the historical provider.
+	w, err := workspace.Find(dir)
+	if err != nil {
 		t.Fatal(err)
 	}
-	run(t, dir, 0, "runtime", "add", "mock", "--binary", "sh", "--mode", "stdin", "--arg", scriptPath, "--env", "PATH")
-	run(t, dir, 0, "spawn", "--task", "001", "--runtime", "mock", "--grant", "ro", "--cooperative")
+	task, err := store.FindTask(w, "001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, token, err := agentid.Spawn(w, &agentid.Identity{ID: agentid.RootID, Grant: model.GrantRW}, "historical-reviewer", model.GrantRO)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := ulid.New()
+	if err = os.MkdirAll(w.RunDir(id), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	brief := run(t, dir, 0, "context", "001")
+	for file, body := range map[string]string{"brief.md": brief, "invocation.txt": "run: " + id + "\nchild: " + child + "\ntask: " + task.ID + "\n", "outcome.md": "outcome: finished\n"} {
+		if err = os.WriteFile(filepath.Join(w.RunDir(id), file), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv(agentid.EnvVar, token)
+	run(t, dir, 0, "note", "add", "finding", "found the direct writer", "--project", "p", "--about", "001", "--body", "settle.go:112")
+	run(t, dir, 0, "note", "add", "finding", "and a second writer", "--project", "p", "--about", "001", "--body", "batch.go:40")
+	_ = os.Unsetenv(agentid.EnvVar)
 
 	// Replay by task: the frozen brief, then the child's two findings, in order.
 	out := run(t, dir, 0, "replay", "--task", "001")

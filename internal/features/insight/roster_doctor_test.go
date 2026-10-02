@@ -32,7 +32,7 @@ func TestDoctorFlagsUnroutableAndTaskSpecificRoles(t *testing.T) {
 	}
 
 	out := doctorOut(t, ctx)
-	for _, want := range []string{"role-metadata", "task-specific-role", "provider-specific-role", "unsupported-role-model"} {
+	for _, want := range []string{"role-metadata", "task-specific-role", "provider-specific-role"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("doctor missed %s:\n%s", want, out)
 		}

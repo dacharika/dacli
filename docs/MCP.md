@@ -1,4 +1,11 @@
-# MCP server
+# Administrative MCP server
+
+The current native plugin uses [the separate native transport](GOVERNANCE_NATIVE_MCP.md).
+It has explicit private session authentication and no generic CLI escape. This
+document describes the retained legacy administrative transport; its credentials
+do not grant access to native owner operations. Removed launch commands are
+unavailable through either catalog.
+
 
 The MCP tool registry is also exposed through `dacli capabilities --json`.
 Each `mcp.tool.<name>` entry carries the tool input schema version alongside
@@ -17,7 +24,7 @@ serve. MCP clients can retrieve it through the `cli` escape hatch with argv
 
 - **stdio only.** No network listener, ever. An MCP server with a port is a workspace exposed to whatever finds the port; dacli's threat model is bad enough without that.
 - One server process per agent. The server resolves the workspace exactly as the CLI does (walk up to `.dacli/`) and binds its identity **once, at launch**, from `DACLI_AGENT` in its environment.
-- A parent spawning a child sets the child's token in the child's environment; the child's own MCP config launches its own `dacli mcp serve`. Two agents never share a server.
+- Each legacy administrative caller supplies its own token at server startup. Sharing a server shares that identity; it does not establish independent agents.
 
 ### Startup identity and migration
 
@@ -89,7 +96,7 @@ renaming, or retyping an existing field requires a new version.
 
 Twenty-two schemas, chosen by the same rule as everything else here: what does a working agent touch between claim and done. Reads are deliberately thin — `get_context` *is* the read path; that's the whole thesis. Cleanup and reconciliation retire only proven-dead state while preserving evidence. PR diagnosis classifies blockers; GitHub projection exposes disclosure and closure authority before a remote write.
 
-**Tier 2 — one escape hatch.** `cli` takes `argv: string[]` and runs any other command, returning the same JSON the CLI's `--json` emits. Setup and admin (init, roles, templates, github, runtime doctor, wbs, burndown) live here: agents need them rarely, humans run them mostly, and none deserves a permanent schema slot in every child's context. `spawn`/`supervise` graduate to Tier 1 when L5 lands.
+**Tier 2 — one escape hatch.** `cli` takes `argv: string[]` and runs any other command, returning the same JSON the CLI's `--json` emits. Setup and admin (init, roles, templates, github, wbs, burndown) live here: agents need them rarely, humans run them mostly, and none deserves a permanent schema slot in every child's context. Coding-agent launch commands have been removed.
 
 ## 3. Refusals are results, not errors
 

@@ -37,17 +37,17 @@ func TestWorkerProposedDoneIsLandedByTheToolNotByTheTest(t *testing.T) {
 	// A worker that behaves exactly as the protocol preamble instructs: do the
 	// work, commit it, then report through `task done` — the verb agents are
 	// told to use, and the one whose proposals nothing consumed.
-	mockRuntime(t, dir, "worker", strings.Join([]string{
+	writeNativeWorkerFixture(t, dir, "worker", strings.Join([]string{
 		"cat > /dev/null",
 		"ref=$(git rev-parse --abbrev-ref HEAD | sed 's|dacli/||; s|-.*||')",
 		"echo work > worked.txt",
 		"git add -A -- worked.txt",
-		"git -c user.email=a@b -c user.name=w commit -q -m \"$ref: work\"",
+		"git -c user.email=a@b -c user.name=w commit -q -m \"implement the thing\"",
 		bin + " task claim \"$ref\"",
 		bin + " task done \"$ref\"",
 	}, "\n"))
 
-	run(t, dir, 0, "spawn", "--task", "001", "--runtime", "worker", "--grant", "rw", "--worktree", "--claim", "worked.txt")
+	executeNativeWorkerFixture(t, dir, "001", "worker", "worked.txt")
 
 	// The worker's own commands could not close the task — that is the design,
 	// not the bug. Confirm the precondition so a future change that lets the

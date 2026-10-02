@@ -167,7 +167,7 @@ func cmdAdopt(ctx *clikit.Ctx, args []string) error {
 	// --provision-roles: before any implementation work, seed ONE discovery task
 	// that hands the codebase map to a role-architect agent, whose job is to
 	// decide the MINIMAL role roster this project needs and create those roles.
-	// onboard SEEDS the task and PRINTS the spawn line — it never spawns the
+	// onboard seeds the task and prints the context command — it never launches the
 	// architect itself (no cross-slice import; the operator triggers it), keeping
 	// the phase discipline: no implementation before the team is set.
 	if f.Bool("provision-roles") {
@@ -185,7 +185,7 @@ func cmdAdopt(ctx *clikit.Ctx, args []string) error {
 			return err
 		}
 		fmt.Fprintf(ctx.Stdout, "seeded team-provisioning task %03d for a role-architect\n", t.Seq)
-		fmt.Fprintf(ctx.Stdout, "next: dacli spawn --task %d --role role-architect\n", t.Seq)
+		fmt.Fprintf(ctx.Stdout, "next: dacli context %d --budget 4000\n", t.Seq)
 	}
 
 	fmt.Fprintf(ctx.Stdout, "\nadopted. next: `dacli context <task>` to onboard an agent, or `dacli lint` to sharpen the seeded tasks\n")
@@ -425,5 +425,5 @@ func inferGoal(root string) string {
 			}
 		}
 	}
-	return "Adopted existing repository — set a real goal before spawning agents."
+	return "Adopted existing repository — set a real goal before assigning native host agents."
 }

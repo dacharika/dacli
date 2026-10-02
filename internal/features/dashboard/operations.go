@@ -274,7 +274,7 @@ type persistedProfile struct {
 
 func buildLoopOperation(w *workspace.Workspace, project string, now time.Time) loopOperationResponse {
 	v := loopOperationResponse{Schema: loopOperationSchema, Generated: now.UTC().Format(time.RFC3339), Project: project}
-	v.State = loopOperationState{Value: "not-started", Freshness: "missing", Source: "loop-status", NextAction: "start a bounded loop for this project when the owner intends execution"}
+	v.State = loopOperationState{Value: "not-started", Freshness: "missing", Source: "loop-status", NextAction: "no historical loop record; use the native host and scoped governance tools for new work"}
 	v.Tasks, v.Runs, v.Routing, v.Preflight, v.Warnings = []loopOperationTask{}, []loopOperationRun{}, []loopOperationRouting{}, []loopPreflightPhase{}, []string{}
 	v.Budget.Runs, v.Budget.UnknownUsageRuns = []loopRunReservation{}, []string{}
 	v.Harness = loopHarnessPolicy{Mode: "unknown", Allowed: []string{}, Source: "operating-profile"}
@@ -380,7 +380,7 @@ func buildLoopOperation(w *workspace.Workspace, project string, now time.Time) l
 	sort.Slice(v.Tasks, func(i, j int) bool { return v.Tasks[i].Task < v.Tasks[j].Task })
 	sort.Slice(v.Routing, func(i, j int) bool { return v.Routing[i].Task < v.Routing[j].Task })
 	if stateErr == nil && state.Backlog == 0 && v.Wave.Live == 0 && v.State.Value != "corrupt" && v.State.Value != "externally-unknown" {
-		v.State.Value, v.State.NextAction = "completed", "observe delivery and acceptance evidence; start another bounded loop only when new work is ready"
+		v.State.Value, v.State.NextAction = "completed", "observe retained delivery and acceptance evidence; assign new work through the native host"
 	}
 	return v
 }
@@ -463,7 +463,7 @@ func mapLoopState(state persistedLoopState) (string, string) {
 	case "halt":
 		return "halted-policy", "follow the durable halt reason before starting another cycle"
 	default:
-		return "externally-unknown", "inspect the unsupported loop status before resuming"
+		return "externally-unknown", "inspect the unsupported historical loop status; do not infer native execution authority"
 	}
 }
 
@@ -529,7 +529,7 @@ func applyPreflight(w *workspace.Workspace, v *loopOperationResponse, preflight 
 	}
 	if preflight.Classification == "permanent_refusal" && v.State.Value != "corrupt" {
 		v.State.Value, v.State.HaltClass, v.State.Retryable = "halted-policy", preflight.Classification, boolPtr(false)
-		v.State.NextAction = "resolve the refused preflight phase before launching any provider"
+		v.State.NextAction = "inspect the historical preflight refusal; new execution belongs to the native host"
 	}
 }
 
@@ -643,7 +643,7 @@ func observedFreshness(now, observed time.Time, stale bool) string {
 func markLoopCorrupt(v *loopOperationResponse, source string, err error) {
 	v.State.Value, v.State.Freshness, v.State.HaltClass = "corrupt", "corrupt", "corrupt_record"
 	v.State.Retryable = boolPtr(false)
-	v.State.NextAction = "repair or restore the named durable record before resuming the loop"
+	v.State.NextAction = "repair or restore the named historical record before relying on its evidence"
 	v.Warnings = append(v.Warnings, source+": "+safeDashboardText(err.Error()))
 }
 

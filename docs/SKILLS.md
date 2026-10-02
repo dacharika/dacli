@@ -26,15 +26,17 @@ level down under `references/`. Its final source playbook link must be a public
 repository URL rather than a source-tree-relative path, because an installed
 copy does not sit next to `docs/`.
 
-**Status: v1 implemented** (`internal/skills` + the `skillforge` slice: `skill add|list|show|import|compile|promote`). What v1 delivers:
+**Status: explicit workspace skill utilities retained; provider launchers removed.** Host-native installation is separate.
+
+**Workspace v1** (`internal/skills` + the `skillforge` slice: `skill add|list|show|import|compile|promote`). What v1 delivers:
 
 - **Lossless import, verified against a real library**: `skill import ~/.claude/skills`-style trees copy byte-for-byte (`diff -r` clean), `SKILL.md` casing kept, resources and scripts intact. The first real import also forced an mdstore fix: native skills write `description: |` (YAML literal blocks), which now parse, round-trip byte-exactly, and read back as text.
 - **The fidelity ladder with the tax stated**: native (copy, no tax) → context (managed marker sections; **the per-turn token tax is announced per skill and in total** — "progressive disclosure is gone on this target") → inline floor. `min_delivery` unmet = omitted *and announced* with the floor named.
-- Compiled output is a regenerable projection under `.dacli/build/skills/<runtime>/<role>/`, deleted and rebuilt each compile; adapters declare `skills_native_dir` / `skills_context_file` (claude-code preset ships `.claude/skills`).
+- Compiled output is a regenerable projection under `.dacli/build/skills/<runtime>/<role>/`, deleted and rebuilt each compile; existing runtime metadata can describe `skills_native_dir` / `skills_context_file`; these fields no longer configure a provider launcher.
 - **`skill promote <lesson-ref>` (§ 6)**: gated to the workspace owner (`a-root`) only — every spawned agent is refused regardless of grant. Resolves a `scope: workspace` note by id or title, writes a versioned skill (`version: v1`) carrying the lesson's body and `origin:` forward (`promoted_from:` records the source lesson), and refuses rather than clobbering an existing skill of the same name. `dacli taint` walking skills is still open (only notes/events are walked today; see § 8 item 4).
-- **Deferred, announced at compile time**: script→shortcut compilation (§ 3's executable-parts rule) — scripts on a non-native target are named as undeliverable rather than silently dropped; spawn-time auto-compilation (TEAM § 4 step 4) still pending; `AGENTS.md` cohabitation with human-authored content remains the open question it was.
+- **Deferred, announced at compile time**: script→shortcut compilation (§ 3's executable-parts rule) — scripts on a non-native target are named as undeliverable rather than silently dropped; automatic host installation is not provided; `AGENTS.md` cohabitation with human-authored content remains the open question it was.
 
-Roles have declared `skills:` since [TEAM.md](TEAM.md) was written — and that field silently assumed every runtime speaks one vendor's skill system. A `theorist` role loading `math-paper-audit` works on a CLI with native skills and means *nothing* on one without. This document closes that hole: skills are authored once in the workspace, and **compiled to whatever delivery mechanism the target runtime actually has** when a role is spawned onto it.
+Roles have declared `skills:` since [TEAM.md](TEAM.md) was written — and that field silently assumed every runtime speaks one vendor's skill system. A `theorist` role loading `math-paper-audit` works on a CLI with native skills and means *nothing* on one without. This document closes that hole: skills are authored once in the workspace, and **compiled to whatever delivery mechanism the target runtime actually has** when explicitly compiled for that target.
 
 ---
 
@@ -87,9 +89,9 @@ capabilities:
 |---|---|---|---|
 | **native** | Materialize the skill directory where the runtime loads skills | Everything: lazy loading, resources, scripts | ~Nothing — the description alone sits in context until triggered |
 | **context** | Generate a dacli-managed section in the runtime's startup file (`AGENTS.md`, `GEMINI.md`, …) | The prose, always loaded | **The full body, every turn.** Progressive disclosure is gone; a 2k-token skill is a 2k-per-turn tax |
-| **inline** | Prepend to the spawn brief | The prose, this session only | Same tax, plus it competes with the brief's own budget |
+| **inline** | Include in a context brief | The prose, this session only | Same tax, plus it competes with the brief's own budget |
 
-Degradation is explicit, per the standing rule: a skill delivered below `native` is announced at spawn with its per-turn cost, and a skill whose `min_delivery` the target cannot meet is **omitted and announced** — a silently absent skill is a role lying about its own competence.
+Degradation is explicit, per the standing rule: a skill delivered below `native` is announced at compilation with its per-turn cost, and a skill whose `min_delivery` the target cannot meet is **omitted and announced** — a silently absent skill is a role lying about its own competence.
 
 ### Executable parts compile to shortcuts
 
@@ -97,16 +99,16 @@ The part of this design I'd defend hardest: a skill's scripts cannot ride a cont
 
 ## 4. Compilation
 
-- **When:** at spawn, as part of profile assembly ([TEAM.md § 4](TEAM.md)) — the role names the skills, the adapter names the mode, the compiler does the rest.
+- **When:** an explicit `skill compile` operation. It does not launch an agent or install a native MCP session.
 - **Where:** `.dacli/build/skills/<runtime>/<role>/` — **gitignored, regenerable, never edited.** Compiled output is a projection with exactly the standing GitHub doctrine: delete it and rebuild it; the workspace is the only source.
-- **Cached** by content hash of (skill set × target mode), so a hundred spawns of the same role cost one compile.
-- **Per-role gating is real only under worktree isolation.** In an isolated worktree, the child sees exactly its role's compiled skills. In a shared checkout, a native skill directory is visible to every agent in the repo — so there, skill gating is *advisory*, and spawn says so rather than pretending. Same honesty rule as the permission model, same wording discipline.
+- **Cached** by content hash of (skill set × target mode), so repeated compilations of the same role cost one compile.
+- **Per-role gating is real only under worktree isolation.** In an isolated worktree, the child sees exactly its role's compiled skills. In a shared checkout, a native skill directory is visible to every agent in the repo — so there, skill gating is *advisory*, and no native session authority follows from skill visibility. Same honesty rule as the permission model, same wording discipline.
 
 ## 5. Token economics
 
 The shortcut-catalog argument applies with bigger numbers: on `context` and `inline` targets a skill's *entire body* is an every-turn tax. So the compiler enforces what the catalog enforces:
 
-- A per-role compiled-size budget; exceeding it is a spawn-time warning naming the heaviest skill.
+- A per-role compiled-size budget; exceeding it is a compilation warning naming the heaviest skill.
 - `est_tokens` maintained on every skill so role authors see the price where they shop.
 - The practical guidance stands: role skill lists should be short, and a skill that exists to serve one task is a brief section, not a skill.
 
@@ -129,5 +131,5 @@ That makes the boundary between them a security boundary, and it must be one-way
 
 1. **Context-file cohabitation.** `AGENTS.md` often already exists and is human-authored. The dacli-managed section must be marker-delimited and idempotently rewritten — the same never-touch-a-human's-text rule as GitHub comments — but merge conflicts between the human's half and the compiled half have no clean answer yet.
 2. **Per-runtime prompt dialects.** The same prose lands differently across vendors' models. Compilation currently treats skill text as portable; if per-target phrasing ever matters, that's a template layer this design does not want and might need.
-3. **Native-format drift.** The richest target's skill format is itself evolving; tracking it is the same treadmill as adapter flags, and `runtime doctor` should probe skill-dir conventions the way it probes everything else.
+3. **Native-format drift.** The richest target's skill format is itself evolving; tracking it is the same treadmill as adapter flags, and each host integration needs measured installation behavior; runtime doctor has been removed.
 4. **`dacli taint` does not walk skills yet.** § 6 says a promoted skill's `origin:` should let `taint` trace a suspect source all the way into standing instructions, and `skill promote` now writes that field, but `store.Taint` only walks events and notes — a skill directory is neither. Wiring it in is a small, separate change (walk `w.SkillsLibDir()` the way `Taint` walks each project's notes dirs).

@@ -176,8 +176,8 @@ func TestReleaseRetainsNarrowNativeMacOSValidation(t *testing.T) {
 	if !strings.Contains(macOSJob, "runs-on: macos-latest") {
 		t.Fatal("release workflow must retain a native macOS validation job")
 	}
-	if !strings.Contains(macOSJob, "go test ./internal/procmon/ ./internal/features/execution/") {
-		t.Fatal("native macOS validation must exercise process-sensitive packages")
+	if !strings.Contains(macOSJob, "go test ./internal/procmon/ ./internal/governance/sessions/ ./internal/mcp/native/") {
+		t.Fatal("native macOS validation must exercise native authority and process-observation packages")
 	}
 	if !strings.Contains(jobBlock(t, workflow, "goreleaser"), "needs: macos-native") {
 		t.Fatal("release publication must wait for native macOS validation")
@@ -258,4 +258,21 @@ func requiredCheckSucceeds(job string, results map[string]string) bool {
 		}
 	}
 	return true
+}
+
+func TestWorkflowsDoNotInvokeRemovedLaunchPackages(t *testing.T) {
+	for _, name := range []string{"ci.yml", "release.yml"} {
+		source := readNamedWorkflow(t, name)
+		for _, removed := range []string{"./internal/features/execution/", "./internal/features/orchestration/", "./internal/providerpolicy/", "./internal/verifyroute/"} {
+			if strings.Contains(source, removed) {
+				t.Errorf("%s invokes removed launcher package %s", name, removed)
+			}
+		}
+	}
+	ci := readNamedWorkflow(t, "ci.yml")
+	for _, name := range []string{"TestLeaseCrashPreservesLockAndAuthority", "TestLeaseLostReplyReplayAcrossProcesses"} {
+		if !strings.Contains(ci, name) {
+			t.Errorf("CI omits repeated native process-boundary test %s", name)
+		}
+	}
 }

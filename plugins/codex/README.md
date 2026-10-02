@@ -9,7 +9,7 @@ included. The marketplace identity remains `dacli-governance@dacli-local`.
 ## Provision and install
 
 Prerequisites: Python 3, POSIX private-file support, a current dacli binary with
-`native bootstrap`, `native enroll`, `native serve` and `native revoke`, and an
+`native bootstrap`, `native enroll`, `native serve`, `native revoke` and `native upgrade`, and an
 existing real Git repository with a dacli workspace and canonical task.
 
 The owner creates a private directory outside the plugin, cache and exports.
@@ -80,6 +80,19 @@ review, acceptance consumption and deployment authorization are not exposed.
 execution evidence. Host filesystem and shell actions remain outside these
 cooperative gates; no containment or universal enforcement is claimed.
 
+For an existing schema-5 authority, the owner runs the exact migration once:
+
+```sh
+dacli native upgrade --config /private/owner/owner.json
+```
+
+The command requires the private owner credential and preserves existing session
+IDs, credentials, connection files and authority history. Restart Codex's native
+MCP process with the same profile afterward. It migrates only schema 5 to 6;
+already-schema-6, malformed, unsupported or forged-owner requests refuse without
+reset. Old schema-5 binaries cannot write the upgraded authority. Migration is
+local owner work, never a plugin tool or automatic startup fallback.
+
 Refusals require owner investigation; do not retry unchanged or reset authority.
 To revoke, use the exact session ID returned by `identity` or enrollment:
 
@@ -98,7 +111,7 @@ preview. Other host versions and Windows are unverified.
 
 ```sh
 python3 -m unittest discover -s plugins/codex/tests -v
-python3 plugins/codex/scripts/smoke.py --codex /absolute/path/to/codex --dacli /absolute/path/to/dacli
+python3 plugins/codex/scripts/smoke.py --codex /absolute/path/to/codex --dacli /absolute/path/to/dacli --schema5-dacli /absolute/path/to/retained-schema5-dacli
 python3 plugins/codex/scripts/package.py /absolute/output/dacli-governance.zip
 ```
 
@@ -109,7 +122,11 @@ discovery, native identity and task reads, attempt/lease/revision/self-report,
 then live refusal after the owner revokes. It exports only bounded observations,
 never tokens, local paths, task contents or raw host responses. The receipt at
 `receipts/native-install-0.159.2.json` records the successful native run, including exact live authorization refusal
-after owner revocation.
+after owner revocation. The optional `--schema5-dacli` path must point to a genuine
+old binary: it creates the old profile, verifies new-server refusal before
+migration, runs the explicit owner upgrade, confirms profile/credential retention
+and old-writer refusal, then exercises the same credentials through Codex.
+The current native receipt includes this migration proof.
 Historical `receipts/install-0.159.2.json` describes version 0.1.0 only.
 
 The deterministic allowlisted archive excludes historical probes/receipts,

@@ -7,20 +7,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
-	"slices"
-	"sort"
 	"strings"
-	"time"
 
 	"github.com/mlnomadpy/dacli/internal/mdstore"
 	"github.com/mlnomadpy/dacli/internal/model"
 	"github.com/mlnomadpy/dacli/internal/workspace"
 )
 
-// Runtime is a parsed coding-agent CLI adapter. Everything in it is an
-// assumption until `runtime doctor` probes the installed binary — including
-// the presets dacli ships.
+// Runtime is archived coding-agent adapter metadata retained for history,
+// diagnostics, and skill export. It does not authorize or launch a provider.
 type Runtime struct {
 	Name string
 	// Harness groups interchangeable read/write adapters for the same coding
@@ -102,25 +97,6 @@ type ExecutionCapability string
 
 const ExecutionCapabilityLocalCoordinationSocket ExecutionCapability = "local-coordination-socket"
 
-// RequiredExecutionCapabilities derives facilities from commands rather than
-// vendor or project language labels. Gradle opens this socket before project
-// configuration, so startup compatibility cannot stand in for this evidence.
-func RequiredExecutionCapabilities(commands []string) []ExecutionCapability {
-	for _, command := range commands {
-		for _, field := range strings.Fields(strings.ToLower(command)) {
-			base := filepath.Base(strings.TrimPrefix(field, "./"))
-			if base == "gradle" || base == "gradlew" || base == "gradlew.bat" {
-				return []ExecutionCapability{ExecutionCapabilityLocalCoordinationSocket}
-			}
-		}
-	}
-	return nil
-}
-
-func RuntimeHasExecutionCapability(rt Runtime, required ExecutionCapability) bool {
-	return slices.Contains(rt.ExecutionCapabilities, required)
-}
-
 const (
 	ContextUserConfig       ContextClass = "user-config"
 	ContextRepoInstructions ContextClass = "repository-instructions"
@@ -162,90 +138,6 @@ func ParseContextContract(lines []string) map[ContextClass]ContextCapability {
 	return out
 }
 
-// ContextSource records names and paths only. Values from environment or
-// config files are never read into a run record.
-type ContextSource struct {
-	Class ContextClass
-	Path  string
-}
-
-// DiscoverContextSources enumerates conventional provider roots under the
-// child's effective HOME/config roots. It deliberately accepts env as input so
-// tests and runtime doctor use fixture homes and never inspect an operator's
-// real global configuration.
-func DiscoverContextSources(rt Runtime, workdir string, env map[string]string) []ContextSource {
-	home := env["HOME"]
-	config := env["XDG_CONFIG_HOME"]
-	if config == "" && home != "" {
-		config = filepath.Join(home, ".config")
-	}
-	base := strings.TrimSuffix(filepath.Base(rt.Binary), ".exe")
-	var candidates []ContextSource
-	add := func(class ContextClass, paths ...string) {
-		for _, path := range paths {
-			if path != "" {
-				candidates = append(candidates, ContextSource{Class: class, Path: path})
-			}
-		}
-	}
-	switch base {
-	case "codex":
-		root := env["CODEX_HOME"]
-		if root == "" && home != "" {
-			root = filepath.Join(home, ".codex")
-		}
-		add(ContextUserConfig, filepath.Join(root, "config.toml"))
-		add(ContextGlobalSkills, filepath.Join(root, "skills"), filepath.Join(home, ".agents", "skills"))
-		add(ContextMCP, filepath.Join(root, "config.toml"))
-	case "claude":
-		add(ContextUserConfig, filepath.Join(home, ".claude.json"), filepath.Join(home, ".claude", "settings.json"))
-		add(ContextGlobalSkills, filepath.Join(home, ".claude", "skills"))
-		add(ContextPlugins, filepath.Join(home, ".claude", "plugins"))
-		add(ContextMCP, filepath.Join(home, ".claude.json"))
-	case "gemini":
-		add(ContextUserConfig, filepath.Join(home, ".gemini", "settings.json"))
-		add(ContextGlobalSkills, filepath.Join(home, ".gemini", "skills"))
-		add(ContextPlugins, filepath.Join(home, ".gemini", "extensions"))
-		add(ContextMCP, filepath.Join(home, ".gemini", "settings.json"))
-	case "copilot":
-		add(ContextUserConfig, filepath.Join(config, "github-copilot"))
-		add(ContextPlugins, filepath.Join(config, "github-copilot", "extensions"))
-		add(ContextMCP, filepath.Join(config, "github-copilot", "mcp.json"))
-	}
-	add(ContextRepoInstructions, filepath.Join(workdir, "AGENTS.md"), filepath.Join(workdir, "CLAUDE.md"), filepath.Join(workdir, ".github", "copilot-instructions.md"), filepath.Join(workdir, "GEMINI.md"))
-	for _, name := range rt.Env {
-		if _, ok := env[name]; ok && name != "HOME" && name != "PATH" && name != "USER" && name != "LOGNAME" && name != "TMPDIR" {
-			add(ContextEnvironment, "$"+name)
-		}
-	}
-	seen := map[string]bool{}
-	var out []ContextSource
-	for _, source := range candidates {
-		if strings.HasPrefix(source.Path, "$") {
-			// Environment-derived provenance records the variable NAME only.
-		} else if info, err := os.Stat(source.Path); err != nil || (info.IsDir() && dirEmpty(source.Path)) {
-			continue
-		}
-		key := string(source.Class) + "\x00" + source.Path
-		if !seen[key] {
-			seen[key] = true
-			out = append(out, source)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Class == out[j].Class {
-			return out[i].Path < out[j].Path
-		}
-		return out[i].Class < out[j].Class
-	})
-	return out
-}
-
-func dirEmpty(path string) bool {
-	entries, err := os.ReadDir(path)
-	return err == nil && len(entries) == 0
-}
-
 func ContextSummary(rt Runtime) string {
 	parts := FormatContextContract(rt.Context)
 	if len(parts) == 0 {
@@ -278,33 +170,11 @@ const (
 )
 
 type runtimeProbeCache struct {
-	Fingerprint string                            `json:"fingerprint"`
-	ReadOnly    RuntimeROProbe                    `json:"read_only"`
-	Detail      string                            `json:"detail,omitempty"`
-	Launch      map[string]RuntimeLaunchPreflight `json:"launch,omitempty"`
+	Fingerprint string                     `json:"fingerprint"`
+	ReadOnly    RuntimeROProbe             `json:"read_only"`
+	Detail      string                     `json:"detail,omitempty"`
+	Launch      map[string]json.RawMessage `json:"launch,omitempty"`
 }
-
-// LaunchLayer is the provider-neutral vocabulary scheduling may act on.
-// Provider adapters classify their own output into these values; spawn never
-// parses vendor prose (issue #746).
-type LaunchLayer string
-
-const (
-	LaunchAuthentication LaunchLayer = "authentication"
-	LaunchSandbox        LaunchLayer = "sandbox"
-	LaunchStartup        LaunchLayer = "startup"
-	LaunchQuota          LaunchLayer = "quota"
-	LaunchTransport      LaunchLayer = "transport"
-)
-
-type LaunchState string
-
-const (
-	LaunchCompatible   LaunchState = "compatible"
-	LaunchIncompatible LaunchState = "incompatible"
-	LaunchTransient    LaunchState = "transient"
-	LaunchUnsupported  LaunchState = "unsupported"
-)
 
 type CapabilityProvenance string
 
@@ -326,19 +196,8 @@ const (
 	BehavioralPreflightClaudePrintV1 = "claude-print-v1"
 )
 
-// RuntimeLaunchPreflight is deliberately safe to print and persist: it holds
-// classifications and timestamps, never argv, environment values, or the
-// handshake prompt.
-type RuntimeLaunchPreflight struct {
-	State            LaunchState           `json:"state"`
-	Layer            LaunchLayer           `json:"layer,omitempty"`
-	Detail           string                `json:"detail,omitempty"`
-	Provenance       CapabilityProvenance  `json:"provenance"`
-	CommandTimestamp time.Time             `json:"command_timestamp"`
-	Contract         RuntimeLaunchContract `json:"contract"`
-}
-
-// CreateRuntime writes .dacli/runtimes/<name>.md.
+// CreateRuntime serializes archived runtime metadata to .dacli/runtimes/<name>.md.
+// Retained fixture builders use it; no shipped command launches this declaration.
 func CreateRuntime(w *workspace.Workspace, actor string, rt Runtime, note string) error {
 	if rt.Name == "" || rt.Binary == "" {
 		return fmt.Errorf("a runtime needs at least --name and --binary")
@@ -418,7 +277,7 @@ func CreateRuntime(w *workspace.Workspace, actor string, rt Runtime, note string
 		d.Front.SetList("context_provenance", FormatContextContract(rt.Context))
 	}
 	if note == "" {
-		note = "Flags here are assumptions until `dacli runtime doctor` verifies them against the installed binary."
+		note = "Historical runtime declaration; these flags and cached observations do not authorize a native session."
 	}
 	d.Sections = []mdstore.Section{{Level: 1, Title: rt.Name, Content: note + "\n"}}
 	return mdstore.WriteFile(path, d)
@@ -590,250 +449,6 @@ func equalStrings(a, b []string) bool {
 	return true
 }
 
-// writeToolTokens are the --allowedTools entries that let a child MODIFY the
-// workspace. A runtime whose allowlist grants none of them cannot write,
-// whatever grant a role hands it. Matched as whole tokens, case-insensitive, so
-// a Bash rule (`Bash(git:*)`) or a model name can never be mistaken for one.
-var writeToolTokens = map[string]bool{
-	"edit":         true,
-	"write":        true,
-	"multiedit":    true,
-	"notebookedit": true,
-}
-
-// argsPinAllowlist reports whether args carry an --allowedTools flag — the
-// marker that this runtime restricts the child's tools to an explicit allowlist
-// rather than leaving the vendor's default in place. Only such a runtime makes
-// a checkable claim about what it can and cannot do.
-func argsPinAllowlist(args []string) bool {
-	for _, a := range args {
-		if strings.EqualFold(a, "--allowedTools") || strings.EqualFold(a, "--allowed-tools") {
-			return true
-		}
-	}
-	return false
-}
-
-// allowlistGrantsWrite reports whether the --allowedTools list in args names a
-// write tool. Tokens arrive either one-per-arg (`Edit`, `Write`) or comma-joined
-// in one arg (`"Edit,Write,Read"`) depending on how the adapter was written, so
-// every arg is split on commas before matching.
-func allowlistGrantsWrite(args []string) bool {
-	for _, a := range args {
-		for _, tok := range strings.Split(a, ",") {
-			if writeToolTokens[strings.ToLower(strings.TrimSpace(tok))] {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// RuntimeWritable reports whether an rw-granted child can actually modify the
-// workspace on this runtime. sandboxFor adds nothing for a non-ro grant, so the
-// tools an rw child runs with are exactly the runtime's invoke args. When those
-// args (or the runtime's ro sandbox) pin an --allowedTools allowlist, the child
-// can write only if that allowlist names a write tool: junior's `cc` pins
-// Read/Grep/Glob/LS + the dacli binary and so, despite its rw grant, can never
-// edit a file — the spawn burns a whole run discovering it (dacli 250). A
-// runtime that pins NO allowlist anywhere makes no such promise, so it is
-// treated as writable — we refuse only a runtime that PROVABLY cannot write,
-// leaving generic-exec and other non-allowlist adapters unaffected.
-func RuntimeWritable(rt Runtime) bool {
-	if hasArgPair(rt.Args, "--sandbox", "read-only") {
-		return false
-	}
-	if !argsPinAllowlist(rt.Args) && !argsPinAllowlist(rt.SandboxRO) {
-		return true
-	}
-	return allowlistGrantsWrite(rt.Args)
-}
-
-func hasArgPair(args []string, key, value string) bool {
-	for i := 0; i+1 < len(args); i++ {
-		if args[i] == key && args[i+1] == value {
-			return true
-		}
-	}
-	return false
-}
-
-// dacliBashPrefixes extracts the command prefix of every `Bash(<prefix>:*)`
-// allowlist rule in args whose binary basename is base. Tokens arrive either
-// one-per-arg or comma-joined (same as allowlistGrantsWrite), so every arg is
-// split on commas first. Claude Code's Bash rule is `Bash(<prefix>:<argpattern>)`;
-// the command prefix is everything up to the first ':' (a unix binary path never
-// contains one), so `Bash(/Users/x/go/bin/dacli:*)` yields `/Users/x/go/bin/dacli`.
-func dacliBashPrefixes(args []string, base string) []string {
-	var out []string
-	for _, a := range args {
-		for _, tok := range strings.Split(a, ",") {
-			tok = strings.TrimSpace(tok)
-			if !strings.HasPrefix(tok, "Bash(") || !strings.HasSuffix(tok, ")") {
-				continue
-			}
-			inner := tok[len("Bash(") : len(tok)-1]
-			if i := strings.Index(inner, ":"); i >= 0 {
-				inner = inner[:i]
-			}
-			inner = strings.TrimSpace(inner)
-			if inner != "" && filepath.Base(inner) == base {
-				out = append(out, inner)
-			}
-		}
-	}
-	return out
-}
-
-// RuntimeAllowsDacli reports whether an --allowedTools allowlist built from args
-// permits a headless child to run the dacli binary at exe — the path the spawn
-// preamble hands the child (os.Executable(), rendered as the brief's Exe). Claude
-// Code's Bash rule pins an EXACT command prefix, so exe must equal an allowlisted
-// dacli path; cc-rw's `Bash(/Users/.../go/bin/dacli:*)` permits the installed
-// binary and nothing else. When the allowlist names no dacli binary at all
-// (allowlisted is empty) there is nothing to contradict, so it returns
-// permitted=true — only an allowlist that PROVABLY pins a different dacli path is
-// flagged, leaving non-allowlist and non-Bash-scoped adapters (generic-exec)
-// untouched. The allowlisted dacli paths are returned so a caller can report what
-// the allowlist actually permits when exe does not match (dacli 267).
-func RuntimeAllowsDacli(args []string, exe string) (bool, []string) {
-	prefixes := dacliBashPrefixes(args, filepath.Base(exe))
-	if len(prefixes) == 0 {
-		return true, nil
-	}
-	for _, p := range prefixes {
-		if p == exe {
-			return true, prefixes
-		}
-	}
-	return false, prefixes
-}
-
-// knownToolNames is the fixed vocabulary dacli 272's preflight recognizes when
-// a role prompt names a tool. Matched against a Claude-Code-shaped
-// --allowedTools allowlist, so this list is that surface, not an open one.
-var knownToolNames = []string{
-	"Bash", "Read", "Write", "Edit", "MultiEdit", "NotebookEdit", "NotebookRead",
-	"Grep", "Glob", "LS", "WebFetch", "WebSearch", "Task", "TodoWrite", "ExitPlanMode",
-}
-
-// namedToolPattern matches a single backtick-quoted word, e.g. a role prompt
-// containing WebFetch wrapped in backticks.
-var namedToolPattern = regexp.MustCompile("`([A-Za-z]+)`")
-
-// NamedTools extracts every tool the role prompt names in a backtick code
-// span, in first-seen order with duplicates dropped. Prose verbs ("Write the
-// failing test", "Read the surrounding code") do not count — only an exact,
-// code-quoted match against knownToolNames does. This is the same precision
-// discipline dacliBashPrefixes uses for the binary-allowlist check: a plain
-// word can never be mistaken for a tool the runtime must actually grant.
-func NamedTools(prompt string) []string {
-	known := make(map[string]bool, len(knownToolNames))
-	for _, n := range knownToolNames {
-		known[n] = true
-	}
-	var out []string
-	seen := map[string]bool{}
-	for _, m := range namedToolPattern.FindAllStringSubmatch(prompt, -1) {
-		tok := m[1]
-		if known[tok] && !seen[tok] {
-			seen[tok] = true
-			out = append(out, tok)
-		}
-	}
-	return out
-}
-
-// allowlistedToolNames is allowlistGrantsWrite generalized from the write
-// subset to the full set: every non-Bash token an --allowedTools list names,
-// lower-cased for case-insensitive lookup. A Bash(<prefix>:*) rule scopes one
-// shell command, not a tool, so it is excluded here exactly as
-// dacliBashPrefixes excludes everything else from ITS extraction.
-func allowlistedToolNames(args []string) map[string]bool {
-	out := map[string]bool{}
-	for _, a := range args {
-		for _, tok := range strings.Split(a, ",") {
-			tok = strings.TrimSpace(tok)
-			if tok == "" || strings.HasPrefix(tok, "Bash(") {
-				continue
-			}
-			out[strings.ToLower(tok)] = true
-		}
-	}
-	return out
-}
-
-// RuntimeAllowsTool reports whether an --allowedTools allowlist built from
-// args permits tool. Mirrors RuntimeWritable's convention: a runtime that
-// pins no allowlist anywhere makes no restrictive promise, so every tool is
-// permitted; one that pins an allowlist permits only what it names.
-func RuntimeAllowsTool(args []string, tool string) bool {
-	if !argsPinAllowlist(args) {
-		return true
-	}
-	return allowlistedToolNames(args)[strings.ToLower(tool)]
-}
-
-// RuntimeEnforcesRO reports whether this installed runtime has passed the
-// local sandbox probe. A declared argument list is only an assumption and is
-// never enough by itself (dacli 365).
-func RuntimeEnforcesRO(rt Runtime) bool {
-	return rt.ROProbe == RuntimeROVerified
-}
-
-var readOnlyToolTokens = map[string]bool{
-	"read":         true,
-	"grep":         true,
-	"glob":         true,
-	"ls":           true,
-	"notebookread": true,
-	"webfetch":     true,
-	"websearch":    true,
-}
-
-// recognizedReadOnlyAllowlist accepts only the allowlist shape whose semantics
-// dacli can inspect completely. In particular Bash(git:*) is not read-only
-// merely because it is not named Edit or Write; the only Bash carve-out is the
-// dacli reporting channel, whose commands remain grant-gated by the child token.
-func recognizedReadOnlyAllowlist(args []string) bool {
-	if len(args) < 2 || (!strings.EqualFold(args[0], "--allowedTools") && !strings.EqualFold(args[0], "--allowed-tools")) {
-		return false
-	}
-	seen := false
-	for _, arg := range args[1:] {
-		for _, raw := range strings.Split(arg, ",") {
-			tok := strings.TrimSpace(raw)
-			lower := strings.ToLower(tok)
-			switch {
-			case readOnlyToolTokens[lower]:
-				seen = true
-			case strings.HasPrefix(lower, "bash(") && strings.HasSuffix(lower, ")"):
-				inner := tok[len("Bash(") : len(tok)-1]
-				if i := strings.Index(inner, ":"); i >= 0 {
-					inner = inner[:i]
-				}
-				if filepath.Base(strings.TrimSpace(inner)) != "dacli" {
-					return false
-				}
-				seen = true
-			default:
-				return false
-			}
-		}
-	}
-	return seen
-}
-
-// RuntimeROProbeable says whether the declaration itself has semantics dacli
-// can check without running a paid prompt. Unknown vendor-specific flags and
-// partially understood allowlists stay declaration-only rather than being
-// blessed by a successful --help.
-func RuntimeROProbeable(rt Runtime) bool {
-	return recognizedReadOnlyAllowlist(rt.SandboxRO) || hasArgPair(rt.SandboxRO, "--sandbox", "read-only") ||
-		hasArgPair(rt.SandboxRO, "--approval-mode", "plan") ||
-		(hasArgPair(rt.SandboxRO, "--deny-tool", "write") && hasArgPair(rt.SandboxRO, "--deny-tool", "shell"))
-}
-
 func runtimeProbePath(w *workspace.Workspace, name string) string {
 	// Runtime documents can be hand-edited, so do not turn their frontmatter
 	// name back into a path without the same containment guarantee CreateRuntime
@@ -906,83 +521,6 @@ func SaveRuntimeROProbe(w *workspace.Workspace, rt Runtime, binaryPath string, s
 	return mdstore.WriteBytes(runtimeProbePath(w, rt.Name), append(b, '\n'), 0o600)
 }
 
-func declaredLaunchSandbox(rt Runtime, grant model.Grant) []string {
-	if grant == model.GrantRO {
-		return append([]string(nil), rt.SandboxRO...)
-	}
-	return nil
-}
-
-// LoadFreshRuntimeLaunchPreflight returns evidence only for the exact binary,
-// adapter declaration, grant, model, and user-configuration policy. A missing,
-// future-dated, or expired timestamp cannot authorize launch.
-func LoadFreshRuntimeLaunchPreflight(w *workspace.Workspace, rt Runtime, binaryPath string, grant model.Grant, selectedModel string, allowUserConfig bool, now time.Time, maxAge time.Duration) (RuntimeLaunchPreflight, bool) {
-	contract, err := BuildRuntimeLaunchContract(rt, binaryPath, grant, selectedModel, allowUserConfig, declaredLaunchSandbox(rt, grant), CommandResultChannel)
-	if err != nil {
-		return RuntimeLaunchPreflight{}, false
-	}
-	return LoadFreshRuntimeLaunchPreflightForContract(w, rt, binaryPath, contract, now, maxAge)
-}
-
-func LoadFreshRuntimeLaunchPreflightForContract(w *workspace.Workspace, rt Runtime, binaryPath string, contract RuntimeLaunchContract, now time.Time, maxAge time.Duration) (RuntimeLaunchPreflight, bool) {
-	var zero RuntimeLaunchPreflight
-	b, err := os.ReadFile(runtimeProbePath(w, rt.Name))
-	if err != nil {
-		return zero, false
-	}
-	var cache runtimeProbeCache
-	if contract.Validate() != nil || json.Unmarshal(b, &cache) != nil || cache.Launch == nil {
-		return zero, false
-	}
-	result, ok := cache.Launch[contract.Fingerprint]
-	age := now.Sub(result.CommandTimestamp)
-	if !ok || !result.Contract.Equal(contract) || result.CommandTimestamp.IsZero() || age < 0 || age > maxAge {
-		return zero, false
-	}
-	return result, true
-}
-
-// SaveRuntimeLaunchPreflight preserves the independent read-only probe in the
-// same per-install cache while adding exact launch evidence.
-func SaveRuntimeLaunchPreflight(w *workspace.Workspace, rt Runtime, binaryPath string, grant model.Grant, selectedModel string, allowUserConfig bool, result RuntimeLaunchPreflight) error {
-	contract, err := BuildRuntimeLaunchContract(rt, binaryPath, grant, selectedModel, allowUserConfig, declaredLaunchSandbox(rt, grant), CommandResultChannel)
-	if err != nil {
-		return err
-	}
-	return SaveRuntimeLaunchPreflightForContract(w, rt, binaryPath, contract, result)
-}
-
-func SaveRuntimeLaunchPreflightForContract(w *workspace.Workspace, rt Runtime, binaryPath string, contract RuntimeLaunchContract, result RuntimeLaunchPreflight) error {
-	fingerprint, err := runtimeProbeFingerprint(rt, binaryPath)
-	if err != nil {
-		return err
-	}
-	cache := runtimeProbeCache{Fingerprint: fingerprint, ReadOnly: RuntimeROUnknown, Launch: map[string]RuntimeLaunchPreflight{}}
-	if b, readErr := os.ReadFile(runtimeProbePath(w, rt.Name)); readErr == nil {
-		var existing runtimeProbeCache
-		if json.Unmarshal(b, &existing) == nil && existing.Fingerprint == fingerprint {
-			cache = existing
-			if cache.Launch == nil {
-				cache.Launch = map[string]RuntimeLaunchPreflight{}
-			}
-		}
-	}
-	if err := contract.Validate(); err != nil {
-		return err
-	}
-	result.Contract = contract
-	cache.Launch[contract.Fingerprint] = result
-	dir := filepath.Dir(runtimeProbePath(w, rt.Name))
-	if err := os.MkdirAll(dir, 0o750); err != nil {
-		return err
-	}
-	b, err := json.Marshal(cache)
-	if err != nil {
-		return err
-	}
-	return mdstore.WriteBytes(runtimeProbePath(w, rt.Name), append(b, '\n'), 0o600)
-}
-
 // LoadRuntimes parses every adapter.
 func LoadRuntimes(w *workspace.Workspace) ([]Runtime, error) {
 	entries, err := os.ReadDir(w.RuntimesDir())
@@ -1024,43 +562,4 @@ func LoadRuntime(w *workspace.Workspace, name string) (Runtime, error) {
 		return rt, nil
 	}
 	return Runtime{}, ErrNotFound{Ref: "runtime/" + name}
-}
-
-// ungatedOutwardTools names allowlist entries that let a child perform an
-// OUTWARD write — one that leaves this machine — without passing any of
-// dacli's consent controls.
-//
-// The controls exist and work: `github push`, `github project`, `catalog
-// --publish-wiki` and the rest are rw-gated at the dispatcher, and the
-// disclosure gate records per-project consent before a public mirror. All of
-// it is bypassed the moment a child can shell to `gh` directly. That is not
-// hypothetical — an autonomous agent created a private GitHub repo, set it as
-// origin, pushed, and opened and merged PRs, none of which the operator
-// approved and none of which dacli could see (task 308, issue #382 item 6).
-//
-// `git` is deliberately NOT here: an implementer needs it for its own branch
-// and commits, and a push still needs a remote the operator configured.
-var ungatedOutwardTools = map[string]string{
-	"bash(gh:*)":   "`gh` can create repositories, set remotes, and open and merge PRs — outside every consent gate dacli has",
-	"bash(curl:*)": "`curl` can post this workspace's contents anywhere",
-	"bash(*)":      "an unrestricted Bash allowlist grants every outward tool on the machine",
-}
-
-// UngatedOutwardGrant returns the first allowlist entry in args that hands a
-// child ungated outward reach, with the reason, or "" when none does.
-//
-// It reports rather than refuses at this layer: a runtime that deliberately
-// grants `gh` is a legitimate configuration for an operator who wants it, and
-// the failure mode worth preventing is the SILENT one — nobody deciding,
-// because nobody was told.
-func UngatedOutwardGrant(args []string) (entry, why string) {
-	for _, a := range args {
-		for _, tok := range strings.Split(a, ",") {
-			t := strings.ToLower(strings.TrimSpace(tok))
-			if reason, bad := ungatedOutwardTools[t]; bad {
-				return t, reason
-			}
-		}
-	}
-	return "", ""
 }

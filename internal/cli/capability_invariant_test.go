@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -60,16 +58,8 @@ func TestMutatingCommandsRefuseReadOnlyAgents(t *testing.T) {
 			[]string{"skill", "fetch", "owner/repo"},
 		},
 		{
-			"runtime add", "names the binary and env every child in it executes with",
-			[]string{"runtime", "add", "rt", "--binary", "/bin/sh"},
-		},
-		{
 			"project add", "creates workspace state and a filesystem path",
 			[]string{"project", "add", "Another", "--slug", "q"},
-		},
-		{
-			"kill", "terminates process groups from an on-disk record",
-			[]string{"kill", "--all"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -79,29 +69,6 @@ func TestMutatingCommandsRefuseReadOnlyAgents(t *testing.T) {
 					tc.name, tc.why, got)
 			}
 		})
-	}
-}
-
-func TestStartReadOnlyModesRemainReadableButExecutionIsGated(t *testing.T) {
-	dir := t.TempDir()
-	run(t, dir, 0, "init", "--name", "x")
-	run(t, dir, 0, "project", "add", "P", "--slug", "p", "--goal", "a real goal for the project")
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.test/p\n\ngo 1.22\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	run(t, dir, 0, "adopt", "--project", "p")
-	run(t, dir, 0, "start", "--project", "p", "--profile", "task", "--configure")
-	out := run(t, dir, 0, "agent", "spawn", "--role", "junior", "--grant", "ro")
-	token := strings.TrimSpace(strings.Split(strings.TrimSpace(out), "\n")[0])
-	t.Setenv("DACLI_AGENT", token)
-
-	run(t, dir, 0, "start", "--project", "p", "--show")
-	run(t, dir, 0, "start", "--project", "p", "--profile", "inspect", "--dry-run")
-	if got := run(t, dir, 3, "start", "--project", "p", "--profile", "task", "--configure"); !strings.Contains(strings.ToLower(got), "grant") {
-		t.Fatalf("mutating start did not report its grant refusal: %s", got)
 	}
 }
 
@@ -165,24 +132,24 @@ func TestEveryCommandDeclaresItsCapability(t *testing.T) {
 	// Commands that change state a read-only agent must not change.
 	wantMutating := map[string]bool{
 		"accept apply": true, "adopt": true, "agent retire": true, "agent spawn": true, "cleanup": true, "branches prune": true, "events reconcile": true,
-		"catalog": true, "claim expand": true, "commit": true, "escalate": true, "github codeowners": true,
+		"catalog": true, "commit": true, "escalate": true, "github codeowners": true,
 		"github link": true, "github project": true, "github pull": true,
 		"github push": true, "github release": true, "github sync": true,
-		"handoff consume": true, "init": true, "integrate": true, "kill": true, "loop": true, "merge": true,
+		"handoff consume": true, "init": true, "integrate": true, "merge": true,
 		"new": true, "pr": true, "pr land": true, "project add": true, "project rm": true, "project show": true,
 		"push": true, "queue add": true, "queue advance": true, "reconcile": true, "report": true,
-		"role add": true, "role bump": true, "run": true, "runs prune": true,
-		"runtime add": true, "ship": true, "shortcut add": true,
+		"role add": true, "role bump": true, "run": true,
+		"ship": true, "shortcut add": true,
 		"shortcut promote": true, "skill add": true, "skill bump": true,
 		"skill compile": true, "skill fetch": true, "skill import": true,
-		"skill promote": true, "spawn": true, "stage advance": true,
-		"start": true, "supervise": true, "sync": true, "taint": true,
-		"template add": true, "wait": true, "worktree add": true, "worktree prune": true,
+		"skill promote": true, "stage advance": true,
+		"sync": true, "taint": true,
+		"template add": true, "worktree add": true, "worktree prune": true,
 		"worktree reclaim": true,
 		// Removal inverses (task 293): deleting a role, runtime, shortcut or
 		// queue changes what agents can be launched with and what `dacli run`
 		// will execute, so they gate exactly like their `add` counterparts.
-		"role rm": true, "runtime rm": true, "shortcut rm": true, "queue rm": true,
+		"role rm": true, "shortcut rm": true, "queue rm": true,
 		"worktree remove": true,
 		// Task lifecycle inverses (task 340). Both change the RECORD, which is
 		// this tool's product: reopen unchecks acceptance boxes that claimed
@@ -207,7 +174,7 @@ func TestEveryCommandDeclaresItsCapability(t *testing.T) {
 		"release train": true, "release train authority": true,
 		// Native provisioning validates private owner files instead of ambient
 		// legacy grants; dispatcher tests cover both authority boundaries.
-		"native bootstrap": true, "native enroll": true, "native revoke": true,
+		"native bootstrap": true, "native enroll": true, "native revoke": true, "native upgrade": true,
 	}
 
 	for i := range commands {
@@ -273,14 +240,6 @@ func TestAuditedBypassesAreClosed(t *testing.T) {
 			"catalog", "writes a file chosen by --out",
 			[]string{"catalog"},
 		},
-		{
-			"spawn", "starts a process and mints an identity; --cooperative would hand it a write-capable runtime",
-			[]string{"spawn", "--task", "001", "--role", "junior", "--cooperative"},
-		},
-		{
-			"wait", "finalizes durable run outcome/process records, appends exit events, and retires child identities",
-			[]string{"wait", "does-not-exist"},
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := run(t, dir, 3, tc.args...)
@@ -290,10 +249,7 @@ func TestAuditedBypassesAreClosed(t *testing.T) {
 		})
 	}
 
-	// --reap is the conditional case: listing agents stays readable, reaping
-	// does not, so the gate lives in the handler rather than on the table.
+	// Historical listing stays readable; host process reaping is removed.
 	run(t, dir, 0, "agents")
-	if got := run(t, dir, 3, "agents", "--max-rss", "1", "--reap"); !strings.Contains(strings.ToLower(got), "grant") {
-		t.Errorf("agents --reap must refuse a ro caller (it kills process trees); got:\n%s", got)
-	}
+	run(t, dir, 2, "agents", "--reap")
 }

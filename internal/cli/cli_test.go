@@ -86,7 +86,7 @@ func TestTopLevelHelpLeadsWithBoundedWorkflowAndKeepsFullCatalogDiscoverable(t *
 	got := out.String()
 	for _, want := range []string{
 		"inspect → plan → claim → implement → verify → review → PR → CI → merge",
-		"start --profile inspect|task|wave|loop",
+		"native / overview / next / task",
 		"dacli help --all",
 	} {
 		if !strings.Contains(got, want) {
@@ -121,17 +121,17 @@ func TestParentHelpListsLeavesWithoutExecutingThem(t *testing.T) {
 	if exact, _ := match([]string{"task"}); exact != nil {
 		t.Fatalf("task parent unexpectedly resolves to leaf %s; task --help would execute leaf-help routing", exact.Path)
 	}
-	if exact, _ := match([]string{"loop"}); exact == nil {
-		t.Fatal("loop leaf disappeared; loop --help must keep the leaf synopsis even though loop status also exists")
+	if exact, _ := match([]string{"pr"}); exact == nil {
+		t.Fatal("pr leaf disappeared; pr --help must keep the leaf synopsis even though pr status also exists")
 	}
 
 	parentOut := captureMainStdout(t, []string{"task", "--help"})
 	if !strings.Contains(parentOut, "task acceptance migrate") {
 		t.Errorf("task --help did not reach parent help:\n%s", parentOut)
 	}
-	leafOut := captureMainStdout(t, []string{"loop", "--help"})
-	if !strings.Contains(leafOut, "--max-cycles N") {
-		t.Errorf("loop --help hid the loop leaf behind parent navigation:\n%s", leafOut)
+	leafOut := captureMainStdout(t, []string{"pr", "--help"})
+	if !strings.Contains(leafOut, "--task") {
+		t.Errorf("pr --help hid the pr leaf behind parent navigation:\n%s", leafOut)
 	}
 }
 

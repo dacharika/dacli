@@ -21,8 +21,6 @@ var handlerUsageVariants = map[string]string{
 	"escalate":          "dacli escalate \"summary\" [--about task] [--github]",
 	"role add":          "dacli role add <name> [--summary s] [--kind researcher|planner|designer|implementer|reviewer] [--skill s]... [--scope glob]... [--shortcut n]... [--escalate-to role]... [--grant ro|rw] [--wip N] [--runtime rt] [--model m] [--max-points N]",
 	"shortcut add":      "dacli shortcut add <name> --command 'tmpl {{p}}' --effect read|write|destructive [--summary s] [--param name=default]... [--role r]... [--why text]",
-	"runtime add":       "dacli runtime add <name> [--preset claude-code|claude-code-rw|codex|codex-rw|gemini|gemini-rw|copilot|copilot-rw|generic-exec] [--harness family] [--binary b] [--mode stdin|arg] [--flag -p] [--arg a]... [--sandbox-ro-arg a]... [--env NAME]... [--model-flag f] [--token-limit-flag f] [--behavioral-preflight codex-exec-json-v1|codex-exec-json-v2|claude-print-v1]\n(--flag/--arg/--sandbox-ro-arg/--model-flag/--token-limit-flag take their value verbatim, even one starting with -, e.g. --model-flag --model)",
-	"verify":            "dacli verify --task <ref> --panel rt1,rt2[,rt3] [--claim text] [--require N] [--grant ro|rw] [--budget N] [--timeout sec] [--cooperative]",
 	"template show":     "dacli template show <name>",
 	"github sync":       "dacli github pull <project> [--dry-run]",
 	"github codeowners": "dacli github codeowners <project> | dacli github codeowners --owner <org>",

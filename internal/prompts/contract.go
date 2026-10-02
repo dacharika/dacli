@@ -20,7 +20,7 @@ const (
 	SectionVerification Section = "verification-landing"
 	SectionBudgets      Section = "budgets-recovery"
 	SectionEvidence     Section = "honest-evidence"
-	SectionAdapters     Section = "provider-neutral-adapters"
+	SectionAdapters     Section = "native-host-boundary"
 )
 
 var RequiredSections = []Section{
@@ -28,8 +28,8 @@ var RequiredSections = []Section{
 	SectionVerification, SectionBudgets, SectionEvidence, SectionAdapters,
 }
 
-// RolePhase names semantic responsibilities, never a model vendor. A runtime
-// adapter only transports the resulting bytes and configures its own CLI.
+// RolePhase names semantic responsibilities, never a model vendor or credential.
+// The native host owns execution; this contract is guidance, not launch authority.
 type RolePhase string
 
 const (
@@ -52,8 +52,8 @@ type Contract struct {
 }
 
 // AutonomousContract renders the one shared semantic contract. Role-specific
-// lifecycle instructions are branches inside this artifact, not copied into
-// provider adapters or separate prompts where they can contradict each other.
+// lifecycle instructions remain guidance inside this artifact; the host owns
+// delegation and the private authority owns authenticated transitions.
 func AutonomousContract(overrideDir string) (Contract, error) {
 	text, err := Render(overrideDir, "autonomous_delivery", map[string]any{
 		"Sections": RequiredSections,
@@ -76,7 +76,7 @@ func AutonomousContract(overrideDir string) (Contract, error) {
 	return Contract{Schema: Schema, Version: Version, Hash: hex.EncodeToString(sum[:]), Text: text, Sections: append([]Section(nil), RequiredSections...)}, nil
 }
 
-// DeliveredHash fingerprints the exact bytes handed to the runtime. The
+// DeliveredHash fingerprints the exact rendered guidance bytes. The
 // contract hash answers "which semantics?"; this answers "what was sent?".
 func DeliveredHash(prompt string) string {
 	sum := sha256.Sum256([]byte(prompt))

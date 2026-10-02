@@ -118,7 +118,7 @@ func TestGitWorkflowNoGofmtForPythonStack(t *testing.T) {
 
 // Backwards compatibility, asserted rather than assumed: with no recorded
 // stack — and with no Stack key at all, the shape any un-updated caller or
-// workspace override passes — the prompt is byte-identical to the pre-192 text.
+// workspace override passes — the prompt is byte-identical to the current native workflow text.
 func TestGitWorkflowUnchangedWithoutStack(t *testing.T) {
 	const legacyLine = "- Before you commit Go code, format it: run `gofmt -w` on every `.go` file you touched (test files included). CI runs `gofmt -l .` and REJECTS an unformatted file — an un-gofmt'd test is the most common way a green-locally change fails CI."
 	base := map[string]any{"Ref": "008", "Title": "t", "Branch": "b", "PR": true, "Exe": "dacli"}
@@ -144,11 +144,11 @@ func TestGitWorkflowUnchangedWithoutStack(t *testing.T) {
 		}
 		// The strongest form of the contract: byte-identical to what the
 		// template rendered before this task. testdata/git_workflow.md is a
-		// frozen copy of the pre-192 file, fed through the same override path
+		// frozen copy of the native workflow file, fed through the same override path
 		// a workspace would use, so any drift in the stackless branch — a
 		// stray newline from a template action included — fails here.
 		if golden := renderGolden(t, tc.data); out != golden {
-			t.Errorf("%s: stackless render drifted from pre-192\n--- got ---\n%s\n--- want ---\n%s", tc.name, out, golden)
+			t.Errorf("%s: stackless render drifted from the native workflow\n--- got ---\n%s\n--- want ---\n%s", tc.name, out, golden)
 		}
 	}
 }
