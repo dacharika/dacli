@@ -1,8 +1,8 @@
 // Package prompts is the registry for every multi-sentence piece of agent-
-// facing prose dacli emits: spawn preambles, supervision corrections, brief
+// facing prose dacli emits: native-host workflow guidance, brief
 // headers, MCP tool descriptions.
 //
-// The doctrine is the same one adapters and shortcuts already follow:
+// The doctrine is the same one shortcuts already follow:
 // PROMPTS ARE DATA, NOT CODE. A prompt buried in an Fprintf chain cannot be
 // audited, diffed in a PR, or improved without recompiling — and for this
 // tool the prompts are load-bearing artifacts. So the defaults live as
@@ -36,7 +36,7 @@ import (
 // after lifecycle semantics change (issue #707).
 const (
 	Schema  = "dacli-prompt/v1"
-	Version = "autonomous-delivery/v1"
+	Version = "native-governance/v1"
 )
 
 const declarationPrefix = "<!-- dacli-prompt schema: dacli-prompt/v1 base: "
@@ -72,7 +72,7 @@ var embedded embed.FS
 // text is immutable once resolved — an embedded default never changes at
 // runtime, and a workspace override changes only if the file on disk changes,
 // which changes its content and thus the cache key. Repeat renders of the same
-// prompt (e.g. a spawn preamble emitted per child) reuse the parsed tree.
+// prompt (e.g. a brief header emitted per task) reuse the parsed tree.
 var (
 	tplMu    sync.RWMutex
 	tplCache = map[string]*template.Template{}

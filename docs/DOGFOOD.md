@@ -1,5 +1,9 @@
 # Dogfood as proof
 
+> Historical design/evidence record: launcher behavior below describes earlier versions.
+> Current source removes coding-agent wrappers; follow [the native operator playbook](OPERATOR_PLAYBOOK.md).
+
+
 dacli's one differentiator is a claim: **an attributed log lets a tool learn from
 its own development.** Every competitor can log. What none of them has is the
 proof — a tool that provably learned from itself. That proof is not a slide; it

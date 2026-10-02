@@ -133,12 +133,12 @@ func TestCmdInitJSONSuppressesGettingStarted(t *testing.T) {
 	if !strings.Contains(out2.String(), "Getting started") {
 		t.Errorf("a plain init must print the getting-started banner: %q", out2)
 	}
-	if strings.Contains(out2.String(), "--preset claude-code") || strings.Contains(out2.String(), "--runtime claude-code") {
-		t.Errorf("provider-neutral onboarding must not select Claude for every agent: %q", out2)
+	if strings.Contains(out2.String(), "--preset") || strings.Contains(out2.String(), "dacli spawn") {
+		t.Errorf("native onboarding must not advertise removed launchers: %q", out2)
 	}
-	for _, want := range []string{"--preset <harness>", "--runtime <name>"} {
+	for _, want := range []string{"dacli native enroll --help", "dacli context <ref> --budget 4000"} {
 		if !strings.Contains(out2.String(), want) {
-			t.Errorf("provider-neutral onboarding missing %q: %q", want, out2)
+			t.Errorf("native onboarding missing %q: %q", want, out2)
 		}
 	}
 }

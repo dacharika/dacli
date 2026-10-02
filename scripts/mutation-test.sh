@@ -9,7 +9,7 @@
 # Dependency-free by design: dacli's go.mod has zero requires and this must not
 # change that, so there is no mutation framework here — just sed-style operator
 # flips over a scratch copy, plus the repo's own `go test`. It is viable because
-# the whole suite runs in well under a second.
+# focused checks avoid repeatedly running the full repository suite.
 #
 # Usage:
 #   scripts/mutation-test.sh                       # audit the default package set
@@ -29,14 +29,14 @@ PACKAGES=("$@")
 if [ ${#PACKAGES[@]} -eq 0 ]; then
   # The packages where a surviving mutant would matter most: the capability
   # model, the gates that certify work, the store that records it, and the
-  # loop that drives it.
+  # native authority that binds current credentials, leases and evidence.
   PACKAGES=(
     ./internal/agentid
     ./internal/gates
     ./internal/mdstore
     ./internal/model
     ./internal/features/acceptance
-    ./internal/features/orchestration
+    ./internal/governance/sessions
   )
 fi
 

@@ -11,17 +11,10 @@ Written out of the 2026-07-21 full-design review ([REVIEW.md](REVIEW.md)), after
 Six principles were scattered across the docs, each defended where it arose. Collected, because together they *are* the design:
 
 1. **The format is the API; binaries are conveniences.** Any tool that reads YAML frontmatter can interoperate without linking dacli. This is why every invariant — ownership, append-only, deny-beats-allow — lives in [FORMAT.md](FORMAT.md), not in Go: the format must stay safe even for writers that never ran our code.
-2. **dacli governs agents; agents do the engineering work.** The shipped loop
-   may select eligible tasks, route runtimes, launch processes, checkpoint
-   recovery, and govern landing. It does not execute an arbitrary job DAG or a
-   step that is neither an agent nor an explicit shortcut. ([RUNTIMES.md § 17](RUNTIMES.md))
-3. **Orchestration and judgment are separate.** Deterministic dacli code owns
-   lifecycle control flow and policy enforcement. An orchestrator agent owns
-   goal interpretation, decomposition, prioritization beyond recorded policy,
-   and product or architectural judgment. The loop walks recorded work through
-   bounded transitions; it does not make those judgments itself.
-4. **Never trust, always probe.** Adapter flags, runtime capabilities, `gh` subcommands: assumptions until verified against the installed binary, and `?` (unprobeable) is reported as unknown, never claimed. ([RUNTIMES.md § 5](RUNTIMES.md))
-5. **Degrade observability, never safety.** Estimated costs get labeled; a missing sandbox gets a refusal. ([RUNTIMES.md § 6](RUNTIMES.md))
+2. **The native host runs agents; dacli governs scoped transitions.** The host owns delegation, models, budgets and process control. dacli no longer contains coding-agent launchers.
+3. **Evidence is not authority.** Self-reports, host labels and snapshots do not authenticate a principal or establish independent review. Explicit private enrollment and owner grants do.
+4. **Measure integrations.** Actual host observations are version-bound. A feature flag or parsed metadata is not proof of identity, interception or second-host conformance.
+5. **Refuse uncertain authority.** Missing credentials, stale fences and unreadable canonical observations cannot silently become success.
 6. **Announce every omission.** Trimmed briefs, truncated catalogs, verb fallbacks — the reader can only ask for what it knows is missing.
 
 A seventh, implicit until the review made it visible: **one writer per file, ever.** Objects have owners; everything else is an event. The review found both places this was quietly violated (queue cursors, shortcut use-counters) and fixed them — worth stating as an axiom precisely because it was violated twice by its own author.
@@ -31,7 +24,7 @@ A seventh, implicit until the review made it visible: **one writer per file, eve
 ```
  L7  front ends        cli, mcp                 — no logic, only surface
  L6  projections       github, obsidian extras  — regenerable views, never sources
- L5  orchestration     start, loop, spawn, supervise, gates — agent lifecycle control
+ L5  governance        sessions, attempts, leases, evidence, review and decisions
  L4  pure policy       spm, shortcut, team
  L4a assembly service  brief (workspace reads + rendering)
  L3  eventlog          append-only writes, sync
@@ -55,7 +48,7 @@ Once the command surface passed fifty verbs, L5–L7 had degenerated into seven 
 |---|---|---|
 | **shared** | `ulid`, `mdstore`, `prompts`, the pure engines (`spm`, `shortcut`, `team`), and `clikit` (command type, flags, exit-code contract) | No upward imports; engines stay pure |
 | **entities** | `model`, `workspace`, `store`, `eventlog`, `agentid`, `brief` | The domain objects and their I/O |
-| **features** | `internal/features/*` — `wscore`, `planning`, `briefing`, `knowledge`, `collab`, `insight`, `teamops`, `shortcuts`, `queues`, `execution` | One slice per capability; each exports a `Commands` table; **slices never import each other** |
+| **features** | `internal/features/*` — `wscore`, `planning`, `briefing`, `knowledge`, `collab`, `insight`, `teamops`, `shortcuts`, `queues`, `history`, `reviewing`, `nativegovernance` | One slice per capability; each exports a `Commands` table; **slices never import each other** |
 | **app** | `cli` (aggregation, dispatch, the MCP executor), `mcp` (protocol) | No feature logic — a command body in `cli` is a layering bug |
 
 Two rules carry the design, and both are **tests, not comments** (`internal/cli/arch_test.go`):
@@ -84,9 +77,9 @@ for `store.go` and `vcs/lifecycle.go` as collision budgets. Crossing a ceiling
 requires extracting a named responsibility with focused tests, not raising the
 number to accommodate unrelated behavior.
 
-The slice boundaries follow the domain language, not the entities: `planning` (projects/tasks/risks/glossary), `briefing` (the product), `collab` (the cooperative event loop: sync/ask/answer/threads/escalate), `insight` (every read-only view: status, lint, the SPM schedulers, doctor, standup), `teamops` (identities, roles, routing), `execution` (the one slice that runs processes), `shortcuts` (memoized commands: definition, guarded execution, ad-hoc tracking, promotion). Runtimes, templates/gates, the GitHub projection, the loop, and the control-plane bridge are implemented slices, not future-layer placeholders.
+The slice boundaries follow the domain language, not the entities: `planning` (projects/tasks/risks/glossary), `briefing` (the product), `collab` (the cooperative event loop: sync/ask/answer/threads/escalate), `insight` (every read-only view: status, lint, the SPM schedulers, doctor, standup), `teamops` (identities, roles, routing), `history` (retained run observations), `reviewing` (independent legacy review records), `nativegovernance` (owner provisioning and native transport), `shortcuts` (memoized commands: definition, guarded execution, ad-hoc tracking, promotion). Templates/gates and GitHub projections remain separate slices. The hosted bridge is a bounded infrastructure foundation, not a launched service.
 
-The table above states the *rules*; the slice and entity *lists* here are illustrative and lag the code — the tool has grown past the original ten slices. For the current inventory of every slice and entity package, plus a component diagram, a spawn→landing sequence, and the task-lifecycle state machine — each edge cited to the file that implements it — see [DIAGRAMS.md](DIAGRAMS.md). `internal/cli/diagrams_test.go` fails the build if a slice is added without being drawn there.
+The table above states the *rules*; the slice and entity *lists* here are illustrative and lag the code — the tool has grown past the original ten slices. For the current inventory of every slice and entity package, plus a component diagram, a native governance sequence, and the task-lifecycle state machine — each edge cited to the file that implements it — see [DIAGRAMS.md](DIAGRAMS.md). `internal/cli/diagrams_test.go` fails the build if a slice is added without being drawn there.
 
 Large slices also keep package-local component boundaries. `execution` splits
 provider process launch, observability, lifecycle finalization, and behavioral
@@ -97,7 +90,7 @@ GitHub adapters without introducing feature-to-feature imports. The
 architecture test enforces both the component inventory and a reviewed size
 ceiling for the remaining coordinator files.
 
-## 3. Build order
+## 3. Historical build order
 
 The spine first, then the product, then everything else:
 
@@ -109,7 +102,7 @@ mdstore → workspace → objects/ownership → eventlog → brief → cli → m
 
 `brief` comes last in the spine on purpose: it consumes every other object type, so it can only be as real as the objects beneath it. But it is specified *first* (§ 6) — the brief contract is what the spine is being built to serve.
 
-### Release wedges
+### Historical release wedges
 
 Each wedge must be usable by someone before the next begins:
 
@@ -149,17 +142,18 @@ human-first and reject `--json`. Agents negotiate the live truth through
 `dacli capabilities --json` and must not parse human text or infer JSON support
 from a neighboring command.
 
-### MCP mirrors the CLI — tiered, not one-to-one
+### Two explicit MCP boundaries
 
-Same operations and policy core, but deliberately not one MCP tool per CLI
-command: loading the full administrative tail into every agent's context is a
-permanent token tax. [MCP.md](MCP.md) and the live registry specify the current
-Tier-1 schemas, while one `cli` escape hatch reaches the negotiated tail.
-`dacli capabilities --json` exposes both registries. Refusals return as
-results rather than transport errors so a client retry loop never hammers a
-policy "no."
+The native plugin uses `dacli native serve` with a private connection profile.
+Its catalog is bounded and typed, with no generic CLI or shell escape. Owner
+provisioning, enrollment, revocation and migration remain local-only. Each request
+reauthenticates the session; the protocol returns sanitized refusals.
 
-The tool descriptions teach the workflow — for the primary audience, they *are* the documentation, and MCP.md writes the canonical ones out in full.
+The administrative legacy `dacli mcp serve` retains its own token/operator
+startup contract and tiered catalog. It cannot access native owner commands or
+removed coding-agent launchers. See [MCP.md](MCP.md) and
+[GOVERNANCE_NATIVE_MCP.md](GOVERNANCE_NATIVE_MCP.md); inspect
+`dacli capabilities --json` for the installed administrative surface.
 
 ### Concurrency and persistence
 
@@ -171,8 +165,8 @@ Persistence is classified by recovery value:
 |---|---|---|
 | **Canonical** | Task/project/role/queue/stage documents and accepted metadata | The current source of truth; owner/command-authorized writes are atomic |
 | **Append-only** | Events and notes | Durable evidence and proposals; never rewritten as an in-place coordination mechanism |
-| **Recovery-critical** | Loop landing journals, OID-bound PR-publication checkpoints, content-addressed terminal-PR event reconciliation snapshots, and worktree transfer/reclaim artifacts | Required to resume safely; validate after write and fail closed when required evidence is absent |
-| **Runtime state** | Per-runtime cooldowns and per-run records | Controls launch safety and preserves execution evidence; a cooldown may refuse/reroute, and an interrupted record remains visible |
+| **Recovery-critical** | Historical loop landing journals, OID-bound PR-publication checkpoints, content-addressed terminal-PR event reconciliation snapshots, and worktree transfer/reclaim artifacts | Required to resume safely; validate after write and fail closed when required evidence is absent |
+| **Runtime state** | Per-runtime cooldowns and per-run records | Historical attribution and recovery evidence; no current launcher or provider rerouting authority |
 | **Advisory snapshots** | Loop status, dashboards, roster/doctor views | Derived convenience only; stale or missing data is reported, never used to authorize a destructive transition |
 | **Regenerable projections** | GitHub issues/projects, Obsidian/catalog indexes, codebase inventory | Rebuilt from canonical data and code; never authoritative |
 
@@ -190,7 +184,7 @@ Stated once here rather than discovered downstream:
   [deny-by-default privacy contract](CONTROL_PLANE_PRIVACY.md). The signed v1
   protocol, offline client, and private-pilot GitHub bridge are foundations,
   not evidence of a running SaaS service.
-- **One process per agent identity.** Two shells acting as the same agent can race on that agent's own files; atomic rename makes it last-write-wins, not corruption, but it is not prevented. Cross-agent writes were never at risk — that's the event log.
+- **A shared native connection is one session identity.** Native authority transitions are serialized, but shared identity does not make host children independent reviewers. Legacy identity documents and events retain their separate attribution rules.
 
 ## 6. The brief contract
 

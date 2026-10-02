@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"github.com/mlnomadpy/dacli/internal/store"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,7 +78,7 @@ func TestSkillCompileFidelityLadder(t *testing.T) {
 	}
 
 	// Runtime with a native dir: everything rides native, no tax at all.
-	run(t, dir, 0, "runtime", "add", "nat", "--binary", "sh", "--skills-native-dir", ".claude/skills")
+	seedHistoricalRuntime(t, dir, store.Runtime{Name: "nat", Binary: "sh", SkillsNativeDir: ".claude/skills"})
 	out := run(t, dir, 0, "skill", "compile", "--runtime", "nat")
 	if strings.Contains(out, "per-turn tax") {
 		t.Errorf("native target should announce no tax:\n%s", out)
@@ -93,7 +94,7 @@ func TestSkillCompileFidelityLadder(t *testing.T) {
 	// Runtime with only a context file: tax announced per skill and in
 	// total; the native-only skill is OMITTED with its floor named; the
 	// script is called out as undeliverable.
-	run(t, dir, 0, "runtime", "add", "ctxrt", "--binary", "sh", "--skills-context-file", "AGENTS.md")
+	seedHistoricalRuntime(t, dir, store.Runtime{Name: "ctxrt", Binary: "sh", SkillsContextFile: "AGENTS.md"})
 	out = run(t, dir, 0, "skill", "compile", "--runtime", "ctxrt")
 	for _, want := range []string{
 		"per-turn tax ~", "full body, every turn",

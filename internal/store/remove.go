@@ -293,7 +293,7 @@ func liveClaimants(w *workspace.Workspace, t *Task) []string {
 			continue
 		}
 		if rec.Task == t.ID || rec.Task == fmt.Sprintf("%03d", t.Seq) {
-			out = append(out, fmt.Sprintf("live agent %s (run %s) is working it — stop it first (`dacli kill %s`) or let it finish", rec.Child, rec.RunID, rec.RunID))
+			out = append(out, fmt.Sprintf("live agent %s (run %s) is working it — stop it in its native host or let it finish, then inspect the outcome before audited owner recovery", rec.Child, rec.RunID))
 		}
 	}
 	return out

@@ -17,7 +17,8 @@ import (
 // capabilityRegistryGolden is the digest of the complete deterministic
 // registry projection below. A command/flag/tool addition or removal must be
 // reviewed as a compatibility-surface change and deliberately update it.
-const capabilityRegistryGolden = "51f1b35c4b00516a1c08618dd3d77e6f074b28d543c5d9b3e383709dfeea5f2d"
+// This projection includes owner migration and excludes legacy provider launchers.
+const capabilityRegistryGolden = "0aedf608a2aee112c918660b95756fe407b721d4ee9612d76282bfb53ac32a0c"
 
 func TestCapabilityRegistryGolden(t *testing.T) {
 	m := capabilityManifest()
@@ -117,8 +118,11 @@ func TestCapabilitiesJSONIsDeterministicAndIncludesBinaryIdentity(t *testing.T) 
 	if m.SchemaVersion != 1 || m.Binary.Path == "" || m.Binary.Version == "" {
 		t.Fatalf("manifest identity incomplete: %#v", m.Binary)
 	}
-	if len(m.Commands) == 0 || len(m.MCP.Tools) == 0 || len(m.Runtime.Capabilities) == 0 {
+	if len(m.Commands) == 0 || len(m.MCP.Tools) == 0 {
 		t.Fatal("manifest registry sections must not be empty")
+	}
+	if len(m.Runtime.Capabilities) != 0 {
+		t.Fatal("native governance must not advertise removed CLI runtime adapters")
 	}
 }
 

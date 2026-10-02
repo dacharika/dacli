@@ -24,18 +24,15 @@ runtime testing before support can be claimed.
 This is a **cooperative local preview**. Agents sharing an MCP connection share
 one session identity. Self-reports are not trusted execution evidence, and direct
 host filesystem or shell actions are outside these gates. Trusted verification
-and independent review primitives exist in the kernel; native final acceptance,
-one-use publication authorization, hosted management and second-host conformance
-remain roadmap work. See the [plugin's boundaries](plugins/codex/README.md#identity-and-recovery-boundaries).
+and independent review primitives exist in the kernel; native final acceptance, hosted management and second-host conformance
+remain roadmap work. Owner-bound publication decisions can be recorded and
+consumed once; they do not publish anything themselves. See the [plugin's boundaries](plugins/codex/README.md#identity-and-recovery-boundaries).
 
-The existing launcher and bounded loop commands remain available as **legacy
-compatibility** during migration. Their provider adapters, budgets and recovery
-records are separate from the native plugin path. The
-[operator playbook](docs/OPERATOR_PLAYBOOK.md) documents those existing commands;
-the launcher examples below do not describe native Codex plugin orchestration.
-Historical self-hosting and cross-project observations are recorded in
-[docs/SELFHOSTING.md](docs/SELFHOSTING.md) and the
-[cross-project evidence register](docs/research/CROSS_PROJECT_EVIDENCE.md).
+Coding-agent launchers, runtime adapters, supervision and provider-driven loops
+have been removed from this checkout. The native host owns delegation, model
+selection, budgets and process control. Historical records remain readable for
+audit and recoverable cleanup. The [operator playbook](docs/OPERATOR_PLAYBOOK.md)
+describes the current workflow.
 
 Build the native preview from the reviewed checkout using the [installation](#install)
 section below. Released archives support the legacy CLI; the first public release is
@@ -60,45 +57,20 @@ An agent that spawns subagents has one hard problem: **each child starts blind.*
 
 Canonical project documents are Markdown with YAML frontmatter and `[[wikilinks]]`. Native authority credentials and decision records have separate private storage. That means git diffs it, `grep` searches it, GitHub renders it, Obsidian opens the workspace as a vault with no plugin, and you can fix it by hand when an agent writes something stupid.
 
-## Existing workspace and legacy launcher capabilities
+## Native governance and shared workspace
 
-|  | |
+| Capability | Boundary |
 |---|---|
-| 🧠 **Context on tap** | `dacli context <task> --budget N` returns one self-contained, token-budgeted brief — task, goal, constraints, prior decisions, siblings' findings — instead of the whole repo. |
-| 🚀 **A real agent fleet** | `spawn` launches child coding-agent CLIs; `--claim` reserves disjoint files; `--detach` + `wait` run them async; `accept` closes a task after verifying it; `ship` ties off a whole wave. |
-| 📊 **Measures its own cost** | `calibrate` learns each *role × model × runtime*'s real cost — in **tokens**, not guesses — then `spawn --advise` / `--max-tokens` size and gate the next launch by it. |
-| 🛡️ **Trust & safety gates** | Every brief carries a **trust-floor**; `taint` refuses to spawn onto an injected source's blast radius; a `--claim` conflict is refused before it can clobber a sibling. |
-| 🔎 **Resource-safe** | `agents` shows each live tree's RAM/CPU/GPU + last transcript line; `kill` reaps the whole process group — no runaway agents. |
-| 🔗 **GitHub, both ways** | `github push` mirrors public-safe task fields by default; internal findings, decisions, and verdicts require separately recorded authority plus an explicit `--include-internal`/`--with-verdicts` request. `github pull` adopts issues as tasks. |
-| 📓 **Everything recorded** | Every run freezes its brief, invocation, transcript, and outcome; every commit is attributed to the agent and role that authored it. |
+| Canonical context | Tasks, dependencies, decisions and findings survive host sessions; `dacli context` assembles a bounded brief. |
+| Scoped native sessions | An owner enrolls credentials for one workspace and task scope; every native MCP request reauthenticates. |
+| Attempts and leases | Register an externally created clean Git checkout, acquire a fenced lease, and publish an observed committed revision. |
+| Revision evidence | Agent self-reports remain self-reports. Trusted verification and independent review require separately issued authority. |
+| GitHub projection | Publish public-safe task fields by default; internal material requires recorded authority and explicit `--include-internal`. |
+| Historical recovery | Read prior runs and receipts; cleanup preserves unknown state and requires an exact reviewed plan. |
 
-## Legacy launcher loop — autonomous execution with explicit bounds
-
-The legacy launcher workflow is `context → spawn → wait → accept → ship`, feeding back through `calibrate`. Native plugin orchestration uses the host's own agents and the scoped governance tools instead.
-
-```bash
-dacli loop --project core --harness codex --width 3 --max-cycles 5 # Codex-only, bounded
-dacli loop --project core --harness codex --harness claude --hybrid --max-cycles 5
-dacli loop --project core --window-tokens 2000000 --yolo   # perpetual, budget-governed
-```
-
-`dacli loop` executes the software process as a governed cycle — **review →
-plan → implement → test → land → retro**, then around again. Deterministic code
-selects eligible work, enforces policy, launches agents, checkpoints recovery,
-and observes landing. Orchestrator, implementer, reviewer, and integrator agents
-make the model-dependent judgments inside those boundaries. A human need not
-approve each transition, but still owns product direction, exceptional authority,
-the kill switch, and release policy. The whole cycle is traced in
-[docs/WALKTHROUGH.md § 9](docs/WALKTHROUGH.md#9-zooming-out-the-perpetual-loop).
-
-What keeps it a maintenance team and not a runaway refactor is the **governor** — a pure decision engine every cycle passes through ([docs/WALKTHROUGH.md § 9](docs/WALKTHROUGH.md#9-zooming-out-the-perpetual-loop)):
-
-- **Empty backlog → idle, never invent.** No evidence-based work means it sleeps and re-scans, it does not manufacture busywork.
-- **Token budget window.** `--window-tokens N --budget-window 24h` caps spend per rolling window; exhaust it and the loop sleeps until the window resets.
-- **Thrash guard.** N consecutive cycles that land nothing halts the loop (`--no-progress-halt`, default 3) — no infinite oscillation.
-- **Kill switch.** `touch .dacli/STOP` halts at the next checkpoint; between cycles the loop pauses for you unless you pass `--yolo`.
-
-An unbounded run with *no* stop condition is refused — you set `--max-cycles`, keep the thrash guard on, or explicitly opt into `--yolo`. Preview any configuration without spawning a single agent: `dacli loop --dry-run`.
+The coding host creates and supervises agents. dacli governs the operations that
+pass through its scoped interfaces; it cannot prevent direct filesystem or
+shell writes by a host process.
 
 ## The core idea
 
@@ -112,20 +84,16 @@ You hand that to a subagent instead of the whole repo. That is the product. Task
 
 ## Status
 
-**Alpha — native plugin preview and legacy compound loop.** The Codex plugin path is described above; the following inventory describes existing workspace and launcher commands. The organize layer (v0) and the compound layer (v1) are both working: tasks, decisions/findings/metrics, risks, glossary, queues, the append-only event log and `sync`, `context` with budget trimming, the full SPM readout (`lint`, `estimate`, `critical-path`, `next`, `wbs`, `burndown`, `velocity`), and **`dacli mcp serve`** — the whole tool surface over MCP stdio, with policy refusals returned as results so no client retry-loop ever hammers a "no". Zero dependencies outside the Go standard library.
+**Alpha — native plugin preview.** Codex is the first measured host integration.
+The Go server uses the standard library; the plugin bootstrap requires Python 3.
+A shared MCP connection identifies one enrolled session, not every native child.
+The current implementation does not certify independent reviewers from host
+labels, role names or transcripts.
 
-The legacy agent-fleet layer remains implemented: `spawn` launches child coding-agent CLIs (declared adapters, probed by `runtime doctor`), `wait` blocks on detached runs, `supervise` runs the spawn→evaluate→correct loop, `verify` seats an adversarial panel, `accept` closes a task after verifying its acceptance, and `ship` ties off a whole wave. Alongside it: `calibrate` (measure a role×model×runtime's real cost), the `taint` gate (refuse to spawn onto a brief in an injected source's blast radius), and the `github` mirror (tasks↔issues, decisions, findings). Every run is recorded: frozen brief, redacted invocation, transcript, outcome.
-
-The existing CLI command surface is implemented and tested — including `skill promote` (owner-only: distill a workspace lesson into a versioned skill) and `shortcut promote` (materialize a twice-run ad-hoc command into a named shortcut). The format spec is the stable part; treat the Go API as unstable.
-
-The repository also contains the first
-[hosted control-plane infrastructure skeleton](docs/CONTROL_PLANE.md): one API,
-one worker, strict configuration, and checked PostgreSQL migrations. The
-multi-tenant hosted product is not shipped; tenant, authentication, sync,
-billing, approvals, GitHub App, and portfolio features remain explicitly
-tracked work.
-
-The docs index — every document, one line each, with an honest status label — is [docs/README.md](docs/README.md). Start with [DESIGN.md](DESIGN.md) for the why, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the normative shape (axioms, layers, build order, the canonical brief), and [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md) to watch one task travel the whole system end to end.
+The [documentation index](docs/README.md) distinguishes working primitives from
+historical experiments and the [hosted control-plane skeleton](docs/CONTROL_PLANE.md).
+The multi-tenant hosted product is not shipped. See [DESIGN.md](DESIGN.md) for the
+boundary and [WALKTHROUGH.md](docs/WALKTHROUGH.md) for a native task workflow.
 
 ## Shared canonical documents
 
@@ -183,62 +151,35 @@ dacli version --compatibility --json
 dacli capabilities --json
 ```
 
-## Legacy workspace quickstart
+## Workspace quickstart
 
 ```bash
-# In your project root
 dacli init --name "payments-refactor"
-
 dacli project add "Migrate billing to the new ledger" --slug ledger
-dacli task add "Audit every write path into balances" --project ledger
-dacli note add decision "Ledger writes stay synchronous" --project ledger \
-  --body "Async was rejected: reconciliation cost exceeds the latency win."
-
-# Parent agent mints a read-only child identity
-TOKEN=$(dacli agent spawn --role auditor --grant ro)
-
-# Child agent, in its own process
-DACLI_AGENT=$TOKEN dacli context task/001 --budget 3000
-DACLI_AGENT=$TOKEN dacli status
+dacli task add "Audit every write path into balances" --project ledger \
+  --accept "Record the observed write paths and verification evidence"
+dacli context ledger/001 --budget 3000
+dacli status --project ledger
 ```
 
-## Legacy CLI capabilities
+Then follow the [private native session setup](plugins/codex/README.md).
+The owner provisions authority outside the repository and enrolls an explicit
+task scope. The host's plugin tools read that task, register a clean external
+checkout, acquire a lease, publish a committed revision and submit self-reported
+evidence. Do not substitute a legacy `DACLI_AGENT` token or an operator fallback
+for this connection.
 
-Four loops sit on top of the store. Each observes the durable log rather than inventing new state.
-
-**The agent-fleet loop — spawn → wait → accept → ship.** A parent mints a child identity and launches a real coding-agent CLI on a task:
-
-```bash
-dacli spawn --task 042 --role auditor --grant ro --claim internal/billing --detach
-dacli wait                      # block until detached run(s) finish, then finalize outcome
-dacli accept propose 042 --verify "go test ./..." # reviewer binds evidence to the exact tree
-dacli accept apply 042 --proposal ap-…            # owner validates the unchanged handoff and closes
-dacli ship --into main --push   # accept all proposed, integrate their branches, record, push
-```
-
-`spawn` delivers the frozen brief on stdin or as an arg, rides the token in the environment, applies the grant through the runtime's own sandbox flags — and a runtime that cannot enforce read-only *refuses*, never silently downgrades (`--cooperative` overrides loudly). `--claim <path>` scopes the child to a subtree (repeat it or pass comma-separated paths; both forms accumulate) and refuses a path-claim conflict with a live sibling; `--detach` backgrounds it so a parent can fan out a wave and `wait` on all of them. `agents`, `logs -f`, and `kill` observe and reap the live process trees.
-
-**Calibration — measure the cost, then advise, then enforce.** `calibrate` joins every completed task to the run that finished it and reports the empirical multiplier (and, where the runtime reports usage, tokens/point) by `role × model × runtime` band; a band with n≥10 samples is authoritative. That measurement then informs the next spawn: `spawn --advise` *previews* the suggested budget from the calibrated band and launches nothing (re-run without `--advise` to spawn), and `spawn --max-tokens N` *refuses* (exit 3) a spawn whose band-expected cost exceeds `N` unless `--force`. Estimation inverts once a band is dense: the empirical distribution becomes the estimate and the PERT three-point becomes the prior.
-
-**The trust & taint gates.** Findings carry a `trust:` grade (`confirmed` / `unverified` / `refuted`); `verify` seats an adversarial panel — one refuter per runtime — and grades a finding *before* it enters a sibling's brief, and every brief prints a `trust-floor` line = the worst grade among the findings it surfaces. `taint` traces the blast radius of a suspect source over event and note origins; because a `--scope workspace` note reaches every project's brief, `spawn` treats taint as a *gate*, not just an audit query — it refuses to launch a child onto a brief in an external source's blast radius unless `--force`/`--cooperative`.
-
-**The GitHub mirror.** GitHub is a projection, never the source of truth.
-`github projection <project> --json` shows the exact allowlist and withheld
-reasons before publication. On public repositories, `github push` defaults to
-public-safe task fields; internal findings and decisions require both recorded
-`--allow-internal` authority for that repository and an explicit
-`--include-internal` request. `github pull` adopts human-authored issues back as
-local tasks, and `github sync` is pull-then-push. A task PR references its issue
-until terminal acceptance; only the accepted terminal projection carries a
-closing keyword. `--with-verdicts` is likewise explicit and governed by the
-same publication policy.
+GitHub is a projection: inspect `github projection`, preview `github pull` or
+`github push`, and publish only within explicit user authority. A task PR
+references its issue until terminal acceptance; native evidence submission
+does not close either one.
 
 ## Command reference
 
 The primary shipped surface is grouped below. It is a journey map, not a
 hand-maintained compatibility manifest: run `dacli help --all` for the complete
 catalog and `dacli capabilities --json` for authoritative command, flag, JSON,
-mutation, state-schema, MCP, and runtime-adapter capabilities. Agent-critical
+mutation, state-schema and MCP capabilities. Agent-critical
 read paths advertise versioned `--json` contracts there; explicitly human-only
 views name their typed replacement rather than pretending prose is JSON.
 
@@ -254,12 +195,17 @@ views name their typed replacement rather than pretending prose is JSON.
 | `dacli doctor` | Detect management anti-patterns in tasks, risks, and the log |
 | `dacli version` / `dacli capabilities` | Print version/compatibility diagnosis; inspect the machine-readable live surface |
 
-**Operating profiles & loops**
+**Native host integration**
 
 | Command | Purpose |
 |---|---|
-| `dacli start` | Resolve, preview, persist, or run inspect/task/wave/loop/service policy with an explicitly selected harness |
-| `dacli loop` / `dacli loop status` | Run bounded governed cycles; inspect durable phase, recovery, budget, and halt state |
+| `dacli native bootstrap` / `native enroll` | Owner-only private authority provisioning and scoped session enrollment |
+| `dacli native serve` | Authenticate an explicit private connection and serve the bounded native MCP catalog |
+| `dacli native revoke` | Owner-only session revocation, checked by subsequent calls on existing connections |
+| `dacli native upgrade` | Explicit owner-authorized schema migration; no automatic reset |
+
+See the [native transport](docs/GOVERNANCE_NATIVE_MCP.md) for exact configuration
+and tool schemas. Native owner commands are local-only.
 
 **Planning — projects, tasks, risks**
 
@@ -324,23 +270,17 @@ views name their typed replacement rather than pretending prose is JSON.
 | `dacli run` | Expand and run a shortcut (`--dry-run`, `--confirm`, `--list`) |
 | `dacli queue add\|list\|next\|advance` | Ordered step lists with owned cursors (`advance --fail` halts) |
 
-**The agent fleet — runtimes, spawn, supervise, verify**
+**Review, verification and historical evidence**
 
 | Command | Purpose |
 |---|---|
-| `dacli runtime add\|list\|doctor` | Declare a coding-agent CLI adapter; list; probe the install |
-| `dacli spawn` | Launch a child on a runtime: identity, brief, sandbox, run record (`--detach`, `--claim`, `--advise`, `--max-tokens`) |
-| `dacli wait` | Block until detached run(s) finish, then finalize their outcome |
-| `dacli supervise` | Spawn-evaluate-correct loop until accepted or `--max-turns` |
-| `dacli verify` | Adversarial panel: one refuter per runtime; tally derived from the log |
 | `dacli review record` / `dacli review projection` | Persist an identity/tree-bound structured review result; render its public-safe GitHub projection |
 | `dacli accept` | Verify an agent's completion and close the task in one owner step |
 | `dacli accept propose` / `accept apply` | RO reviewer creates an exact-tree evidence handoff; owner applies it without sharing a token |
-| `dacli agents` | Live resources, or bounded sourced history with `--active-only`, `--limit`/`--cursor`, and explicit `--history` |
+| `dacli agents` | Bounded sourced historical worker observations with `--active-only`, `--limit`/`--cursor`, and explicit `--history` |
 | `dacli logs` | Read/follow transcripts; agents and MCP use bounded JSON chunks with `--cursor`/`--limit` |
 | `dacli task status <ref>` | One freshness-sourced task view: claims, runs, review, landing, and next action |
-| `dacli kill` | Terminate an agent and its entire process tree (SIGTERM→SIGKILL) |
-| `dacli runs list\|show\|prune` | Recorded runs; one run's detail; bound transcript growth |
+| `dacli runs list\|show` | Read retained runs and one run's detail |
 | `dacli replay` | Reconstruct a run as brief + events interleaved (offline) |
 | `dacli handoff show\|consume` | Inspect and root-acknowledge a hash-bound worker lifecycle handoff without widening authority |
 
@@ -364,7 +304,6 @@ views name their typed replacement rather than pretending prose is JSON.
 | `dacli push` / `pr` / `merge` | Push a branch; open a policy-projected task/slice PR; merge (a conflict blocks, never half-merges) |
 | `dacli pr diagnose\|wait\|land` | Classify the canonical PR/CI blocker, wait within an explicit bound, then delegate governed landing |
 | `dacli integrate` | Merge task branches (`--tasks` or all done) into `--into`, cleaning up |
-| `dacli ship` | One wave tail: accept, integrate, record the `.dacli` state, optionally push |
 | `dacli github doctor\|link\|projection\|push\|pull\|sync` | Probe gh/auth; bind a project; inspect policy; mirror tasks↔issues both ways |
 | `dacli branches audit\|prune` / `cleanup` | Preview exact content-addressed cleanup, then apply only the observed safe plan |
 | `dacli release train` | Resume a checks/reviews/artifacts-gated source→target promotion PR; never tags or publishes |
@@ -378,28 +317,14 @@ views name their typed replacement rather than pretending prose is JSON.
 
 ## Teams and shortcuts
 
-**Roles** organize the tree — and the rule that keeps them from being cosplay is that *a role must change what an agent can do, not just what it calls itself*. A role determines which skills load at spawn, which paths are in scope, which shortcuts are reachable, and who to escalate to. It also carries a Kanban WIP limit, so `spawn` refuses the thirty-children-over-four-files situation up front instead of `doctor` diagnosing it after.
+Roles, ownership routes and escalation notes help the host assign work. They do
+not mint native session authority or prove reviewer independence. Separate native
+review grants bind eligible credentials and exact revision evidence; see
+[the review contract](docs/GOVERNANCE_NATIVE_REVIEW.md).
 
-**Escalation is a typed help request, not a chat channel** — a deliberate reversal of the obvious design, argued in [docs/TEAM.md § 3](docs/TEAM.md). Agents are agreeable, so two of them "discussing" converge without adding information; a conversation has no completion criterion, which is disqualifying in a budget-aware tool; and chat is ephemeral in a system whose whole thesis is durability. The question is transient, the answer becomes a decision note and enters every future brief. The chain terminates at `human` — a tree that can't say "nobody here owns this" will have somebody guess instead.
-
-## Runtimes
-
-`dacli` spawns its agents by invoking coding-agent CLIs (Codex, Claude Code,
-Gemini CLI, Copilot CLI, and generic executables) and supervises them against a
-task's acceptance criteria. Design in [docs/RUNTIMES.md](docs/RUNTIMES.md). The
-decisions that matter:
-
-- **Results come back through the workspace, not stdout.** Children report by calling `dacli`, so results are format-independent, uniformly attributed, and *survive the child being killed mid-run* — which is exactly when partial work is most valuable. Parsing each vendor's output format would make schema-chasing the permanent central problem.
-- **Adapters are declarative files, probed rather than trusted.** `dacli runtime doctor` verifies each adapter's assumed flags against the installed binary. Shipped flag sets are starting points, not facts.
-- **Spawning makes permissions genuinely enforced** for spawned children, since `dacli` sets the runtime's own sandbox flags. A runtime that can't enforce read-only causes a refusal, never a silent downgrade.
-- **Diversity is explicit, never a fallback surprise.** A pinned harness may use
-  a distinct eligible model or role for review. Cross-vendor verification is
-  available only when the operator deliberately configures multiple harnesses
-  with `--hybrid`; an unavailable Codex route never silently becomes Claude,
-  Gemini, Copilot, or generic execution.
-- **Skills are authored once and compiled per runtime** ([docs/SKILLS.md](docs/SKILLS.md)) — native skill dir where one exists, a managed context-file section where one doesn't, brief-inline as the floor, every degradation announced. A skill's scripts compile to effect-gated shortcuts on targets that can't carry executables.
-
-**Shortcuts** are named command templates ([docs/SHORTCUTS.md](docs/SHORTCUTS.md)). The token saving is real but minor; the point is that a shortcut is a *memoized derivation* — the flags and the working directory somebody already paid to discover, made durable instead of evaporating with the session. Every parameter is POSIX-quoted (values carry model-generated text; concatenation is an injection vector), and `read`/`write`/`destructive` effects gate execution so `deploy` is never one token away from `test` in a list the model is skimming.
+Shortcuts remain explicit effect-gated command templates for bounded tools such
+as tests. They are not coding-agent adapters or a native MCP shell escape. Host
+sandbox and approval settings remain the operator's responsibility.
 
 ## The SPM layer
 
@@ -413,10 +338,11 @@ Full mapping in [docs/SPM.md](docs/SPM.md) — including an explicit list of the
 
 ## Design decisions worth knowing before you adopt it
 
-- **Permissions are enforced only for agents dacli spawns on a verified sandbox.** An externally launched agent with shell access can still edit the markdown directly and bypass dacli. For spawned children, read-only grants require a current runtime probe and write grants are checked against declared tool allowlists; unsupported combinations are refused unless the operator explicitly chooses `--cooperative`. See [docs/RUNTIMES.md § 8](docs/RUNTIMES.md#8-permissions-the-caveat-that-goes-away) for the exact boundary.
-- **No shared file is ever edited by two agents.** Cross-agent writes are append-only events, one file per event, ULID-named. Concurrency is handled by never contending, not by locking.
-- **dacli executes configured coding-agent CLIs, not arbitrary queue steps.** Queues remain ordered markdown step lists, while `spawn`, `supervise`, and `loop` launch and govern declared runtimes under explicit budgets, grants, and acceptance gates.
-- **There is no Obsidian plugin.** The workspace conforms to Obsidian's conventions, so `File → Open vault` on your project root works today.
+- Canonical Markdown is readable and editable; direct host file writes bypass cooperative tool gates.
+- Native authority uses private durable state with serialized authenticated transitions. Append-only workspace events serve a different purpose.
+- The host owns agents, delegation and spend. dacli has no provider launcher or autonomous service controller.
+- Historical run records remain evidence, never native credentials or permission to resume a removed launcher.
+- There is no Obsidian plugin: open the workspace as a vault.
 
 ## License
 

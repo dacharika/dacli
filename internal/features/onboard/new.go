@@ -670,7 +670,7 @@ func printNextSteps(ctx *clikit.Ctx, slug string, seeded []*store.Task) {
 		{"dacli project show " + slug, "read the Spec and Architecture a planner must fill in"},
 		{"dacli next", "see which rung of the arc is ready"},
 		{"dacli context " + first, "brief an agent on the scaffold task"},
-		{"dacli spawn --task " + first + " --runtime <runtime> --grant rw", "start building"},
+		{"dacli context " + first + " --budget 4000", "prepare context for your native host agent"},
 	}
 	width := 0
 	for _, s := range steps {

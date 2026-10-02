@@ -57,7 +57,7 @@ func TestInstalledSkillAndReleaseGuidanceAreCurrent(t *testing.T) {
 		"cli.command.next",
 		"cli.command.explain",
 		"cli.command.agents",
-		"cli.command.loop.status",
+		"cli.command.native.serve",
 	} {
 		if !got[want] {
 			t.Errorf("skill capability requirements missing %q", want)
@@ -131,8 +131,8 @@ func TestPublicDocsMatchCurrentAgentContracts(t *testing.T) {
 	for _, want := range []string{
 		"public-safe task fields",
 		"--include-internal",
-		"primary shipped surface",
-		"dacli start",
+		"scoped MCP",
+		"Coding-agent launchers",
 		"dacli task aggregate",
 		"dacli review projection",
 		"dacli pr diagnose",
@@ -169,7 +169,7 @@ func TestPublicDocsMatchCurrentAgentContracts(t *testing.T) {
 	}
 
 	selfHosting := read("docs/SELFHOSTING.md")
-	for _, want := range []string{"structured delivery", "independent-review-result/v1", "selected harness"} {
+	for _, want := range []string{"Structured delivery", "independent-review-result/v1", "selected harness"} {
 		if !strings.Contains(selfHosting, want) {
 			t.Errorf("docs/SELFHOSTING.md missing current review boundary %q", want)
 		}
@@ -225,8 +225,8 @@ func TestPagesLandingMatchesCurrentContracts(t *testing.T) {
 	home := read("overrides/home.html")
 	for _, want := range []string{
 		"v0.3.1",
-		"--harness codex",
-		"--hybrid",
+		"coding host",
+		"scoped sessions",
 		"public-safe",
 		"--include-internal",
 		"version --compatibility --json",
@@ -373,7 +373,7 @@ func TestPagesLandingHeroHeightBudget(t *testing.T) {
 	}
 
 	home := read("overrides/home.html")
-	if !strings.Contains(home, "dacli keeps critical-path work moving through your chosen coding") {
+	if !strings.Contains(home, "Your coding host runs the agents.") {
 		t.Error("landing hero must use the concise outcome-first subhead")
 	}
 	if strings.Contains(home, "dacli-hero__facts") {
@@ -547,9 +547,9 @@ func TestPublicSupportClaimsMatchShippedSurface(t *testing.T) {
 		t.Error("github sync must validate its complete flag union before entering the mutating pull half")
 	}
 	for _, want := range []string{
-		"Choose the smallest operating profile",
+		"The native host runs agents",
 		"GitHub-first critical-path cycle",
-		"Continuous means repeated bounded transactions with durable checkpoints",
+		"A shared MCP connection has one credential identity",
 		"`dacli push <ref>`",
 		"`dacli logs <run-id-prefix|child-id> -f`",
 		"`dacli project show <slug> --landing-mode pr --landing-base main`",
@@ -558,12 +558,12 @@ func TestPublicSupportClaimsMatchShippedSurface(t *testing.T) {
 		"## Shipped, experimental, and future",
 		"Before owner acceptance or GitHub issue closure",
 		"observe both the merged PR and its commit on trunk",
-		"separate governed wave transaction that accepts and integrates",
-		"No dedicated runtime-cooldown clear or expiry command is shipped",
+		"`pr`, `pr wait`, `pr land`, `merge` and `integrate` retain their individual guards",
+		"dacli does not\nswitch providers, cap provider billing or supervise a persistent model process",
 		"`github sync <project> --dry-run` preview projection changes first",
 		"do not use `critical-path` or `next` to claim that incomplete graph is authoritative",
 	} {
-		if !strings.Contains(playbook, want) {
+		if !strings.Contains(strings.Join(strings.Fields(playbook), " "), strings.Join(strings.Fields(want), " ")) {
 			t.Errorf("docs/OPERATOR_PLAYBOOK.md missing canonical operator guidance %q", want)
 		}
 	}
@@ -606,7 +606,7 @@ func TestPublicSupportClaimsMatchShippedSurface(t *testing.T) {
 		t.Error("recovery reference must state the project deletion boundary explicitly")
 	}
 	swarms := read("skills/dacli/references/swarms-loops.md")
-	for _, want := range []string{"--impl-role <implementer>", "--review-role <reviewer>", "dacli logs <run-id-prefix|child-id> -f"} {
+	for _, want := range []string{"native host", "scoped leases", "Independent review"} {
 		if !strings.Contains(swarms, want) {
 			t.Errorf("swarms-loops reference missing exact executable guidance %q", want)
 		}
@@ -629,20 +629,15 @@ func TestPublicSupportClaimsMatchShippedSurface(t *testing.T) {
 	}
 
 	runtimes := read("docs/RUNTIMES.md")
-	for _, want := range []string{"nine shipped presets", "require user configuration", "`copilot-rw`"} {
+	for _, want := range []string{"Coding-agent CLI launchers have been removed", "no\nshipped adapter presets", "native agents", "Historical state"} {
 		if !strings.Contains(runtimes, want) {
-			t.Errorf("docs/RUNTIMES.md missing preset boundary %q", want)
+			t.Errorf("docs/RUNTIMES.md missing current host boundary %q", want)
 		}
 	}
-	presetSource := read("internal/features/execution/execution.go") + read("internal/features/execution/runtime_adapters.go")
-	presetTable := presetSource[strings.Index(presetSource, "var presets = map[string]store.Runtime{"):strings.Index(presetSource, "func cmdRuntimeAdd")]
-	for _, want := range []string{`"claude-code":`, `"claude-code-rw":`, `"codex":`, `"codex-rw":`, `"gemini":`, `"gemini-rw":`, `"copilot":`, `"copilot-rw":`, `"generic-exec":`} {
-		if !strings.Contains(presetTable, want) {
-			t.Errorf("shipped runtime table missing documented preset %s", want)
+	for _, removed := range []string{"internal/features/execution", "internal/features/orchestration"} {
+		if _, err := os.Stat(filepath.Join(root, removed)); !os.IsNotExist(err) {
+			t.Errorf("removed provider-launch implementation remains at %s: %v", removed, err)
 		}
-	}
-	if got := strings.Count(presetTable, `": {`); got != 9 {
-		t.Errorf("runtime table has %d presets; update docs/RUNTIMES.md with it", got)
 	}
 
 	for _, tc := range []struct {

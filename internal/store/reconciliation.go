@@ -159,7 +159,7 @@ func LocalDeliveryProjection(w *workspace.Workspace, project string, now time.Ti
 		if rec.Outcome == "" && !procmon.AliveIdentity(rec.PID, rec.PIDStart) {
 			raw, _ := os.ReadFile(filepath.Join(w.RunDir(runID), "outcome.md"))
 			if strings.HasPrefix(string(raw), "outcome: running (detached)") {
-				add(&p, "finished-unfinalized-run", runID, "run/proc", "major", DeliveryKnown, "recorded process is gone but outcome remains running", "run dacli wait "+runID)
+				add(&p, "finished-unfinalized-run", runID, "run/proc", "major", DeliveryKnown, "recorded process is gone but outcome remains running", "inspect the historical run and native host outcome; use audited owner recovery before changing ownership")
 			}
 		}
 	}

@@ -316,7 +316,7 @@ func cmdAgentShow(ctx *clikit.Ctx, args []string) error {
 
 	recs := runsByAgent(w)[want]
 	if len(recs) == 0 {
-		fmt.Fprintf(ctx.Stdout, "%-9s none recorded (spawned outside `dacli spawn`, or pre-E2)\n", "runs:")
+		fmt.Fprintf(ctx.Stdout, "%-9s none recorded (native host or historical record unavailable)\n", "runs:")
 	} else {
 		fmt.Fprintf(ctx.Stdout, "runs (newest first):\n")
 		for _, r := range recs {
@@ -787,7 +787,7 @@ func cmdTeamAssign(ctx *clikit.Ctx, args []string) error {
 		context = fmt.Sprintf("%d", pick.Profile.ContextLimit)
 	}
 	fmt.Fprintf(ctx.Stdout, "  profile: context limit %s · capabilities %s\n", context, clikit.OrDash(strings.Join(pick.Profile.CapabilityTags, ",")))
-	fmt.Fprintf(ctx.Stdout, "  dacli spawn --task %03d --role %s\n", t.Seq, pick.Name)
+	fmt.Fprintf(ctx.Stdout, "  plan for task %03d with role %s; enroll a scoped native session and let the host own execution\n", t.Seq, pick.Name)
 	return nil
 }
 

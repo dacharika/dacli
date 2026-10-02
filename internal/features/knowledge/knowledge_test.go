@@ -16,7 +16,7 @@ import (
 	"github.com/mlnomadpy/dacli/internal/workspace"
 )
 
-const promptTestDeclaration = "<!-- dacli-prompt schema: dacli-prompt/v1 base: autonomous-delivery/v1 -->\n"
+const promptTestDeclaration = "<!-- dacli-prompt schema: " + prompts.Schema + " base: " + prompts.Version + " -->\n"
 
 func newWS(t *testing.T) *workspace.Workspace {
 	t.Helper()

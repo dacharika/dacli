@@ -7,70 +7,7 @@ import (
 	"testing"
 )
 
-const testDeclaration = "<!-- dacli-prompt schema: dacli-prompt/v1 base: autonomous-delivery/v1 -->\n"
-
-func TestRenderPreamble(t *testing.T) {
-	taskID := "t-01KZYQ5EF1YQ05NRA8GW3N9PQM"
-	out, err := Render("", "protocol_preamble", map[string]any{
-		"ChildID": "a-x", "Grant": "ro", "Ref": taskID, "Slug": "audit",
-		"Project": "core", "Exe": "/usr/bin/dacli", "RW": false,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, want := range []string{"## How to report", "a-x", "/usr/bin/dacli note add finding", "read-only", "never retry it"} {
-		if !strings.Contains(out, want) {
-			t.Errorf("preamble missing %q:\n%s", want, out)
-		}
-	}
-	if strings.Contains(out, "task check") {
-		t.Error("ro preamble must not offer box-checking")
-	}
-	rw, _ := Render("", "protocol_preamble", map[string]any{
-		"ChildID": "a-x", "Grant": "rw", "Ref": taskID, "Slug": "s", "Project": "p", "Exe": "d", "RW": true,
-	})
-	if !strings.Contains(rw, "task check") || !strings.Contains(rw, "task done") {
-		t.Error("rw preamble must include the completion verbs")
-	}
-	for _, command := range []string{"task check " + taskID, "task done " + taskID} {
-		if !strings.Contains(rw, command) {
-			t.Errorf("rw preamble must use stable task ID in %q", command)
-		}
-	}
-}
-
-// The RW and RO preambles describe different lifecycles: RW agents follow
-// claim -> work -> commit -> pr -> accept/ship, while RO agents follow
-// claim -> work -> report -> sync (via the propose-and-sync path).
-func TestROAndRWPreamblesDescribeDifferentLifecycles(t *testing.T) {
-	ro, _ := Render("", "protocol_preamble", map[string]any{
-		"ChildID": "a-ro", "Grant": "ro", "Ref": "287", "Slug": "test",
-		"Project": "core", "Exe": "/usr/bin/dacli", "RW": false,
-	})
-	rw, _ := Render("", "protocol_preamble", map[string]any{
-		"ChildID": "a-rw", "Grant": "rw", "Ref": "287", "Slug": "test",
-		"Project": "core", "Exe": "/usr/bin/dacli", "RW": true,
-	})
-
-	// RW agents should see the commit -> pr lifecycle
-	if !strings.Contains(rw, "commit") {
-		t.Error("rw preamble must mention committing")
-	}
-	if !strings.Contains(rw, "pr") || !strings.Contains(rw, "PR") {
-		t.Error("rw preamble must mention opening a PR")
-	}
-
-	// RO agents must NOT see the commit -> pr lifecycle
-	if strings.Contains(ro, "commit") {
-		t.Errorf("ro preamble must not mention committing, but got:\n%s", ro)
-	}
-	// RO preamble should describe propose-and-sync instead
-	// (either directly mentioning "propose" and "sync", or describing the report/findings path)
-	hasProposePath := strings.Contains(ro, "propose") || strings.Contains(ro, "sync")
-	if !hasProposePath && !strings.Contains(ro, "report") {
-		t.Errorf("ro preamble must describe propose-and-sync path or report mechanism, got:\n%s", ro)
-	}
-}
+const testDeclaration = "<!-- dacli-prompt schema: dacli-prompt/v1 base: native-governance/v1 -->\n"
 
 // The override rule: a workspace file of the same name wins over the
 // embedded default — prompt tuning becomes a workspace commit, not a rebuild.
@@ -151,7 +88,7 @@ func TestAutonomousContractGoldenAndRequiredBehavior(t *testing.T) {
 
 func TestNamesListsRegistry(t *testing.T) {
 	names := Names()
-	for _, want := range []string{"protocol_preamble", "supervise_correction", "brief_header", "refusal_next", "mcp_tools"} {
+	for _, want := range []string{"autonomous_delivery", "git_workflow", "brief_header", "refusal_next", "mcp_tools"} {
 		found := false
 		for _, n := range names {
 			if n == want {
@@ -174,4 +111,49 @@ func TestMCPDescSections(t *testing.T) {
 		}
 	}()
 	MCPDesc("no_such_tool")
+}
+
+// These clauses distinguish authenticated governance from labels and observations.
+// The golden detects any prose change; this test independently preserves semantics.
+func TestNativeGuidanceAuthorityAndRemovedLaunchers(t *testing.T) {
+	contract, err := AutonomousContract("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"The native host runs agents", "A shared MCP connection shares one session identity",
+		"Self-reports remain assertions", "eligible credential families and owner-issued grants",
+		"a reviewer does not acquire the worker lease", "Native review registration does not accept a task",
+		"no generic CLI or shell escape", "Historical receipt replay is not current",
+	} {
+		if !strings.Contains(contract.Text, want) {
+			t.Errorf("native authority guidance missing %q", want)
+		}
+	}
+	for _, name := range Names() {
+		r, err := ResolveContract("", name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, removed := range []string{"dacli spawn", "dacli supervise", "dacli runtime", "dacli loop", "dacli start", "{{.Exe}} spawn", "{{.Exe}} wait", "spawn (--detach", "verify (adversarial"} {
+			if strings.Contains(r.Content, removed) {
+				t.Errorf("%s advertises removed launcher %q", name, removed)
+			}
+		}
+	}
+	for _, name := range []string{"protocol_preamble", "supervise_correction", "verify_refute", "review_workflow"} {
+		if _, err := ResolveContract("", name); err == nil {
+			t.Errorf("removed launcher template %s remains embedded", name)
+		}
+	}
+}
+
+func TestOldLauncherOverrideRefused(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "autonomous_delivery.md"), []byte("<!-- dacli-prompt schema: dacli-prompt/v1 base: autonomous-delivery/v1 -->\nold launcher guidance"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := AutonomousContract(dir); err == nil || !strings.Contains(err.Error(), "incompatible base version") {
+		t.Fatalf("old launcher override was not refused for its version: %v", err)
+	}
 }

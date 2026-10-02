@@ -31,18 +31,18 @@ import (
 	"github.com/mlnomadpy/dacli/internal/features/cleanup"
 	"github.com/mlnomadpy/dacli/internal/features/collab"
 	"github.com/mlnomadpy/dacli/internal/features/dashboard"
-	"github.com/mlnomadpy/dacli/internal/features/execution"
 	"github.com/mlnomadpy/dacli/internal/features/ghmirror"
+	"github.com/mlnomadpy/dacli/internal/features/history"
 	"github.com/mlnomadpy/dacli/internal/features/insight"
 	"github.com/mlnomadpy/dacli/internal/features/journal"
 	"github.com/mlnomadpy/dacli/internal/features/knowledge"
 	"github.com/mlnomadpy/dacli/internal/features/nativegovernance"
 	"github.com/mlnomadpy/dacli/internal/features/onboard"
-	"github.com/mlnomadpy/dacli/internal/features/orchestration"
 	"github.com/mlnomadpy/dacli/internal/features/planning"
 	"github.com/mlnomadpy/dacli/internal/features/queues"
 	"github.com/mlnomadpy/dacli/internal/features/reconciliation"
 	"github.com/mlnomadpy/dacli/internal/features/releasetrain"
+	"github.com/mlnomadpy/dacli/internal/features/reviewing"
 	"github.com/mlnomadpy/dacli/internal/features/selfreport"
 	"github.com/mlnomadpy/dacli/internal/features/ship"
 	"github.com/mlnomadpy/dacli/internal/features/shortcuts"
@@ -81,7 +81,7 @@ var commands = aggregate(
 	releasetrain.Commands,
 	cleanup.Commands,
 	journal.Commands,
-	execution.Commands,
+	history.Commands,
 	stagegate.Commands,
 	ghmirror.Commands,
 	skillforge.Commands,
@@ -91,10 +91,10 @@ var commands = aggregate(
 	ship.Commands,
 	slices.Commands,
 	catalog.Commands,
-	orchestration.Commands,
+	reviewing.Commands,
 	dashboard.Commands,
 	[]Command{
-		{Path: "capabilities", Brief: "Print the generated CLI, MCP, schema, prompt, and runtime-adapter capability manifest", JSON: true, Usage: "dacli capabilities [--json]", Run: cmdCapabilities},
+		{Path: "capabilities", Brief: "Print the generated CLI, MCP, schema and prompt capability manifest", JSON: true, Usage: "dacli capabilities [--json]", Run: cmdCapabilities},
 		{Path: "mcp serve", Brief: "Serve MCP over stdio with DACLI_AGENT identity; --operator explicitly permits local root when no token is set", Usage: "dacli mcp serve [--operator]", Run: cmdMcpServe},
 	},
 )
@@ -116,12 +116,6 @@ var (
 
 // Main dispatches argv and returns a process exit code.
 func Main(argv []string) int {
-	if len(argv) >= 2 && argv[0] == "__run-guardian" {
-		return execution.RunGuardian(argv[1:])
-	}
-	if len(argv) == 2 && argv[0] == "__run-watchdog" {
-		return execution.RunWatchdog(strings.Join(argv[1:], ""))
-	}
 	cwd, _ := os.Getwd()
 	ctx := &Ctx{Stdout: os.Stdout, Stderr: os.Stderr, Cwd: cwd}
 
@@ -353,15 +347,6 @@ func refuseUngrantedMutation(ctx *Ctx, cmd *Command, args []string) error {
 
 func mutationInvocationIsReadOnly(cmd *Command, args []string) bool {
 	switch cmd.Path {
-	case "start":
-		for i, arg := range args {
-			if arg == "--show" || arg == "--show=true" {
-				return true
-			}
-			if arg == "--profile=inspect" || arg == "--profile" && i+1 < len(args) && args[i+1] == "inspect" {
-				return true
-			}
-		}
 	case "project show":
 		return !hasNamedFlag(args, "landing-mode") && !hasNamedFlag(args, "landing-base")
 	case "reconcile":
@@ -473,10 +458,10 @@ func usage(w io.Writer) {
 	fmt.Fprintln(w, "\nUsage: dacli <command> [args] [--json]")
 	fmt.Fprintln(w, "\nPrimary bounded workflow:")
 	fmt.Fprintln(w, "  inspect → plan → claim → implement → verify → review → PR → CI → merge")
-	fmt.Fprintln(w, "  start --profile inspect|task|wave|loop   choose the operating scope")
+	fmt.Fprintln(w, "  native / overview / next / task         provision and inspect governed work")
 	fmt.Fprintln(w, "  overview / next / task                  inspect and select bounded work")
-	fmt.Fprintln(w, "  context / spawn / wait                  brief, run, and collect workers")
-	fmt.Fprintln(w, "  verify / accept / pr / pr diagnose      prove work and observe GitHub")
+	fmt.Fprintln(w, "  context / review / handoff              brief native agents and inspect evidence")
+	fmt.Fprintln(w, "  task check / accept / pr diagnose       record checks and observe GitHub")
 	fmt.Fprintln(w, "  pr wait / pr land / integrate / ship    wait, land one task, or finish one wave")
 	fmt.Fprintln(w, "  branches audit / branches prune         inspect or safely apply cleanup plans")
 	fmt.Fprintln(w, "\nCommand families:")
