@@ -783,3 +783,96 @@ func TestSeniorityGateStillCapsAPlannerOnAnOversizedTask(t *testing.T) {
 		t.Errorf("the refusal must name the cap: %v", err)
 	}
 }
+
+// Issue #1087: readiness can create context after the strict enumeration.
+// Its origin cannot be inferred from its name; the supported path is recorded
+// consent, with the same claims and sandbox as the strict launch.
+func TestCodexGeneratedContextRequiresRecordedException(t *testing.T) {
+	w := newExecWS(t)
+	mustTask(t, w, "generated context", store.TaskOpts{})
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("CODEX_HOME", filepath.Join(home, ".codex"))
+	fake := filepath.Join(t.TempDir(), "codex")
+	script := `#!/bin/sh
+if [ "$1" = "--version" ]; then echo 'codex-cli 0.159.2'; exit 0; fi
+mkdir -p "$CODEX_HOME/skills/.system"
+printf 'builtin fixture\n' > "$CODEX_HOME/skills/.system/SKILL.md"
+printf '[projects."/fixture"]\ntrust_level = "trusted"\n' > "$CODEX_HOME/config.toml"
+printf '%s\n' '{"type":"turn.started"}' '{"type":"item.completed","item":{"type":"agent_message","text":"ready"}}' '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}'
+`
+	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	rt := presets["codex-rw"]
+	rt.Name, rt.Binary = "generated-fixture", fake
+	mustRuntime(t, w, rt)
+	ctx, _, _ := newCtx(w.Root)
+	if err := cmdPreflight(ctx, []string{"--runtime", rt.Name, "--grant", "rw"}); err != nil {
+		t.Fatal(err)
+	}
+	flags := func(override bool) *clikit.Flags {
+		args := []string{"--runtime", rt.Name, "--grant", "rw", "--claim", "internal/features/execution"}
+		if override {
+			args = append(args, "--allow-user-config")
+		}
+		f, err := clikit.ParseFlags(args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return f
+	}
+	if _, err := resolveLaunch(ctx, w, flags(false), "001"); clikit.ExitCode(err) != 3 || !strings.Contains(err.Error(), "config.toml") {
+		t.Fatalf("strict refusal: %v", err)
+	}
+	plan, err := resolveLaunch(ctx, w, flags(true), "001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !plan.ContextOverride || len(plan.ContextSources) < 3 || strings.Join(plan.Claims, ",") != "internal/features/execution" || strings.Join(append(append([]string{}, plan.Runtime.Args...), plan.Sandbox...), " ") != strings.Join(rt.Args, " ") || plan.LaunchContract.AllowUserConfig != true {
+		t.Fatalf("exception lost identity: %+v", plan)
+	}
+	for _, content := range []string{"[mcp_servers.bad]\ncommand = \"bad\"\n", "model = \"unapproved\"\n", "[plugins.bad]\nenabled = true\n"} {
+		if err := os.WriteFile(filepath.Join(home, ".codex", "config.toml"), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := resolveLaunch(ctx, w, flags(false), "001"); clikit.ExitCode(err) != 3 {
+			t.Fatalf("arbitrary configuration allowed: %v", err)
+		}
+	}
+	if err := cmdSpawn(ctx, []string{"--task", "001", "--runtime", rt.Name, "--grant", "rw", "--claim", "internal/features/execution", "--allow-user-config"}); err != nil {
+		t.Fatal(err)
+	}
+	runs, err := os.ReadDir(w.RunsDir())
+	if err != nil || len(runs) != 1 {
+		t.Fatalf("spawn run records: %v, %v", runs, err)
+	}
+	invocation, err := os.ReadFile(filepath.Join(w.RunsDir(), runs[0].Name(), "invocation.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"external_context_override: true", "config.toml", "global-skills="} {
+		if !strings.Contains(string(invocation), want) {
+			t.Fatalf("run did not record %q: %s", want, invocation)
+		}
+	}
+}
+
+func TestContextExceptionCannotDowngradeSandbox(t *testing.T) {
+	w := newExecWS(t)
+	mustTask(t, w, "sandbox identity", store.TaskOpts{})
+	rt := store.Runtime{Name: "unverified", Binary: fakeBinary(t), Mode: "stdin", SandboxRO: []string{"--sandbox", "read-only"}, ROProbe: store.RuntimeROFailed}
+	mustRuntime(t, w, rt)
+	ctx, _, _ := newCtx(w.Root)
+	f, err := clikit.ParseFlags([]string{"--runtime", rt.Name, "--grant", "ro", "--allow-user-config"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := resolveLaunch(ctx, w, f, "001"); clikit.ExitCode(err) != 3 || !strings.Contains(err.Error(), "cannot enforce read-only") {
+		t.Fatalf("context exception downgraded sandbox: %v", err)
+	}
+
+	if err := cmdPreflight(ctx, []string{"--runtime", rt.Name, "--grant", "ro", "--allow-user-config"}); clikit.ExitCode(err) != 3 || !strings.Contains(err.Error(), "cannot enforce read-only") {
+		t.Fatalf("preflight downgraded sandbox: %v", err)
+	}
+}

@@ -852,3 +852,16 @@ Custom adapters declare an observed contract with `runtime add
 this capability from its provider name or from a successful startup probe;
 Codex, Claude Code, Gemini, Copilot, and generic runtimes share the same
 scheduler vocabulary.
+
+Codex readiness may populate its configuration home with project trust metadata
+in `config.toml` and built-in `skills/.system`. Strict context discovery still
+refuses these undeclared sources: their paths do not prove their contents or
+origin. For a reviewed configuration home, `dacli loop --allow-user-config`
+explicitly forwards the existing recorded context exception to readiness,
+implementation, and review launches. This permits external configuration,
+including skills, plugins and MCP configuration; review the home before selecting
+it. Each launch records its discovered sources and exception, retains its claims
+and verified sandbox, and fingerprints the exception in its exact launch contract.
+It does not assert that external context is isolated. Without the option,
+arbitrary configuration remains refused. Launch exit 3 is nonretryable policy
+refusal, and loop diagnostics retain the refusal following advisory warnings.

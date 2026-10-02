@@ -127,6 +127,7 @@ type loopCfg struct {
 	allowedHarnesses    []string
 	width               int   // implementers spawned per cycle
 	perCycleTok         int64 // --max-tokens passed to each spawn (0 = unset)
+	allowUserConfig     bool  // explicit external-context exception, recorded by execution
 	allowAdvisoryTokens bool  // explicit policy: account for tokens even when the runtime cannot enforce the ceiling
 	workerTimeout       int   // explicit --worker-timeout seconds (0 = derive from task estimate)
 	dryRun              bool
@@ -173,7 +174,7 @@ func (d *driver) workerTimeout(t *store.Task) int {
 const loopUsage = "dacli loop --project <slug> [--width N] [--impl-role R|--impl-role-fallback R] [--review-role R] " +
 	"[--harness FAMILY]... [--hybrid] " +
 	"[--capacity-override-reason TEXT --capacity-override-expires RFC3339] " +
-	"[--max-cycles N] [--window-tokens N --token-window DUR] [--max-tokens N [--allow-advisory-tokens]] [--worker-timeout SEC] [--brief-tokens N] " +
+	"[--max-cycles N] [--window-tokens N --token-window DUR] [--max-tokens N [--allow-advisory-tokens]] [--allow-user-config] [--worker-timeout SEC] [--brief-tokens N] " +
 	"[--idle DUR] [--halt-after-idle N] [--into BRANCH] [--stop-file PATH] [--no-pr] [--auto-merge|--no-auto-merge] [--yolo] [--dry-run] [--advise]"
 
 func cmdLoop(ctx *clikit.Ctx, args []string) error {
@@ -183,7 +184,7 @@ func cmdLoop(ctx *clikit.Ctx, args []string) error {
 	}
 	f, _ := clikit.ParseFlags(args)
 	if err := f.Reject("project", "impl-role", "impl-role-fallback", "review-role", "harness", "hybrid", "width", "max-tokens",
-		"worker-timeout", "allow-advisory-tokens",
+		"worker-timeout", "allow-advisory-tokens", "allow-user-config",
 		"capacity-override-reason", "capacity-override-expires",
 		"dry-run", "yolo", "pr", "no-pr", "auto-merge", "no-auto-merge", "advise", "budget-window", "window-tokens",
 		"idle", "max-cycles", "no-progress-halt", "halt-after-idle", "into", "stop-file",
@@ -276,6 +277,7 @@ func cmdLoop(ctx *clikit.Ctx, args []string) error {
 		reviewRoleExplicit:  f.Get("review-role") != "",
 		width:               width,
 		perCycleTok:         perCycleTok,
+		allowUserConfig:     f.Bool("allow-user-config"),
 		allowAdvisoryTokens: f.Bool("allow-advisory-tokens"),
 		workerTimeout:       workerTimeout,
 		dryRun:              f.Bool("dry-run"),
@@ -923,6 +925,13 @@ func (d *driver) loop() error {
 			// so capacity, routing, claims, and the live wave all see the same
 			// estimate rather than certifying stale unsized pointers.
 			d.sizeUnestimated(selectClaimCompatibleWave(d.w.Root, ready, d.cfg.width).Tasks)
+			if d.phaseErr != nil {
+				d.lastOutcome = d.finishCycleOutcome(len(ready), cycleRollup{})
+				if err := d.saveState("degraded", d.phaseErr.Error(), len(ready)); err != nil {
+					return clikit.Refusedf("%v; persist estimator refusal: %v", d.phaseErr, err)
+				}
+				return d.phaseErr
+			}
 			ready, err = d.readyTasks()
 			if err != nil {
 				return err
@@ -1238,6 +1247,7 @@ func (d *driver) runCycle(ready []*store.Task) (tokens int64, rollup cycleRollup
 				spawn = append(spawn, "--allow-advisory-tokens")
 			}
 		}
+		spawn = d.contextExceptionArgs(spawn)
 		spawn = append(spawn, "--timeout", fmt.Sprint(d.workerTimeout(t)))
 		decisionSource := routing.Source
 		if fallbackSource != "automatic cost routing" {
@@ -1265,8 +1275,12 @@ func (d *driver) runCycle(ready []*store.Task) (tokens int64, rollup cycleRollup
 			d.logf("    consequence uplift: %s", routing.Uplift)
 		}
 		if out, err := d.run.run("spawn", spawn...); err != nil {
-			d.logf("    spawn refused/failed: %s", clikit.FirstLine(out))
-			d.recordCycleFailure("spawn", err, clikit.FirstLine(out))
+			d.logf("    spawn refused/failed: %s", strings.TrimSpace(out))
+			d.recordCycleFailure("spawn", err, out)
+			if policyLaunchRefusal(err) {
+				d.phaseErr = clikit.Refusedf("spawn policy refusal: %s", strings.TrimSpace(out))
+				return
+			}
 			continue
 		}
 		built[t.Seq] = true
@@ -1381,6 +1395,9 @@ func (d *driver) runCycle(ready []*store.Task) (tokens int64, rollup cycleRollup
 		for _, t := range batch {
 			if built[t.Seq] && !d.reviewDeliveryTask(t) {
 				built[t.Seq] = false
+				if d.phaseErr != nil {
+					return
+				}
 				d.recordCycleFailure("review", clikit.Refusedf("structured review did not approve"), "structured review did not approve the current tree")
 				d.logf("    %03d: structured review did not approve the current tree — leaving open and unlanded", t.Seq)
 			}
@@ -1927,6 +1944,7 @@ func (d *driver) reviewPhase(wave ...*store.Task) {
 			spawn = append(spawn, "--allow-advisory-tokens")
 		}
 	}
+	spawn = d.contextExceptionArgs(spawn)
 	if anchor, findErr := store.FindTask(d.w, ref); findErr == nil {
 		spawn = append(spawn, "--timeout", fmt.Sprint(d.workerTimeout(anchor)))
 	} else {
@@ -1941,7 +1959,12 @@ func (d *driver) reviewPhase(wave ...*store.Task) {
 		out, runErr = d.run.run("review", spawn...)
 	}
 	if runErr != nil {
-		d.logf("    %s", reviewFailure(out, runErr, result))
+		detail := reviewFailure(out, runErr, result)
+		d.logf("    %s", detail)
+		d.recordCycleFailure("review", runErr, detail)
+		if policyLaunchRefusal(runErr) {
+			d.phaseErr = clikit.Refusedf("%s", detail)
+		}
 		d.logf("    review produced NO new work this cycle — the backlog grows only here")
 		return
 	}
@@ -2322,10 +2345,20 @@ func (d *driver) sizeUnestimated(batch []*store.Task) {
 	for _, t := range unsized {
 		ref := t.ID
 		d.logf("  sizing %s with the %s role (unsized tasks lose routing and critical-path order)", ref, estimatorRole)
-		if out, err := d.run.run("estimate", "spawn", "--task", ref, "--role", estimatorRole); err != nil {
-			// Never fatal: an unsized task still builds, just on the fallback
-			// role and in MoSCoW order — the pre-existing behavior.
-			d.logf("    could not size %s: %s", ref, clikit.FirstLine(out))
+		args := d.contextExceptionArgs([]string{"spawn", "--task", ref, "--role", estimatorRole})
+		if out, err := d.run.run("estimate", args...); err != nil {
+			detail := strings.TrimSpace(out)
+			if detail == "" {
+				detail = err.Error()
+			}
+			d.logf("    could not size %s: %s", ref, detail)
+			// Operational sizing failures can use fallback routing. A policy
+			// answer must stop before build/preflight or another sizing attempt.
+			if policyLaunchRefusal(err) {
+				d.recordCycleFailure("estimate", err, detail)
+				d.phaseErr = clikit.Refusedf("estimator policy refusal: %s", detail)
+				return
+			}
 		}
 	}
 }
@@ -2384,7 +2417,7 @@ func reviewFailure(out string, err error, result commandresult.Spawn) string {
 	}
 	// No typed run result: the spawn never got far enough to mint a run, so the
 	// output is the refusal and is the more actionable of the two.
-	if msg := clikit.FirstLine(out); msg != "" {
+	if msg := strings.TrimSpace(out); msg != "" {
 		return fmt.Sprintf("review spawn refused: %s", msg)
 	}
 	return fmt.Sprintf("review spawn failed: %v", err)
@@ -2419,4 +2452,13 @@ func (d *driver) reportStillUnsized(batch []*store.Task) {
 	}
 	d.logf("  %d task(s) are STILL unsized after the sizing step (%s) — every capacity-capped role refuses unsized work, so this cycle cannot build them. Size them by hand (`dacli task estimate <ref> --estimate o,m,p --force`) or add an `%s` role.",
 		len(stuck), strings.Join(stuck, ", "), estimatorRole)
+}
+
+// contextExceptionArgs forwards only an explicitly selected policy exception.
+// Execution records the sources and override; sandbox verification still runs.
+func (d *driver) contextExceptionArgs(args []string) []string {
+	if d.cfg.allowUserConfig {
+		return append(args, "--allow-user-config")
+	}
+	return args
 }

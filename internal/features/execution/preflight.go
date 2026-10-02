@@ -208,7 +208,7 @@ func cmdPreflight(ctx *clikit.Ctx, args []string) error {
 
 	exe, _ := os.Executable()
 	override := f.Bool("cooperative") || f.Bool("allow-user-config")
-	issues := preflightIssues(rt, role, hasRole, grant, override, exe)
+	issues := preflightIssues(rt, role, hasRole, grant, f.Bool("cooperative"), exe)
 	contextMismatches, _ := contextIssues(rt, role, hasRole, override, ctx.Cwd, currentEnvNames())
 	issues = append(issues, contextMismatches...)
 
@@ -237,7 +237,7 @@ func cmdPreflight(ctx *clikit.Ctx, args []string) error {
 		}
 		resultChannel = store.IndependentReviewChannel
 	}
-	sandbox, err := sandboxFor(ctx, rt, grant, override)
+	sandbox, err := sandboxFor(ctx, rt, grant, f.Bool("cooperative"))
 	if err != nil {
 		return err
 	}
