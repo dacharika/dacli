@@ -400,6 +400,19 @@ token itself, relying entirely on the operator's own `gh auth` session
 | `run` | Executes an arbitrary local shell command on the machine — either a named shortcut's expanded, POSIX-quoted body, or a literal `--cmd` string. This is the one command in scope whose "mutation" is unconstrained: whatever the executed command does, it does, not a specific file/git/GitHub write. Every invocation is logged as an attributed event | A named shortcut is gated by its declared effect (`read` runs for anyone including `ro`; `write` needs `rw`; `destructive` needs `rw` **and** `--confirm`); an ad-hoc `--cmd` has no declared effect to gate on, so it unconditionally requires `rw`; `--dry-run` prints the expanded/literal command without executing it — and, for a named shortcut, without even checking the effect gate, deliberately, so a reviewing agent can see what a shortcut *would* do | None — dacli has no undo for arbitrary command execution. Whatever the executed command did must be reversed by whatever means fit that command specifically (`git revert`, manual cleanup, …); the event log is the only forensic trail of what ran |
 | `report` | Files a bug against **dacli itself** upstream, on the tool's own public repo, via `gh issue create` | The base command needs no elevated grant at all — usable by a `ro` agent, by design; `--repo` (redirects the filing target) and `--disclose` (attaches the workspace name and a run-transcript excerpt) each require an explicit `RequireRW`, and fail closed if identity can't even be resolved, rather than silently skip the check. Without `--disclose` the body states explicitly that the workspace and transcript were withheld | No revert — close or edit the filed issue by hand via `gh issue close`/`gh issue edit` |
 
+### Native authority provisioning
+
+`native bootstrap` initializes an absent native authority and writes its owner
+credential into a new private file. `native enroll` authenticates that explicit
+owner file, binds an existing canonical task and writes a scoped session and
+connection into new private files. These exact commands use native authority
+instead of the ambient legacy grant; both refuse invocation through MCP tools.
+Help remains a read. Neither command replaces existing credentials or resets
+storage. Revoke sessions through the owning authority workflow; retain authority
+history and reconcile interrupted issuance rather than deleting the workspace.
+See [native MCP setup](GOVERNANCE_NATIVE_MCP.md) for private-file requirements and
+cooperative assurance limits.
+
 ## 6. What this doc does not claim
 
 - It does not claim prompt injection is solved. § 2 is explicit: attribution
