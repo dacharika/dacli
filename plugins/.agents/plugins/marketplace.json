@@ -1,0 +1,20 @@
+{
+  "name": "dacli-local",
+  "interface": {
+    "displayName": "dacli local preview"
+  },
+  "plugins": [
+    {
+      "name": "dacli-governance",
+      "source": {
+        "source": "local",
+        "path": "./codex"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

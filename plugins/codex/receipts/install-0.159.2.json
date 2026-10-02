@@ -1,0 +1,42 @@
+{
+  "schema": "dacli-plugin-smoke/v1",
+  "host_version": "codex-cli 0.159.2",
+  "installed_version": "0.1.0",
+  "native_host_tool_discovery": true,
+  "native_host_skill_discovery": true,
+  "tool_names": [
+    "add_note",
+    "add_task",
+    "answer",
+    "ask",
+    "block_task",
+    "check_task",
+    "claim_task",
+    "cleanup_repository",
+    "cli",
+    "diagnose_pr",
+    "finish_task",
+    "get_context",
+    "github_projection",
+    "list_tasks",
+    "queue_advance",
+    "queue_next",
+    "reconcile_delivery",
+    "reconcile_event_journal",
+    "release_train",
+    "run_shortcut",
+    "status",
+    "whoami"
+  ],
+  "native_host_whoami": {
+    "id": "a-plugin-fixture",
+    "grant": "ro"
+  },
+  "missing_connection_tools_unavailable": true,
+  "empty_credential_exit": 3,
+  "invalid_credential_exit": 3,
+  "fixture_only": true,
+  "model_turn_requested": false,
+  "native_governance_session_enrollment": false,
+  "assurance": "cooperative/advisory"
+}

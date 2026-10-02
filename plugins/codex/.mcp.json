@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "dacli": {
+      "command": "python3",
+      "args": [
+        "${PLUGIN_ROOT}/scripts/serve.py"
+      ]
+    }
+  }
+}
