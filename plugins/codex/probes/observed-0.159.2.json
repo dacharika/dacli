@@ -1,0 +1,252 @@
+{
+  "schema": "codex-governance-probe/v1",
+  "host_version": "codex-cli 0.159.2",
+  "simulated": false,
+  "credentials_loaded": false,
+  "cases": [
+    {
+      "mode": "observe",
+      "status": "observed",
+      "installation": null,
+      "exit_code": -9,
+      "runner_killed_at_bound": true,
+      "elapsed_seconds": 8.01,
+      "stream_event_types": [
+        "error",
+        "item.completed",
+        "thread.started",
+        "turn.started"
+      ],
+      "hook_completed": true,
+      "hook_events": [
+        "SessionStart"
+      ],
+      "hook_field_names": [
+        "hook_event_name",
+        "session_id"
+      ],
+      "hook_session_matches_thread": true,
+      "network_lookup_failure": true,
+      "hook_failure_reported": false,
+      "turn_started": true
+    },
+    {
+      "mode": "second-session",
+      "status": "observed",
+      "installation": null,
+      "exit_code": -9,
+      "runner_killed_at_bound": true,
+      "elapsed_seconds": 8.02,
+      "stream_event_types": [
+        "error",
+        "item.completed",
+        "thread.started",
+        "turn.started"
+      ],
+      "hook_completed": true,
+      "hook_events": [
+        "SessionStart"
+      ],
+      "hook_field_names": [
+        "hook_event_name",
+        "session_id"
+      ],
+      "hook_session_matches_thread": true,
+      "network_lookup_failure": true,
+      "hook_failure_reported": false,
+      "turn_started": true
+    },
+    {
+      "mode": "disabled",
+      "status": "observed",
+      "installation": null,
+      "exit_code": -9,
+      "runner_killed_at_bound": true,
+      "elapsed_seconds": 8.01,
+      "stream_event_types": [
+        "error",
+        "item.completed",
+        "thread.started",
+        "turn.started"
+      ],
+      "hook_completed": false,
+      "hook_events": [],
+      "hook_field_names": [],
+      "hook_session_matches_thread": false,
+      "network_lookup_failure": true,
+      "hook_failure_reported": false,
+      "turn_started": true
+    },
+    {
+      "mode": "untrusted",
+      "status": "observed",
+      "installation": null,
+      "exit_code": -9,
+      "runner_killed_at_bound": true,
+      "elapsed_seconds": 8.01,
+      "stream_event_types": [
+        "error",
+        "item.completed",
+        "thread.started",
+        "turn.started"
+      ],
+      "hook_completed": false,
+      "hook_events": [],
+      "hook_field_names": [],
+      "hook_session_matches_thread": false,
+      "network_lookup_failure": true,
+      "hook_failure_reported": false,
+      "turn_started": true
+    },
+    {
+      "mode": "malformed-output",
+      "status": "observed",
+      "installation": null,
+      "exit_code": -9,
+      "runner_killed_at_bound": true,
+      "elapsed_seconds": 8.01,
+      "stream_event_types": [
+        "error",
+        "item.completed",
+        "thread.started",
+        "turn.started"
+      ],
+      "hook_completed": true,
+      "hook_events": [
+        "SessionStart"
+      ],
+      "hook_field_names": [
+        "hook_event_name",
+        "session_id"
+      ],
+      "hook_session_matches_thread": true,
+      "network_lookup_failure": true,
+      "hook_failure_reported": false,
+      "turn_started": true
+    },
+    {
+      "mode": "timeout",
+      "status": "observed",
+      "installation": null,
+      "exit_code": -9,
+      "runner_killed_at_bound": true,
+      "elapsed_seconds": 8.01,
+      "stream_event_types": [
+        "error",
+        "item.completed",
+        "thread.started",
+        "turn.started"
+      ],
+      "hook_completed": false,
+      "hook_events": [
+        "SessionStart"
+      ],
+      "hook_field_names": [
+        "hook_event_name",
+        "session_id"
+      ],
+      "hook_session_matches_thread": true,
+      "network_lookup_failure": true,
+      "hook_failure_reported": false,
+      "turn_started": true
+    },
+    {
+      "mode": "malformed-config",
+      "status": "observed",
+      "installation": null,
+      "exit_code": -9,
+      "runner_killed_at_bound": true,
+      "elapsed_seconds": 8.01,
+      "stream_event_types": [
+        "error",
+        "item.completed",
+        "thread.started",
+        "turn.started"
+      ],
+      "hook_completed": false,
+      "hook_events": [],
+      "hook_field_names": [],
+      "hook_session_matches_thread": false,
+      "network_lookup_failure": true,
+      "hook_failure_reported": true,
+      "turn_started": true
+    },
+    {
+      "mode": "plugin-observe",
+      "status": "observed",
+      "installation": [
+        {
+          "exit_code": 0,
+          "bounded": false
+        },
+        {
+          "exit_code": 0,
+          "bounded": false
+        }
+      ],
+      "exit_code": -9,
+      "runner_killed_at_bound": true,
+      "elapsed_seconds": 8.01,
+      "stream_event_types": [
+        "error",
+        "item.completed",
+        "thread.started",
+        "turn.started"
+      ],
+      "hook_completed": true,
+      "hook_events": [
+        "SessionStart"
+      ],
+      "hook_field_names": [
+        "hook_event_name",
+        "session_id"
+      ],
+      "hook_session_matches_thread": true,
+      "network_lookup_failure": true,
+      "hook_failure_reported": false,
+      "turn_started": true
+    },
+    {
+      "mode": "plugin-disabled",
+      "status": "observed",
+      "installation": [
+        {
+          "exit_code": 0,
+          "bounded": false
+        },
+        {
+          "exit_code": 0,
+          "bounded": false
+        }
+      ],
+      "exit_code": -9,
+      "runner_killed_at_bound": true,
+      "elapsed_seconds": 8.01,
+      "stream_event_types": [
+        "error",
+        "item.completed",
+        "thread.started",
+        "turn.started"
+      ],
+      "hook_completed": true,
+      "hook_events": [
+        "SessionStart"
+      ],
+      "hook_field_names": [
+        "hook_event_name",
+        "session_id"
+      ],
+      "hook_session_matches_thread": true,
+      "network_lookup_failure": true,
+      "hook_failure_reported": false,
+      "turn_started": true
+    }
+  ],
+  "distinct_started_sessions": 9,
+  "unavailable": {
+    "authenticated_principal": "No credentials loaded; a thread ID does not authenticate a principal.",
+    "native_subagents": "No successful model turn; no delegation observed.",
+    "tool_call_attribution": "No model tool calls observed.",
+    "independent_review": "Separate thread IDs are not independent authenticated reviewers."
+  }
+}
