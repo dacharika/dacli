@@ -17,6 +17,7 @@ import (
 // capabilityRegistryGolden is the digest of the complete deterministic
 // registry projection below. A command/flag/tool addition or removal must be
 // reviewed as a compatibility-surface change and deliberately update it.
+// This projection includes owner migration and excludes legacy provider launchers.
 const capabilityRegistryGolden = "0aedf608a2aee112c918660b95756fe407b721d4ee9612d76282bfb53ac32a0c"
 
 func TestCapabilityRegistryGolden(t *testing.T) {
