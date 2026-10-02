@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -719,5 +720,72 @@ func TestCleanupArtifactPartialMoveHasTruthfulRecoveryAudit(t *testing.T) {
 	raw, readErr := os.ReadFile(filepath.Join(w.Root, workspace.Dir, "audit", "cleanup", plan.ID+".json"))
 	if readErr != nil || strings.Count(string(raw), `"operation": "artifact-quarantine"`) != 1 || !strings.Contains(string(raw), `"recovery": "dacli cleanup`) {
 		t.Fatalf("persisted partial audit is not truthful/actionable: err=%v\n%s", readErr, raw)
+	}
+}
+
+func TestCleanupPublicationMetadataDoesNotVetoTerminalWorkers(t *testing.T) {
+	w, task, _, restore := cleanupFixture(t)
+	defer restore()
+	path := PRPublicationPath(w, task.ID)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatal(err)
+	}
+	checkpoint := []byte("public checkpoint fixture\n")
+	if err := os.WriteFile(path, checkpoint, 0600); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := PlanRepositoryCleanup(w, "core", time.Unix(1, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Items) != 1 || !plan.Items[0].Eligible {
+		t.Fatalf("reserved publication metadata vetoed proven terminal worker: %+v", plan.Items)
+	}
+	found := false
+	for _, artifact := range plan.Artifacts {
+		if artifact.Path == path {
+			found = true
+			if artifact.Pruneable || artifact.Classification != "durable-publication-metadata" {
+				t.Fatalf("checkpoint incorrectly classified: %+v", artifact)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("publication checkpoint retention omitted")
+	}
+	if _, err := ApplyRepositoryCleanup(w, "core", plan.ID, time.Unix(2, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := os.ReadFile(path); err != nil || string(got) != string(checkpoint) {
+		t.Fatalf("checkpoint changed: %q %v", got, err)
+	}
+}
+func TestCleanupUnknownWorkerDirectoriesStillVetoRemoval(t *testing.T) {
+	for _, data := range []string{"", "malformed process record"} {
+		t.Run(fmt.Sprintf("bytes-%d", len(data)), func(t *testing.T) {
+			w, _, _, restore := cleanupFixture(t)
+			defer restore()
+			run := w.RunDir("unrecognized-worker")
+			if err := os.MkdirAll(run, 0755); err != nil {
+				t.Fatal(err)
+			}
+			if data != "" {
+				if err := os.WriteFile(filepath.Join(run, "proc.txt"), []byte(data), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			plan, err := PlanRepositoryCleanup(w, "core", time.Unix(1, 0))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(plan.Items) != 1 || plan.Items[0].Eligible || !plan.Items[0].Unknown {
+				t.Fatalf("unknown worker permitted cleanup: %+v", plan.Items)
+			}
+			for _, artifact := range plan.Artifacts {
+				if artifact.Pruneable {
+					t.Fatalf("unknown ownership permitted artifact removal: %+v", artifact)
+				}
+			}
+		})
 	}
 }
