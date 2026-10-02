@@ -56,3 +56,10 @@ Previously constructed contexts are snapshots and cannot certify ongoing
 revocation enforcement or mutation policy. The snapshot and cooperative
 constructors above remain legacy adapter boundaries with their existing trust
 requirements; they do not provide native credential authentication.
+
+`NewNativeVerificationRunner` is a trusted owner-construction boundary for
+private credentials and named checks. `Run` takes a worker credential and fenced
+revision request, executes acceptance-grade verification outside the authority
+lock, and records only hashed observations after current authority checks. See
+[the evidence contract](../../docs/GOVERNANCE_NATIVE_EVIDENCE.md); runner issuer
+capability does not establish cryptographic host identity or task acceptance.

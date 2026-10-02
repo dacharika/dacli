@@ -33,7 +33,7 @@ type Attempt struct {
 }
 
 // Upgrade explicitly migrates v1 under the same lock, preserving all hashes,
-// session IDs and revocations. Normal v3 operations refuse v1 and unknown schemas.
+// session IDs and revocations. Normal v4 operations refuse v1 and unknown schemas.
 func (a *Authority) Upgrade(owner string) error {
 	legacy := *a
 	legacy.version = 1
@@ -41,7 +41,8 @@ func (a *Authority) Upgrade(owner string) error {
 		if len(owner) != 64 || hash(owner) != s.OwnerHash {
 			return ErrDenied
 		}
-		s.Version = 3
+		s.Version = 4
+		initializeEvidence(s)
 		s.Leases = map[string]Lease{}
 		s.Operations = map[string]operation{}
 		s.Tasks = map[string]TaskBinding{}
