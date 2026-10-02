@@ -1,0 +1,145 @@
+{
+  "schema": "codex-native-actions/v1",
+  "host_version": "codex-cli 0.159.2",
+  "client_login_reference_supplied": true,
+  "dacli_principal_authenticated": false,
+  "beta_certified": false,
+  "measurement": {
+    "event_counts": {
+      "thread.started": 1,
+      "item.completed": 5,
+      "turn.started": 1,
+      "item.started": 1,
+      "turn.completed": 1
+    },
+    "event_keys": [
+      "item",
+      "thread_id",
+      "type",
+      "usage"
+    ],
+    "turn_completed": true,
+    "items": [
+      {
+        "category": "error",
+        "event": "item.completed",
+        "status": "unknown"
+      },
+      {
+        "category": "error",
+        "event": "item.completed",
+        "status": "unknown"
+      },
+      {
+        "category": "agent_message",
+        "event": "item.completed",
+        "status": "unknown"
+      },
+      {
+        "category": "command_execution",
+        "event": "item.started",
+        "status": "in_progress"
+      },
+      {
+        "category": "command_execution",
+        "event": "item.completed",
+        "status": "completed",
+        "exit_success": true
+      },
+      {
+        "category": "agent_message",
+        "event": "item.completed",
+        "status": "unknown"
+      }
+    ],
+    "case": "error",
+    "exit_code": 0,
+    "runner_killed_at_bound": false,
+    "observations": [
+      {
+        "source": "mcp-lifecycle",
+        "event": "started"
+      },
+      {
+        "source": "mcp-lifecycle",
+        "event": "initialize"
+      },
+      {
+        "source": "mcp-lifecycle",
+        "event": "tools/list"
+      },
+      {
+        "source": "hook",
+        "event": "SessionStart",
+        "tool": "other",
+        "fields": [
+          "session_id"
+        ],
+        "session_hash": "8db825069dd012aae28ebbbac16ce1695762486bb732265f241ed7c176fa314d",
+        "agent_hash": null
+      },
+      {
+        "source": "hook",
+        "event": "PreToolUse",
+        "tool": "other",
+        "fields": [
+          "session_id",
+          "turn_id",
+          "tool_use_id"
+        ],
+        "session_hash": "8db825069dd012aae28ebbbac16ce1695762486bb732265f241ed7c176fa314d",
+        "agent_hash": null
+      },
+      {
+        "source": "hook",
+        "event": "PostToolUse",
+        "tool": "other",
+        "fields": [
+          "session_id",
+          "turn_id",
+          "tool_use_id"
+        ],
+        "session_hash": "8db825069dd012aae28ebbbac16ce1695762486bb732265f241ed7c176fa314d",
+        "agent_hash": null
+      },
+      {
+        "source": "hook",
+        "event": "Stop",
+        "tool": "other",
+        "fields": [
+          "session_id",
+          "turn_id"
+        ],
+        "session_hash": "8db825069dd012aae28ebbbac16ce1695762486bb732265f241ed7c176fa314d",
+        "agent_hash": null
+      }
+    ],
+    "markers": {
+      "marker.txt": {
+        "present": true,
+        "expected_bytes_match": true,
+        "expected_sha256": "7a62e3ac3d7c06e27346c0a41d261dc7cdb46d3b7ed89073b770982923da014c"
+      },
+      "root-shell.txt": {
+        "present": false,
+        "expected_bytes_match": false,
+        "expected_sha256": "fed4199357214dfb94724176c68a76698dbc3c2d36317a895320207ac910dea6"
+      },
+      "root-patch.txt": {
+        "present": false,
+        "expected_bytes_match": false,
+        "expected_sha256": "e1022d52b643d9c8d53aa1055b3dbb87318e538d11489ecf3f0f91eb23a9d99d"
+      },
+      "child-shell.txt": {
+        "present": false,
+        "expected_bytes_match": false,
+        "expected_sha256": "31ae76fa77700a5de7d8461ff6d50e694b5ec6e060c49587f2009e73665b961c"
+      },
+      "child-patch.txt": {
+        "present": false,
+        "expected_bytes_match": false,
+        "expected_sha256": "1e3715409a8596f74787b71d4bdd71459219277d0021fb6a4191e3cdb1ae5cf8"
+      }
+    }
+  }
+}

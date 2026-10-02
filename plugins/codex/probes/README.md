@@ -50,3 +50,8 @@ input with the native JSON event stream, then discards raw IDs, messages and
 paths. The diagnostic failure boolean is a text heuristic over native JSON
 errors, not a complete failure audit. Unit tests verify the runner only and
 are not evidence of host identity or enforcement.
+
+Owner-executed credentialed action receipts are separate under
+`receipts/0.159.2/`, with a hash index and explicit projection-generation limits.
+See `docs/CODEX_GOVERNANCE_PROBE.md` for the action matrix. These do not upgrade
+the unauthenticated startup receipt or certify native governance identity.
