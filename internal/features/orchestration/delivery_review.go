@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/mlnomadpy/dacli/internal/clikit"
 	"github.com/mlnomadpy/dacli/internal/commandresult"
 	"github.com/mlnomadpy/dacli/internal/eventlog"
 	"github.com/mlnomadpy/dacli/internal/model"
@@ -120,8 +121,8 @@ func (d *driver) runReviewCorrection(t *store.Task, tx *store.ReviewTransaction)
 	}
 	args = d.contextExceptionArgs(args)
 	args = append(args, "--timeout", fmt.Sprint(d.workerTimeout(t)))
-	if _, err := d.run.run("review-correction", args...); err != nil {
-		return err
+	if out, err := d.run.run("review-correction", args...); err != nil {
+		return fmt.Errorf("correction launch: %s: %w", strings.TrimSpace(out), err)
 	}
 	if _, err := d.run.run("review-correction-sync", "sync"); err != nil {
 		return err
@@ -160,7 +161,20 @@ func (d *driver) reviewDeliveryTask(t *store.Task) bool {
 			}
 			if err := d.runReviewCorrection(t, &tx); err != nil {
 				d.logf("    %03d review correction: %v", t.Seq, err)
-				_ = store.WriteReviewTransaction(d.w, tx)
+				if policyLaunchRefusal(err) {
+					// A partially delivered wave must not turn exit 3 into another
+					// correction attempt. Halt durably and retain findings/revision.
+					tx.State, tx.UpdatedAt = store.ReviewHalted, d.now().UTC()
+					d.recordCycleFailure("review-correction", err, err.Error())
+					d.phaseErr = clikit.Refusedf("correction policy refusal: %v", err)
+				}
+				if writeErr := store.WriteReviewTransaction(d.w, tx); writeErr != nil {
+					if policyLaunchRefusal(err) {
+						d.phaseErr = clikit.Refusedf("%v; persist correction failure: %v", d.phaseErr, writeErr)
+					} else {
+						d.phaseErr = fmt.Errorf("persist correction failure: %w", writeErr)
+					}
+				}
 				return false
 			}
 			if err := store.WriteReviewTransaction(d.w, tx); err != nil {

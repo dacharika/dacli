@@ -925,6 +925,13 @@ func (d *driver) loop() error {
 			// so capacity, routing, claims, and the live wave all see the same
 			// estimate rather than certifying stale unsized pointers.
 			d.sizeUnestimated(selectClaimCompatibleWave(d.w.Root, ready, d.cfg.width).Tasks)
+			if d.phaseErr != nil {
+				d.lastOutcome = d.finishCycleOutcome(len(ready), cycleRollup{})
+				if err := d.saveState("degraded", d.phaseErr.Error(), len(ready)); err != nil {
+					return clikit.Refusedf("%v; persist estimator refusal: %v", d.phaseErr, err)
+				}
+				return d.phaseErr
+			}
 			ready, err = d.readyTasks()
 			if err != nil {
 				return err
@@ -1388,6 +1395,9 @@ func (d *driver) runCycle(ready []*store.Task) (tokens int64, rollup cycleRollup
 		for _, t := range batch {
 			if built[t.Seq] && !d.reviewDeliveryTask(t) {
 				built[t.Seq] = false
+				if d.phaseErr != nil {
+					return
+				}
 				d.recordCycleFailure("review", clikit.Refusedf("structured review did not approve"), "structured review did not approve the current tree")
 				d.logf("    %03d: structured review did not approve the current tree — leaving open and unlanded", t.Seq)
 			}
@@ -2335,10 +2345,20 @@ func (d *driver) sizeUnestimated(batch []*store.Task) {
 	for _, t := range unsized {
 		ref := t.ID
 		d.logf("  sizing %s with the %s role (unsized tasks lose routing and critical-path order)", ref, estimatorRole)
-		if out, err := d.run.run("estimate", "spawn", "--task", ref, "--role", estimatorRole); err != nil {
-			// Never fatal: an unsized task still builds, just on the fallback
-			// role and in MoSCoW order — the pre-existing behavior.
-			d.logf("    could not size %s: %s", ref, clikit.FirstLine(out))
+		args := d.contextExceptionArgs([]string{"spawn", "--task", ref, "--role", estimatorRole})
+		if out, err := d.run.run("estimate", args...); err != nil {
+			detail := strings.TrimSpace(out)
+			if detail == "" {
+				detail = err.Error()
+			}
+			d.logf("    could not size %s: %s", ref, detail)
+			// Operational sizing failures can use fallback routing. A policy
+			// answer must stop before build/preflight or another sizing attempt.
+			if policyLaunchRefusal(err) {
+				d.recordCycleFailure("estimate", err, detail)
+				d.phaseErr = clikit.Refusedf("estimator policy refusal: %s", detail)
+				return
+			}
 		}
 	}
 }
