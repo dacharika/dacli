@@ -41,7 +41,8 @@ func (a *Authority) Upgrade(owner string) error {
 		if len(owner) != 64 || hash(owner) != s.OwnerHash {
 			return ErrDenied
 		}
-		s.Version = 5
+		initializePublication(s)
+		s.Version = 6
 		initializeEvidence(s)
 		initializeReviews(s)
 		s.Leases = map[string]Lease{}

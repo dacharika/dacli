@@ -81,7 +81,8 @@ func (a *Authority) UpgradeEvidence(owner string) error {
 		}
 		initializeEvidence(s)
 		initializeReviews(s)
-		s.Version = 5
+		initializePublication(s)
+		s.Version = 6
 		return nil
 	})
 }

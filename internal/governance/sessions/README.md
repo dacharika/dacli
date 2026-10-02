@@ -11,11 +11,13 @@ sessions lock. Readiness is a fresh observation, not atomic admission against
 concurrent legacy edits; shared-writer gating requires a later storage cutover.
 Renewal deliberately does not require that started tasks remain open.
 
-New authorities use schema 4. For existing schema 2 authorities the owner must
+New authorities use schema 6. For existing schema 2 authorities the owner must
 explicitly call `UpgradeLeases(ownerCredential)` before normal operations.
 Schema 3 requires owner-authorized `UpgradeEvidence(ownerCredential)`.
+Schema 4 requires `UpgradeReviews(ownerCredential)` and schema 5 requires
+`UpgradePublication(ownerCredential)`. These explicit migrations reach schema 6.
 Sessions, credential hashes, revocations, task bindings and attempts survive.
-`Upgrade` migrates schema 1 directly to schema 4. Unknown versions are refused;
+`Upgrade` migrates schema 1 directly to schema 6. Unknown versions are refused;
 opening never silently upgrades. Both migrations use the same durable lock.
 
 `AcquireLease`, `RenewLease` and `ReleaseLease` authenticate the credential,
@@ -69,3 +71,6 @@ cooperative checkout isolation is still required against concurrent replacement.
 Revision publication and local runner evidence are documented in
 [the native evidence contract](../../../docs/GOVERNANCE_NATIVE_EVIDENCE.md).
 They do not perform independent review or task acceptance.
+
+Owner-bound issue-update decisions and historical one-use consumption are covered
+in [the publication decision contract](../../../docs/GOVERNANCE_PUBLICATION_DECISIONS.md).

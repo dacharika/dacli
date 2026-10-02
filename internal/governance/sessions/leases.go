@@ -56,13 +56,15 @@ type Lease struct {
 	Released   bool
 }
 type operation struct {
-	Digest       string
-	Receipt      Lease
-	Review       *Review          `json:",omitempty"`
-	Revision     *AttemptRevision `json:",omitempty"`
-	Evidence     *Evidence        `json:",omitempty"`
-	ResultDigest string           `json:",omitempty"`
-	Pending      bool             `json:",omitempty"`
+	Digest                 string
+	PublicationDecision    *PublicationDecision    `json:",omitempty"`
+	PublicationConsumption *PublicationConsumption `json:",omitempty"`
+	Receipt                Lease
+	Review                 *Review          `json:",omitempty"`
+	Revision               *AttemptRevision `json:",omitempty"`
+	Evidence               *Evidence        `json:",omitempty"`
+	ResultDigest           string           `json:",omitempty"`
+	Pending                bool             `json:",omitempty"`
 }
 
 // UpgradeLeases explicitly migrates v2 without dropping sessions or attempts.
@@ -73,7 +75,8 @@ func (a *Authority) UpgradeLeases(owner string) error {
 		if len(owner) != 64 || hash(owner) != s.OwnerHash {
 			return ErrDenied
 		}
-		s.Version = 5
+		initializePublication(s)
+		s.Version = 6
 		initializeEvidence(s)
 		initializeReviews(s)
 		s.Leases = map[string]Lease{}

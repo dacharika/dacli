@@ -90,7 +90,8 @@ func (a *Authority) UpgradeReviews(owner string) error {
 			return ErrDenied
 		}
 		initializeReviews(s)
-		s.Version = 5
+		initializePublication(s)
+		s.Version = 6
 		return nil
 	})
 }
