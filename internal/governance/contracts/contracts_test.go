@@ -49,7 +49,7 @@ func TestRejectBindings(t *testing.T) {
 		{"installation-human", "invalid human", func(b *Bundle) { b.Installations[0].Human = "missing" }},
 		{"host-parent", "invalid host parent", func(b *Bundle) { b.Sessions[0].Parent = "missing" }},
 		{"capability", "invalid host capability", func(b *Bundle) { b.Capabilities[0].Installation = "missing" }},
-		{"attempt", "invalid attempt binding", func(b *Bundle) { b.Attempts[0].Session = "host-1" }},
+		{"attempt", "invalid attempt binding", func(b *Bundle) { b.Attempts[0].Session = "missing" }},
 		{"epoch", "invalid lease binding", func(b *Bundle) { b.Leases[0].Epoch = 2 }},
 		{"overlap", "conflicting lease fence", func(b *Bundle) { l := b.Leases[0]; l.ID = "lease-2"; l.Fence++; b.Leases = append(b.Leases, l) }},
 		{"regressing-fence", "conflicting lease fence", func(b *Bundle) {
@@ -63,13 +63,16 @@ func TestRejectBindings(t *testing.T) {
 		{"digest", "invalid provenance", func(b *Bundle) { b.Evidence[0].Digest = "sha256:" + strings.Repeat("z", 64) }},
 		{"origin", "invalid provenance origin", func(b *Bundle) { b.Evidence[0].Origin = "native-authenticated" }},
 		{"observed-origin", "invalid provenance origin", func(b *Bundle) { b.Capabilities[0].Assurance = "observed" }},
-		{"provenance-session", "invalid provenance", func(b *Bundle) { b.Evidence[0].Session = "host-1" }},
+		{"provenance-session", "invalid provenance", func(b *Bundle) { b.Evidence[0].Session = "missing" }},
 		{"decision-revision", "invalid lifecycle binding", func(b *Bundle) { b.Decisions[0].Revision = "other" }},
 		{"decision-human", "invalid lifecycle binding", func(b *Bundle) { b.Decisions[0].Human = "other" }},
 		{"decision-fence", "invalid decision lease fence", func(b *Bundle) { b.Decisions[0].Fence = 6 }},
 		{"expired", "invalid decision lease fence", func(b *Bundle) { b.Decisions[0].DecidedAt = b.Leases[0].ExpiresAt }},
 		{"assurance", "insufficient action assurance", func(b *Bundle) { b.Decisions[3].Assurance = "authenticated" }},
-		{"action-capability", "insufficient action assurance", func(b *Bundle) { b.Capabilities[0].Actions = []string{"completion"} }},
+		{"action-capability", "insufficient action assurance", func(b *Bundle) {
+			b.Capabilities[0].Actions = []string{"completion"}
+			b.Capabilities[0].Enforcement = map[string]string{"completion": "authority-enforced"}
+		}},
 		{"missing-evidence", "missing decision evidence", func(b *Bundle) { b.Decisions[0].Evidence = nil }},
 		{"unknown-evidence", "invalid decision provenance", func(b *Bundle) { b.Decisions[0].Evidence = []string{"missing"} }},
 		{"predecessor", "invalid lifecycle predecessor", func(b *Bundle) { b.Decisions[2].Previous = "decision-0" }},
@@ -100,5 +103,65 @@ func TestDecodeClosedContract(t *testing.T) {
 	}
 	if _, err = Decode(data); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCorrectionFixtures(t *testing.T) {
+	for _, name := range []string{"valid-session-only", "valid-independent-reviewer", "valid-historical-revocation"} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := Decode(fixture(t, name)); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+	for name, want := range map[string]string{
+		"missing-enforcement": "invalid capability action", "unsupported-action": "unsupported action enforcement", "missing-authorization": "invalid deployment authorization binding", "authorization-target": "invalid deployment authorization binding", "authorization-artifact": "invalid deployment authorization binding", "authorization-policy": "invalid deployment authorization binding", "authorization-revision": "invalid human authorization", "authorization-expired": "invalid deployment authorization binding", "revoked-session": "revoked session", "invalid-cancellation": "invalid cancellation observation", "missing-version": "incompatible schema",
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := Decode(fixture(t, name))
+			if err == nil || !strings.Contains(err.Error(), want) {
+				t.Fatalf("want %q, got %v", want, err)
+			}
+		})
+	}
+}
+
+func TestEnforcementIndependentOfAssurance(t *testing.T) {
+	for _, mode := range []string{"cooperative", "guarded", "authority-enforced"} {
+		t.Run(mode, func(t *testing.T) {
+			b := valid(t)
+			for action := range b.Capabilities[0].Enforcement {
+				b.Capabilities[0].Enforcement[action] = mode
+			}
+			b.Capabilities[0].Cancellation = "unsupported"
+			if err := b.Validate(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestFencedWriteRevocationPreservesHistory(t *testing.T) {
+	b, err := Decode(fixture(t, "valid-historical-revocation"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := b.Decisions[3].DecidedAt
+	if err := b.ValidateWrite("lease-1", 1, 7, before); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.ValidateWrite("lease-1", 1, 7, b.Revocations[0].RevokedAt); err == nil || !strings.Contains(err.Error(), "revoked write") {
+		t.Fatalf("want revoked write, got %v", err)
+	}
+	for _, pair := range [][2]uint64{{2, 7}, {1, 8}} {
+		if err := b.ValidateWrite("lease-1", pair[0], pair[1], before); err == nil {
+			t.Fatal("accepted stale epoch or fence")
+		}
+	}
+	if err := b.ValidateWrite("lease-1", 1, 7, b.Leases[0].ExpiresAt); err == nil {
+		t.Fatal("accepted expired write")
+	}
+	if err := b.ValidateWrite("missing", 1, 7, before); err == nil {
+		t.Fatal("accepted unknown lease")
 	}
 }

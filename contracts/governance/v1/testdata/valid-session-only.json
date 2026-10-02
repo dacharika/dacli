@@ -1,0 +1,231 @@
+{
+  "schema": "governance/v1",
+  "workspace": "ws-1",
+  "humans": [
+    {
+      "schema": "governance/v1",
+      "id": "human-1",
+      "workspace": "ws-1",
+      "credential": "credential-ref-1"
+    }
+  ],
+  "installations": [
+    {
+      "schema": "governance/v1",
+      "id": "installation-1",
+      "workspace": "ws-1",
+      "human": "human-1"
+    }
+  ],
+  "authorities": [
+    {
+      "schema": "governance/v1",
+      "id": "authority-1",
+      "workspace": "ws-1",
+      "installation": "installation-1",
+      "epoch": 1
+    }
+  ],
+  "capabilities": [
+    {
+      "schema": "governance/v1",
+      "id": "capability-1",
+      "workspace": "ws-1",
+      "installation": "installation-1",
+      "host": "fixture-host",
+      "assurance": "human-approved",
+      "actions": [
+        "completion",
+        "acceptance",
+        "merge",
+        "deployment"
+      ],
+      "enforcement": {
+        "completion": "authority-enforced",
+        "acceptance": "authority-enforced",
+        "merge": "authority-enforced",
+        "deployment": "authority-enforced"
+      },
+      "cancellation": "best-effort"
+    }
+  ],
+  "sessions": [
+    {
+      "schema": "governance/v1",
+      "id": "host-1",
+      "workspace": "ws-1",
+      "kind": "host-session",
+      "parent": "installation-1",
+      "human": "human-1",
+      "capability": "capability-1",
+      "delegation": "delegation-host"
+    },
+    {
+      "schema": "governance/v1",
+      "id": "agent-1",
+      "workspace": "ws-1",
+      "kind": "agent-session",
+      "parent": "host-1",
+      "human": "human-1",
+      "capability": "capability-1",
+      "delegation": "delegation-agent"
+    }
+  ],
+  "attempts": [
+    {
+      "schema": "governance/v1",
+      "id": "attempt-1",
+      "workspace": "ws-1",
+      "session": "host-1",
+      "task": "task-1",
+      "revision": "git:0123456789abcdef"
+    }
+  ],
+  "leases": [
+    {
+      "schema": "governance/v1",
+      "id": "lease-1",
+      "workspace": "ws-1",
+      "authority": "authority-1",
+      "epoch": 1,
+      "attempt": "attempt-1",
+      "resource": "task:task-1",
+      "fence": 7,
+      "issued_at": "2026-10-02T00:00:00Z",
+      "expires_at": "2026-10-02T01:00:00Z"
+    }
+  ],
+  "evidence": [
+    {
+      "schema": "governance/v1",
+      "id": "evidence-1",
+      "workspace": "ws-1",
+      "attempt": "attempt-1",
+      "session": "agent-1",
+      "revision": "git:0123456789abcdef",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "origin": "authenticated-host",
+      "capability": "capability-1"
+    }
+  ],
+  "decisions": [
+    {
+      "schema": "governance/v1",
+      "id": "decision-0",
+      "workspace": "ws-1",
+      "authority": "authority-1",
+      "epoch": 1,
+      "human": "human-1",
+      "session": "agent-1",
+      "attempt": "attempt-1",
+      "lease": "lease-1",
+      "fence": 7,
+      "revision": "git:0123456789abcdef",
+      "action": "completion",
+      "assurance": "human-approved",
+      "evidence": [
+        "evidence-1"
+      ],
+      "decided_at": "2026-10-02T00:01:00Z",
+      "policy_revision": "policy:1"
+    },
+    {
+      "schema": "governance/v1",
+      "id": "decision-1",
+      "workspace": "ws-1",
+      "authority": "authority-1",
+      "epoch": 1,
+      "human": "human-1",
+      "session": "agent-1",
+      "attempt": "attempt-1",
+      "lease": "lease-1",
+      "fence": 7,
+      "revision": "git:0123456789abcdef",
+      "action": "acceptance",
+      "assurance": "human-approved",
+      "evidence": [
+        "evidence-1"
+      ],
+      "decided_at": "2026-10-02T00:02:00Z",
+      "previous": "decision-0",
+      "policy_revision": "policy:1"
+    },
+    {
+      "schema": "governance/v1",
+      "id": "decision-2",
+      "workspace": "ws-1",
+      "authority": "authority-1",
+      "epoch": 1,
+      "human": "human-1",
+      "session": "agent-1",
+      "attempt": "attempt-1",
+      "lease": "lease-1",
+      "fence": 7,
+      "revision": "git:0123456789abcdef",
+      "action": "merge",
+      "assurance": "human-approved",
+      "evidence": [
+        "evidence-1"
+      ],
+      "decided_at": "2026-10-02T00:03:00Z",
+      "previous": "decision-1",
+      "policy_revision": "policy:1"
+    },
+    {
+      "schema": "governance/v1",
+      "id": "decision-3",
+      "workspace": "ws-1",
+      "authority": "authority-1",
+      "epoch": 1,
+      "human": "human-1",
+      "session": "agent-1",
+      "attempt": "attempt-1",
+      "lease": "lease-1",
+      "fence": 7,
+      "revision": "git:0123456789abcdef",
+      "action": "deployment",
+      "assurance": "human-approved",
+      "evidence": [
+        "evidence-1"
+      ],
+      "decided_at": "2026-10-02T00:04:00Z",
+      "previous": "decision-2",
+      "policy_revision": "policy:1",
+      "target": "target-1",
+      "artifact": "artifact-1",
+      "authorization": "authorization-1"
+    }
+  ],
+  "targets": [
+    {
+      "schema": "governance/v1",
+      "id": "target-1",
+      "workspace": "ws-1",
+      "environment": "production"
+    }
+  ],
+  "artifacts": [
+    {
+      "schema": "governance/v1",
+      "id": "artifact-1",
+      "workspace": "ws-1",
+      "revision": "git:0123456789abcdef",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "authorizations": [
+    {
+      "schema": "governance/v1",
+      "id": "authorization-1",
+      "workspace": "ws-1",
+      "human": "human-1",
+      "action": "deployment",
+      "target": "target-1",
+      "artifact": "artifact-1",
+      "revision": "git:0123456789abcdef",
+      "policy_revision": "policy:1",
+      "issued_at": "2026-10-02T00:00:00Z",
+      "expires_at": "2026-10-02T01:00:00Z"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # ADR: Versioned governance authority and lifecycle
 
-Status: accepted contract design for #1070 under #1068. Implementation scope is
+Status: proposed contract design for #1070 under #1068. Implementation scope is
 fixtures, typed records and executable structural validation. Native authenticated
 Codex or other host integration is not implemented or claimed.
 
@@ -12,7 +12,7 @@ leases and fencing tokens. An installation identifies a registered installation,
 not a human and not a source of implicit authority. A human identifies the
 accountable principal through an explicit credential reference. A host-session
 belongs to an installation; an agent-session belongs to that host-session;
-an attempt binds one agent-session to a task and immutable revision. A retry
+an attempt binds one agent-session or host-session to a task and immutable revision. A retry
 gets a new attempt ID; process IDs, provider names and mutable branches are not
 identity or revision proof. Every record carries `governance/v1`, a nonempty ID
 and the same workspace ID. References resolve only inside that workspace.
@@ -38,14 +38,14 @@ is still running. Time alone cannot exclude a stale writer. The validator
 checks snapshot consistency and decision timestamps; it cannot assert that a
 snapshot is current, stop a process, or lock a resource.
 
-Evidence binds workspace, producing attempt and session, exact revision,
+Evidence binds workspace, subject attempt and revision, producing or reviewing session,
 capability, origin and SHA-256 artifact digest. Observations are distinct from
 authenticated-host provenance. An observed capability cannot assert the latter.
 The authority verifies the digest against retained bytes and authenticates the
 producer before trusting provenance. A self-reported check result is evidence
 of a report, not proof that a command ran. Fixture host claims are synthetic.
 
-Decisions bind authority epoch, accountable human, delegated session, attempt,
+Decisions bind authority epoch, accountable human, deciding delegated session, subject attempt,
 lease fence, exact revision, timestamp and evidence IDs. Action-specific
 minimum assurance is observed for completion, authenticated for acceptance and
 merge, and human-approved for deployment. The decision cannot exceed its host
@@ -95,3 +95,46 @@ and a separate local authority decision. Receipt cannot mutate a task, grant a
 capability, start an agent, accept work, merge or deploy it. Governance v1 does
 not widen the existing control-plane metadata allowlist or claim that its wire
 signatures authenticate a native host session.
+
+## Enforcement, attribution and live obligations
+
+Per-action enforcement is separate from authentication confidence. Cooperative
+means the host promises to comply; guarded means an adapter checks an action;
+authority-enforced means the authority mediates it with durable fencing;
+unsupported means it must refuse. A high authentication assurance never upgrades
+an enforcement mode. Capability declarations are synthetic metadata until a
+host conformance proof establishes these properties. This proposed contract has
+no live integration guarantee.
+
+A host-session may own an attempt when a native host exposes no authenticated
+agent identity. This is honest session-only attribution: consumers must not
+invent a child identity or infer stronger provenance. Evidence's attempt and
+revision identify the subject, while its session identifies the producer or
+reviewer. A decision's session identifies the decider, independently of the
+subject attempt's execution session. Independent-review policy must authenticate
+both identities and evaluate independence; merely unequal IDs do not prove it.
+
+Deployment targets and artifacts are typed workspace records. Deployment
+requires an explicit human authorization reference binding workspace, action,
+target, artifact, immutable revision and policy revision. Authorization issuance
+and expiry delimit a half-open interval. Live consumers must authenticate the
+human's authorization, verify the artifact bytes, recheck current policy and
+revocation, and consume an idempotency/replay key atomically with action
+reservation. Snapshot validation cannot prove freshness or single use. Other
+stages do not carry deployment authority.
+
+Revocation is fail-closed from its effective timestamp: future actions and
+fenced writes by the revoked session (including children of a revoked host)
+must be refused. Live write gates must consult current revocation as well as
+current authority epoch, resource fence and lease expiry in one transaction.
+Historical evidence and earlier decisions remain retained with their original
+provenance. A snapshot can check decision timestamps against revocation; it
+cannot enforce a running process's writes or invalidate cached credentials.
+
+Cancellation requested is distinct from observed cessation. A request record
+without an observation proves only intent. Hosts declare best-effort or
+unsupported cancellation; neither guarantees termination. An observed timestamp
+must follow the request, and consumers must authenticate the observation before
+claiming cessation. Revocation and fencing remain mandatory even if host
+cancellation fails or is unsupported. Process killing is not a substitute for
+revoking authority.

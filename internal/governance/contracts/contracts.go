@@ -33,10 +33,12 @@ type Authority struct {
 }
 type HostCapability struct {
 	Record
-	Installation string   `json:"installation"`
-	Host         string   `json:"host"`
-	Assurance    string   `json:"assurance"`
-	Actions      []string `json:"actions"`
+	Installation string            `json:"installation"`
+	Host         string            `json:"host"`
+	Assurance    string            `json:"assurance"`
+	Actions      []string          `json:"actions"`
+	Enforcement  map[string]string `json:"enforcement"`
+	Cancellation string            `json:"cancellation"`
 }
 type Session struct {
 	Record
@@ -71,37 +73,79 @@ type Evidence struct {
 	Origin     string `json:"origin"` // observation or authenticated-host
 	Capability string `json:"capability"`
 }
+type DeploymentTarget struct {
+	Record
+	Environment string `json:"environment"`
+}
+type Artifact struct {
+	Record
+	Revision string `json:"revision"`
+	Digest   string `json:"digest"`
+}
+type Authorization struct {
+	Record
+	Human          string    `json:"human"`
+	Action         string    `json:"action"`
+	Target         string    `json:"target"`
+	Artifact       string    `json:"artifact"`
+	Revision       string    `json:"revision"`
+	PolicyRevision string    `json:"policy_revision"`
+	IssuedAt       time.Time `json:"issued_at"`
+	ExpiresAt      time.Time `json:"expires_at"`
+}
+
+// Revocation preserves history but invalidates future actions and fenced writes.
+type Revocation struct {
+	Record
+	Session   string    `json:"session"`
+	RevokedAt time.Time `json:"revoked_at"`
+}
+type Cancellation struct {
+	Record
+	Attempt     string    `json:"attempt"`
+	RequestedAt time.Time `json:"requested_at"`
+	ObservedAt  time.Time `json:"observed_at,omitempty"`
+}
 type Decision struct {
 	Record
-	Authority string    `json:"authority"`
-	Epoch     uint64    `json:"epoch"`
-	Human     string    `json:"human"`
-	Session   string    `json:"session"`
-	Attempt   string    `json:"attempt"`
-	Lease     string    `json:"lease"`
-	Fence     uint64    `json:"fence"`
-	Revision  string    `json:"revision"`
-	Action    string    `json:"action"` // completion, acceptance, merge, deployment
-	Assurance string    `json:"assurance"`
-	Evidence  []string  `json:"evidence"`
-	Previous  string    `json:"previous,omitempty"`
-	DecidedAt time.Time `json:"decided_at"`
+	Authority      string    `json:"authority"`
+	Epoch          uint64    `json:"epoch"`
+	Human          string    `json:"human"`
+	Session        string    `json:"session"`
+	Attempt        string    `json:"attempt"`
+	Lease          string    `json:"lease"`
+	Fence          uint64    `json:"fence"`
+	Revision       string    `json:"revision"`
+	Action         string    `json:"action"` // completion, acceptance, merge, deployment
+	Assurance      string    `json:"assurance"`
+	Evidence       []string  `json:"evidence"`
+	Previous       string    `json:"previous,omitempty"`
+	DecidedAt      time.Time `json:"decided_at"`
+	Target         string    `json:"target,omitempty"`
+	Artifact       string    `json:"artifact,omitempty"`
+	Authorization  string    `json:"authorization,omitempty"`
+	PolicyRevision string    `json:"policy_revision"`
 }
 
 // Bundle is a complete validation snapshot for one authority and workspace.
 // Validate does not verify credentials, signatures, artifact bytes or live leases.
 type Bundle struct {
-	Schema        string           `json:"schema"`
-	Workspace     string           `json:"workspace"`
-	Humans        []Human          `json:"humans"`
-	Installations []Installation   `json:"installations"`
-	Authorities   []Authority      `json:"authorities"`
-	Capabilities  []HostCapability `json:"capabilities"`
-	Sessions      []Session        `json:"sessions"`
-	Attempts      []Attempt        `json:"attempts"`
-	Leases        []Lease          `json:"leases"`
-	Evidence      []Evidence       `json:"evidence"`
-	Decisions     []Decision       `json:"decisions"`
+	Schema         string             `json:"schema"`
+	Workspace      string             `json:"workspace"`
+	Humans         []Human            `json:"humans"`
+	Installations  []Installation     `json:"installations"`
+	Authorities    []Authority        `json:"authorities"`
+	Capabilities   []HostCapability   `json:"capabilities"`
+	Sessions       []Session          `json:"sessions"`
+	Attempts       []Attempt          `json:"attempts"`
+	Leases         []Lease            `json:"leases"`
+	Evidence       []Evidence         `json:"evidence"`
+	Decisions      []Decision         `json:"decisions"`
+	Targets        []DeploymentTarget `json:"targets"`
+	Artifacts      []Artifact         `json:"artifacts"`
+	Authorizations []Authorization    `json:"authorizations"`
+	Revocations    []Revocation       `json:"revocations"`
+	Cancellations  []Cancellation     `json:"cancellations"`
 }
 
 // Decode rejects unknown fields, trailing documents and incompatible versions.
@@ -225,9 +269,12 @@ func (b Bundle) Validate() error {
 			return fmt.Errorf("%s: invalid host capability", c.ID)
 		}
 		for _, a := range c.Actions {
-			if floor(a) == 0 {
+			if floor(a) == 0 || !contains([]string{"cooperative", "guarded", "authority-enforced", "unsupported"}, c.Enforcement[a]) {
 				return fmt.Errorf("%s: invalid capability action", c.ID)
 			}
+		}
+		if len(c.Enforcement) != len(c.Actions) || !contains([]string{"best-effort", "unsupported"}, c.Cancellation) {
+			return fmt.Errorf("%s: invalid enforcement or cancellation capability", c.ID)
 		}
 		caps[c.ID] = c
 	}
@@ -266,8 +313,8 @@ func (b Bundle) Validate() error {
 		if err := check(a.Record); err != nil {
 			return err
 		}
-		s, ok := sessions[a.Session]
-		if !ok || s.Kind != "agent-session" || !required(a.Task, a.Revision) {
+		_, ok := sessions[a.Session]
+		if !ok || !required(a.Task, a.Revision) {
 			return fmt.Errorf("%s: invalid attempt binding", a.ID)
 		}
 		attempts[a.ID] = a
@@ -295,9 +342,9 @@ func (b Bundle) Validate() error {
 			return err
 		}
 		a, ok := attempts[e.Attempt]
-		s := sessions[a.Session]
+		s, sessionOK := sessions[e.Session]
 		c := caps[e.Capability]
-		if !ok || e.Session != a.Session || e.Revision != a.Revision || e.Capability != s.Capability || !strings.HasPrefix(e.Digest, "sha256:") || len(e.Digest) != 71 {
+		if !ok || !sessionOK || e.Revision != a.Revision || e.Capability != s.Capability || !strings.HasPrefix(e.Digest, "sha256:") || len(e.Digest) != 71 {
 			return fmt.Errorf("%s: invalid provenance", e.ID)
 		}
 		for _, ch := range strings.TrimPrefix(e.Digest, "sha256:") {
@@ -310,6 +357,59 @@ func (b Bundle) Validate() error {
 		}
 		evidence[e.ID] = e
 	}
+	targets := map[string]DeploymentTarget{}
+	for _, x := range b.Targets {
+		if err := check(x.Record); err != nil {
+			return err
+		}
+		if !required(x.Environment) {
+			return fmt.Errorf("invalid deployment target")
+		}
+		targets[x.ID] = x
+	}
+	artifacts := map[string]Artifact{}
+	for _, x := range b.Artifacts {
+		if err := check(x.Record); err != nil {
+			return err
+		}
+		if !required(x.Revision) || !validDigest(x.Digest) {
+			return fmt.Errorf("invalid artifact")
+		}
+		artifacts[x.ID] = x
+	}
+	auths := map[string]Authorization{}
+	for _, x := range b.Authorizations {
+		if err := check(x.Record); err != nil {
+			return err
+		}
+		_, humanOK := humans[x.Human]
+		_, targetOK := targets[x.Target]
+		artifact, artifactOK := artifacts[x.Artifact]
+		if !humanOK || !targetOK || !artifactOK || x.Action != "deployment" || x.Revision != artifact.Revision || !required(x.PolicyRevision) || x.IssuedAt.IsZero() || !x.ExpiresAt.After(x.IssuedAt) {
+			return fmt.Errorf("invalid human authorization")
+		}
+		auths[x.ID] = x
+	}
+	revoked := map[string]time.Time{}
+	for _, x := range b.Revocations {
+		if err := check(x.Record); err != nil {
+			return err
+		}
+		if _, ok := sessions[x.Session]; !ok || x.RevokedAt.IsZero() {
+			return fmt.Errorf("invalid revocation")
+		}
+		if old, ok := revoked[x.Session]; !ok || x.RevokedAt.Before(old) {
+			revoked[x.Session] = x.RevokedAt
+		}
+	}
+	for _, x := range b.Cancellations {
+		if err := check(x.Record); err != nil {
+			return err
+		}
+		if _, ok := attempts[x.Attempt]; !ok || x.RequestedAt.IsZero() || (!x.ObservedAt.IsZero() && x.ObservedAt.Before(x.RequestedAt)) {
+			return fmt.Errorf("invalid cancellation observation")
+		}
+	}
 	decisions := map[string]Decision{}
 	for _, d := range b.Decisions {
 		if err := check(d.Record); err != nil {
@@ -320,14 +420,37 @@ func (b Bundle) Validate() error {
 	previousAction := map[string]string{"acceptance": "completion", "merge": "acceptance", "deployment": "merge"}
 	for _, d := range b.Decisions {
 		a, ok := attempts[d.Attempt]
-		s := sessions[d.Session]
+		s, sessionOK := sessions[d.Session]
 		c := caps[s.Capability]
 		l, leaseOK := leases[d.Lease]
-		if !ok || d.Session != a.Session || d.Human != s.Human || d.Revision != a.Revision || d.Authority != authority.ID || d.Epoch != authority.Epoch {
+		if !ok || !sessionOK || d.Human != s.Human || d.Revision != a.Revision || d.Authority != authority.ID || d.Epoch != authority.Epoch {
 			return fmt.Errorf("%s: invalid lifecycle binding", d.ID)
 		}
 		if !leaseOK || l.Attempt != a.ID || d.Fence != l.Fence || d.DecidedAt.Before(l.IssuedAt) || !d.DecidedAt.Before(l.ExpiresAt) {
 			return fmt.Errorf("%s: invalid decision lease fence", d.ID)
+		}
+		if !required(d.PolicyRevision) {
+			return fmt.Errorf("missing policy revision")
+		}
+		for _, id := range []string{d.Session, a.Session} {
+			session := sessions[id]
+			for _, subject := range []string{id, session.Parent} {
+				if at, ok := revoked[subject]; ok && !d.DecidedAt.Before(at) {
+					return fmt.Errorf("%s: revoked session", d.ID)
+				}
+			}
+		}
+		if d.Action == "deployment" {
+			auth, ok := auths[d.Authorization]
+			artifact, artifactOK := artifacts[d.Artifact]
+			if !ok || !artifactOK || auth.Human != d.Human || auth.Action != d.Action || auth.Target != d.Target || auth.Artifact != d.Artifact || auth.Revision != d.Revision || artifact.Revision != d.Revision || auth.PolicyRevision != d.PolicyRevision || d.DecidedAt.Before(auth.IssuedAt) || !d.DecidedAt.Before(auth.ExpiresAt) {
+				return fmt.Errorf("%s: invalid deployment authorization binding", d.ID)
+			}
+		} else if required(d.Target) || required(d.Artifact) || required(d.Authorization) {
+			return fmt.Errorf("unexpected deployment binding")
+		}
+		if c.Enforcement[d.Action] == "unsupported" {
+			return fmt.Errorf("unsupported action enforcement")
 		}
 		if floor(d.Action) == 0 || rank(d.Assurance) < floor(d.Action) || rank(d.Assurance) > rank(c.Assurance) || !contains(c.Actions, d.Action) {
 			return fmt.Errorf("%s: insufficient action assurance", d.ID)
@@ -353,4 +476,50 @@ func (b Bundle) Validate() error {
 		}
 	}
 	return nil
+}
+
+func validDigest(d string) bool {
+	if !strings.HasPrefix(d, "sha256:") || len(d) != 71 {
+		return false
+	}
+	for _, ch := range d[7:] {
+		if !strings.ContainsRune("0123456789abcdef", ch) {
+			return false
+		}
+	}
+	return true
+}
+
+// ValidateWrite checks a write against a supplied live authority epoch and fence.
+// Callers must obtain these values and revocations atomically from durable state;
+// this helper cannot turn a stale snapshot into live authority.
+func (b Bundle) ValidateWrite(leaseID string, epoch, fence uint64, now time.Time) error {
+	if err := b.Validate(); err != nil {
+		return err
+	}
+	for _, lease := range b.Leases {
+		if lease.ID != leaseID {
+			continue
+		}
+		if now.IsZero() || epoch != lease.Epoch || fence != lease.Fence || now.Before(lease.IssuedAt) || !now.Before(lease.ExpiresAt) {
+			return fmt.Errorf("stale write lease or fence")
+		}
+		for _, attempt := range b.Attempts {
+			if attempt.ID != lease.Attempt {
+				continue
+			}
+			for _, session := range b.Sessions {
+				if session.ID != attempt.Session {
+					continue
+				}
+				for _, revocation := range b.Revocations {
+					if (revocation.Session == session.ID || revocation.Session == session.Parent) && !now.Before(revocation.RevokedAt) {
+						return fmt.Errorf("revoked write session")
+					}
+				}
+			}
+		}
+		return nil
+	}
+	return fmt.Errorf("unknown write lease")
 }

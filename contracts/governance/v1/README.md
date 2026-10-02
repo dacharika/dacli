@@ -26,3 +26,11 @@ historical snapshot does not authorize a live write. See
 
 Nothing here changes `contracts/controlplane/v1`: remote inputs remain proposals
 and cannot grant authority or advance local lifecycle state by receipt.
+
+Correction fixtures include session-only execution, an independent reviewer,
+historical evidence after revocation, per-action enforcement refusal, deployment
+target/artifact/authorization/policy/expiry bindings and cancellation chronology.
+Enforcement modes (cooperative, guarded, authority-enforced, unsupported) are
+independent of assurance. Cancellation support is best-effort or unsupported.
+Revocation records invalidate future decisions without deleting history; live
+writes require transactional checks outside this structural snapshot validator.

@@ -38,7 +38,14 @@
         "acceptance",
         "merge",
         "deployment"
-      ]
+      ],
+      "enforcement": {
+        "completion": "authority-enforced",
+        "acceptance": "authority-enforced",
+        "merge": "authority-enforced",
+        "deployment": "authority-enforced"
+      },
+      "cancellation": "best-effort"
     }
   ],
   "sessions": [
@@ -118,7 +125,8 @@
       "evidence": [
         "evidence-1"
       ],
-      "decided_at": "2026-10-02T00:01:00Z"
+      "decided_at": "2026-10-02T00:01:00Z",
+      "policy_revision": "policy:1"
     },
     {
       "schema": "governance/v1",
@@ -138,7 +146,8 @@
         "evidence-1"
       ],
       "decided_at": "2026-10-02T00:02:00Z",
-      "previous": "decision-0"
+      "previous": "decision-0",
+      "policy_revision": "policy:1"
     },
     {
       "schema": "governance/v1",
@@ -158,7 +167,8 @@
         "evidence-1"
       ],
       "decided_at": "2026-10-02T00:03:00Z",
-      "previous": "decision-1"
+      "previous": "decision-1",
+      "policy_revision": "policy:1"
     },
     {
       "schema": "governance/v1",
@@ -178,7 +188,43 @@
         "evidence-1"
       ],
       "decided_at": "2026-10-02T00:04:00Z",
-      "previous": "decision-2"
+      "previous": "decision-2",
+      "policy_revision": "policy:1",
+      "target": "target-1",
+      "artifact": "artifact-1",
+      "authorization": "authorization-1"
+    }
+  ],
+  "targets": [
+    {
+      "schema": "governance/v1",
+      "id": "target-1",
+      "workspace": "ws-1",
+      "environment": "production"
+    }
+  ],
+  "artifacts": [
+    {
+      "schema": "governance/v1",
+      "id": "artifact-1",
+      "workspace": "ws-1",
+      "revision": "git:0123456789abcdef",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "authorizations": [
+    {
+      "schema": "governance/v1",
+      "id": "authorization-1",
+      "workspace": "ws-1",
+      "human": "human-1",
+      "action": "deployment",
+      "target": "target-1",
+      "artifact": "artifact-1",
+      "revision": "git:0123456789abcdef",
+      "policy_revision": "policy:1",
+      "issued_at": "2026-10-02T00:00:00Z",
+      "expires_at": "2026-10-02T01:00:00Z"
     }
   ]
 }
