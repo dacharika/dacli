@@ -133,3 +133,52 @@ func TestQueueOwnershipRefusal(t *testing.T) {
 		t.Errorf("halted queue should refuse next: %s", got)
 	}
 }
+
+// MCP reads retain the CLI output and each tool's established JSON mode.
+func TestMCPReadServiceParity(t *testing.T) {
+	dir := t.TempDir()
+	run(t, dir, 0, "init", "--name", "reads")
+	run(t, dir, 0, "project", "add", "Reads", "--slug", "p", "--goal", "Read parity")
+	run(t, dir, 0, "task", "add", "Read task", "--project", "p", "--accept", "observable")
+	for _, tc := range []struct {
+		name, args string
+		argv       []string
+	}{
+		{"status", `{"schema_version":1}`, []string{"status"}},
+		{"list_tasks", `{"schema_version":1,"project":"p"}`, []string{"task", "list", "--project", "p"}},
+		{"cli", `{"schema_version":1,"argv":["task","show","001"],"json":true}`, []string{"task", "show", "001"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			expected, msg, code := executor(dir)(tc.argv, tc.name != "status")
+			if code != 0 {
+				t.Fatalf("CLI: %d %s", code, msg)
+			}
+			script := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"` + tc.name + `","arguments":` + tc.args + `}}` + "\n"
+			var out bytes.Buffer
+			if err := mcp.Serve(strings.NewReader(script), &out, executor(dir)); err != nil {
+				t.Fatal(err)
+			}
+			var response struct {
+				Result struct {
+					Content []struct {
+						Text string `json:"text"`
+					} `json:"content"`
+				} `json:"result"`
+			}
+			if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+				t.Fatal(err)
+			}
+			if len(response.Result.Content) != 1 || response.Result.Content[0].Text != expected {
+				t.Fatalf("MCP differs from CLI: %s; expected %s", out.String(), expected)
+			}
+		})
+	}
+	// An explicit missing credential is never treated as the local operator.
+	t.Setenv("DACLI_AGENT", "")
+	for _, argv := range [][]string{{"status"}, {"task", "list"}, {"task", "show", "001"}} {
+		_, msg, code := executor(dir)(argv, true)
+		if code != 3 || !strings.Contains(msg, "identity") {
+			t.Fatalf("lost identity: %d %s", code, msg)
+		}
+	}
+}
