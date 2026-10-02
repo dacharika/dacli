@@ -1,107 +1,121 @@
-# dacli Codex plugin — local preview 0.1.0
+# dacli Codex plugin — local preview 0.2.0
 
-This package adds workflow guidance and the existing credential-bound workspace
-MCP tools to a native host. It never wraps or launches Codex. The portable
-`plugin.json` / `mcp.json` layout is canonical; `.codex-plugin/plugin.json` and
-`.mcp.json` support older Codex clients. Both configurations describe the same
-server. No hooks, network service, account upload or public release is included.
+Owner-enrolled native session tools connect Codex to canonical tasks, external
+Git checkout attempts, fenced leases and revision-bound self-reports. The
+portable `plugin.json` / `mcp.json` package and Codex compatibility manifests
+select the same native transport. No hooks, model launcher or CLI escape is
+included. The marketplace identity remains `dacli-governance@dacli-local`.
 
-## Install and configure
+## Provision and install
 
-Prerequisites: Python 3, a source-built/current dacli binary, an existing `.dacli`
-workspace, and an owner-provisioned **legacy workspace agent token**. This preview
-cannot enroll a native governance session. It does not mint or discover tokens.
-Never copy a native authority credential into this connection.
+Prerequisites: Python 3, POSIX private-file support, a current dacli binary with
+`native bootstrap`, `native enroll`, `native serve` and `native revoke`, and an
+existing real Git repository with a dacli workspace and canonical task.
 
-From this repository, register the marketplace and install:
+The owner creates a private directory outside the plugin, cache and exports.
+Protect its parent directories as well. Save an owner-only (`0600`) owner.json:
+
+```json
+{
+  "schema_version": 1,
+  "workspace": "/absolute/workspace",
+  "authority": "/private/owner/authority.json",
+  "installation_id": "owner-chosen-installation",
+  "owner_credential_file": "/private/owner/owner.token"
+}
+```
+
+For a new authority, initialize once; enroll the session for the actual task:
 
 ```sh
+dacli native bootstrap --config /private/owner/owner.json
+dacli native enroll --config /private/owner/owner.json --task project/001 --connection /private/owner/session.json --credential /private/owner/session.token --path src --expires 1h
 codex plugin marketplace add /absolute/path/to/dacli/plugins
 codex plugin add dacli-governance@dacli-local
 ```
 
-The repository catalogue is `plugins/.agents/plugins/marketplace.json`; its
-source resolves relative to the `plugins` marketplace root. Restart/open a new
-Codex chat after installation. A CLI install is per local Codex home and is not
-an account upload or a web/mobile deployment.
+Existing authority state must be preserved, not reinitialized to recover access.
+The owner credential grants authority and stays outside the plugin configuration.
+Enrollment writes a private native profile and token; never put token bytes into
+commands, chat, manifests or tool arguments. Native profile details and authority
+lifecycle are documented in the repository's `docs/GOVERNANCE_NATIVE_MCP.md`.
 
-The server deliberately refuses until you provide
-`~/.config/dacli/plugin/connection.json` in the OS home visible to the MCP
-process. Create its parent directory and this file with three absolute paths
-(no secret in this JSON):
+Create `~/.config/dacli/plugin/connection.json` in the OS home visible to the MCP
+process, also mode `0600`, with exactly these fields:
 
 ```json
 {
-  "workspace": "/absolute/path/to/workspace",
+  "schema_version": 1,
   "binary": "/absolute/path/to/dacli",
-  "credential_file": "/private/owner/path/dacli-agent.token"
+  "connection_file": "/private/owner/session.json"
 }
 ```
 
-The credential file must be a regular file owned by your OS user with mode
-`0600` (or more restrictive), containing only the already provisioned token.
-Symlinks, empty tokens, oversized files and public-readable credentials refuse
-with exit 3. The server sets identity explicitly before executing only
-`dacli mcp serve`; it never adds `--operator`. Tokens stay out of argv, configs,
-tool arguments and diagnostics. Protect the connection file too: it selects
-which executable and workspace the local plugin can access.
+This selection is bounded to 16 KiB and must be an owner-owned regular file;
+final-component symlinks, duplicate keys, unknown fields/versions, public modes
+and missing/malformed selections refuse. Parent directory aliases are allowed;
+protect those directories against replacement. The bootstrap never reads token
+bytes: it removes ambient `DACLI_AGENT` and executes only
+`dacli native serve --connection <profile>`. The native server validates the
+private profile and credentials and reauthenticates requests. Neither bootstrap
+nor server falls back to operator authority or the legacy adapter. Selection of
+the executable is a trusted owner action, not a binary integrity guarantee.
 
-This initial package uses one connection profile per OS home. Use a separate
-OS home/context and credential per independently acting session. Installing once does not establish isolation between native subagents
-sharing its MCP process. If your host shares the connection, those agents share
-one cooperative identity. Do not describe that as separate authentication.
+Restart/open a new Codex chat after installing or changing the connection.
+Call `identity`, then `workspace_status`, `task_list` and `task_get`. Follow the
+bundled workflow and advertised schemas for `register_attempt`, `acquire_lease`,
+`renew_lease`, `release_lease`, `publish_revision` and `submit_evidence`.
+The old legacy MCP CLI remains a separate explicit repository interface; this
+package never selects it.
 
-Ask Codex to call `whoami`, then inspect `status`. Requests must carry
-`schema_version: 1` (or the version subsequently advertised by `tools/list`).
-Tools run with the configured identity's existing permissions and access the
-configured workspace, not the plugin cache. Review the installed source before
-trusting it. The package's MCP catalogue includes writes and the `cli` escape
-hatch; host tool approvals and the credential's grant still matter.
+## Identity and recovery boundaries
 
-## Assurance, recovery and uninstall
+One profile per OS home means one cooperative session per shared MCP process.
+Native children sharing it share that identity. Host labels and `_meta` are
+correlation data, not separately authenticated child or reviewer credentials.
+Use separately enrolled sessions and server processes when independence is
+required. Enrollment is owner-only; grants for trusted runners and independent
+review, acceptance consumption and deployment authorization are not exposed.
+`submit_evidence` always records **self-reported** provenance. It is not trusted
+execution evidence. Host filesystem and shell actions remain outside these
+cooperative gates; no containment or universal enforcement is claimed.
 
-This is a **cooperative/advisory preview**, not the completed native governance
-bridge. The Go kernel has native session/attempt/lease primitives, but this
-package's MCP server still uses legacy workspace tokens and workspace tools.
-There is no revision-bound native acceptance, independently authenticated child
-identity, trusted verification runner enrollment or enforced native review flow
-here. Those remain dependencies of issue #1078. Hooks are absent; disabled hooks
-cannot reduce a guarantee this package never grants. Direct shell/file actions
-can bypass cooperative workspace gates. Refuse requests requiring stronger
-assurance rather than calling them enforced.
+Refusals require owner investigation; do not retry unchanged or reset authority.
+To revoke, use the exact session ID returned by `identity` or enrollment:
 
-On a startup refusal, correct the explicit connection or ask the owner to
-provision/revoke/replace a credential. Do not retry unchanged requests, fall back
-to root, or delete `.dacli`. An invalid nonempty token is additionally rejected
-by dacli itself before any JSON-RPC request. The POSIX credential-file protections are required. Windows and hosts that
-cannot expand package paths remain unverified until their adapters are tested.
+```sh
+dacli native revoke --config /private/owner/owner.json --session SESSION_ID
+```
 
-Uninstall with `codex plugin remove dacli-governance@dacli-local` and, if desired,
-`codex plugin marketplace remove dacli-local`. Revoke the workspace credential
-through the owning workflow and remove its private file. Uninstalling the plugin
-must preserve the workspace's `.dacli` audit records and repository files.
+A live server checks revocation on subsequent requests. Uninstall with
+`codex plugin remove dacli-governance@dacli-local` and optionally
+`codex plugin marketplace remove dacli-local`. Revoke separately; uninstalling
+must preserve workspace records and authority history. No global installation,
+account upload, web/mobile deployment or public submission is part of this
+preview. Other host versions and Windows are unverified.
 
 ## Verify and export
 
 ```sh
 python3 -m unittest discover -s plugins/codex/tests -v
-python3 plugins/codex/scripts/package.py /absolute/output/dacli-governance.zip
 python3 plugins/codex/scripts/smoke.py --codex /absolute/path/to/codex --dacli /absolute/path/to/dacli
+python3 plugins/codex/scripts/package.py /absolute/output/dacli-governance.zip
 ```
 
-The deterministic export contains only explicitly listed package files, including
-hidden compatibility manifests; it excludes probes, tests, caches and repository
-state. The build writes outside the plugin folder. Existing host observations
-are under `probes/`; advertised features alone do not prove runtime enforcement.
-The install smoke receipt documents tested host version and separate transport
-observations; it does not certify native session enrollment.
+The smoke requires Codex 0.159.2 and uses disposable OS/Codex homes, a public real
+Git fixture and genuine owner bootstrap/enrollment. No model turn, production
+credential or dacli agent spawn is requested. It exercises installed tool/skill
+discovery, native identity and task reads, attempt/lease/revision/self-report,
+then live refusal after the owner revokes. It exports only bounded observations,
+never tokens, local paths, task contents or raw host responses. The receipt at
+`receipts/native-install-0.159.2.json` records the successful native run, including exact live authorization refusal
+after owner revocation.
+Historical `receipts/install-0.159.2.json` describes version 0.1.0 only.
 
-Format sources: [OpenAI packaging documentation](https://developers.openai.com/plugins/build/plugins)
-and the installed Plugin Creator skill. Local packaging follows its local-plugin
-workflow because dacli needs local workspace access.
+The deterministic allowlisted archive excludes historical probes/receipts,
+tests, caches, scripts used only for testing and all private state. Build outside
+the package directory. Historical host probes remain separate observations;
+feature advertisements do not certify enforcement.
 
-Verified on Codex Desktop CLI 0.159.2 on macOS: temporary marketplace install,
-native app-server tool/skill discovery, and a harmless fixture-only read-only
-identity call. No model turn, production credential or native authority session
-was used. Missing connection hides tools; empty and invalid tokens exit 3.
-See receipts/install-0.159.2.json for the sanitized observations.
+Format source: [OpenAI plugin packaging](https://developers.openai.com/plugins/build/plugins)
+and the installed Plugin Creator local update workflow.

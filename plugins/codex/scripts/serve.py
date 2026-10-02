@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""Start the existing MCP server with explicit local connection authority.
-
-This bootstrap never launches agents or grants native governance sessions.
-The owner provisions a workspace credential outside the plugin/cache/transcript.
-"""
+"""Select an explicit native session profile; never enroll or recover authority."""
 import json
 import os
 from pathlib import Path
 import stat
 import sys
+
+MAX_CONFIG_BYTES = 16384
 
 
 def refuse(message):
@@ -16,47 +14,53 @@ def refuse(message):
     return 3
 
 
+def selection(path):
+    # Validate the opened inode, not a stat/read pair. The owner must also
+    # protect parent directories; this is not hostile-process containment.
+    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+    with os.fdopen(fd, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+            raise ValueError('private regular config required')
+        raw = stream.read(MAX_CONFIG_BYTES + 1)
+    if len(raw) > MAX_CONFIG_BYTES:
+        raise ValueError('oversized config')
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError('duplicate key')
+            result[key] = value
+        return result
+    config = json.loads(raw, object_pairs_hook=unique)
+    if not isinstance(config, dict) or set(config) != {'schema_version', 'binary', 'connection_file'}:
+        raise ValueError('unknown config')
+    if type(config['schema_version']) is not int or config['schema_version'] != 1:
+        raise ValueError('unknown version')
+    for key in ('binary', 'connection_file'):
+        value = config[key]
+        if not isinstance(value, str) or not value or '\x00' in value or not Path(value).is_absolute():
+            raise ValueError('absolute paths required')
+    return config
+
+
 def launch(connection):
     try:
-        config = json.loads(Path(connection).read_text(encoding='utf-8'))
-        if not isinstance(config, dict) or set(config) != {'workspace', 'binary', 'credential_file'}:
-            return refuse('connection requires workspace, binary and credential_file only')
-        if any(not isinstance(value, str) or not value or '\x00' in value for value in config.values()):
-            return refuse('connection paths must be nonempty strings')
-        workspace = Path(config['workspace'])
-        binary = Path(config['binary'])
-        credential = Path(config['credential_file'])
-        if any(not path.is_absolute() for path in (workspace, binary, credential)):
-            return refuse('connection paths must be absolute')
-        if not workspace.is_dir() or not (workspace / '.dacli').is_dir():
-            return refuse('configured workspace must already contain .dacli')
-        if not binary.is_file() or not os.access(binary, os.X_OK):
-            return refuse('configured dacli binary must be executable')
-        # Open once, without following a credential symlink, then validate that
-        # exact file descriptor before reading. A path stat/read pair races.
-        fd = os.open(credential, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
-        with os.fdopen(fd, 'rb') as stream:
-            info = os.fstat(stream.fileno())
-            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
-                return refuse('credential must be an owner-only regular file')
-            raw = stream.read(4097)
-        if len(raw) > 4096:
-            return refuse('credential file is too large')
-        token = raw.decode('utf-8').rstrip('\r\n')
-        if not token or any(ch.isspace() or ord(ch) < 32 for ch in token):
-            return refuse('credential must contain one nonempty token')
+        config = selection(connection)
+        binary = config['binary']
+        if not Path(binary).is_file() or not os.access(binary, os.X_OK):
+            raise ValueError('binary unavailable')
         env = dict(os.environ)
-        # Override ambient identity explicitly; never pass credentials in argv.
-        env['DACLI_AGENT'] = token
-        os.chdir(workspace)
-        os.execve(str(binary), [str(binary), 'mcp', 'serve'], env)
-    except (OSError, ValueError, UnicodeError):
-        # Exceptions can contain file content; do not print them.
-        return refuse('connection unavailable or invalid; provision ' + str(connection))
+        env.pop('DACLI_AGENT', None)
+        # The native server validates its own private profile and credential on
+        # startup and reauthenticates each request. This adapter never reads tokens.
+        os.execve(binary, [binary, 'native', 'serve', '--connection', config['connection_file']], env)
+    except (OSError, ValueError, UnicodeError, RecursionError):
+        return refuse('private native connection selection unavailable or invalid')
 
 
 if __name__ == '__main__':
     if len(sys.argv) > 2:
-        sys.exit(refuse('expected at most one connection file'))
+        sys.exit(refuse('expected at most one selection file'))
     connection = sys.argv[1] if len(sys.argv) == 2 else Path.home() / '.config/dacli/plugin/connection.json'
     sys.exit(launch(connection))

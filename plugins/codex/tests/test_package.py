@@ -49,66 +49,84 @@ class PackageTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'regular file'):
                 PACKAGE.build(Path(tmp) / 'out.zip', root)
 
+    def test_export_refuses_symlink_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'source'; root.mkdir()
+            for name in PACKAGE.FILES:
+                path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text('fixture')
+            scripts = root / 'scripts'; scripts.rename(Path(tmp) / 'scripts')
+            scripts.symlink_to(Path(tmp) / 'scripts', target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, 'regular file'):
+                PACKAGE.build(Path(tmp) / 'out.zip', root)
+
 
 class BootstrapTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.base = Path(self.temporary.name)
-        self.workspace = self.base / 'workspace'; self.workspace.mkdir()
-        (self.workspace / '.dacli').mkdir()
         self.binary = self.base / 'fake-dacli'
-        self.binary.write_text('#!' + sys.executable + '\nimport os,sys,json\nprint(json.dumps({"argv":sys.argv[1:],"cwd":os.getcwd(),"token_present":bool(os.environ.get("DACLI_AGENT")),"ambient_replaced":os.environ.get("DACLI_AGENT")=="fixture-secret"}))\n')
+        self.binary.write_text('#!' + sys.executable + '\nimport os,sys,json\nprint(json.dumps({"argv":sys.argv[1:],"ambient_present":"DACLI_AGENT" in os.environ}))\n')
         self.binary.chmod(0o700)
-        self.credential = self.base / 'credential'; self.credential.write_text('fixture-secret\n'); self.credential.chmod(0o600)
-        self.connection = self.base / 'connection.json'
-        self.connection.write_text(json.dumps({'workspace':str(self.workspace), 'binary':str(self.binary), 'credential_file':str(self.credential)}))
+        # Deliberately absent: the bootstrap must not read credentials/profile.
+        self.profile = self.base / 'native-session.json'
+        self.connection = self.base / 'selection.json'
+        self.config = {'schema_version': 1, 'binary': str(self.binary), 'connection_file': str(self.profile)}
+        self.write_config(self.config)
+
+    def write_config(self, config):
+        self.connection.write_text(json.dumps(config))
+        self.connection.chmod(0o600)
 
     def run_server(self):
         return subprocess.run([sys.executable, str(ROOT / 'scripts/serve.py'), str(self.connection)],
-                              env=dict(os.environ, DACLI_AGENT='ambient-wrong'), capture_output=True, text=True, timeout=5)
+                              env=dict(os.environ, DACLI_AGENT='ambient-secret'), capture_output=True, text=True, timeout=5)
 
-    def test_explicit_connection_replaces_ambient_identity(self):
+    def assert_refused(self):
+        result = self.run_server()
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, '')
+        self.assertNotIn('ambient-secret', result.stderr)
+        self.assertNotIn(str(self.base), result.stderr)
+
+    def test_native_only_no_legacy_or_operator_fallback(self):
         result = self.run_server()
         self.assertEqual(result.returncode, 0, result.stderr)
         response = json.loads(result.stdout)
-        self.assertEqual(response['argv'], ['mcp', 'serve'])
-        self.assertTrue(os.path.samefile(response['cwd'], self.workspace))
-        self.assertTrue(response['token_present']); self.assertTrue(response['ambient_replaced'])
-        self.assertNotIn('fixture-secret', result.stdout + result.stderr)
+        self.assertEqual(response['argv'], ['native', 'serve', '--connection', str(self.profile)])
+        self.assertFalse(response['ambient_present'])
+        self.assertNotIn('ambient-secret', result.stdout + result.stderr)
 
-    def test_empty_credential_cannot_start_server(self):
-        self.credential.write_text('')
-        result = self.run_server()
-        self.assertEqual(result.returncode, 3)
-        self.assertEqual(result.stdout, '')
-        self.assertIn('nonempty token', result.stderr)
+    def test_missing_malformed_and_legacy_selection_refuse(self):
+        self.connection.unlink(); self.assert_refused()
+        for config in ({}, {'workspace':'/tmp', 'binary':str(self.binary), 'credential_file':'/tmp/token'},
+                       dict(self.config, schema_version=True), dict(self.config, schema_version=2),
+                       dict(self.config, operator=True), dict(self.config, connection_file='relative'),
+                       dict(self.config, binary='missing'), dict(self.config, connection_file=None)):
+            self.write_config(config); self.assert_refused()
+        for raw in ('{', 'x' * 16385, '{"schema_version":1,"schema_version":1}'):
+            self.connection.write_text(raw); self.assert_refused()
 
-    def test_missing_connection_and_token_refuse(self):
-        self.connection.unlink()
-        result = self.run_server(); self.assertEqual(result.returncode, 3); self.assertEqual(result.stdout, '')
-        self.connection.write_text(json.dumps({'workspace':str(self.workspace), 'binary':str(self.binary), 'credential_file':str(self.credential)}))
-        self.credential.unlink()
-        result = self.run_server(); self.assertEqual(result.returncode, 3); self.assertEqual(result.stdout, '')
-
-    def test_public_and_symlink_credentials_refuse(self):
-        self.credential.chmod(0o644)
-        result = self.run_server(); self.assertEqual(result.returncode, 3); self.assertEqual(result.stdout, '')
-        self.credential.unlink(); self.credential.symlink_to(self.binary)
-        result = self.run_server(); self.assertEqual(result.returncode, 3); self.assertEqual(result.stdout, '')
-
-    def test_large_and_multiline_credentials_refuse_without_content(self):
-        for value in ('x' * 4097, 'fixture-secret\nsecond-secret'):
-            self.credential.write_text(value)
-            result = self.run_server(); self.assertEqual(result.returncode, 3); self.assertEqual(result.stdout, '')
-            self.assertNotIn('fixture-secret', result.stderr)
-
-
-if __name__ == '__main__':
-    unittest.main()
+    def test_selection_authority_requires_private_regular_inode(self):
+        self.connection.chmod(0o644); self.assert_refused()
+        self.connection.unlink(); self.connection.symlink_to(self.binary); self.assert_refused()
+        self.connection.unlink(); self.connection.mkdir(); self.assert_refused()
+        self.connection.rmdir(); os.mkfifo(self.connection, 0o600); self.assert_refused()
 
 
 class SmokeCleanupTests(unittest.TestCase):
+    def test_revocation_requires_native_auth_refusal(self):
+        sys.path.insert(0, str(ROOT / 'scripts'))
+        try:
+            import smoke
+        finally:
+            sys.path.pop(0)
+        self.assertTrue(smoke.HostRPCError('identity', {'code':-32003,'message':'native session authority denied'}).native_refusal)
+        for error in ({'code':-32603,'message':'transport disconnected'},
+                      {'code':-32003,'message':'unrelated'}, {'message':'request refused'}):
+            self.assertFalse(smoke.HostRPCError('identity', error).native_refusal)
+
+
     def test_failed_host_initialization_reaps_process(self):
         from unittest.mock import patch
         sys.path.insert(0, str(ROOT / 'scripts'))
@@ -142,3 +160,7 @@ class SmokeCleanupTests(unittest.TestCase):
                     if process.poll() is None:
                         process.kill(); process.wait(timeout=5)
                     process.stdin.close(); process.stdout.close()
+
+
+if __name__ == '__main__':
+    unittest.main()
