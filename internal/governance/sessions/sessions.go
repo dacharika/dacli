@@ -51,12 +51,15 @@ type state struct {
 	Binding   Binding
 	OwnerHash string
 	Sessions  map[string]record
+	Tasks     map[string]TaskBinding
+	Attempts  map[string]Attempt
 }
 
 // Authority contains no cached authority snapshot; each operation reloads under lock.
 type Authority struct {
 	path    string
 	binding Binding
+	version int
 }
 
 func Open(path string, binding Binding) (*Authority, error) {
@@ -72,7 +75,7 @@ func Open(path string, binding Binding) (*Authority, error) {
 	if err := regularOrAbsent(path); err != nil {
 		return nil, err
 	}
-	return &Authority{path: path, binding: binding}, nil
+	return &Authority{path: path, binding: binding, version: 2}, nil
 }
 
 // An authority-file alias is different from a directory alias: atomic rename
@@ -150,14 +153,15 @@ func (a *Authority) transaction(create bool, write bool, fn func(*state) error) 
 	if err := regularOrAbsent(a.path); err != nil {
 		return err
 	}
-	s := state{Version: 1, Binding: a.binding, Sessions: map[string]record{}}
+	s := state{Version: a.version, Tasks: map[string]TaskBinding{}, Attempts: map[string]Attempt{}, Binding: a.binding, Sessions: map[string]record{}}
 	data, err := os.ReadFile(a.path)
 	if create {
 		if !os.IsNotExist(err) {
 			return ErrDenied
 		}
 	} else {
-		if err != nil || json.Unmarshal(data, &s) != nil || s.Version != 1 || s.Binding != a.binding || s.OwnerHash == "" || s.Sessions == nil {
+		s = state{}
+		if err != nil || json.Unmarshal(data, &s) != nil || s.Version != a.version || s.Binding != a.binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version == 2 && (s.Tasks == nil || s.Attempts == nil)) {
 			return ErrStorage
 		}
 	}
