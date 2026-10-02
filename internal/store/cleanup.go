@@ -322,6 +322,26 @@ func observeCleanupRuns(w *workspace.Workspace, project string, tasks map[string
 		if !entry.IsDir() {
 			continue
 		}
+		// PRPublicationPath owns this reserved directory for restart checkpoints,
+		// not worker processes. Requiring its nonexistent proc.txt vetoed every
+		// otherwise terminal cleanup candidate. Keep its contents as metadata;
+		// arbitrary unknown run directories still require process evidence.
+		if entry.Name() == "pr-publications" {
+			metadataDir := filepath.Join(w.RunsDir(), entry.Name())
+			files, metadataErr := os.ReadDir(metadataDir)
+			if metadataErr != nil {
+				observeErr = fmt.Errorf("read publication checkpoint metadata: %w", metadataErr)
+				continue
+			}
+			for _, file := range files {
+				artifacts = append(artifacts, CleanupArtifact{
+					Path:           filepath.Join(metadataDir, file.Name()),
+					Classification: "durable-publication-metadata",
+					Reason:         "reserved PR publication checkpoints are retained as durable metadata",
+				})
+			}
+			continue
+		}
 		runID, runDir := entry.Name(), w.RunDir(entry.Name())
 		rec, recErr := procmon.ReadRecord(filepath.Join(runDir, "proc.txt"))
 		if recErr == nil && (rec.RunID != runID || rec.Task == "") {
