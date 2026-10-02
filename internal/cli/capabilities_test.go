@@ -17,7 +17,7 @@ import (
 // capabilityRegistryGolden is the digest of the complete deterministic
 // registry projection below. A command/flag/tool addition or removal must be
 // reviewed as a compatibility-surface change and deliberately update it.
-const capabilityRegistryGolden = "9b9a889d97ffbe2675cbdd689340c32253929d1a045bd9225f551046e0852fcf"
+const capabilityRegistryGolden = "51f1b35c4b00516a1c08618dd3d77e6f074b28d543c5d9b3e383709dfeea5f2d"
 
 func TestCapabilityRegistryGolden(t *testing.T) {
 	m := capabilityManifest()
