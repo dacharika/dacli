@@ -209,7 +209,19 @@ func observeCleanupSandbox(w *workspace.Workspace, c CleanupSandbox, tasks map[s
 		return refuse(fmt.Errorf("invalid managed run id"))
 	}
 	for _, p := range append(protect, w.Root) {
-		if cleanPath(p) == cleanPath(c.Path) {
+		protected, err := filepath.Abs(cleanPath(p))
+		if err != nil {
+			return refuse(fmt.Errorf("invalid protected path: %w", err))
+		}
+		source, err := filepath.Abs(cleanPath(c.Path))
+		if err != nil {
+			return refuse(err)
+		}
+		rel, err := filepath.Rel(source, protected)
+		if err != nil {
+			return refuse(err)
+		}
+		if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
 			return refuse(fmt.Errorf("protected current sandbox"))
 		}
 	}
@@ -630,7 +642,15 @@ func buildSandboxRecovery(w *workspace.Workspace, c CleanupSandbox, path string)
 	if e != nil {
 		return r, e
 	}
-	r.Bytes = int64(buf.Len())
+	info, e := os.Stat(path)
+	if e != nil {
+		return r, e
+	}
+	r.Bytes = info.Size()
+	a, e = loadSandboxRecovery(r)
+	if e != nil {
+		return r, e
+	}
 	temp, e := os.MkdirTemp(filepath.Dir(path), ".verify-sandbox-")
 	if e != nil {
 		return r, e
@@ -644,6 +664,48 @@ func buildSandboxRecovery(w *workspace.Workspace, c CleanupSandbox, path string)
 		return r, fmt.Errorf("reconstruction manifest mismatch")
 	}
 	return r, nil
+}
+
+// Apply and restore must validate the same exact persisted artifact, including
+// gzip trailers and EOF. A successful writer alone is not recovery evidence.
+var sandboxRecoveryDecodedLimit int64 = 1 << 30
+
+func loadSandboxRecovery(r CleanupSandboxRecovery) (cleanupSandboxArchive, error) {
+	var a cleanupSandboxArchive
+	info, e := os.Lstat(r.Archive)
+	if e != nil || !info.Mode().IsRegular() || info.Mode().Perm() != 0600 {
+		return a, fmt.Errorf("invalid private recovery archive")
+	}
+	raw, e := os.ReadFile(r.Archive)
+	if e != nil {
+		return a, e
+	}
+	sum := sha256.Sum256(raw)
+	if "sha256:"+hex.EncodeToString(sum[:]) != r.Digest {
+		return a, fmt.Errorf("recovery archive digest mismatch")
+	}
+	gz, e := gzip.NewReader(bytes.NewReader(raw))
+	if e != nil {
+		return a, e
+	}
+	decoded, readErr := io.ReadAll(io.LimitReader(gz, sandboxRecoveryDecodedLimit+1))
+	closeErr := gz.Close()
+	if readErr != nil {
+		return a, readErr
+	}
+	if closeErr != nil {
+		return a, closeErr
+	}
+	if int64(len(decoded)) > sandboxRecoveryDecodedLimit {
+		return a, fmt.Errorf("recovery archive decoded size exceeds limit")
+	}
+	if e := json.Unmarshal(decoded, &a); e != nil {
+		return a, e
+	}
+	if a.Schema != "claim-sandbox-recovery/v1" || !reflect.DeepEqual(a.Candidate, r.Candidate) {
+		return a, fmt.Errorf("archive candidate identity mismatch")
+	}
+	return a, nil
 }
 func reconstructSandbox(w *workspace.Workspace, a cleanupSandboxArchive, dest string) error {
 	if a.Schema != "claim-sandbox-recovery/v1" {
@@ -787,30 +849,9 @@ func restoreCleanupSandbox(w *workspace.Workspace, audit *CleanupAudit, identity
 		if _, e := os.Lstat(c.Path); !os.IsNotExist(e) {
 			return true, fmt.Errorf("sandbox restore destination exists or is unreadable")
 		}
-		info, e := os.Lstat(r.Archive)
-		if e != nil || !info.Mode().IsRegular() || info.Mode().Perm() != 0600 {
-			return true, fmt.Errorf("invalid private recovery archive")
-		}
-		digest, e := cleanupArtifactDigest(r.Archive)
-		if e != nil || digest != r.Digest {
-			return true, fmt.Errorf("recovery archive digest mismatch")
-		}
-		f, e := os.Open(r.Archive)
+		a, e := loadSandboxRecovery(*r)
 		if e != nil {
 			return true, e
-		}
-		defer func() { _ = f.Close() }()
-		gz, e := gzip.NewReader(f)
-		if e != nil {
-			return true, e
-		}
-		defer func() { _ = gz.Close() }()
-		var a cleanupSandboxArchive
-		if e := json.NewDecoder(io.LimitReader(gz, 1<<30)).Decode(&a); e != nil {
-			return true, e
-		}
-		if !reflect.DeepEqual(a.Candidate, c) {
-			return true, fmt.Errorf("archive candidate identity mismatch")
 		}
 		if e := os.MkdirAll(filepath.Dir(c.Path), 0700); e != nil {
 			return true, e

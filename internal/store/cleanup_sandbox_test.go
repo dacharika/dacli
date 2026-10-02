@@ -1,7 +1,10 @@
 package store
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -403,5 +406,124 @@ func TestCleanupSandboxReplacedSourceIdentityRefuses(t *testing.T) {
 	}
 	if _, e := os.Stat(c.Path); e != nil {
 		t.Fatal("replacement source removed")
+	}
+}
+
+func TestReviewPersistedArchiveMustBeVerified(t *testing.T) {
+	w, c, done := sandboxFixture(t)
+	defer done()
+	old := writeSandboxRecovery
+	defer func() { writeSandboxRecovery = old }()
+	writeSandboxRecovery = func(path string, raw []byte, mode os.FileMode) error {
+		return writeSandboxDurable(path, []byte("corrupt saved archive"), mode)
+	}
+	p, e := PlanRepositoryCleanup(w, "core", time.Now())
+	if e != nil {
+		t.Fatal(e)
+	}
+	_, e = ApplyRepositoryCleanup(w, "core", p.ID, time.Now())
+	if e == nil {
+		t.Fatal("apply removed source after verifying only memory, accepting corrupt persisted archive")
+	}
+	if _, e = os.Stat(c.Path); e != nil {
+		t.Fatal("source lost", e)
+	}
+}
+func TestReviewProtectNestedCurrentSandbox(t *testing.T) {
+	w, c, done := sandboxFixture(t)
+	defer done()
+	nested := filepath.Join(c.Path, "nested")
+	if e := os.Mkdir(nested, 0755); e != nil {
+		t.Fatal(e)
+	}
+	p, e := PlanRepositoryCleanup(w, "core", time.Now(), nested)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if p.Sandboxes[0].Eligible {
+		t.Fatal("current directory inside sandbox does not protect sandbox")
+	}
+}
+
+func TestCleanupSandboxProtectSiblingPrefix(t *testing.T) {
+	w, c, done := sandboxFixture(t)
+	defer done()
+	p, e := PlanRepositoryCleanup(w, "core", time.Now(), c.Path+"-sibling")
+	if e != nil {
+		t.Fatal(e)
+	}
+	if !p.Sandboxes[0].Eligible {
+		t.Fatalf("sibling prefix protected sandbox: %s", p.Sandboxes[0].Reason)
+	}
+}
+
+func TestCleanupSandboxPersistedArchiveGuards(t *testing.T) {
+	for _, kind := range []string{"checksum", "truncated", "trailing-json", "oversized", "candidate"} {
+		t.Run(kind, func(t *testing.T) {
+			w, c, done := sandboxFixture(t)
+			defer done()
+			oldWrite, oldLimit := writeSandboxRecovery, sandboxRecoveryDecodedLimit
+			defer func() { writeSandboxRecovery, sandboxRecoveryDecodedLimit = oldWrite, oldLimit }()
+			if kind == "oversized" {
+				sandboxRecoveryDecodedLimit = 64
+			}
+			writeSandboxRecovery = func(path string, raw []byte, mode os.FileMode) error {
+				switch kind {
+				case "checksum":
+					raw[len(raw)-8] ^= 1
+				case "truncated":
+					raw = raw[:len(raw)-4]
+				case "trailing-json", "candidate":
+					gz, err := gzip.NewReader(bytes.NewReader(raw))
+					if err != nil {
+						return err
+					}
+					decoded, err := io.ReadAll(gz)
+					if err != nil {
+						return err
+					}
+					if err := gz.Close(); err != nil {
+						return err
+					}
+					if kind == "candidate" {
+						var a cleanupSandboxArchive
+						if err := json.Unmarshal(decoded, &a); err != nil {
+							return err
+						}
+						a.Candidate.RunID = "other"
+						decoded, err = json.Marshal(a)
+						if err != nil {
+							return err
+						}
+					} else {
+						decoded = append(decoded, []byte("{}")...)
+					}
+					var buf bytes.Buffer
+					writer := gzip.NewWriter(&buf)
+					if _, err := writer.Write(decoded); err != nil {
+						return err
+					}
+					if err := writer.Close(); err != nil {
+						return err
+					}
+					raw = buf.Bytes()
+				}
+				return writeSandboxDurable(path, raw, mode)
+			}
+			p, err := PlanRepositoryCleanup(w, "core", time.Now())
+			if err != nil {
+				t.Fatal(err)
+			}
+			audit, err := ApplyRepositoryCleanup(w, "core", p.ID, time.Now())
+			if err == nil {
+				t.Fatalf("%s persisted archive accepted", kind)
+			}
+			if len(audit.Sandboxes) != 0 {
+				t.Fatal("invalid recovery marked verified")
+			}
+			if _, err := os.Stat(filepath.Join(c.Path, "product")); err != nil {
+				t.Fatalf("source lost: %v", err)
+			}
+		})
 	}
 }
