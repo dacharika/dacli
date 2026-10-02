@@ -56,8 +56,12 @@ type Lease struct {
 	Released   bool
 }
 type operation struct {
-	Digest  string
-	Receipt Lease
+	Digest       string
+	Receipt      Lease
+	Revision     *AttemptRevision `json:",omitempty"`
+	Evidence     *Evidence        `json:",omitempty"`
+	ResultDigest string           `json:",omitempty"`
+	Pending      bool             `json:",omitempty"`
 }
 
 // UpgradeLeases explicitly migrates v2 without dropping sessions or attempts.
@@ -68,7 +72,8 @@ func (a *Authority) UpgradeLeases(owner string) error {
 		if len(owner) != 64 || hash(owner) != s.OwnerHash {
 			return ErrDenied
 		}
-		s.Version = 3
+		s.Version = 4
+		initializeEvidence(s)
 		s.Leases = map[string]Lease{}
 		s.Operations = map[string]operation{}
 		s.Fence = 0
@@ -275,7 +280,7 @@ func (a *Authority) AcquireLease(token, session string, req AcquireLeaseRequest)
 		result.ID = id
 		result.Fence = s.Fence
 		s.Leases[id] = result
-		s.Operations[req.OperationKey] = operation{digest, result}
+		s.Operations[req.OperationKey] = operation{Digest: digest, Receipt: result}
 		return nil
 	})
 	if err != nil {
@@ -333,7 +338,7 @@ func (a *Authority) changeLease(token, session, key, attempt, id string, fence u
 		}
 		result = old
 		s.Leases[id] = old
-		s.Operations[key] = operation{digest, old}
+		s.Operations[key] = operation{Digest: digest, Receipt: old}
 		return nil
 	})
 	if err != nil {

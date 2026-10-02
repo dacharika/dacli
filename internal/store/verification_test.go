@@ -2,7 +2,9 @@ package store
 
 import (
 	"bytes"
+	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -273,5 +275,110 @@ func TestCommandCriterionRequiresCompleteVerificationEvidence(t *testing.T) {
 		if err := ValidateCommandVerification(evidence); err == nil || !strings.Contains(err.Error(), "missing") {
 			t.Fatalf("incomplete evidence %#v accepted: %v", evidence, err)
 		}
+	}
+}
+
+func TestNativeAcceptanceContextDeadlineAndInheritedPipe(t *testing.T) {
+	dir := t.TempDir()
+	for _, args := range [][]string{{"init"}, {"-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "base"}} {
+		c := exec.Command("git", args...)
+		c.Dir = dir
+		c.Env = VerificationEnvironment()
+		if out, err := c.CombinedOutput(); err != nil {
+			t.Fatalf("git: %v %s", err, out)
+		}
+	}
+	for _, command := range []string{"sleep 4", "sleep 4 & printf done"} {
+		ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+		started := time.Now()
+		ev, _, err := RunAcceptanceVerificationContext(ctx, dir, "runner", command)
+		cancel()
+		if err == nil || ev.ExitCode == 0 || time.Since(started) > 2*time.Second {
+			t.Fatalf("deadline/pipe bound %q: %+v %v %s", command, ev, err, time.Since(started))
+		}
+	}
+}
+
+func TestNativeAcceptanceContextRefusesFilterBeforeStatus(t *testing.T) {
+	dir := t.TempDir()
+	marker := filepath.Join(t.TempDir(), "filter-executed")
+	run := func(args ...string) {
+		t.Helper()
+		c := exec.Command("git", args...)
+		c.Dir = dir
+		c.Env = VerificationEnvironment()
+		if out, err := c.CombinedOutput(); err != nil {
+			t.Fatalf("git: %v %s", err, out)
+		}
+	}
+	run("init")
+	if err := os.WriteFile(filepath.Join(dir, "tracked.x"), []byte("bytes"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".gitattributes"), []byte("*.x filter=poison\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	run("add", ".")
+	run("-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "-m", "base")
+	run("config", "filter.poison.clean", "touch '"+marker+"'; cat")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, _, err := RunAcceptanceVerificationContext(ctx, dir, "runner", "printf harmless")
+	if !IsVerificationPolicyError(err) {
+		t.Fatal("executable filter accepted", err)
+	}
+	if _, err = os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatal("filter executed during contextual observation", err)
+	}
+}
+
+func TestNativeAcceptanceContextBoundsOutputAndValidatesFinalTree(t *testing.T) {
+	dir := t.TempDir()
+	for _, args := range [][]string{{"init"}, {"-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "base"}} {
+		c := exec.Command("git", args...)
+		c.Dir = dir
+		c.Env = VerificationEnvironment()
+		if out, err := c.CombinedOutput(); err != nil {
+			t.Fatalf("git: %v %s", err, out)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	ev, out, err := RunAcceptanceVerificationContext(ctx, dir, "runner", "head -c 200000 /dev/zero")
+	if err != nil || len(out) != maxVerificationArtifact || !bytes.HasSuffix(out, []byte("[verification output truncated at 65536 bytes]\n")) {
+		t.Fatal("unbounded output", len(out), err)
+	}
+	if err = ValidateFinalTreeVerification(ev, ev.CommitSHA, ev.TreeSHA); err != nil {
+		t.Fatal("not acceptance grade", err)
+	}
+}
+
+func TestNativeAcceptanceContextRefusesWrongRevisionBeforeCommand(t *testing.T) {
+	dir := t.TempDir()
+	marker := filepath.Join(t.TempDir(), "executed")
+	run := func(args ...string) {
+		t.Helper()
+		c := exec.Command("git", args...)
+		c.Dir = dir
+		c.Env = VerificationEnvironment()
+		if out, err := c.CombinedOutput(); err != nil {
+			t.Fatalf("git: %v %s", err, out)
+		}
+	}
+	run("init")
+	run("-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "base")
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	baseline, _, err := RunAcceptanceVerificationContext(ctx, dir, "runner", "printf baseline")
+	if err != nil {
+		t.Fatal(err)
+	}
+	run("-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "advanced")
+	_, _, err = RunAcceptanceVerificationRevisionContext(ctx, dir, "runner", "touch '"+marker+"'", baseline.CommitSHA, baseline.TreeSHA)
+	if !IsVerificationPolicyError(err) {
+		t.Fatal("wrong revision command permitted", err)
+	}
+	if _, err = os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatal("command executed on wrong revision", err)
 	}
 }

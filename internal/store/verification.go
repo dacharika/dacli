@@ -148,21 +148,84 @@ func PersistVerificationArtifact(w *workspace.Workspace, ev VerificationEvidence
 	return atomicWrite(filepath.Join(dir, hash+".log"), out)
 }
 
+// RunAcceptanceVerificationContext is the bounded native-runner entry point.
+// The caller selects the command and deadline from trusted configuration.
+func RunAcceptanceVerificationContext(ctx context.Context, dir, verifier, command string) (VerificationEvidence, []byte, error) {
+	if ctx == nil {
+		return VerificationEvidence{}, nil, &VerificationPolicyError{Reason: "verification context required"}
+	}
+	return runVerificationWithContext(ctx, dir, verifier, command, true, true, "", "")
+}
+
+// RunAcceptanceVerificationRevisionContext additionally refuses a mismatched
+// expected commit/tree before executing the configured command.
+func RunAcceptanceVerificationRevisionContext(ctx context.Context, dir, verifier, command, commit, tree string) (VerificationEvidence, []byte, error) {
+	if ctx == nil || commit == "" || tree == "" {
+		return VerificationEvidence{}, nil, &VerificationPolicyError{Reason: "verification context and exact revision required"}
+	}
+	return runVerificationWithContext(ctx, dir, verifier, command, true, true, commit, tree)
+}
+
+// VerificationEnvironment excludes authority/session secrets and Git overrides.
+// This is cooperative hygiene, not isolation from a hostile local OS user.
+func VerificationEnvironment() []string {
+	var env []string
+	for _, e := range os.Environ() {
+		key, _, _ := strings.Cut(e, "=")
+		upper := strings.ToUpper(key)
+		if strings.HasPrefix(upper, "DACLI_") || strings.HasPrefix(upper, "MCP_") || strings.HasPrefix(upper, "GIT_") || strings.Contains(upper, "TOKEN") || strings.Contains(upper, "SECRET") || strings.Contains(upper, "CREDENTIAL") {
+			continue
+		}
+		env = append(env, e)
+	}
+	return append(env, "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_TERMINAL_PROMPT=0")
+}
+
+type verificationBuffer struct{ output []byte }
+
+func (b *verificationBuffer) Write(p []byte) (int, error) {
+	n := len(p)
+	remaining := maxVerificationArtifact + 1 - len(b.output)
+	if remaining > 0 {
+		if len(p) > remaining {
+			p = p[:remaining]
+		}
+		b.output = append(b.output, p...)
+	}
+	return n, nil
+}
 func runVerification(dir, verifier, command string, acceptanceGrade bool) (VerificationEvidence, []byte, error) {
+	return runVerificationWithContext(context.Background(), dir, verifier, command, acceptanceGrade, false, "", "")
+}
+func runVerificationWithContext(ctx context.Context, dir, verifier, command string, acceptanceGrade, native bool, expectedCommit, expectedTree string) (VerificationEvidence, []byte, error) {
 	absDir, _ := filepath.Abs(dir)
 	ev := VerificationEvidence{
 		Command: command, Argv: []string{"sh", "-c", command}, WorkingDirectory: absDir,
 		Verifier: verifier, ExitCode: 0,
 		RuntimeVersions: map[string]string{"go": runtime.Version(), "os": runtime.GOOS, "arch": runtime.GOARCH},
-		ToolVersions:    verificationToolVersions(dir),
+		ToolVersions:    map[string]string{},
 	}
-	before, beforeErr := readVerificationTree(dir)
+	readTree := readVerificationTree
+	if !native {
+		ev.ToolVersions = verificationToolVersions(dir)
+	} else {
+		readTree = func(dir string) (verificationTree, error) { return readVerificationTreeContext(ctx, dir) }
+		version, err := runVerificationGit(ctx, dir, "--version")
+		if err != nil {
+			return ev, nil, &VerificationPolicyError{Reason: "git version observation unavailable"}
+		}
+		ev.ToolVersions["git"] = strings.TrimSpace(version)
+	}
+	before, beforeErr := readTree(dir)
 	if beforeErr == nil {
 		ev.Branch, ev.CommitSHA, ev.TreeSHA, ev.Clean = before.Branch, before.Commit, before.Tree, before.Clean
 	}
 	if acceptanceGrade {
 		if beforeErr != nil {
 			return ev, nil, &VerificationPolicyError{Reason: fmt.Sprintf("acceptance-grade verification requires a committed git tree: %v", beforeErr)}
+		}
+		if expectedCommit != "" && (before.Commit != expectedCommit || before.Tree != expectedTree) {
+			return ev, nil, &VerificationPolicyError{Reason: "verification revision changed before execution"}
 		}
 		if !before.Clean {
 			return ev, nil, &VerificationPolicyError{Reason: "acceptance-grade verification refused: working tree is dirty; commit or discard the changes, or use advisory verification explicitly"}
@@ -171,9 +234,24 @@ func runVerification(dir, verifier, command string, acceptanceGrade bool) (Verif
 	started := time.Now()
 	c := exec.Command("sh", "-c", command)
 	c.Dir = dir
-	out, err := commandresult.Run(c, commandresult.RunOptions{
-		Operation: "verification command", WorkspaceRoot: dir,
-	})
+	var out []byte
+	var err error
+	if !native {
+		out, err = commandresult.Run(c, commandresult.RunOptions{Operation: "verification command", WorkspaceRoot: dir})
+	} else {
+		c = exec.CommandContext(ctx, "sh", "-c", command)
+		c.Dir = dir
+		c.Env = VerificationEnvironment()
+		c.WaitDelay = 250 * time.Millisecond
+		var buffer verificationBuffer
+		c.Stdout = &buffer
+		c.Stderr = &buffer
+		err = c.Run()
+		out = buffer.output
+		if ctx.Err() != nil {
+			err = ctx.Err()
+		}
+	}
 	out = boundVerificationArtifact(out)
 	ev.DurationMS = time.Since(started).Milliseconds()
 	sum := sha256.Sum256(out)
@@ -186,7 +264,7 @@ func runVerification(dir, verifier, command string, acceptanceGrade bool) (Verif
 		}
 	}
 	if acceptanceGrade {
-		after, afterErr := readVerificationTree(dir)
+		after, afterErr := readTree(dir)
 		if afterErr != nil {
 			return ev, out, &VerificationPolicyError{Reason: fmt.Sprintf("verification tree changed or became unreadable after execution: before commit %s tree %s clean=%t; after: %v", before.Commit, before.Tree, before.Clean, afterErr)}
 		}
@@ -552,4 +630,75 @@ func AcceptanceRequiresCommandVerification(t *Task, criterion int) bool {
 	text := boxes[criterion-1].Text
 	start := strings.IndexByte(text, '`')
 	return start >= 0 && strings.IndexByte(text[start+1:], '`') >= 0
+}
+
+// Contextual observations strip the same credential/Git environment as the
+// verifier and disable fsmonitor. Inspect executable repository configuration
+// before status so a caller cannot turn observation into filter execution.
+func readVerificationTreeContext(ctx context.Context, dir string) (verificationTree, error) {
+	run := func(args ...string) (string, error) { return runVerificationGit(ctx, dir, args...) }
+	keys, err := run("config", "--null", "--name-only", "--list")
+	if err != nil {
+		return verificationTree{}, err
+	}
+	for _, key := range strings.Split(keys, "\x00") {
+		key = strings.ToLower(key)
+		if strings.HasPrefix(key, "filter.") && (strings.HasSuffix(key, ".clean") || strings.HasSuffix(key, ".process")) {
+			return verificationTree{}, errors.New("executable clean filter refused")
+		}
+	}
+	entries, err := run("ls-files", "--stage")
+	if err != nil {
+		return verificationTree{}, err
+	}
+	for _, entry := range strings.Split(entries, "\n") {
+		if strings.HasPrefix(entry, "160000 ") {
+			return verificationTree{}, errors.New("indexed submodule refused")
+		}
+	}
+	var got verificationTree
+	if got.Branch, err = run("branch", "--show-current"); err != nil {
+		return got, err
+	}
+	if got.Commit, err = run("rev-parse", "--verify", "HEAD^{commit}"); err != nil {
+		return got, err
+	}
+	if got.Tree, err = run("rev-parse", "--verify", "HEAD^{tree}"); err != nil {
+		return got, err
+	}
+	status, err := run("status", "--porcelain=v1", "--untracked-files=all", "--ignore-submodules=none")
+	if err != nil {
+		return got, err
+	}
+	again, err := run("rev-parse", "--verify", "HEAD^{commit}")
+	if err != nil || again != got.Commit {
+		return got, errors.New("HEAD changed during observation")
+	}
+	got.Branch = strings.TrimSpace(got.Branch)
+	got.Commit = strings.TrimSpace(got.Commit)
+	got.Tree = strings.TrimSpace(got.Tree)
+	got.Clean = strings.TrimSpace(status) == ""
+	return got, nil
+}
+
+type verificationGitBuffer struct{ strings.Builder }
+
+func (b *verificationGitBuffer) Write(p []byte) (int, error) {
+	if b.Len()+len(p) > 1<<20 {
+		return 0, errors.New("git observation output limit exceeded")
+	}
+	return b.Builder.Write(p)
+}
+
+func runVerificationGit(ctx context.Context, dir string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", append([]string{"--no-optional-locks", "-c", "core.fsmonitor=false"}, args...)...)
+	cmd.Dir = dir
+	cmd.Env = VerificationEnvironment()
+	cmd.WaitDelay = 250 * time.Millisecond
+	var output verificationGitBuffer
+	cmd.Stdout = &output
+	if err := cmd.Run(); err != nil {
+		return "", err
+	}
+	return output.String(), ctx.Err()
 }
