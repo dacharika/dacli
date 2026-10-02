@@ -8,40 +8,37 @@
 
 ![release: v0.3.1](https://img.shields.io/badge/release-v0.3.1-blue) ![status: alpha](https://img.shields.io/badge/status-alpha-orange) ![go 1.22+](https://img.shields.io/badge/go-1.22%2B-00ADD8) ![deps: stdlib only](https://img.shields.io/badge/deps-stdlib_only-success) ![license: BSD--3--Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue) ![surfaces: CLI · MCP](https://img.shields.io/badge/surfaces-CLI_·_MCP-6f42c1)
 
-dacli lets an orchestrator AI agent run a disciplined swarm of coding-agent
-CLIs across the product lifecycle: plan, route, implement, review, verify, land,
-learn, and repeat. It supplies the durable state and deterministic controls that
-models do not: task graphs, isolated worktrees, capability and cost-aware
-routing, explicit budgets, policy gates, recovery journals, and GitHub evidence.
-The agents supply the engineering judgment; humans set direction and retain
-authority over exceptions and releases.
+dacli is a governance layer for agents running in their own coding host. Codex
+is the first tested plugin integration: its native agents use a scoped MCP
+session to read canonical tasks, register Git checkout attempts, acquire fenced
+leases, publish committed revisions and submit revision-bound self-reports.
+Humans provision authority and retain control over exceptions and releases.
 
-Codex, Claude Code, Gemini CLI, Copilot CLI, and generic executable adapters
-are peers behind the same runtime contract. dacli self-hosts—**this tool builds
-and hardens itself**—and is also used to operate swarms on other products. Its
-self-hosted record is documented in [docs/SELFHOSTING.md](docs/SELFHOSTING.md).
-Cross-project outcomes are tracked separately, without inventing or disclosing
-private-project data, in the
+Start with the [Codex plugin 0.2.0 setup](plugins/codex/README.md) and
+[native governance transport](docs/GOVERNANCE_NATIVE_MCP.md). The plugin runs a
+local dacli MCP server; Codex runs the agents. It does not launch a nested Codex
+CLI, invoke `dacli spawn`, or expose a CLI escape tool. The governance kernel and
+structured protocol are host-neutral; other harness integrations still require
+runtime testing before support can be claimed.
+
+This is a **cooperative local preview**. Agents sharing an MCP connection share
+one session identity. Self-reports are not trusted execution evidence, and direct
+host filesystem or shell actions are outside these gates. Trusted verification
+and independent review primitives exist in the kernel; native final acceptance,
+one-use publication authorization, hosted management and second-host conformance
+remain roadmap work. See the [plugin's boundaries](plugins/codex/README.md#identity-and-recovery-boundaries).
+
+The existing launcher and bounded loop commands remain available as **legacy
+compatibility** during migration. Their provider adapters, budgets and recovery
+records are separate from the native plugin path. The
+[operator playbook](docs/OPERATOR_PLAYBOOK.md) documents those existing commands;
+the launcher examples below do not describe native Codex plugin orchestration.
+Historical self-hosting and cross-project observations are recorded in
+[docs/SELFHOSTING.md](docs/SELFHOSTING.md) and the
 [cross-project evidence register](docs/research/CROSS_PROJECT_EVIDENCE.md).
 
-Harness choice is explicit and separate from model routing. Pin a run with
-`--harness codex` and dacli keeps implementation, review, and fallback on Codex
-adapters while optimizing among eligible Codex roles/models. Cross-CLI routing
-requires an explicit allowlist plus `--hybrid`; installing another CLI alone
-never authorizes dacli to try it.
-
-New operators should start with the [cost-aware critical-path operator playbook](docs/OPERATOR_PLAYBOOK.md): it chooses between inspection, one task, a supervised wave, a bounded loop, and the future service boundary before giving commands.
-
-| Need | First choice |
-|---|---|
-| Understand the repository or backlog | Inspect: `overview`, `status`, `doctor`, `task list` |
-| Finish one contained change | Single task with one narrow claim and PR |
-| Deliver independent ready changes | Supervised wave with fixed WIP |
-| Improve a backlog repeatedly | Bounded loop with cycle, budget, and idle limits |
-| Run an always-on multi-repo controller | Future service boundary; not shipped locally |
-
-Install from source or a verified archive using the [installation](#install)
-section below. The first public release is
+Build the native preview from the reviewed checkout using the [installation](#install)
+section below. Released archives support the legacy CLI; the first public release is
 [v0.3.1](https://github.com/mlnomadpy/dacli/releases/tag/v0.3.1); a Homebrew
 formula is not currently shipped.
 
@@ -49,19 +46,21 @@ formula is not currently shipped.
 flowchart LR
   H[Human<br/>direction + authority] --> O[Orchestrator agent<br/>plans + judges]
   O --> D[dacli<br/>state + policy + lifecycle]
-  D --> C[Coding-agent CLIs<br/>implement + review + test]
+  O --> C[Native host agents<br/>implement + review + test]
+  C -->|scoped plugin MCP calls| D
+  D --> W[Canonical tasks + authority<br/>attempts + leases + revision evidence]
   C --> G[GitHub<br/>CI + review + landing evidence]
-  G -->|outcomes + calibration| D
-  D -->|briefs + next work| O
+  G -->|external evidence| O
+  D -->|current state + refusals| O
 ```
 
-> Markdown on disk, folders for structure, a CLI and an MCP server as the two front ends. Zero dependencies outside the Go standard library.
+> Canonical tasks are Markdown on disk; native session authority and receipts use private durable state. The Go server uses the standard library; the local plugin bootstrap requires Python 3.
 
 An agent that spawns subagents has one hard problem: **each child starts blind.** It re-reads the codebase, re-derives decisions its siblings already made, and re-attempts work that already failed. `dacli` is the shared workspace that fixes this — a durable, human-readable project state that any agent in the tree can query, and that the parent can slice down to exactly the context a given child needs.
 
-Everything is markdown with YAML frontmatter and `[[wikilinks]]`. That means git diffs it, `grep` searches it, GitHub renders it, Obsidian opens the workspace as a vault with no plugin, and you can fix it by hand when an agent writes something stupid.
+Canonical project documents are Markdown with YAML frontmatter and `[[wikilinks]]`. Native authority credentials and decision records have separate private storage. That means git diffs it, `grep` searches it, GitHub renders it, Obsidian opens the workspace as a vault with no plugin, and you can fix it by hand when an agent writes something stupid.
 
-## What you get
+## Existing workspace and legacy launcher capabilities
 
 |  | |
 |---|---|
@@ -73,9 +72,9 @@ Everything is markdown with YAML frontmatter and `[[wikilinks]]`. That means git
 | 🔗 **GitHub, both ways** | `github push` mirrors public-safe task fields by default; internal findings, decisions, and verdicts require separately recorded authority plus an explicit `--include-internal`/`--with-verdicts` request. `github pull` adopts issues as tasks. |
 | 📓 **Everything recorded** | Every run freezes its brief, invocation, transcript, and outcome; every commit is attributed to the agent and role that authored it. |
 
-## The governed loop — autonomous execution with explicit bounds
+## Legacy launcher loop — autonomous execution with explicit bounds
 
-The loop pictured in the hero above — `context → spawn → wait → accept → ship`, feeding back through `calibrate` — is the whole product in one diagram.
+The legacy launcher workflow is `context → spawn → wait → accept → ship`, feeding back through `calibrate`. Native plugin orchestration uses the host's own agents and the scoped governance tools instead.
 
 ```bash
 dacli loop --project core --harness codex --width 3 --max-cycles 5 # Codex-only, bounded
@@ -113,11 +112,11 @@ You hand that to a subagent instead of the whole repo. That is the product. Task
 
 ## Status
 
-**Alpha — the compound loop is shipped.** The organize layer (v0) and the compound layer (v1) are both working: tasks, decisions/findings/metrics, risks, glossary, queues, the append-only event log and `sync`, `context` with budget trimming, the full SPM readout (`lint`, `estimate`, `critical-path`, `next`, `wbs`, `burndown`, `velocity`), and **`dacli mcp serve`** — the whole tool surface over MCP stdio, with policy refusals returned as results so no client retry-loop ever hammers a "no". Zero dependencies outside the Go standard library.
+**Alpha — native plugin preview and legacy compound loop.** The Codex plugin path is described above; the following inventory describes existing workspace and launcher commands. The organize layer (v0) and the compound layer (v1) are both working: tasks, decisions/findings/metrics, risks, glossary, queues, the append-only event log and `sync`, `context` with budget trimming, the full SPM readout (`lint`, `estimate`, `critical-path`, `next`, `wbs`, `burndown`, `velocity`), and **`dacli mcp serve`** — the whole tool surface over MCP stdio, with policy refusals returned as results so no client retry-loop ever hammers a "no". Zero dependencies outside the Go standard library.
 
-The agent-fleet layer is real, not spec: `spawn` launches child coding-agent CLIs (declared adapters, probed by `runtime doctor`), `wait` blocks on detached runs, `supervise` runs the spawn→evaluate→correct loop, `verify` seats an adversarial panel, `accept` closes a task after verifying its acceptance, and `ship` ties off a whole wave. Alongside it: `calibrate` (measure a role×model×runtime's real cost), the `taint` gate (refuse to spawn onto a brief in an injected source's blast radius), and the `github` mirror (tasks↔issues, decisions, findings). Every run is recorded: frozen brief, redacted invocation, transcript, outcome.
+The legacy agent-fleet layer remains implemented: `spawn` launches child coding-agent CLIs (declared adapters, probed by `runtime doctor`), `wait` blocks on detached runs, `supervise` runs the spawn→evaluate→correct loop, `verify` seats an adversarial panel, `accept` closes a task after verifying its acceptance, and `ship` ties off a whole wave. Alongside it: `calibrate` (measure a role×model×runtime's real cost), the `taint` gate (refuse to spawn onto a brief in an injected source's blast radius), and the `github` mirror (tasks↔issues, decisions, findings). Every run is recorded: frozen brief, redacted invocation, transcript, outcome.
 
-The whole command surface is implemented and tested — including `skill promote` (owner-only: distill a workspace lesson into a versioned skill) and `shortcut promote` (materialize a twice-run ad-hoc command into a named shortcut). The format spec is the stable part; treat the Go API as unstable.
+The existing CLI command surface is implemented and tested — including `skill promote` (owner-only: distill a workspace lesson into a versioned skill) and `shortcut promote` (materialize a twice-run ad-hoc command into a named shortcut). The format spec is the stable part; treat the Go API as unstable.
 
 The repository also contains the first
 [hosted control-plane infrastructure skeleton](docs/CONTROL_PLANE.md): one API,
@@ -128,23 +127,39 @@ tracked work.
 
 The docs index — every document, one line each, with an honest status label — is [docs/README.md](docs/README.md). Start with [DESIGN.md](DESIGN.md) for the why, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the normative shape (axioms, layers, build order, the canonical brief), and [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md) to watch one task travel the whole system end to end.
 
-## Three surfaces, one store
+## Shared canonical documents
 
 - **Obsidian** is where humans read and write documents.
 - **GitHub** is where humans coordinate and work becomes visible outside the session.
 - **`dacli`** (CLI and MCP) is where agents work.
 
-One markdown store underneath. None of them owns it. GitHub is a *projection* that can be deleted and regenerated — local markdown stays the source of truth, because `dacli context` is the hot path and must never touch the network.
+These surfaces share the canonical Markdown documents. GitHub is a projection that can be regenerated; local documents remain the source for tasks and context. Native session authority, leases and receipts use a separate private durable aggregate, not the Markdown task store.
 
 ## Install
 
-**From source** (requires Go 1.22+):
+**Native plugin preview from this reviewed checkout** (requires Go 1.22+ and
+Python 3 for the plugin bootstrap):
+
+```bash
+go build -o ./dacli ./cmd/dacli
+./dacli native serve --help
+./dacli native enroll --help
+./dacli native revoke --help
+```
+
+Use the absolute path of that binary in the
+[plugin connection setup](plugins/codex/README.md). The 0.2.0 plugin source and
+native commands must both be present in your checkout. Version v0.3.1 does not
+contain them; neither its archive nor the following released-version install is
+an installation of this native preview.
+
+**Legacy CLI from the latest published Go version:**
 
 ```bash
 go install github.com/mlnomadpy/dacli/cmd/dacli@latest
 ```
 
-**Prebuilt release:** download the archive for your OS and architecture from
+**Legacy CLI prebuilt release:** download the archive for your OS and architecture from
 the [latest GitHub release](https://github.com/mlnomadpy/dacli/releases/latest),
 verify it against `checksums.txt`, and place `dacli` on your `PATH`.
 
@@ -168,7 +183,7 @@ dacli version --compatibility --json
 dacli capabilities --json
 ```
 
-## Quickstart
+## Legacy workspace quickstart
 
 ```bash
 # In your project root
@@ -187,7 +202,7 @@ DACLI_AGENT=$TOKEN dacli context task/001 --budget 3000
 DACLI_AGENT=$TOKEN dacli status
 ```
 
-## Capabilities
+## Legacy CLI capabilities
 
 Four loops sit on top of the store. Each observes the durable log rather than inventing new state.
 
