@@ -1,0 +1,24 @@
+{
+  "name": "dacli-governance",
+  "version": "0.1.0",
+  "description": "Credential-bound local workspace tools and native agent governance workflow guidance.",
+  "author": {
+    "name": "Taha Bouhsine"
+  },
+  "repository": "https://github.com/mlnomadpy/dacli",
+  "license": "BSD-3-Clause",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "dacli Governance Preview",
+    "shortDescription": "Coordinate governed work",
+    "longDescription": "Native host workflow guidance and credential-bound local workspace tools. Cooperative preview; native governance session enrollment is not yet connected.",
+    "developerName": "Taha Bouhsine",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": "Use dacli to inspect this workspace and plan a governed task."
+  }
+}
