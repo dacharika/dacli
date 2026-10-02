@@ -13,8 +13,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mlnomadpy/dacli/internal/eventlog"
 	"github.com/mlnomadpy/dacli/internal/governance/checkout"
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
+	"github.com/mlnomadpy/dacli/internal/model"
 	"github.com/mlnomadpy/dacli/internal/store"
 	"github.com/mlnomadpy/dacli/internal/workspace"
 )
@@ -371,6 +373,69 @@ func TestNativeProtocolRejectsNullAndFractionalIDs(t *testing.T) {
 			}
 			if !strings.Contains(out.String(), "-32600") {
 				t.Fatalf("invalid MCP request ID accepted: %s", out.String())
+			}
+		})
+	}
+}
+
+func TestNativeStatusIncompleteReadsAreSanitizedRefusals(t *testing.T) {
+	for _, kind := range []string{"tasks", "events"} {
+		t.Run(kind, func(t *testing.T) {
+			f := setup(t)
+			w, err := ResolveWorkspace(f.c.Workspace, f.c.WorkspaceID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if kind == "tasks" {
+				path := w.TasksDir("p", model.StatusOpen)
+				if err = os.RemoveAll(path); err != nil {
+					t.Fatal(err)
+				}
+				if err = os.WriteFile(path, []byte("private task content"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				if _, err = store.ListTasks(w, "p", ""); err == nil {
+					t.Fatal("fixture did not produce task read failure")
+				}
+			} else {
+				if err = os.MkdirAll(w.EventsDir(), 0755); err != nil {
+					t.Fatal(err)
+				}
+				if err = os.Symlink(filepath.Join(t.TempDir(), "missing-private-event"), filepath.Join(w.EventsDir(), "broken.md")); err != nil {
+					t.Fatal(err)
+				}
+				_, holes, readErr := eventlog.ListReport(w, eventlog.Query{Pending: true})
+				if readErr != nil || len(holes) != 1 {
+					t.Fatalf("fixture did not produce event hole: %v %v", holes, readErr)
+				}
+			}
+			input := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}` + "\n" + `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"workspace_status","arguments":{"schema_version":1,"project":"p"}}}` + "\n"
+			var out bytes.Buffer
+			if err = f.s.Serve(strings.NewReader(input), &out); err != nil {
+				t.Fatal(err)
+			}
+			raw := out.String()
+			for _, secret := range []string{f.c.Workspace, f.c.Authority, f.c.CredentialFile, f.token, "private task content", "missing-private-event"} {
+				if strings.Contains(raw, secret) {
+					t.Fatal("native response leaked private data")
+				}
+			}
+			decoder := json.NewDecoder(strings.NewReader(raw))
+			var response struct {
+				Result struct {
+					IsError    bool     `json:"isError"`
+					Structured envelope `json:"structuredContent"`
+				} `json:"result"`
+			}
+			if err = decoder.Decode(&response); err != nil {
+				t.Fatal(err)
+			}
+			if err = decoder.Decode(&response); err != nil {
+				t.Fatal(err)
+			}
+			got := response.Result
+			if !got.IsError || got.Structured.OK || got.Structured.Error == nil || got.Structured.Error.ExitCode != 3 || got.Structured.Error.Code != "refused" {
+				t.Fatalf("incomplete status did not produce typed refusal: %s", raw)
 			}
 		})
 	}

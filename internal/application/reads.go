@@ -2,6 +2,7 @@
 package application
 
 import (
+	"errors"
 	"github.com/mlnomadpy/dacli/internal/eventlog"
 	"github.com/mlnomadpy/dacli/internal/model"
 	"github.com/mlnomadpy/dacli/internal/store"
@@ -45,7 +46,10 @@ func Status(r RequestContext, project string) (WorkspaceStatus, error) {
 		}
 		counts := map[model.Status]int{}
 		implemented := 0
-		ts, _ := store.ListTasks(w, p.Slug, "")
+		ts, err := store.ListTasks(w, p.Slug, "")
+		if err != nil {
+			return WorkspaceStatus{}, err
+		}
 		for _, t := range ts {
 			counts[t.Status]++
 			if t.CompletionState() == "implemented-unlanded" {
@@ -55,7 +59,13 @@ func Status(r RequestContext, project string) (WorkspaceStatus, error) {
 		statuses = append(statuses, ProjectStatus{Slug: p.Slug, Title: p.Title, Open: counts[model.StatusOpen], Active: counts[model.StatusActive], Blocked: counts[model.StatusBlocked], Done: counts[model.StatusDone], ImplementedUnlanded: implemented})
 	}
 
-	pending, _ := eventlog.List(w, eventlog.Query{Pending: true})
+	pending, holes, err := eventlog.ListReport(w, eventlog.Query{Pending: true})
+	if err != nil {
+		return WorkspaceStatus{}, err
+	}
+	if len(holes) != 0 {
+		return WorkspaceStatus{}, errors.New("workspace status unavailable: incomplete event log")
+	}
 	return WorkspaceStatus{Schema: "workspace-status/v1", ProjectFilter: project, Projects: statuses, PendingEvents: len(pending)}, nil
 }
 func ListTasks(r RequestContext, project string, status model.Status) ([]*store.Task, error) {

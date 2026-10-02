@@ -1,11 +1,16 @@
 package application
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/mlnomadpy/dacli/internal/clikit"
+	"github.com/mlnomadpy/dacli/internal/eventlog"
 	"github.com/mlnomadpy/dacli/internal/governance/contracts"
+	"github.com/mlnomadpy/dacli/internal/model"
 	"github.com/mlnomadpy/dacli/internal/store"
 	"github.com/mlnomadpy/dacli/internal/workspace"
 )
@@ -104,4 +109,94 @@ func TestReadsUseExplicitContext(t *testing.T) {
 	if err != nil || got.ID != task.ID {
 		t.Fatalf("get: %v, %v", got, err)
 	}
+}
+
+func TestStatusRefusesUnreadableTaskStatusPath(t *testing.T) {
+	w, b := readFixture(t)
+	if _, err := store.CreateProject(w, "a-root", "Project", "p", "goal", ""); err != nil {
+		t.Fatal(err)
+	}
+	r, err := NewRequestContext(w, "human", "session", b, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := w.TasksDir("p", model.StatusOpen)
+	if err = os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.RemoveAll(path); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(path, []byte("existing non-directory"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.ListTasks(w, "p", ""); err == nil {
+		t.Fatal("fixture did not produce a task read error")
+	}
+	status, err := Status(r, "p")
+	if err == nil {
+		t.Fatalf("unreadable backlog reported successful status: %+v", status)
+	}
+	if status.Schema != "" {
+		t.Fatalf("failed status returned a complete schema: %+v", status)
+	}
+}
+
+func TestStatusRefusesPendingEventHoles(t *testing.T) {
+	w, b := readFixture(t)
+	r, err := NewRequestContext(w, "human", "session", b, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.MkdirAll(w.EventsDir(), 0755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(w.EventsDir(), "unreadable-private-event.md")
+	if err = os.Symlink(filepath.Join(t.TempDir(), "missing"), path); err != nil {
+		t.Fatal(err)
+	}
+	_, holes, err := eventlog.ListReport(w, eventlog.Query{Pending: true})
+	if err != nil || len(holes) != 1 || holes[0] != path {
+		t.Fatalf("fixture did not produce exactly one event hole: %v %v", holes, err)
+	}
+	status, err := Status(r, "")
+	if err == nil {
+		t.Fatalf("incomplete event log reported successful status: %+v", status)
+	}
+	if status.Schema != "" {
+		t.Fatalf("failed status returned a complete schema: %+v", status)
+	}
+}
+
+func TestStatusSuccessfulJSONUnchanged(t *testing.T) {
+	w, b := readFixture(t)
+	r, err := NewRequestContext(w, "human", "session", b, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	check := func(project, want string) {
+		t.Helper()
+		value, err := Status(r, project)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(raw) != want {
+			t.Fatalf("status JSON changed: %s", raw)
+		}
+	}
+	check("", `{"schema":"workspace-status/v1","projects":null,"pending_events":0}`)
+	if _, err = store.CreateProject(w, "a-root", "Project", "p", "goal", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.CreateTask(w, "a-root", "p", "Open task", store.TaskOpts{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = eventlog.Append(w, "a-root", model.EventComment, "", "agent", "public fixture"); err != nil {
+		t.Fatal(err)
+	}
+	check("p", `{"schema":"workspace-status/v1","project_filter":"p","projects":[{"slug":"p","title":"Project","open":1,"active":0,"blocked":0,"done":0,"implemented_unlanded":0}],"pending_events":1}`)
 }
