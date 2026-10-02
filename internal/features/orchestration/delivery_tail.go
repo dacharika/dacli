@@ -3,6 +3,7 @@ package orchestration
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -269,7 +270,7 @@ type cycleOutcome struct {
 
 func (d *driver) recordCycleFailure(phase string, err error, detail string) {
 	class, retryable := "operational-degradation", true
-	if clikit.ExitCode(err) == 3 {
+	if policyLaunchRefusal(err) {
 		class, retryable = "policy-refusal", false
 	}
 	detail = strings.TrimSpace(detail)
@@ -856,3 +857,10 @@ const maxStageAdvancesPerCycle = 8
 // question, and for the overwhelmingly common untemplated/solo project it is
 // the ONLY gates-related work the loop does. Returns "" when the project has no
 // template, and "complete" once every gate has been passed.
+
+// Subprocess diagnostics wrap exec.ExitError, which clikit's in-process
+// error classifier does not interpret. Exit 3 remains a policy answer.
+func policyLaunchRefusal(err error) bool {
+	var exit interface{ ExitCode() int }
+	return clikit.ExitCode(err) == 3 || (errors.As(err, &exit) && exit.ExitCode() == 3)
+}

@@ -4,8 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"github.com/mlnomadpy/dacli/internal/commandresult"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -108,5 +112,87 @@ func TestLoopStatusJSONExposesVersionedOutcomeAcrossRestart(t *testing.T) {
 	}
 	if err := json.Unmarshal(out.Bytes(), &payload); err != nil || payload.Outcome.Schema != cycleOutcomeSchema || payload.Outcome.Classification != "healthy" {
 		t.Fatalf("status=%s decode=%v outcome=%+v", out.String(), err, payload.Outcome)
+	}
+}
+
+func TestLaunchPolicyExitAfterWarningsIsNonretryable(t *testing.T) {
+	cmd := exec.Command("sh", "-c", "echo 'warning: advisory token ceiling'; echo 'dacli: undeclared user-config source config.toml' >&2; exit 3")
+	out, err := commandresult.Run(cmd, commandresult.RunOptions{Operation: "dacli spawn"})
+	d := &driver{}
+	d.recordCycleFailure("spawn", err, string(out))
+	outcome := d.finishCycleOutcome(1, cycleRollup{ProducedNothing: 1})
+	if clikit.ExitCode(outcome.err()) != 3 || outcome.Failures[0].Retryable || !strings.Contains(outcome.Failures[0].Detail, "config.toml") {
+		t.Fatalf("lost refusal: %+v", outcome)
+	}
+	if got := reviewFailure(string(out), err, commandresult.Spawn{}); !strings.Contains(got, "config.toml") {
+		t.Fatalf("lost diagnostic: %s", got)
+	}
+}
+
+func TestLoopContextExceptionIsExplicitAndForwarded(t *testing.T) {
+	d := &driver{}
+	args := []string{"spawn", "--claim", "internal/features/execution"}
+	if got := d.contextExceptionArgs(args); slices.Contains(got, "--allow-user-config") {
+		t.Fatal("default grants exception")
+	}
+	d.cfg.allowUserConfig = true
+	for _, operation := range []string{"spawn", "preflight", "supervise"} {
+		got := d.contextExceptionArgs([]string{operation, "--grant", "ro"})
+		if !slices.Contains(got, "--allow-user-config") || !slices.Contains(got, "ro") {
+			t.Fatalf("lost policy or grant: %v", got)
+		}
+	}
+}
+
+func TestLoopContextExceptionReachesBuildAndReview(t *testing.T) {
+	w := loopEnv(t)
+	task, err := store.CreateTask(w, "a-root", "p", "Feature context", store.TaskOpts{Accept: []string{"a"}, Estimate: "1,2,3"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fr := &fakeRunner{}
+	d := newDriver(w, fr, &Governor{})
+	d.cfg.allowUserConfig = true
+	d.runCycle([]*store.Task{task})
+	for label, call := range map[string][]string{"build": buildSpawnCall(fr), "review": reviewSpawnCall(fr)} {
+		if !slices.Contains(call, "--allow-user-config") {
+			t.Fatalf("%s lost exception: %v", label, call)
+		}
+	}
+}
+
+type launchRefusalRunner struct{ fakeRunner }
+
+func (r *launchRefusalRunner) run(label string, args ...string) (string, error) {
+	_, _ = r.fakeRunner.run(label, args...)
+	if args[0] != "spawn" {
+		return "", nil
+	}
+	cmd := exec.Command("sh", "-c", "echo 'warning: advisory token ceiling'; echo 'dacli: undeclared config.toml' >&2; exit 3")
+	out, err := commandresult.Run(cmd, commandresult.RunOptions{Operation: "dacli spawn"})
+	return string(out), err
+}
+
+func TestLoopLaunchRefusalStopsWithoutRetryAndRetainsTail(t *testing.T) {
+	w := loopEnv(t)
+	_, err := store.CreateTask(w, "a-root", "p", "Refused launch", store.TaskOpts{Accept: []string{"a"}, Estimate: "1,2,3"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &launchRefusalRunner{}
+	d := newDriver(w, r, &Governor{MaxCycles: 3, NoProgressHalt: 3})
+	d.cfg.width = 1
+	err = d.loop()
+	if clikit.ExitCode(err) != 3 || !strings.Contains(err.Error(), "config.toml") {
+		t.Fatalf("loop lost policy diagnostic: %v", err)
+	}
+	count := 0
+	for _, call := range r.calls {
+		if call[0] == "spawn" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("refusal retried %d times", count)
 	}
 }

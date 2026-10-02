@@ -287,7 +287,7 @@ func (d *driver) preflightCycle(ready []*store.Task) error {
 			if i == 0 {
 				preflightArgs = append(preflightArgs, "--structured-review-result")
 			}
-			out, err := pr.runPreflight(phaseName, preflightArgs...)
+			out, err := pr.runPreflight(phaseName, d.contextExceptionArgs(preflightArgs)...)
 			if observed := strings.TrimSpace(out); observed != "" {
 				if phase.Evidence != "" {
 					phase.Evidence += "; "

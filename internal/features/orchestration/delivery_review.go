@@ -64,6 +64,7 @@ func (d *driver) spawnReviewResult(t *store.Task) (store.IndependentReviewResult
 			args = append(args, "--allow-advisory-tokens")
 		}
 	}
+	args = d.contextExceptionArgs(args)
 	args = append(args, "--timeout", fmt.Sprint(d.workerTimeout(t)))
 	var spawn commandresult.Spawn
 	var runErr error
@@ -117,6 +118,7 @@ func (d *driver) runReviewCorrection(t *store.Task, tx *store.ReviewTransaction)
 			args = append(args, "--allow-advisory-tokens")
 		}
 	}
+	args = d.contextExceptionArgs(args)
 	args = append(args, "--timeout", fmt.Sprint(d.workerTimeout(t)))
 	if _, err := d.run.run("review-correction", args...); err != nil {
 		return err

@@ -125,7 +125,7 @@ func cmdVerify(ctx *clikit.Ctx, args []string) error {
 		if len(contextRefused) > 0 {
 			return clikit.Refusedf("%s", strings.Join(contextRefused, "; "))
 		}
-		sandboxArgs, err := sandboxFor(ctx, rt, grant, override)
+		sandboxArgs, err := sandboxFor(ctx, rt, grant, f.Bool("cooperative"))
 		if err != nil {
 			return err
 		}

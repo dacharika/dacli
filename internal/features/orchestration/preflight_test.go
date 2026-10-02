@@ -442,3 +442,33 @@ func TestAutomaticSizingRunsBeforeCompleteCyclePreflight(t *testing.T) {
 		t.Fatalf("sizing did not precede preflight: %v", runner.calls)
 	}
 }
+
+func TestLoopContextExceptionReachesReadiness(t *testing.T) {
+	w := loopEnv(t)
+	for _, role := range []team.Role{{Name: "builder", Kind: "implementer", Grant: "rw"}, {Name: "reviewer", Kind: "reviewer", Grant: "ro"}} {
+		if err := store.CreateRole(w, "a-root", role); err != nil {
+			t.Fatal(err)
+		}
+	}
+	task, err := store.CreateTask(w, "a-root", "p", "Build context", store.TaskOpts{Accept: []string{"done"}, Estimate: "1,1,1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &transientPreflightRunner{}
+	d := newDriver(w, r, &Governor{WindowTokens: 100, WindowDur: time.Hour})
+	d.cfg.implRole, d.cfg.implRoleExplicit, d.cfg.reviewRole, d.cfg.landing.Base = "builder", true, "reviewer", "main"
+	d.cfg.allowUserConfig = true
+	_ = d.preflightCycle([]*store.Task{task})
+	count := 0
+	for _, call := range r.calls {
+		if call[0] == "preflight" {
+			count++
+			if !contains(call, "--allow-user-config") {
+				t.Fatalf("readiness lost exception: %v", call)
+			}
+		}
+	}
+	if count != 2 {
+		t.Fatalf("expected both readiness calls, got %d", count)
+	}
+}

@@ -440,7 +440,7 @@ func resolveLaunch(ctx *clikit.Ctx, w *workspace.Workspace, f *clikit.Flags, tas
 	// binary-allowlist or prompt-tools warning nobody would ever see.
 	exe, _ := os.Executable() // "" on error; preflightIssues skips class 2 then, same as the old warnExeAllowlist
 	override := f.Bool("cooperative") || f.Bool("allow-user-config")
-	for _, iss := range preflightIssues(rt, p.Role, p.HasRole, p.Grant, override, exe) {
+	for _, iss := range preflightIssues(rt, p.Role, p.HasRole, p.Grant, f.Bool("cooperative"), exe) {
 		if !iss.refuse {
 			fmt.Fprintf(ctx.Stderr, "warning: %s\n", iss.message)
 		}
@@ -459,7 +459,7 @@ func resolveLaunch(ctx *clikit.Ctx, w *workspace.Workspace, f *clikit.Flags, tas
 	}
 	p.ContextSources, p.ContextOverride = sources, override
 
-	sandbox, err := sandboxFor(ctx, rt, p.Grant, override)
+	sandbox, err := sandboxFor(ctx, rt, p.Grant, f.Bool("cooperative"))
 	if err != nil {
 		return nil, err
 	}
