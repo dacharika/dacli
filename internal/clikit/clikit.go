@@ -224,7 +224,7 @@ func Planned(what, doc string) func(*Ctx, []string) error {
 var alwaysBool = map[string]bool{
 	"dry-run": true, "force": true, "yolo": true, "advise": true,
 	"detach": true, "worktree": true, "reap": true,
-	"all": true, "json": true, "allow-unobservable-check-policy": true,
+	"all": true, "json": true, "allow-unobservable-check-policy": true, "operator": true,
 }
 
 type Flags struct {

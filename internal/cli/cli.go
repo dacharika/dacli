@@ -15,12 +15,14 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"sort"
 	"strings"
 
+	"github.com/mlnomadpy/dacli/internal/agentid"
 	"github.com/mlnomadpy/dacli/internal/clikit"
 	"github.com/mlnomadpy/dacli/internal/commandresult"
 	"github.com/mlnomadpy/dacli/internal/features/acceptance"
@@ -91,7 +93,7 @@ var commands = aggregate(
 	dashboard.Commands,
 	[]Command{
 		{Path: "capabilities", Brief: "Print the generated CLI, MCP, schema, prompt, and runtime-adapter capability manifest", JSON: true, Usage: "dacli capabilities [--json]", Run: cmdCapabilities},
-		{Path: "mcp serve", Brief: "Serve the workspace as MCP tools over stdio", Usage: "dacli mcp serve", Run: cmdMcpServe},
+		{Path: "mcp serve", Brief: "Serve MCP over stdio with DACLI_AGENT identity; --operator explicitly permits local root when no token is set", Usage: "dacli mcp serve [--operator]", Run: cmdMcpServe},
 	},
 )
 
@@ -617,16 +619,44 @@ func marshalErrorDetails(details clikit.ErrorDetails) string {
 }
 
 func cmdMcpServe(ctx *Ctx, args []string) error {
-	// This command takes no flags, so ANY flag is a typo. An empty allowlist
-	// rejects every one — without it a mistyped flag was dropped and the
-	// command ran as if nothing were wrong.
-	if f, ferr := clikit.ParseFlags(args); ferr != nil {
+	f, ferr := clikit.ParseFlags(args)
+	if ferr != nil {
 		return ferr
-	} else if err := f.Reject(); err != nil {
+	}
+	if err := f.Reject("operator"); err != nil {
 		return err
 	}
-	// Identity binds at launch from the environment; Serve fails fast on a
-	// bad token rather than erroring on the tenth tool call.
-	fmt.Fprintln(ctx.Stderr, "dacli mcp: serving on stdio (identity from DACLI_AGENT, root if unset)")
+	if len(f.Pos) != 0 {
+		return clikit.Usagef("mcp serve accepts no positional arguments")
+	}
+	// Flags.Bool deliberately treats arbitrary values as enabled in some
+	// legacy commands. An authority opt-in must accept only explicit booleans.
+	for _, value := range f.All("operator") {
+		if value != "true" && value != "false" {
+			return clikit.Usagef("--operator accepts only true or false")
+		}
+	}
+	_, tokenPresent := os.LookupEnv("DACLI_AGENT")
+	if f.Bool("operator") && tokenPresent {
+		return clikit.Refusedf("--operator conflicts with DACLI_AGENT; it is only available when no agent token is set")
+	}
+	if !tokenPresent && !f.Bool("operator") {
+		return clikit.Refusedf("MCP requires DACLI_AGENT; provide an agent token through the environment, or explicitly use --operator for local root access")
+	}
+	// Validate the real workspace and identity before reading any requests.
+	// Keep ordinary CLI root convenience, but never inherit it implicitly at
+	// the agent-facing server boundary (issue #1069). Resolution errors do not
+	// contain the credential, including for empty or unrecognized tokens.
+	if _, _, err := openWorkspace(ctx); err != nil {
+		if errors.Is(err, agentid.ErrBadToken) || errors.Is(err, agentid.ErrEmptyToken) {
+			return clikit.Refusedf("cannot serve MCP: %v", err)
+		}
+		return err
+	}
+	mode := "identity from DACLI_AGENT"
+	if f.Bool("operator") {
+		mode = "explicit local operator root identity"
+	}
+	fmt.Fprintf(ctx.Stderr, "dacli mcp: serving on stdio (%s)\n", mode)
 	return mcp.Serve(os.Stdin, ctx.Stdout, executor(ctx.Cwd), cmdDescription())
 }

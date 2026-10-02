@@ -19,6 +19,36 @@ serve. MCP clients can retrieve it through the `cli` escape hatch with argv
 - One server process per agent. The server resolves the workspace exactly as the CLI does (walk up to `.dacli/`) and binds its identity **once, at launch**, from `DACLI_AGENT` in its environment.
 - A parent spawning a child sets the child's token in the child's environment; the child's own MCP config launches its own `dacli mcp serve`. Two agents never share a server.
 
+### Startup identity and migration
+
+`dacli mcp serve` now requires a valid `DACLI_AGENT` token. Missing, empty,
+or unrecognized credentials refuse startup with exit **3**, before reading any
+JSON-RPC requests. Diagnostics never print the token. Configure each agent's
+server process to inherit its own token through the host's environment or
+credential provisioning; do not put it in command arguments or tool calls.
+The workspace must already exist, and startup validates the token against it.
+
+For a human's local operator server, explicitly opt into root authority:
+
+```sh
+# In an environment where DACLI_AGENT is absent:
+dacli mcp serve --operator
+```
+
+Existing local operator MCP configurations that launched `dacli` with
+`["mcp", "serve"]` and no token must change their arguments to
+`["mcp", "serve", "--operator"]`. Agent configurations should retain
+`["mcp", "serve"]` and supply their own valid token instead.
+
+`--operator` refuses if `DACLI_AGENT` is present, even if its value is empty,
+invalid, or a valid agent token. It cannot override agent identity. The only
+accepted value forms are `--operator=true` and `--operator=false`; false does
+not authorize root. Ordinary CLI commands such as `dacli whoami` retain their
+existing root default when the variable is absent.
+
+This is bootstrap hardening, not authenticated native-subagent enrollment.
+The local cooperative trust model and existing command grant gates still apply.
+
 **The token never appears as a tool parameter.** Tool calls and results land in model transcripts; an identity passed per-call would be an identity leaked to every context window that touches the conversation. Binding at launch keeps the credential out of band entirely.
 
 ## 2. The tool surface is tiered, and here is the correction that forces it

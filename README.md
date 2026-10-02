@@ -358,7 +358,7 @@ views name their typed replacement rather than pretending prose is JSON.
 
 | Command | Purpose |
 |---|---|
-| `dacli mcp serve` | Serve the workspace as MCP tools over stdio |
+| `dacli mcp serve [--operator]` | Serve MCP over stdio with `DACLI_AGENT`; `--operator` explicitly selects local root only when no token is set ([setup](docs/MCP.md)) |
 | `dacli report` | File a dacli-tool bug upstream via gh (explicit; never automatic) |
 
 ## Teams and shortcuts
