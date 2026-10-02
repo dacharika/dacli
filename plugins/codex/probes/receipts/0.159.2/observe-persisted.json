@@ -1,0 +1,459 @@
+{
+  "schema": "codex-native-actions/v1",
+  "host_version": "codex-cli 0.159.2",
+  "client_login_reference_supplied": true,
+  "dacli_principal_authenticated": false,
+  "beta_certified": false,
+  "measurement": {
+    "event_counts": {
+      "thread.started": 1,
+      "item.completed": 9,
+      "turn.started": 1,
+      "item.started": 5,
+      "turn.completed": 1
+    },
+    "event_keys": [
+      "item",
+      "thread_id",
+      "type",
+      "usage"
+    ],
+    "turn_completed": true,
+    "items": [
+      {
+        "category": "error",
+        "event": "item.completed",
+        "status": "unknown",
+        "error_category": "unspecified"
+      },
+      {
+        "category": "error",
+        "event": "item.completed",
+        "status": "unknown",
+        "error_category": "unspecified"
+      },
+      {
+        "category": "agent_message",
+        "event": "item.completed",
+        "status": "unknown"
+      },
+      {
+        "category": "command_execution",
+        "event": "item.started",
+        "status": "in_progress"
+      },
+      {
+        "category": "command_execution",
+        "event": "item.completed",
+        "status": "completed",
+        "exit_success": true
+      },
+      {
+        "category": "file_change",
+        "event": "item.started",
+        "status": "in_progress"
+      },
+      {
+        "category": "file_change",
+        "event": "item.completed",
+        "status": "completed"
+      },
+      {
+        "category": "mcp_tool_call",
+        "event": "item.started",
+        "status": "in_progress",
+        "tool": "context_probe"
+      },
+      {
+        "category": "mcp_tool_call",
+        "event": "item.completed",
+        "status": "completed",
+        "tool": "context_probe"
+      },
+      {
+        "category": "collab_tool_call",
+        "event": "item.started",
+        "status": "in_progress",
+        "tool": "wait"
+      },
+      {
+        "category": "collab_tool_call",
+        "event": "item.completed",
+        "status": "completed",
+        "tool": "wait"
+      },
+      {
+        "category": "collab_tool_call",
+        "event": "item.started",
+        "status": "in_progress",
+        "tool": "wait"
+      },
+      {
+        "category": "collab_tool_call",
+        "event": "item.completed",
+        "status": "completed",
+        "tool": "wait"
+      },
+      {
+        "category": "agent_message",
+        "event": "item.completed",
+        "status": "unknown"
+      }
+    ],
+    "case": "observe",
+    "exit_code": 0,
+    "runner_killed_at_bound": false,
+    "advertised_features": {
+      "executed_tool_call_metadata": false,
+      "hooks": true,
+      "multi_agent": true,
+      "plugins": true,
+      "use_agent_identity": false
+    },
+    "session_persistence_requested": true,
+    "observations": [
+      {
+        "source": "mcp-lifecycle",
+        "event": "started"
+      },
+      {
+        "source": "mcp-lifecycle",
+        "event": "initialize"
+      },
+      {
+        "source": "mcp-lifecycle",
+        "event": "tools/list"
+      },
+      {
+        "source": "hook",
+        "event": "SessionStart",
+        "tool": "other",
+        "fields": [
+          "session_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": null
+      },
+      {
+        "source": "hook",
+        "event": "PreToolUse",
+        "tool": "other",
+        "fields": [
+          "session_id",
+          "turn_id",
+          "tool_use_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": null
+      },
+      {
+        "source": "hook",
+        "event": "PostToolUse",
+        "tool": "other",
+        "fields": [
+          "session_id",
+          "turn_id",
+          "tool_use_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": null
+      },
+      {
+        "source": "hook",
+        "event": "PreToolUse",
+        "tool": "apply_patch",
+        "fields": [
+          "session_id",
+          "turn_id",
+          "tool_use_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": null
+      },
+      {
+        "source": "hook",
+        "event": "PostToolUse",
+        "tool": "apply_patch",
+        "fields": [
+          "session_id",
+          "turn_id",
+          "tool_use_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": null
+      },
+      {
+        "source": "hook",
+        "event": "PreToolUse",
+        "tool": "mcp__lab__context_probe",
+        "fields": [
+          "session_id",
+          "turn_id",
+          "tool_use_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": null
+      },
+      {
+        "source": "mcp-lifecycle",
+        "event": "tools/call"
+      },
+      {
+        "source": "mcp",
+        "tag": "root",
+        "meta_fields": [
+          "progressToken"
+        ],
+        "session_hash": null
+      },
+      {
+        "source": "hook",
+        "event": "PostToolUse",
+        "tool": "mcp__lab__context_probe",
+        "fields": [
+          "session_id",
+          "turn_id",
+          "tool_use_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": null
+      },
+      {
+        "source": "hook",
+        "event": "PreToolUse",
+        "tool": "other",
+        "fields": [
+          "session_id",
+          "turn_id",
+          "tool_use_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": null
+      },
+      {
+        "source": "hook",
+        "event": "PostToolUse",
+        "tool": "other",
+        "fields": [
+          "session_id",
+          "turn_id",
+          "tool_use_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": null
+      },
+      {
+        "source": "hook",
+        "event": "SubagentStart",
+        "tool": "other",
+        "fields": [
+          "session_id",
+          "agent_id",
+          "turn_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": "0a25beaded0db06e804e05f1996615ee6996acf53c2843cf4a5f0df069687c59"
+      },
+      {
+        "source": "hook",
+        "event": "PreToolUse",
+        "tool": "other",
+        "fields": [
+          "session_id",
+          "turn_id",
+          "tool_use_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": null
+      },
+      {
+        "source": "hook",
+        "event": "PreToolUse",
+        "tool": "other",
+        "fields": [
+          "session_id",
+          "agent_id",
+          "turn_id",
+          "tool_use_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": "0a25beaded0db06e804e05f1996615ee6996acf53c2843cf4a5f0df069687c59"
+      },
+      {
+        "source": "hook",
+        "event": "PostToolUse",
+        "tool": "other",
+        "fields": [
+          "session_id",
+          "agent_id",
+          "turn_id",
+          "tool_use_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": "0a25beaded0db06e804e05f1996615ee6996acf53c2843cf4a5f0df069687c59"
+      },
+      {
+        "source": "hook",
+        "event": "PreToolUse",
+        "tool": "apply_patch",
+        "fields": [
+          "session_id",
+          "agent_id",
+          "turn_id",
+          "tool_use_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": "0a25beaded0db06e804e05f1996615ee6996acf53c2843cf4a5f0df069687c59"
+      },
+      {
+        "source": "hook",
+        "event": "PostToolUse",
+        "tool": "apply_patch",
+        "fields": [
+          "session_id",
+          "agent_id",
+          "turn_id",
+          "tool_use_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": "0a25beaded0db06e804e05f1996615ee6996acf53c2843cf4a5f0df069687c59"
+      },
+      {
+        "source": "hook",
+        "event": "PostToolUse",
+        "tool": "other",
+        "fields": [
+          "session_id",
+          "turn_id",
+          "tool_use_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": null
+      },
+      {
+        "source": "hook",
+        "event": "PreToolUse",
+        "tool": "other",
+        "fields": [
+          "session_id",
+          "turn_id",
+          "tool_use_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": null
+      },
+      {
+        "source": "mcp-lifecycle",
+        "event": "started"
+      },
+      {
+        "source": "mcp-lifecycle",
+        "event": "initialize"
+      },
+      {
+        "source": "mcp-lifecycle",
+        "event": "tools/list"
+      },
+      {
+        "source": "hook",
+        "event": "PreToolUse",
+        "tool": "mcp__lab__context_probe",
+        "fields": [
+          "session_id",
+          "agent_id",
+          "turn_id",
+          "tool_use_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": "0a25beaded0db06e804e05f1996615ee6996acf53c2843cf4a5f0df069687c59"
+      },
+      {
+        "source": "mcp-lifecycle",
+        "event": "tools/call"
+      },
+      {
+        "source": "mcp",
+        "tag": "child",
+        "meta_fields": [
+          "progressToken"
+        ],
+        "session_hash": null
+      },
+      {
+        "source": "hook",
+        "event": "PostToolUse",
+        "tool": "mcp__lab__context_probe",
+        "fields": [
+          "session_id",
+          "agent_id",
+          "turn_id",
+          "tool_use_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": "0a25beaded0db06e804e05f1996615ee6996acf53c2843cf4a5f0df069687c59"
+      },
+      {
+        "source": "hook",
+        "event": "SubagentStop",
+        "tool": "other",
+        "fields": [
+          "session_id",
+          "agent_id",
+          "turn_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": "0a25beaded0db06e804e05f1996615ee6996acf53c2843cf4a5f0df069687c59"
+      },
+      {
+        "source": "hook",
+        "event": "PostToolUse",
+        "tool": "other",
+        "fields": [
+          "session_id",
+          "turn_id",
+          "tool_use_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": null
+      },
+      {
+        "source": "hook",
+        "event": "Stop",
+        "tool": "other",
+        "fields": [
+          "session_id",
+          "turn_id"
+        ],
+        "session_hash": "b4eca575db055d2a87b06492ac57069941a0b09a45bb2091017c13974e7f4faa",
+        "agent_hash": null
+      }
+    ],
+    "markers": {
+      "marker.txt": {
+        "present": false,
+        "expected_bytes_match": false,
+        "expected_sha256": "7a62e3ac3d7c06e27346c0a41d261dc7cdb46d3b7ed89073b770982923da014c"
+      },
+      "root-shell.txt": {
+        "present": true,
+        "expected_bytes_match": true,
+        "expected_sha256": "fed4199357214dfb94724176c68a76698dbc3c2d36317a895320207ac910dea6"
+      },
+      "root-patch.txt": {
+        "present": true,
+        "expected_bytes_match": true,
+        "expected_sha256": "e1022d52b643d9c8d53aa1055b3dbb87318e538d11489ecf3f0f91eb23a9d99d"
+      },
+      "child-shell.txt": {
+        "present": true,
+        "expected_bytes_match": true,
+        "expected_sha256": "31ae76fa77700a5de7d8461ff6d50e694b5ec6e060c49587f2009e73665b961c"
+      },
+      "child-patch.txt": {
+        "present": true,
+        "expected_bytes_match": true,
+        "expected_sha256": "1e3715409a8596f74787b71d4bdd71459219277d0021fb6a4191e3cdb1ae5cf8"
+      }
+    }
+  }
+}
