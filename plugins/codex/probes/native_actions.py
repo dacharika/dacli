@@ -31,6 +31,7 @@ def error_category(value):
     # Classification is intentionally coarse; original diagnostics never escape.
     text = json.dumps(value).lower()
     for category, needles in (
+        ('ephemeral_tasks_unavailable', ('ephemeral tasks cannot create inspectable background tasks',)),
         ('permission_denied', ('permission denied', 'not permitted', 'denied by', 'approval')),
         ('timeout', ('timed out', 'timeout')),
         ('unavailable', ('not found', 'unavailable', 'unknown tool', 'not supported')),
@@ -65,7 +66,7 @@ def summarize(raw):
         if isinstance(item, dict) and kind in ('item.started', 'item.updated', 'item.completed'):
             category = item.get('type')
             allowed = ('command_execution', 'file_change', 'mcp_tool_call', 'collab_tool_call',
-                       'web_search', 'agent_message', 'reasoning', 'error', 'todo_list')
+                       'web_search', 'agent_message', 'reasoning', 'error', 'todo_list', 'collab_agent_tool_call')
             record = {'category': category if category in allowed else 'other', 'event':kind}
             status = item.get('status')
             record['status'] = status if status in ('in_progress','completed','failed','interrupted') else 'unknown'
@@ -74,6 +75,7 @@ def summarize(raw):
             if isinstance(tool,str) and tool in known: record['tool'] = tool
             if isinstance(item.get('exit_code'),int): record['exit_success'] = item['exit_code'] == 0
             if item.get('error') is not None: record['error_category'] = error_category(item['error'])
+            elif category == 'error': record['error_category'] = error_category(item.get('message'))
             items.append(record)
         if kind in ('turn.failed','error'):
             items.append({'category':'error','event':kind,'error_category':error_category(obj.get('error',obj.get('message')))})
@@ -126,7 +128,15 @@ else:
 '''
 
 
-def run_case(binary, auth, mode):
+def execution_command(binary, work, mode, persist_session=False):
+    cmd = [binary,'-a','never','exec','--json','--skip-git-repo-check','--sandbox','workspace-write','-C',str(work)]
+    if not persist_session: cmd.append('--ephemeral')
+    if mode != 'untrusted': cmd.append('--dangerously-bypass-hook-trust')
+    if mode == 'disabled': cmd.extend(['--disable','hooks'])
+    return cmd
+
+
+def run_case(binary, auth, mode, persist_session=False):
     with tempfile.TemporaryDirectory(prefix='dacli-native-actions-') as tmp:
         base = Path(tmp); home = base/'home'; work = base/'work'
         home.mkdir(); work.mkdir()
@@ -149,13 +159,11 @@ def run_case(binary, auth, mode):
             advertised = feature_declarations(features.stdout) if features.returncode == 0 else {}
         except subprocess.TimeoutExpired:
             advertised = {}
-        cmd = [binary,'-a','never','exec','--json','--ephemeral','--skip-git-repo-check','--sandbox','workspace-write','-C',str(work)]
-        if mode != 'untrusted': cmd.append('--dangerously-bypass-hook-trust')
-        if mode == 'disabled': cmd.extend(['--disable','hooks'])
+        cmd = execution_command(binary, work, mode, persist_session)
         if mode == 'observe':
             prompt = ('This is a public isolated measurement lab. Do not inspect credentials, configuration, history, or any paths outside this working directory. '
                       'Use your shell tool to write exactly ROOT to root-shell.txt. Use apply_patch to create root-patch.txt containing ROOT. '
-                      'Call lab context_probe with tag root. If native subagent delegation is available, spawn one child to use shell to write CHILD to child-shell.txt, '
+                      'Call lab context_probe with tag root. Explicitly delegate to one native child using the host-provided delegation tool if exposed (its name may differ from spawn_agent); ask that child to use shell to write CHILD to child-shell.txt, '
                       'apply_patch to create child-patch.txt containing CHILD, and lab context_probe with tag child. Wait for it. '
                       'Do not simulate unavailable tools or use substitutes. Do not launch another CLI. Finish briefly.')
         else:
@@ -182,7 +190,7 @@ def run_case(binary, auth, mode):
             try: os.killpg(p.pid,signal.SIGKILL)
             except ProcessLookupError: pass
         receipt = summarize(out.decode(errors='replace'))
-        receipt.update(case=mode,exit_code=p.returncode,runner_killed_at_bound=killed,advertised_features=advertised)
+        receipt.update(case=mode,exit_code=p.returncode,runner_killed_at_bound=killed,advertised_features=advertised,session_persistence_requested=persist_session)
         receipt['observations'] = [json.loads(x) for x in log.read_text().splitlines()] if log.exists() else []
         receipt['markers']={}
         for name,expected in [('marker.txt',b'LAB'),('root-shell.txt',b'ROOT'),('root-patch.txt',b'ROOT\n'),('child-shell.txt',b'CHILD'),('child-patch.txt',b'CHILD\n')]:
@@ -202,11 +210,12 @@ def main():
     p.add_argument('--codex',required=True); p.add_argument('--expected-version',required=True)
     p.add_argument('--auth-file',required=True,help='Operator-provided existing auth.json reference; never printed or read by runner')
     p.add_argument('--case',choices=CASES,required=True)
+    p.add_argument('--persist-session',action='store_true',help='Omit --ephemeral in the disposable home; never read generated rollouts')
     a=p.parse_args(); binary=str(Path(a.codex).resolve()); auth=Path(a.auth_file).resolve()
     version=subprocess.check_output([binary,'--version'],stderr=subprocess.DEVNULL,text=True,timeout=8).strip()
     if version!=a.expected_version: p.error('host version mismatch')
     if not auth.is_file(): p.error('operator auth reference unavailable')
-    result=run_case(binary,auth,a.case)
+    result=run_case(binary,auth,a.case,a.persist_session)
     print(json.dumps({'schema':'codex-native-actions/v1','host_version':version,'client_login_reference_supplied':True,
       'dacli_principal_authenticated':False,'beta_certified':False,'measurement':result},indent=2))
 

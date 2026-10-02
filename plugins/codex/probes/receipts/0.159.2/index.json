@@ -57,6 +57,12 @@
       "sha256": "f654f15cbb7dbd2bf9f36ed6a7a9016e7bea56bddd547ed88a18c472cf38aef3",
       "item_diagnostics_present": true,
       "runner_revision": "read-only MCP annotations and isolated feature declarations; no exact source digest captured at execution"
+    },
+    {
+      "file": "observe-persisted.json",
+      "sha256": "32ed98c9f5797f8e3aef0e23feea11b17f8667c54f15acd28e98a8892dd1e79a",
+      "item_diagnostics_present": true,
+      "runner_revision": "persistence opt-in and explicit native delegation prompt; no exact source digest captured at execution"
     }
   ]
 }

@@ -58,6 +58,22 @@ class NativeActionTests(unittest.TestCase):
             self.assertEqual(json.loads(r.stdout)['result']['tools'][0]['annotations'],
                 {'readOnlyHint':True,'destructiveHint':False,'idempotentHint':True,'openWorldHint':False})
 
+    def test_session_persistence_is_explicit_and_preserves_sandbox(self):
+        default=actions.execution_command('/public/codex','/public/work','observe')
+        persistent=actions.execution_command('/public/codex','/public/work','observe',True)
+        self.assertIn('--ephemeral',default)
+        self.assertNotIn('--ephemeral',persistent)
+        self.assertEqual([x for x in default if x!='--ephemeral'],persistent)
+        self.assertIn('workspace-write',persistent)
+        self.assertIn('never',persistent)
+
+    def test_ephemeral_item_diagnostic_is_enum_only(self):
+        raw=json.dumps({'type':'item.completed','item':{'type':'error',
+            'message':'ephemeral tasks cannot create inspectable background tasks PRIVATE'}})
+        receipt=actions.summarize(raw)
+        self.assertEqual(receipt['items'][0]['error_category'],'ephemeral_tasks_unavailable')
+        self.assertNotIn('PRIVATE',json.dumps(receipt))
+
     def test_failed_turn_is_not_completion(self):
         self.assertFalse(actions.summarize('{"type":"turn.failed"}')['turn_completed'])
 

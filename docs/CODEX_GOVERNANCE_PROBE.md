@@ -4,9 +4,11 @@ Measured 2026-10-02 on macOS, using the actual bundled `codex-cli 0.159.2`.
 The executable path, reproducible invocation, temporary installation procedure
 and sanitized measurements are in [the probe fixtures](../plugins/codex/probes/README.md)
 and [the observation receipt](../plugins/codex/probes/observed-0.159.2.json).
-This delivery establishes local startup observations. Authenticated integration,
-native subagent attribution and tool enforcement remain **unverified** and do
-not satisfy parent integration acceptance.
+This report separates unauthenticated startup observations from later
+owner-executed action measurements. The final persisted-session run demonstrates
+native child observational attribution. Authenticated governance identity and
+independent-review authority remain unverified; parent integration acceptance
+is not satisfied.
 
 ## Current official contract
 
@@ -200,7 +202,7 @@ the later receipt below establishes startup/discovery but not successful invocat
 
 These are actual owner-executed Codex CLI **0.159.2** measurements using the
 operator's existing client login reference. They are separate from the earlier
-unauthenticated startup matrix. All nine action runs emitted `turn.completed`,
+unauthenticated startup matrix. All ten action runs emitted `turn.completed`,
 exited 0 and did not reach the outer process bound. Full sanitized receipts and
 content hashes are in [the versioned receipt index](../plugins/codex/probes/receipts/0.159.2/index.json).
 The initial observe and deny receipts predate item-status diagnostics; they are
@@ -213,6 +215,7 @@ at execution, so the index records that provenance limitation explicitly.
 | Initial observe | Root shell and patch markers exactly matched; MCP PreToolUse recorded; no child markers/context record | Partial action evidence; no successful MCP/child attribution |
 | Observe v2 | Completed command and file-change items; root markers match; MCP helper started, initialized and listed tools; context_probe item failed with coarse `permission_denied`; no tools/call helper event | Helper discovery worked; call was not delivered. Error classification is heuristic, not proof of its specific cause. Native child execution remains unverified |
 | Observe v3 | Root shell/patch markers match; context_probe completed and helper received tools/call with root tag; metadata contained progressToken only | Successful stdio MCP call, but no openai/session or openai/subject metadata and no authenticated dacli identity; no native child execution demonstrated |
+| Observe persisted | Root/child shell and patch markers match; SubagentStart/Stop and child Pre/Post hooks carry a child agent hash with the parent session hash; root/child MCP calls dispatched; collab wait items completed | Native child activity is observationally distinguishable in this non-ephemeral run. Hooks and tags do not authenticate a child or independent reviewer |
 | Explicit PreToolUse deny | PreToolUse observed; marker absent; turn completed | Explicit denial prevented the requested marker mutation in this case |
 | Malformed callback stdout | PreToolUse/PostToolUse and successful command item; exact `LAB` marker | Malformed callback did not prevent this mutation |
 | Callback exit 1 | PreToolUse/PostToolUse and successful command item; exact `LAB` marker | Callback error did not prevent this mutation |
@@ -224,8 +227,9 @@ These measurements demonstrate that callback failure is **not fail-closed
 authorization** for the measured mutation. An explicit supported denial and a
 broken/missing callback have different behavior. Do not generalize this one shell
 mutation to every tool, cancellation path, host release or deployment action.
-Native child execution, unsupported-tool coverage, an independently enrolled
-reviewer and an authenticated dacli principal remain unverified. Observe v3
+Unsupported-tool coverage, an independently enrolled reviewer and an
+authenticated dacli principal remain unverified. Native child activity was
+subsequently observed in the persisted-session run. Observe v3
 establishes successful delivery of the public MCP call, with only progressToken
 among the allowlisted metadata fields. Session hashes remain correlation only. Client login enables
 model inference; it does not grant governance authority or satisfy credential-bound
@@ -246,19 +250,64 @@ Helper placement outside the model's working directory does **not** make the
 scripts immutable: sandbox policies may permit access to temporary directories.
 This lab does not demonstrate OS-protected enforcement, tamper resistance or
 an authority boundary against the agent. The measured fixtures may be delivered
-with explicitly unavailable native-child coverage while broader #1071 acceptance
+with the exact observed native-child coverage while broader #1071 acceptance
 and authenticated dacli beta qualification remain open.
 
 
-Observe v3 is the final measured rerun after adding read-only MCP annotations.
+Observe v3 was the rerun after adding read-only MCP annotations.
 The tool completed and the helper recorded a root-tagged call, but neither
 `openai/session` nor `openai/subject` was supplied in that call's metadata.
 The root tag is model-supplied; progressToken is not identity. Thus successful
 stdio delivery does not supply the authenticated session binding required by
 dacli. The isolated host advertised `multi_agent`, `hooks` and `plugins` enabled,
 and `use_agent_identity` and `executed_tool_call_metadata` disabled. No collab
-items or child markers were recorded: enabled multi-agent configuration is not
-proof of native delegation. The nine sanitized runs establish the documented
-measurement scope only; #1071 remains open for its missing integration evidence.
-Final local Python coverage comprises ten native-action synthetic tests and two
+items or child markers were recorded in v3: enabled multi-agent configuration
+alone is not proof of delegation. The later persisted run supplies actual child
+observations. The ten sanitized runs establish their measured scope only; #1071 remains open for its missing integration evidence.
+Final local Python coverage comprises twelve native-action synthetic tests and two
 startup-runner tests; none substitutes for the native receipts or enrollment.
+
+### Optional persistence experiment
+
+Add `--persist-session` to an `observe` invocation to omit the client's
+`--ephemeral` flag. The default remains ephemeral. The runner records
+`session_persistence_requested`; all generated session files remain inside the
+fresh disposable home and are deleted with it, without being read by the probe.
+Sandbox and approval settings are unchanged. The public prompt explicitly asks
+for host-native delegation, regardless of its exposed tool name, and forbids
+nested CLI execution. A closed `ephemeral_tasks_unavailable` diagnostic captures
+the installed binary's known restriction without retaining its message text.
+The option alone does not establish native child support; the measured result
+is described below.
+Twelve native-action synthetic tests pass. Removing default ephemeral behavior
+made `test_session_persistence_is_explicit_and_preserves_sandbox` fail; the guard
+was restored. No credentialed persistence experiment was run by the implementer.
+
+
+### Final persisted-session result and authority boundary
+
+[Observe persisted](../plugins/codex/probes/receipts/0.159.2/observe-persisted.json)
+completed on Codex CLI 0.159.2 with `session_persistence_requested: true`.
+Root and child shell/patch marker contents matched exactly. SubagentStart and
+SubagentStop carried a child agent hash; child PreToolUse/PostToolUse events
+carried the same agent hash and the parent's session hash. Root tool events had
+no agent hash. Completed collaboration wait items provide additional native
+lifecycle evidence. This establishes observational attribution of a native child
+for this run, without parsing stored rollouts or private transcripts.
+
+Both root- and child-tagged public MCP calls reached the helper. Each contained
+only progressToken among the allowlisted metadata fields, with no openai/session
+or openai/subject. Model-supplied root/child tags are not authenticated subjects;
+hook agent/session hashes are correlation evidence, not transferable credentials.
+The read-only MCP annotations describe the tool's effects; they grant no authority.
+A parent and native child under the same client login are not independently
+enrolled reviewers merely because their host IDs differ.
+
+Removing `--ephemeral` and making the delegation instruction more explicit both
+changed between experiments. Therefore this success does not isolate persistence
+as the sole cause of earlier missing child activity. The observed native family
+satisfies the bounded probe's native-session/child measurement requirement;
+owner acceptance remains separate. Broader #1071 authenticated-session handoff,
+credential-bound review and complete action-surface evidence remain open, and
+no authenticated dacli beta is certified. The final synthetic suite comprises
+14 tests: 12 native-action and 2 startup-runner tests.
