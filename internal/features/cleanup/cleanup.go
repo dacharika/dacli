@@ -87,7 +87,10 @@ func cmdCleanup(ctx *clikit.Ctx, args []string) error {
 	if ctx.JSON {
 		return json.NewEncoder(ctx.Stdout).Encode(audit)
 	}
-	fmt.Fprintf(ctx.Stdout, "applied cleanup plan %s; removed %d item(s), quarantined %d artifact(s)\n", plan.ID, len(audit.Removed), len(audit.Quarantined))
+	fmt.Fprintf(ctx.Stdout, "applied cleanup plan %s; removed %d item(s), quarantined %d artifact(s), recorded %d sandbox recovery record(s)\n", plan.ID, len(audit.Removed), len(audit.Quarantined), len(audit.Sandboxes))
+	for _, sandbox := range audit.Sandboxes {
+		fmt.Fprintf(ctx.Stdout, "sandbox %s state=%s recovery=%s archive_bytes=%d\n  recover: dacli cleanup --project %s --restore %s --artifact %s\n", sandbox.Candidate.Path, sandbox.State, sandbox.Archive, sandbox.Bytes, project, plan.ID, sandbox.Candidate.Identity)
+	}
 	for _, artifact := range audit.Quarantined {
 		fmt.Fprintf(ctx.Stdout, "quarantined artifact %s at %s\n  recover: %s\n", artifact.Path, artifact.Quarantine, artifact.Recovery)
 	}
@@ -128,6 +131,9 @@ func renderPlan(ctx *clikit.Ctx, plan store.CleanupPlan) error {
 		for _, recovery := range item.Recovery {
 			fmt.Fprintf(ctx.Stdout, "  recovery: %s\n", recovery)
 		}
+	}
+	for _, sandbox := range plan.Sandboxes {
+		fmt.Fprintf(ctx.Stdout, "sandbox %s run=%s task=%s eligible=%t identity=%s bytes=%d\n  reason: %s\n", sandbox.Path, sandbox.RunID, sandbox.Task, sandbox.Eligible, sandbox.Identity, sandbox.Bytes, sandbox.Reason)
 	}
 	for _, artifact := range plan.Artifacts {
 		fmt.Fprintf(ctx.Stdout, "artifact %s run=%s task=%s class=%s pruneable=%t identity=%s digest=%s\n  reason: %s\n", artifact.Path, artifact.RunID, artifact.Task, artifact.Classification, artifact.Pruneable, artifact.Identity, artifact.Digest, artifact.Reason)

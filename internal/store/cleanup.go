@@ -12,13 +12,12 @@ import (
 	"time"
 
 	"github.com/mlnomadpy/dacli/internal/gitx"
-	"github.com/mlnomadpy/dacli/internal/mdstore"
 	"github.com/mlnomadpy/dacli/internal/model"
 	"github.com/mlnomadpy/dacli/internal/procmon"
 	"github.com/mlnomadpy/dacli/internal/workspace"
 )
 
-const CleanupPlanSchema = "repository-cleanup/v2"
+const CleanupPlanSchema = "repository-cleanup/v3"
 
 const cleanupPlanIDToken = "{plan-id}"
 
@@ -86,13 +85,14 @@ type CleanupPlan struct {
 	ObservedAt    time.Time         `json:"observed_at"`
 	Items         []CleanupItem     `json:"items"`
 	Artifacts     []CleanupArtifact `json:"artifacts"`
+	Sandboxes     []CleanupSandbox  `json:"sandboxes"`
 }
 
 // PlanRepositoryCleanup reuses ReclaimableWorktrees as the canonical local
 // worktree classifier, then narrows it with remote and terminal evidence.
 // Cleanup is never allowed to be more permissive than worktree prune.
 func PlanRepositoryCleanup(w *workspace.Workspace, project string, now time.Time, protect ...string) (CleanupPlan, error) {
-	p := CleanupPlan{Schema: CleanupPlanSchema, Version: 2, Project: project, ObservedAt: now.UTC(), Items: []CleanupItem{}, Artifacts: []CleanupArtifact{}}
+	p := CleanupPlan{Schema: CleanupPlanSchema, Version: 3, Project: project, ObservedAt: now.UTC(), Items: []CleanupItem{}, Artifacts: []CleanupArtifact{}}
 	prj, err := LoadProject(w, project)
 	if err != nil {
 		return p, err
@@ -142,6 +142,10 @@ func PlanRepositoryCleanup(w *workspace.Workspace, project string, now time.Time
 				p.Artifacts[i].Quarantine, p.Artifacts[i].Operation, p.Artifacts[i].Recovery = "", "", ""
 			}
 		}
+	}
+	p.Sandboxes, err = observeCleanupSandboxes(w, taskByID, p.BaseCommit, protect)
+	if err != nil {
+		return p, err
 	}
 	current := gitx.CurrentBranch(w.Root)
 	p.CurrentBranch = current
@@ -468,16 +472,17 @@ func safeRecoveryRef(branch string) string {
 }
 
 type CleanupAudit struct {
-	Schema           string                  `json:"schema"`
-	PlanID           string                  `json:"plan_id"`
-	Project          string                  `json:"project"`
-	AppliedAt        time.Time               `json:"applied_at"`
-	Planned          []CleanupItem           `json:"planned"`
-	PlannedArtifacts []CleanupArtifact       `json:"planned_artifacts"`
-	Removed          []CleanupItem           `json:"removed"`
-	Quarantined      []CleanupArtifact       `json:"quarantined_artifacts"`
-	Restored         []CleanupArtifact       `json:"restored_artifacts,omitempty"`
-	Operations       []CleanupOperationAudit `json:"completed_operations"`
+	Schema           string                   `json:"schema"`
+	PlanID           string                   `json:"plan_id"`
+	Project          string                   `json:"project"`
+	AppliedAt        time.Time                `json:"applied_at"`
+	Planned          []CleanupItem            `json:"planned"`
+	PlannedArtifacts []CleanupArtifact        `json:"planned_artifacts"`
+	Removed          []CleanupItem            `json:"removed"`
+	Quarantined      []CleanupArtifact        `json:"quarantined_artifacts"`
+	Restored         []CleanupArtifact        `json:"restored_artifacts,omitempty"`
+	Operations       []CleanupOperationAudit  `json:"completed_operations"`
+	Sandboxes        []CleanupSandboxRecovery `json:"sandboxes,omitempty"`
 }
 
 type CleanupOperationAudit struct {
@@ -521,6 +526,10 @@ func ApplyRepositoryCleanup(w *workspace.Workspace, project, requestedID string,
 		if requestedID == "" || requestedID != p.ID || cleanupPlanID(p) != p.ID {
 			return fmt.Errorf("cleanup plan is stale or unknown; review a new dry-run")
 		}
+		priorAudit := filepath.Join(w.Root, workspace.Dir, "audit", "cleanup", p.ID+".json")
+		if _, err := os.Lstat(priorAudit); !os.IsNotExist(err) {
+			return fmt.Errorf("cleanup plan already has an audit; reconcile or restore its retained recovery before another apply")
+		}
 		for _, item := range p.Items {
 			if item.Eligible {
 				audit.Planned = append(audit.Planned, item)
@@ -531,7 +540,7 @@ func ApplyRepositoryCleanup(w *workspace.Workspace, project, requestedID string,
 				audit.PlannedArtifacts = append(audit.PlannedArtifacts, artifact)
 			}
 		}
-		audit.Schema, audit.PlanID, audit.Project, audit.AppliedAt = "repository-cleanup-audit/v2", p.ID, p.Project, now.UTC()
+		audit.Schema, audit.PlanID, audit.Project, audit.AppliedAt = "repository-cleanup-audit/v3", p.ID, p.Project, now.UTC()
 		audit.Removed = []CleanupItem{}
 		audit.Quarantined = []CleanupArtifact{}
 		auditPath, err := writeCleanupAudit(w, audit)
@@ -567,6 +576,9 @@ func ApplyRepositoryCleanup(w *workspace.Workspace, project, requestedID string,
 			if _, err := writeCleanupAudit(w, audit); err != nil {
 				return fmt.Errorf("record quarantined artifact in %s: %w", auditPath, err)
 			}
+		}
+		if err := applyCleanupSandboxes(w, p, &audit, protect); err != nil {
+			return err
 		}
 		for _, item := range audit.Planned {
 			if err := removeCleanupWorktree(w.Root, item.Worktree); err != nil {
@@ -611,8 +623,11 @@ func RestoreRepositoryCleanupArtifact(w *workspace.Workspace, project, planID, i
 		if err := json.Unmarshal(raw, &audit); err != nil {
 			return fmt.Errorf("read cleanup audit: %w", err)
 		}
-		if audit.Schema != "repository-cleanup-audit/v2" || audit.PlanID != planID || audit.Project != project {
+		if (audit.Schema != "repository-cleanup-audit/v3" && (audit.Schema != "repository-cleanup-audit/v2" || len(audit.Sandboxes) != 0)) || audit.PlanID != planID || audit.Project != project {
 			return fmt.Errorf("cleanup audit identity is stale or unknown")
+		}
+		if matched, err := restoreCleanupSandbox(w, &audit, identity, now); matched {
+			return err
 		}
 		var artifact *CleanupArtifact
 		for i := range audit.Quarantined {
@@ -757,9 +772,12 @@ func writeCleanupAudit(w *workspace.Workspace, audit CleanupAudit) (string, erro
 		return "", err
 	}
 	dir := filepath.Join(w.Root, workspace.Dir, "audit", "cleanup")
+	if err := rejectCleanupSymlinkParents(w.Root, filepath.Join(dir, audit.PlanID+".json"), true); err != nil {
+		return "", err
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
 	path := filepath.Join(dir, audit.PlanID+".json")
-	return path, mdstore.WriteBytes(path, append(raw, '\n'), 0o644)
+	return path, writeSandboxDurable(path, append(raw, '\n'), 0o600)
 }
