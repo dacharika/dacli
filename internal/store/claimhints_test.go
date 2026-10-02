@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/mlnomadpy/dacli/internal/mdstore"
 	"github.com/mlnomadpy/dacli/internal/procmon"
 	"github.com/mlnomadpy/dacli/internal/workspace"
 )
@@ -55,6 +56,44 @@ func TestClaimHintsInferTask371ImplementationScope(t *testing.T) {
 	}
 	if slices.Contains(got, "internal/features/orchestration") {
 		t.Errorf("ClaimHints = %v, unrelated paths must remain outside the claim", got)
+	}
+}
+
+func TestClaimHintsExplicitDeclarationIsAuthoritative(t *testing.T) {
+	root := t.TempDir()
+	for _, path := range []string{"internal/governance/sessions", "internal/governance/policy", "internal/features/execution"} {
+		if err := os.MkdirAll(filepath.Join(root, path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, tc := range []struct {
+		name   string
+		claims []string
+		want   []string
+	}{
+		{"existing", []string{"internal/governance/sessions", "internal/governance/policy"}, []string{"internal/governance/sessions", "internal/governance/policy"}},
+		{"new", []string{"internal/governance/new", "new-package/first.go"}, []string{"internal/governance/new", "new-package/first.go"}},
+		{"normalized", []string{"./internal/governance/sessions/", "internal/governance/sessions"}, []string{"internal/governance/sessions"}},
+		{"legitimate-dot-path", []string{".github/workflows", "pkg/new.go"}, []string{".github/workflows", "pkg/new.go"}},
+		{"invalid", []string{"/internal/governance/sessions", "../outside", ".", ".dacli", ".dacli/agents", ".git", ".git/config", "internal/../outside", "internal\\outside", "", "internal/secret\npath"}, nil},
+		{"empty", []string{}, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			task := &Task{Title: "Preserve sandbox execution boundaries", Doc: &mdstore.Doc{Sections: []mdstore.Section{{Title: "Context", Content: "Explain why internal/features/execution is outside this task's scope."}}}}
+			task.Doc.Front.SetList("claims", tc.claims)
+			if got := ClaimHints(root, task); !slices.Equal(got, tc.want) {
+				t.Fatalf("explicit %s claims widened or lost: got %v want %v", tc.name, got, tc.want)
+			}
+		})
+	}
+	task := &Task{Title: "Explain sandbox execution", Doc: &mdstore.Doc{}}
+	task.Doc.Front.Set("claims", "not-a-list")
+	if got := ClaimHints(root, task); len(got) != 0 {
+		t.Fatalf("malformed declaration fell back to inference: %v", got)
+	}
+	legacy := &Task{Title: "Fix sandbox execution", Doc: &mdstore.Doc{}}
+	if got := ClaimHints(root, legacy); !slices.Equal(got, []string{"internal/features/execution"}) {
+		t.Fatalf("legacy vocabulary inference changed: %v", got)
 	}
 }
 
