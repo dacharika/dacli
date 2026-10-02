@@ -269,6 +269,13 @@ func AddWorktree(root, path, branch, trunk string) (freshened bool, err error) {
 // already-observed base ref. A new branch is cut at the ref's exact commit,
 // never at the operator checkout's incidental HEAD.
 func AddWorktreeFrom(root, path, branch, startRef string) (freshened bool, err error) {
+	root, err = filepath.Abs(root)
+	if err != nil {
+		return false, fmt.Errorf("resolve worktree repository path: %w", err)
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(root, path)
+	}
 	startCommit := ""
 	if startRef != "" {
 		var resolveErr error
@@ -277,6 +284,36 @@ func AddWorktreeFrom(root, path, branch, startRef string) (freshened bool, err e
 			return false, fmt.Errorf("resolve worktree base %s: %w", startRef, resolveErr)
 		}
 		startCommit = strings.TrimSpace(startCommit)
+	}
+	registered, err := ListWorktrees(root)
+	if err != nil {
+		return false, fmt.Errorf("inspect registered worktrees: %w", err)
+	}
+	for _, wt := range registered {
+		if canonicalWorktreePath(wt.Path) != canonicalWorktreePath(path) {
+			continue
+		}
+		if wt.Detached || wt.Branch != branch {
+			return false, fmt.Errorf("worktree %s is not registered on expected branch %s", path, branch)
+		}
+		// Registration alone can outlive a removed/replaced .git file. Verify
+		// the checkout itself before merging into it, never trust an exists error.
+		top, topErr := Run(path, "rev-parse", "--show-toplevel")
+		head, headErr := Run(path, "symbolic-ref", "--quiet", "HEAD")
+		rootCommon, rootErr := worktreeCommonDir(root)
+		pathCommon, pathErr := worktreeCommonDir(path)
+		if topErr != nil || headErr != nil || rootErr != nil || pathErr != nil || canonicalWorktreePath(strings.TrimSpace(top)) != canonicalWorktreePath(path) || strings.TrimSpace(head) != "refs/heads/"+branch || rootCommon != pathCommon {
+			return false, fmt.Errorf("registered worktree %s no longer matches repository and branch %s", path, branch)
+		}
+		if startCommit == "" {
+			return false, nil
+		}
+		return freshenToRef(path, branch, startCommit), nil
+	}
+	if _, err := os.Lstat(path); err == nil {
+		return false, fmt.Errorf("worktree path %s exists but is not registered in this repository", path)
+	} else if !os.IsNotExist(err) {
+		return false, fmt.Errorf("inspect worktree path %s: %w", path, err)
 	}
 	if !BranchExists(root, branch) {
 		args := []string{"worktree", "add", "-b", branch, path}
@@ -297,6 +334,18 @@ func AddWorktreeFrom(root, path, branch, startRef string) (freshened bool, err e
 	return freshenToRef(path, branch, startCommit), nil
 }
 
+func worktreeCommonDir(path string) (string, error) {
+	common, err := Run(path, "rev-parse", "--git-common-dir")
+	if err != nil {
+		return "", err
+	}
+	common = strings.TrimSpace(common)
+	if !filepath.IsAbs(common) {
+		common = filepath.Join(path, common)
+	}
+	return canonicalWorktreePath(common), nil
+}
+
 func preferredWorktreeBaseRef(root, trunk string) string {
 	if trunk == "" {
 		return ""
@@ -310,6 +359,12 @@ func preferredWorktreeBaseRef(root, trunk string) string {
 }
 
 func freshenToRef(path, branch, ref string) bool {
+	// Even a nonconflicting dirty file can survive Git's fast-forward. Keep
+	// every dirty checkout at its current revision rather than changing the
+	// context beneath unfinished agent work, including untracked files.
+	if status, err := Run(path, "status", "--porcelain", "--untracked-files=all"); err != nil || strings.TrimSpace(status) != "" {
+		return false
+	}
 	if ancestor, err := IsAncestor(path, branch, ref); err != nil || !ancestor {
 		return false
 	}
