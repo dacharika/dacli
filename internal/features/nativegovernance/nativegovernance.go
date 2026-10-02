@@ -17,6 +17,7 @@ import (
 )
 
 var Commands = []clikit.Command{
+	{Path: "native revoke", Brief: "Owner-revoke an exact native session using a private explicit owner configuration", Mutates: true, Usage: "dacli native revoke --config <private-file> --session <session-id>", Run: revoke},
 	{Path: "native serve", Brief: "Serve scoped native governance MCP using a private explicit session connection", Usage: "dacli native serve --connection <private-file>", Run: serve},
 	{Path: "native bootstrap", Brief: "Initialize an absent native authority and privately save its owner credential", Mutates: true, Usage: "dacli native bootstrap --config <private-file>", Run: bootstrap},
 	{Path: "native enroll", Brief: "Owner-enroll a scoped native session for an existing canonical task", Mutates: true, Usage: "dacli native enroll --config <private-file> --task <ref> --connection <new-private-file> --credential <new-private-file> [--path <relative-path>]... [--expires <duration>]", Run: enroll},
@@ -25,7 +26,7 @@ var Commands = []clikit.Command{
 // AuthenticatesExplicitly lists exactly the handlers exempt from the legacy grant gate.
 func AuthenticatesExplicitly(path string) bool {
 	switch path {
-	case "native bootstrap", "native enroll":
+	case "native bootstrap", "native enroll", "native revoke":
 		return true
 	}
 	return false
@@ -228,5 +229,40 @@ func enroll(ctx *clikit.Ctx, args []string) error {
 		return e
 	}
 	fmt.Fprintf(ctx.Stdout, "Native session %s enrolled; connection and credential saved privately.\n", s.ID)
+	return nil
+}
+
+// Revocation changes authority, not files held by a client. Live transports recheck
+// that authority on every request; never replace or delete session credentials here.
+func revoke(ctx *clikit.Ctx, args []string) error {
+	f, e := flags(args, "config", "session")
+	if e != nil {
+		return e
+	}
+	for _, k := range []string{"config", "session"} {
+		if f.Get(k) == "" {
+			return clikit.Usagef("--%s is required", k)
+		}
+	}
+	c, e := config(f.Get("config"))
+	if e != nil {
+		return e
+	}
+	w, e := native.ResolveWorkspace(c.Workspace, "")
+	if e != nil {
+		return denied()
+	}
+	owner, e := native.ReadCredential(c.OwnerCredentialFile)
+	if e != nil {
+		return denied()
+	}
+	a, e := sessions.Open(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID})
+	if e != nil {
+		return denied()
+	}
+	if e = a.Revoke(owner, f.Get("session")); e != nil {
+		return denied()
+	}
+	fmt.Fprintln(ctx.Stdout, "Native session revoked.")
 	return nil
 }

@@ -77,6 +77,24 @@ Enrollment writes this connection shape (the secret stays in a separate file):
 }
 ```
 
+## Owner recovery and revocation
+
+Revoke the exact `session_id` recorded in the private connection file:
+
+```sh
+dacli native revoke --config /absolute/private/owner.json --session <session-id>
+```
+
+This command requires the explicit private owner credential, independently of
+`DACLI_AGENT`. It exposes no credential flags and prints no credential. Missing,
+forged, or unavailable owner authority and unknown session IDs refuse with exit
+3. Revoking an already-revoked session is idempotent. The command is local-only
+and excluded from both MCP surfaces. It preserves credentials and connection
+files for reconciliation; it does not stop a host process or undo prior work.
+An already-running server refuses its next discovery or tool request after
+revocation. For recovery, enroll a new scoped session into new private files and
+restart the client with that connection; never reset authority storage.
+
 ## Protocol and tools
 
 Use MCP `2025-06-18` over newline-framed stdio. Initialize before discovery or
