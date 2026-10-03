@@ -55,3 +55,124 @@ Owner-executed credentialed action receipts are separate under
 `receipts/0.159.2/`, with a hash index and explicit projection-generation limits.
 See `docs/CODEX_GOVERNANCE_PROBE.md` for the action matrix. These do not upgrade
 the unauthenticated startup receipt or certify native governance identity.
+
+## Current no-model boundary probe (core583)
+
+`native_boundaries.py` uses the installed Codex app-server diagnostic protocol,
+an ephemeral `thread/start` and `mcpServer/tool/call`. Its explicit allowlist has
+no model turn, shell command, thread resume or native-agent launch method. It
+uses the repository's existing `scripts/serve.py` bootstrap with exact private
+selection files; the native server reads credentials. The probe never opens
+credential files, reads transcripts or imports the user's Codex home.
+
+The owner creates an isolated temporary Git/workspace fixture and enrolls three
+separate native sessions with exact task/path/checkout scopes. A private fixture
+JSON has exactly these fields:
+
+```json
+{
+  "schema_version": 1,
+  "workspace": "/absolute/temporary/workspace",
+  "task_id": "canonical-task-id",
+  "selection_a": "/absolute/private/selection-a.json",
+  "selection_b": "/absolute/private/selection-b.json",
+  "child_selection": "/absolute/private/selection-child.json",
+  "expected_sessions": {"a": "64hex", "b": "64hex", "child": "64hex"}
+}
+```
+
+All fixture and selection files must be private regular owner files, with no
+aliases or duplicate JSON keys. Selections contain `schema_version`, `binary`
+and `connection_file`; tokens never appear in the fixture or command prompt.
+The host stage pins Codex0.159.2 and checks each selected runtime matches the
+measured DACLI binary. Run only after the owner approves the disposable fixture:
+
+```sh
+python3 plugins/codex/probes/native_boundaries.py --stage host \
+  --fixture /absolute/private/fixture.json --codex /absolute/codex \
+  --dacli /absolute/dacli --output /absolute/private/host-report.json
+```
+
+The host stage records actual native tool text/structured parity, authenticated
+session and attempt issuer, base commit/tree, protocol call attribution and
+closed lifecycle notification names. A second host uses sessionB; a shared
+selection control changes host labels while retaining sessionA. Different host
+labels/thread IDs must never make shared credentials appear independent.
+Distinct authenticated session IDs establish distinct sessions; they alone do
+not prove distinct ancestry roots or independent reviewer eligibility. Existing
+native review policy still decides reviewer independence.
+
+The actual native collaboration child is a separate owner-authorized action in
+the calling host. Supply only the designated fixture/selection paths to that
+child. It invokes `--stage child --fixture ... --output ...` using its own stdio
+bootstrap, verifies the exact child session and registers its own attempt.
+No child identity is inferred from its host agent name, inherited MCP namespace,
+thread ID, hook metadata or a caller tag. The child receipt proves the explicit
+owner-manual separate-process channel; automatic per-child MCP provisioning and
+cryptographic host-agent binding remain unverified.
+
+The hook matrix configures reviewed observe/deny/disabled/untrusted/malformed/
+timeout/error callbacks in separate temporary homes. Inventory (`hooks/list`),
+callback entry/completion, SessionStart coverage and PreToolUse coverage are
+separate fields. Direct diagnostic RPC may never enter these hooks. Such a path
+is **unexercised**, even if its tool succeeds; startup callbacks do not certify
+tool authorization. A missing completion marker does not establish a host
+cancellation/timeout guarantee. Unsupported tool responses are measured through
+the actual proxy without fallback. If no supported no-model route enters the
+required callbacks, core583's hook acceptance criterion remains open.
+
+The original `probe.py`, `native_actions.py`, `observed-0.159.2.json` and historical
+receipts remain provenance. They attempted or ran coding model turns, and this
+current workflow does not run them or promote their results into current native
+identity/enforcement guarantees. Existing unit tests validate those historical
+runners only. New guard tests run with:
+
+```sh
+python3 -m unittest discover -s plugins/codex/probes -p test_native_boundaries.py -v
+```
+
+The temporary-workspace gate accepts the host's per-user temporary root and the
+resolved system `/tmp` root (macOS `/private/tmp`); the root directories themselves
+and repository checkouts elsewhere remain refused. Failures print only a closed
+stage/category JSON diagnostic, never raw host errors, input contents or private
+paths. A failure category is not successful identity or hook certification.
+
+### Actual current observation
+
+The owner-executed `receipts/0.159.2/native-boundaries-v4.json` records Codex0.159.2,
+native tool parity, actual attempt issuer/base attribution, closed app-server
+lifecycle signals and a fresh actual collaboration child. Separate host A/B
+selections authenticated distinct native sessions. A shared-A selection under a
+different host label authenticated the same session. The actual child used its
+own separately issued private connection and stdio process; its authenticated
+session differed from A/B. This measured the manual provisioning boundary.
+
+All seven diagnostic hook cases completed their native tool calls, and the
+unsupported tool was refused. **No hook callback was entered in any case.**
+Thus timeout/malformed callback behavior and blocking/nonblocking callback
+execution were not exercised by this route. Core583 acceptance criterion3 remains
+open. Disabled/untrusted configuration did not stop the direct diagnostic proxy,
+which is an observed route distinction, not a hook enforcement guarantee. No
+model turn was requested through the diagnostic app-server. The native child was
+spawned through the calling host's supported collaboration tool.
+
+The public report contains bounded session/attempt IDs, closed event/call records
+and producer receipt digests. It contains no private fixture/profile paths,
+tokens or credential hashes. Original startup/action historical receipts and the
+failed v1 temporary-root attempt remain separate evidence; this observation does
+not replace them or make those historical claims current.
+
+The diagnostic RPC deadline is checked before each queue read, including when
+notifications arrive continuously. Closed-enum notification retention is a bounded
+set, not an accumulating event log. Closing an owned stdio process also performs
+bounded cleanup of its own process group when the parent has already exited.
+A POSIX fixture verifies an exited parent/live descendant receives termination;
+this is process-group cleanup evidence, not a host containment or all-writers-
+stopped guarantee. The storm regression uses a small sentinel so removing the
+deadline guard produces a bounded assertion failure rather than hanging tests.
+
+The v4 observation repeats the actual host and child stages with the original
+operation keys after the deadline/retention/owned-group fixes. The child's original
+session, attempt and receipt remain immutable. The earlier public v2 observation
+is preserved as a distinct file. This remains diagnostic/cooperative evidence;
+hook criterion3 is still open because no callback was entered.

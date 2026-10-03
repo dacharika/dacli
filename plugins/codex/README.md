@@ -192,3 +192,30 @@ feature advertisements do not certify enforcement.
 
 Format source: [OpenAI plugin packaging](https://developers.openai.com/plugins/build/plugins)
 and the installed Plugin Creator local update workflow.
+
+### Native host identity beta boundary
+
+The bounded no-model fixture in `probes/native_boundaries.py` measures actual
+Codex diagnostic-client tool calls and separately owner-selected MCP sessions.
+All clients sharing a selection share its authenticated native session; host
+labels, threads and subagent metadata do not grant separate authority. An actual
+native child can use a separately enrolled connection through the explicit
+owner-manual separate-process channel. This does not certify automatic child
+profile delivery, cryptographic host identity or independent review from thread
+IDs. Native reviewer independence remains enforced by separate credentials,
+ancestry and current review grants.
+
+Direct app-server MCP calls may bypass model tool-hook paths. Callback inventory
+and startup notifications are distinct from observed tool authorization; absent
+callback execution is reported unexercised. Hooks are not a governance or
+containment guarantee. See `probes/README.md` for the exact fixture schema,
+reproduction and remaining acceptance boundary. Historical launching probes and
+receipts are preserved; the current probe starts no coding/model CLI turn.
+
+The current Codex0.159.2 observation is
+`probes/receipts/0.159.2/native-boundaries-v4.json`. It confirms separate enrolled
+host sessions, shared-selection identity reuse and an actual native child using
+its own credentialed stdio process. Its direct diagnostic tool calls entered no
+hook callbacks in all seven cases. Timeout/malformed callback enforcement remains
+unexercised and core583 criterion3 remains open; this beta boundary does not rely
+on hooks or relax reviewer independence.
