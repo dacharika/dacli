@@ -706,3 +706,10 @@ func runVerificationGit(ctx context.Context, dir string, args ...string) (string
 	}
 	return output.String(), ctx.Err()
 }
+
+// VerificationInterpreterAvailable reports whether the executor's sh-c interpreter
+// can be resolved. It neither launches the interpreter nor verifies check commands.
+func VerificationInterpreterAvailable() bool {
+	_, err := exec.LookPath("sh")
+	return err == nil
+}

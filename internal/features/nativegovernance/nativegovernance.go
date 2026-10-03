@@ -20,6 +20,10 @@ import (
 )
 
 var Commands = []clikit.Command{
+	{Path: "native preflight upgrade", Brief: "upgrade complete-loop native preflight", Mutates: true, JSON: false, Usage: "dacli native preflight upgrade --config <private-file>", Run: func(c *clikit.Ctx, a []string) error { return preflightOwner(c, a, "upgrade") }},
+	{Path: "native preflight configure", Brief: "configure complete-loop native preflight", Mutates: true, JSON: true, Usage: "dacli native preflight configure --config <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return preflightOwner(c, a, "configure") }},
+	{Path: "native preflight override", Brief: "override complete-loop native preflight", Mutates: true, JSON: true, Usage: "dacli native preflight override --config <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return preflightOwner(c, a, "override") }},
+	{Path: "native preflight check", Brief: "check complete-loop native preflight", Mutates: true, JSON: true, Usage: "dacli native preflight check --connection <private-file> --capability-file <private-file> --request <private-file> --json", Run: preflightCheck},
 	{Path: "native recovery upgrade", Brief: "upgrade fenced owner native recovery", Mutates: true, JSON: false, Usage: "dacli native recovery upgrade --config <private-file>", Run: func(c *clikit.Ctx, a []string) error { return recoveryOperation(c, a, "upgrade") }},
 	{Path: "native recovery configure", Brief: "configure fenced owner native recovery", Mutates: true, JSON: true, Usage: "dacli native recovery configure --config <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return recoveryOperation(c, a, "configure") }},
 	{Path: "native recovery preview", Brief: "preview fenced owner native recovery", Mutates: false, JSON: true, Usage: "dacli native recovery preview --config <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return recoveryOperation(c, a, "preview") }},
@@ -53,12 +57,14 @@ var Commands = []clikit.Command{
 	{Path: "native revoke", Brief: "Owner-revoke an exact native session using a private explicit owner configuration", Mutates: true, Usage: "dacli native revoke --config <private-file> --session <session-id>", Run: revoke},
 	{Path: "native serve", Brief: "Serve scoped native governance MCP using a private explicit session connection", Usage: "dacli native serve --connection <private-file> [--runner-config <private-file> | --review-config <private-file>]", Run: serve},
 	{Path: "native bootstrap", Brief: "Initialize an absent native authority and privately save its owner credential", Mutates: true, Usage: "dacli native bootstrap --config <private-file>", Run: bootstrap},
-	{Path: "native enroll", Brief: "Owner-enroll a scoped native session for an existing canonical task", Mutates: true, Usage: "dacli native enroll --config <private-file> --task <ref> --connection <new-private-file> --credential <new-private-file> [--path <relative-path>]... [--expires <duration>] [--verification]", Run: enroll},
+	{Path: "native enroll", Brief: "Owner-enroll a scoped native session for an existing canonical task", Mutates: true, Usage: "dacli native enroll --config <private-file> --task <ref> --connection <new-private-file> --credential <new-private-file> [--path <relative-path>]... [--checkout <absolute-checkout>]... [--expires <duration>] [--verification]", Run: enroll},
 }
 
 // AuthenticatesExplicitly lists exactly the handlers exempt from the legacy grant gate.
 func AuthenticatesExplicitly(path string) bool {
 	switch path {
+	case "native preflight upgrade", "native preflight configure", "native preflight override", "native preflight check":
+		return true
 	case "native recovery upgrade", "native recovery configure", "native recovery preview", "native recovery apply":
 		return true
 	case "native lifecycle upgrade", "native lifecycle configure", "native lifecycle controller add", "native lifecycle bridge add", "native lifecycle observe", "native lifecycle cancel", "native lifecycle cancel-ack", "native lifecycle status":
@@ -187,7 +193,7 @@ func bootstrap(ctx *clikit.Ctx, args []string) error {
 	return nil
 }
 func enroll(ctx *clikit.Ctx, args []string) error {
-	f, e := flags(args, "config", "task", "connection", "credential", "path", "expires", "verification")
+	f, e := flags(args, "config", "task", "connection", "credential", "path", "expires", "verification", "checkout")
 	if e != nil {
 		return e
 	}
@@ -222,6 +228,9 @@ func enroll(ctx *clikit.Ctx, args []string) error {
 	if e != nil {
 		return denied()
 	}
+	if a.AuthenticateOwner(owner) != nil {
+		return denied()
+	}
 	task, e := store.FindTask(w, f.Get("task"))
 	if e != nil {
 		return denied()
@@ -236,6 +245,17 @@ func enroll(ctx *clikit.Ctx, args []string) error {
 			return denied()
 		}
 		paths = append(paths, "path:"+p)
+	}
+	for _, path := range f.All("checkout") {
+		canonical, err := filepath.EvalSymlinks(path)
+		if err != nil || !filepath.IsAbs(path) || canonical != path {
+			return denied()
+		}
+		selected, err := checkout.Observe(path)
+		if err != nil || selected.Repository != obs.Repository {
+			return denied()
+		}
+		paths = append(paths, "checkout:"+path)
 	}
 	credential, e := reserve(f.Get("credential"))
 	if e != nil {

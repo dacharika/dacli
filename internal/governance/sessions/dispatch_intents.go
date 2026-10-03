@@ -149,13 +149,25 @@ func (a *Authority) RequestDispatchIntent(token, controllerID string, req Reques
 		if !dispatchBoundActor(s, req.BridgeSessionID, d.ProjectID, "dispatch.correlate", d) || !dispatchBoundActor(s, req.WorkerSessionID, d.ProjectID, "lease.acquire", d) {
 			return ErrDenied
 		}
-		if a.dispatchCapability(s, d) != nil {
+		if s.Version >= 11 && a.dispatchCapability(s, d) != nil {
 			return ErrDenied
 		}
 		if _, e := dispatchActor(s, token, controllerID, d.ProjectID, "swarm.dispatch"); e != nil {
 			return e
 		}
 		if !time.Now().Before(d.Reservation.ExpiresAt) || !dispatchBoundActor(s, req.BridgeSessionID, d.ProjectID, "dispatch.correlate", d) || !dispatchBoundActor(s, req.WorkerSessionID, d.ProjectID, "lease.acquire", d) {
+			return ErrDenied
+		}
+		if e := a.dispatchPreflight(s, d, req.WorkerSessionID); e != nil {
+			return e
+		}
+		if a.dispatchCapability(s, d) != nil {
+			return ErrDenied
+		}
+		if _, e := dispatchActor(s, token, controllerID, d.ProjectID, "swarm.dispatch"); e != nil {
+			return e
+		}
+		if !dispatchBoundActor(s, req.BridgeSessionID, d.ProjectID, "dispatch.correlate", d) || !dispatchBoundActor(s, req.WorkerSessionID, d.ProjectID, "lease.acquire", d) || !time.Now().Before(d.Reservation.ExpiresAt) || !preflightBoundCurrent(s, d) {
 			return ErrDenied
 		}
 		s.DispatchIntents[d.ID] = intent
