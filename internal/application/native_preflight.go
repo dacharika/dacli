@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -216,7 +215,7 @@ func (a *LeaseAdmission) ObservePreflight(workspaceID, project, task string, spe
 			}
 		}
 		o.RunnerRepository = p.Repository
-		if _, e := exec.LookPath("sh"); e != nil {
+		if !store.VerificationInterpreterAvailable() {
 			phase("verification", "unsupported", "local-interpreter-observation", "configured sh-c interpreter unavailable", true, safeDigest(o.Checks))
 		} else {
 			phase("verification-execution", "ready", "owner-manual", "exact bounded shell checks configured; command execution availability is cooperative and no checks are run during preflight", true, safeDigest(o.Checks))

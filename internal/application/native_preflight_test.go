@@ -207,4 +207,21 @@ func TestNativePreflightCanonicalRoleEstimateAndPrivateObservation(t *testing.T)
 		}
 	}
 
+	// The availability observation belongs to the same boundary that executes sh-c.
+	// Empty PATH isolates interpreter availability without running any check.
+	t.Setenv("PATH", t.TempDir())
+	unavailable, e := admission.ObservePreflight(w.ID, "p", task.ID, spec, sessions.SwarmPlacement{Checkout: w.Root})
+	if e != nil {
+		t.Fatal(e)
+	}
+	interpreterRefused := false
+	for _, p := range unavailable.Phases {
+		if p.Phase == "verification" && p.Verdict == "unsupported" && p.Assurance == "local-interpreter-observation" {
+			interpreterRefused = true
+		}
+	}
+	if !interpreterRefused {
+		t.Fatal("missing sh interpreter falsely preflighted as available")
+	}
+
 }
