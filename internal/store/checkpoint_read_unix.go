@@ -4,17 +4,16 @@ package store
 
 import (
 	"fmt"
+	"golang.org/x/sys/unix"
 	"os"
-	"path/filepath"
 	"strings"
-	"syscall"
 )
 
 // Open nonblocking before checking the descriptor: opening a FIFO must not wait
 // for a writer. Children are anchored to an already-open directory descriptor,
 // so replacement of a parent path cannot redirect the observation.
 func checkpointOpen(path string) (*os.File, error) {
-	fd, e := syscall.Open(path, syscall.O_RDONLY|syscall.O_NONBLOCK|syscall.O_NOFOLLOW, 0)
+	fd, e := unix.Open(path, unix.O_RDONLY|unix.O_NONBLOCK|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 	if e != nil {
 		return nil, e
 	}
@@ -24,5 +23,9 @@ func checkpointChild(parent *os.File, name string) (*os.File, error) {
 	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, "/\\") {
 		return nil, fmt.Errorf("invalid checkpoint child")
 	}
-	return checkpointOpen(filepath.Join("/dev/fd", fmt.Sprint(parent.Fd()), name))
+	fd, e := unix.Openat(int(parent.Fd()), name, unix.O_RDONLY|unix.O_NONBLOCK|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	if e != nil {
+		return nil, e
+	}
+	return os.NewFile(uintptr(fd), name), nil
 }

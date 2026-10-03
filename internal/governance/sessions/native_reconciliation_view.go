@@ -1,6 +1,7 @@
 package sessions
 
 import (
+	"errors"
 	"sort"
 	"time"
 )
@@ -316,17 +317,28 @@ func (a *Authority) reconcileCheckpoint(s *state, p CheckpointPolicy, out Checkp
 	if !s.SwarmPolicies[p.ProjectID].Stopped {
 		plan, err := a.planSwarm(s, token, session, p.ProjectID, "swarm.plan")
 		if err != nil {
-			add("policy_refusal", "known", "", p.ProjectID, "fresh shared scheduler/preflight refuses scheduling", false)
+			if errors.Is(err, ErrPreflightTransient) {
+				add("transient_preflight", "unknown", "", p.ProjectID, "use bounded CheckPreflight retries with the original policy and durable retry budget", true)
+			} else {
+				add("policy_refusal", "known", "", p.ProjectID, "fresh shared scheduler/preflight refuses scheduling", false)
+			}
 		} else {
 			planID = plan.ID
 			selected := false
 			resourceConflict := false
+			transientPreflight, permanentPreflight := false, false
 			for _, v := range plan.Verdicts {
-				if v.Preflight != nil {
-					out.PreflightReports = append(out.PreflightReports, *v.Preflight)
-				}
 				if !checkpointTask(p, v.TaskID) {
 					continue
+				}
+				if v.Preflight != nil {
+					out.PreflightReports = append(out.PreflightReports, *v.Preflight)
+					if v.Preflight.FailureClass != "" {
+						transient := v.Preflight.FailureClass == "transient"
+						transientPreflight = transientPreflight || transient
+						permanentPreflight = permanentPreflight || !transient
+						out.Diagnostics = append(out.Diagnostics, CheckpointFinding{Class: "candidate_preflight", Knowledge: "known", TaskID: v.TaskID, Reference: v.TaskID, Retryable: transient, NextAction: "inspect this excluded candidate's typed preflight report; healthy selected backfill remains eligible"})
+					}
 				}
 				if v.Selected {
 					selected = true
@@ -337,8 +349,12 @@ func (a *Authority) reconcileCheckpoint(s *state, p CheckpointPolicy, out Checkp
 				}
 			}
 			if !selected && len(out.Findings) == 0 {
-				if resourceConflict {
+				if permanentPreflight {
+					add("policy_refusal", "known", "", p.ProjectID, "owner must repair permanent selected-candidate preflight failures before a bounded retry", false)
+				} else if resourceConflict {
 					add("resource_conflict", "known", "", p.ProjectID, "preserve occupied protections; no safe task can be selected", false)
+				} else if transientPreflight {
+					add("transient_preflight", "unknown", "", p.ProjectID, "use bounded CheckPreflight retries with the original policy and durable retry budget", true)
 				} else {
 					add("no_schedulable_work", "known", "", p.ProjectID, "wait for a genuine canonical readiness or resource change", true)
 				}

@@ -477,3 +477,46 @@ func TestNativeCheckpointFinalObserverCannotPersistAfterControllerExpiry(t *test
 		t.Fatal(e)
 	}
 }
+
+func TestNativeCheckpointTransientPreflightTypedAndPermanentDominance(t *testing.T) {
+	f, ad, _ := checkpointSetup(t)
+	for task, o := range ad.observations {
+		o.Phases = append(o.Phases, PreflightPhase{Phase: "integration", Verdict: "transient", Required: true, Assurance: "owner-manual", Remediation: "refresh transient infrastructure"})
+		ad.observations[task] = o
+	}
+	transient, e := f.a.ReconcileCheckpoint(f.token, f.s.ID, checkpointRequest("transient-one", "inv-transient", 0))
+	if e != nil || transient.HaltClass != "transient_preflight" || !transient.Retryable || transient.WaveAllowed {
+		t.Fatalf("transient-only preflight must retain bounded retry diagnosis: %+v %v", transient, e)
+	}
+	o := ad.observations["task-c"]
+	o.Implementation.MaxPoints = 3
+	ad.observations["task-c"] = o
+	permanent, e := f.a.ReconcileCheckpoint(f.token, f.s.ID, checkpointRequest("permanent-two", "inv-permanent", transient.Sequence))
+	if e != nil || permanent.HaltClass != "policy_refusal" || permanent.Retryable || permanent.WaveAllowed {
+		t.Fatalf("permanent candidate preflight must dominate mixed transient: %+v %v", permanent, e)
+	}
+}
+
+func TestNativeCheckpointPermanentRetainedProtectionDominatesTransientObserver(t *testing.T) {
+	f, ad, _ := checkpointSetup(t)
+	status, e := f.a.ReconcileCheckpoint(f.token, f.s.ID, checkpointRequest("ready", "inv-ready", 0))
+	if e != nil {
+		t.Fatal(e)
+	}
+	plan, e := f.a.PlanSwarm(f.token, f.s.ID, "project")
+	if e != nil {
+		t.Fatal(e)
+	}
+	_, e = f.a.ReserveWave(f.token, f.s.ID, ReserveWaveRequest{OperationKey: "retained-wave", Plan: plan, ExpiresAt: time.Now().Add(time.Minute), CheckpointID: status.ID, CheckpointSequence: status.Sequence, InvocationID: status.InvocationID, ReconciliationDigest: status.ConditionDigest})
+	if e != nil {
+		t.Fatal(e)
+	}
+	ad.findings = []CheckpointFinding{{Class: "transient_infrastructure", Knowledge: "unknown", Reference: "project", Retryable: true, NextAction: "restore trunk observation"}}
+	halted, e := f.a.ReconcileCheckpoint(f.token, f.s.ID, checkpointRequest("mixed", "inv-mixed", status.Sequence+1))
+	if e != nil || halted.Retryable || halted.WaveAllowed || halted.HaltClass != "retained_resources" {
+		t.Fatalf("permanent retained protection must dominate transient observer failure: %+v %v", halted, e)
+	}
+	if !hasCheckpointFinding(halted, "transient_infrastructure") {
+		t.Fatal("transient observation diagnostics must remain visible")
+	}
+}

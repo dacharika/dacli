@@ -3,6 +3,7 @@ package store
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"github.com/mlnomadpy/dacli/internal/eventdisp"
 	"github.com/mlnomadpy/dacli/internal/mdstore"
 	"github.com/mlnomadpy/dacli/internal/model"
+	"github.com/mlnomadpy/dacli/internal/team"
 	"github.com/mlnomadpy/dacli/internal/workspace"
 )
 
@@ -30,7 +32,7 @@ func (r *checkpointReader) directory(f *os.File) ([]os.DirEntry, error) {
 		return nil, fmt.Errorf("checkpoint directory unavailable")
 	}
 	entries, e := f.ReadDir(checkpointMaxEntries - r.entries + 1)
-	if e != nil && e != io.EOF {
+	if e != nil && !errors.Is(e, io.EOF) {
 		return nil, e
 	}
 	r.entries += len(entries)
@@ -309,6 +311,8 @@ func CheckpointLocalProjection(w *workspace.Workspace, project string, tasks []*
 		if payload.SchemaVersion == 1 && event.kind == string(model.EventDismissal) && event.applied == "true" && event.about != "" && checksum == eventdisp.Checksum(payload) {
 			dismissed[event.about] = true
 		}
+	}
+	for _, event := range events {
 		task := allowed[event.about]
 		if task == nil || event.applied != "false" || dismissed[event.id] {
 			continue
@@ -363,4 +367,46 @@ func CheckpointLocalProjection(w *workspace.Workspace, project string, tasks []*
 	}
 	sort.Slice(p.Findings, func(i, j int) bool { return p.Findings[i].ID < p.Findings[j].ID })
 	return p, nil
+}
+
+// ReadCheckpointRoles reuses the canonical role parser on finite descriptor-
+// checked bytes. A malformed role cannot disappear from native preflight.
+func ReadCheckpointRoles(w *workspace.Workspace) ([]team.Role, error) {
+	r := checkpointReader{}
+	root, e := checkpointOpen(w.RolesDir())
+	if os.IsNotExist(e) {
+		return nil, nil
+	}
+	if e != nil {
+		return nil, e
+	}
+	defer func() { _ = root.Close() }()
+	entries, e := r.directory(root)
+	if e != nil {
+		return nil, e
+	}
+	out := []team.Role{}
+	for _, entry := range entries {
+		if !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+		raw, e := r.childBytes(root, entry.Name())
+		if e != nil {
+			return nil, e
+		}
+		doc, e := mdstore.Parse(string(raw))
+		if e != nil {
+			return nil, e
+		}
+		kind, _ := doc.Front.Get("kind")
+		if kind != "role" {
+			return nil, fmt.Errorf("invalid checkpoint role")
+		}
+		name := strings.TrimSuffix(entry.Name(), ".md")
+		if !workspace.SafeSegment(name) {
+			return nil, fmt.Errorf("invalid checkpoint role path")
+		}
+		out = append(out, parseRole(doc, name))
+	}
+	return out, nil
 }

@@ -11,24 +11,21 @@ func (a *LeaseAdmission) ObserveCheckpoint(w, project string, tasks []string) (s
 	}
 	snapshot, e := a.ObserveSwarm(w, project)
 	if e != nil {
-		return sessions.CheckpointObservation{Digest: safeDigest([]string{project, "canonical-unavailable"}), Findings: []sessions.CheckpointFinding{{Class: "inconsistent_task_record", Knowledge: "unknown", Reference: project, NextAction: "repair canonical duplicates, malformed records or dependency graph"}}}, nil
+		return checkpointObservedUnknown(sessions.CheckpointObservation{Digest: safeDigest([]string{project, "canonical-unavailable"}), Findings: []sessions.CheckpointFinding{{Class: "inconsistent_task_record", Knowledge: "unknown", Reference: project, NextAction: "repair canonical duplicates, malformed records or dependency graph"}}})
 	}
 	canonical, projectErr := store.ReadCheckpointCanonical(&a.workspace)
 	projectRecord := canonical.Projects[project]
 	if projectErr != nil || projectRecord == nil {
-		return sessions.CheckpointObservation{Digest: safeDigest(snapshot), Findings: []sessions.CheckpointFinding{{Class: "inconsistent_task_record", Knowledge: "unknown", Reference: project, NextAction: "restore bounded readable canonical task/project records"}}}, nil
+		return checkpointObservedUnknown(sessions.CheckpointObservation{Digest: safeDigest(snapshot), Findings: []sessions.CheckpointFinding{{Class: "inconsistent_task_record", Knowledge: "unknown", Reference: project, NextAction: "restore bounded readable canonical task/project records"}}})
 	}
-	base := ""
-	if projectErr == nil {
-		base = projectRecord.Landing.Base
-	}
+	base := projectRecord.Landing.Base
 	trunkRef, trunkCommit, gitErr := sessions.ObserveCheckpointTrunk(a.workspace.Root, base)
-	if projectErr != nil || gitErr != nil {
-		return sessions.CheckpointObservation{Digest: safeDigest(snapshot), Findings: []sessions.CheckpointFinding{{Class: "transient_infrastructure", Knowledge: "unknown", Reference: project, NextAction: "restore the configured local landing base ref; workspace HEAD is not trunk", Retryable: true}}}, nil
+	if gitErr != nil {
+		return checkpointObservedUnknown(sessions.CheckpointObservation{Digest: safeDigest(snapshot), Findings: []sessions.CheckpointFinding{{Class: "transient_infrastructure", Knowledge: "unknown", Reference: project, NextAction: "restore the configured local landing base ref; workspace HEAD is not trunk", Retryable: true}}})
 	}
 	projection, e := store.CheckpointLocalProjection(&a.workspace, project, canonical.Tasks, tasks)
 	if e != nil {
-		return sessions.CheckpointObservation{Digest: safeDigest(snapshot), Trunk: trunkCommit, TrunkRef: trunkRef, Findings: []sessions.CheckpointFinding{{Class: "inconsistent_task_record", Knowledge: "unknown", Reference: project, NextAction: "restore readable local task/event/run projection"}}}, nil
+		return checkpointObservedUnknown(sessions.CheckpointObservation{Digest: safeDigest(snapshot), Trunk: trunkCommit, TrunkRef: trunkRef, Findings: []sessions.CheckpointFinding{{Class: "inconsistent_task_record", Knowledge: "unknown", Reference: project, NextAction: "restore readable local task/event/run projection"}}})
 	}
 	findings := []sessions.CheckpointFinding{}
 	for _, f := range projection.Findings {
@@ -53,6 +50,13 @@ func (a *LeaseAdmission) ObserveCheckpoint(w, project string, tasks []string) (s
 		Snapshot      sessions.SwarmSnapshot
 		Local         store.DeliveryProjection
 	}{trunkRef, projectRecord.Landing, snapshot, projection}), Trunk: trunkCommit, TrunkRef: trunkRef, Findings: findings}, nil
+}
+
+// checkpointObservedUnknown translates a failed local observation into a
+// successful typed observation of uncertainty. Returning the transport error
+// would discard the scoped blocker and its remedy; it must never imply ready.
+func checkpointObservedUnknown(observation sessions.CheckpointObservation) (sessions.CheckpointObservation, error) {
+	return observation, nil
 }
 
 type NativeCheckpointOwner struct{ owner *NativePreflightOwner }

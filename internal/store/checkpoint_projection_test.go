@@ -169,10 +169,10 @@ func TestCheckpointBoundedCanonicalDuplicatesAndScopedEventDismissal(t *testing.
 	if e != nil || len(p.Findings) != 1 || p.Findings[0].ObjectID != "01" || p.Findings[0].Classification != "terminal-task-event" {
 		t.Fatal(p, e)
 	}
-	write("02", "dismissal", "01", "true")
+	write("00-earlier-dismissal", "dismissal", "01", "true")
 	p, e = CheckpointLocalProjection(w, "p", []*Task{task}, []string{task.ID})
 	if e != nil || len(p.Findings) != 0 {
-		t.Fatalf("integrity-valid dismissal must preserve terminal event semantics: %+v %v", p, e)
+		t.Fatalf("integrity-valid dismissal with earlier filename must preserve terminal event semantics: %+v %v", p, e)
 	}
 }
 
@@ -199,5 +199,65 @@ func TestCheckpointBoundedReaderDescriptorGuardsBeforeParsing(t *testing.T) {
 				t.Fatal("bounded descriptor must refuse nonregular or oversized bytes before parsing")
 			}
 		})
+	}
+}
+
+func TestCheckpointBoundedOpenatPinsDirectoryAndRefusesTraversal(t *testing.T) {
+	parent := t.TempDir()
+	dir := filepath.Join(parent, "original")
+	if e := os.Mkdir(dir, 0700); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.WriteFile(filepath.Join(dir, "record"), []byte("original"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	f, e := checkpointOpen(dir)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer func() { _ = f.Close() }()
+	if e := os.Rename(dir, filepath.Join(parent, "retained")); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.Mkdir(dir, 0700); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.WriteFile(filepath.Join(dir, "record"), []byte("replacement"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	r := checkpointReader{}
+	raw, e := r.childBytes(f, "record")
+	if e != nil || string(raw) != "original" {
+		t.Fatalf("held directory must bind child read despite parent-path replacement: %q %v", raw, e)
+	}
+	for _, name := range []string{"../record", "/record", "..", "."} {
+		if child, e := checkpointChild(f, name); e == nil {
+			_ = child.Close()
+			t.Fatalf("checkpoint child traversal must refuse: %q", name)
+		}
+	}
+}
+func TestCheckpointBoundedRoleFIFOAndActualEventDepthRefuse(t *testing.T) {
+	w, task := checkpointFixture(t)
+	if e := os.MkdirAll(w.RolesDir(), 0755); e != nil {
+		t.Fatal(e)
+	}
+	path := w.RolePath("fifo")
+	if e := syscall.Mkfifo(path, 0600); e != nil {
+		t.Fatal(e)
+	}
+	start := time.Now()
+	if _, e := ReadCheckpointRoles(w); e == nil || time.Since(start) > time.Second {
+		t.Fatal("native canonical role FIFO must refuse without waiting", e)
+	}
+	dir := w.EventsDir()
+	for i := 0; i < checkpointMaxDepth+1; i++ {
+		dir = filepath.Join(dir, "level")
+	}
+	if e := os.MkdirAll(dir, 0755); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := CheckpointLocalProjection(w, "p", []*Task{task}, []string{task.ID}); e == nil {
+		t.Fatal("actual nested event tree beyond finite depth must refuse")
 	}
 }

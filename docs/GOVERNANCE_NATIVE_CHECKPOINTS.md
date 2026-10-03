@@ -47,6 +47,28 @@ before returning any linked record. Public projections expose IDs, states,
 fences and remedies, never raw authority records, credential hashes, commands or
 private profile paths.
 
+Canonical task/project and local event/run snapshots use descriptor-first,
+nonblocking, no-follow reads anchored with Unix `openat`. Limits are20,000
+entries,256KiB per file,32MiB per snapshot and event-directory depth8. FIFO,
+symlink, nonregular, oversized, malformed and duplicate canonical records fail
+closed with unknown diagnostics. Other platforms report observation unsupported.
+The local projection does not probe legacy process liveness or infer stopped
+writers. Only scoped task/run/event IDs reach public diagnostics; a corrupt
+unrelated file can invalidate the opaque snapshot without exposing its identity.
+The observed trunk is the configured local landing base ref, never the workspace
+feature HEAD. No network, user commands, filters or hooks run in this adapter.
+
+Schema12 verification producers persist exact scoped operation bindings before
+execution, so an omitted reference cannot hide a pending operation. Legacy pending
+operations without bindings remain unknown until an original digest-bound
+reference identifies them. Current review eligibility is rechecked independently
+of historical proposal presence. An authenticated owner recovery decision can
+retire an old protection and explain historical ineligible diagnostics; replacement
+producer evidence must be independently current. Recovery never turns old evidence
+into completion, and old IDs/fences remain in checkpoint history. Genuine canonical
+readiness changes and audited owner recovery can count as progress; adding duplicate
+references or changing timestamps cannot reset the no-progress bound.
+
 Only a fresh `pre-cycle` reconciliation can authorize one new reservation. The
 `native swarm reserve` request additionally supplies `CheckpointID`,
 `CheckpointSequence`, `InvocationID`, `ReconciliationDigest`. The same authority

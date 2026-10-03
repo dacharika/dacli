@@ -322,6 +322,9 @@ func (a *Authority) checkpointBounds(out *CheckpointStatus, p CheckpointPolicy, 
 		class = "no_progress"
 		remedy = "observe a genuine producer or trunk change; bookkeeping cannot reset this counter"
 	}
+	// Permanent blockers dominate transient observations. Preserve stable source
+	// order within each class; STOP and durable bounds are always prepended.
+	sort.SliceStable(out.Findings, func(i, j int) bool { return !out.Findings[i].Retryable && out.Findings[j].Retryable })
 	if class != "" {
 		out.Findings = append([]CheckpointFinding{{Class: class, Knowledge: "known", NextAction: remedy}}, out.Findings...)
 	}
