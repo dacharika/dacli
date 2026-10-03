@@ -57,6 +57,28 @@ func validID(id string) bool {
 	return id != "" && len(id) <= 256 && strings.TrimSpace(id) == id && !strings.ContainsAny(id, "/\\\x00\r\n")
 }
 
+// OwnerTaskBinding freshly reads an existing owner-attested reference without
+// changing admission policy. Runner setup must not enable a disabled task as a
+// side effect of obtaining its repository identity.
+func (a *Authority) OwnerTaskBinding(owner, taskID string) (TaskBinding, error) {
+	var binding TaskBinding
+	err := a.transaction(false, false, func(s *state) error {
+		if len(owner) != 64 || hash(owner) != s.OwnerHash {
+			return ErrDenied
+		}
+		var ok bool
+		binding, ok = s.Tasks[taskID]
+		if !ok {
+			return ErrDenied
+		}
+		return nil
+	})
+	if err != nil {
+		return TaskBinding{}, err
+	}
+	return binding, nil
+}
+
 // BindTask requires owner credentials. Existing references are immutable except
 // admission policy, so a task cannot silently change repository or project identity.
 func (a *Authority) BindTask(owner string, b TaskBinding) error {

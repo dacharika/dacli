@@ -325,8 +325,20 @@ requests. It preserves private files and prior work and does not stop host proce
 `native upgrade` authenticates the explicit owner file and migrates only schema
 5 to 6, preserving credentials and history; unsupported or already-target
 authorities refuse without reset.
+`native verifier add` authenticates the explicit private owner configuration and
+reads an existing task binding without changing admission. It issues a separate
+task-scoped runner and named verification grants, saving the profile and credential
+only into new private files. Descriptors, output size and file reservations are
+validated before issuance; later interruption preserves issued authority and
+recovery IDs for owner revocation, rather than rolling back unknown outcomes.
+`native verify` authenticates the explicit worker and runner profiles and requests
+only an owner-configured named check for the exact current revision, lease and
+fence. It executes through the bounded trusted runner and records typed evidence;
+neither raw output nor credentials are printed. Completed retries recover receipts
+without rerunning; pending outcomes require reconciliation. It does not accept a
+worker-selected command or upgrade self-reported evidence.
 These exact commands use native authority instead of the ambient legacy grant.
-These owner commands refuse invocation through MCP tools. Help remains a read.
+These native commands refuse invocation through MCP tools. Help remains a read.
 None replaces existing credentials or resets storage. Revoke sessions through the owning authority workflow; retain authority
 history and reconcile interrupted issuance rather than deleting the workspace.
 See [native MCP setup](GOVERNANCE_NATIVE_MCP.md) for private-file requirements and
