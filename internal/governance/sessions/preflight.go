@@ -130,7 +130,7 @@ func validPreflightPolicy(p PreflightPolicy) bool {
 func (a *Authority) ConfigurePreflight(owner string, p PreflightPolicy) error {
 	p.ExpiresAt = p.ExpiresAt.UTC()
 	return a.transaction(false, true, func(s *state) error {
-		if s.Version != 11 || len(owner) != 64 || hash(owner) != s.OwnerHash || !validPreflightPolicy(p) {
+		if s.Version < 11 || len(owner) != 64 || hash(owner) != s.OwnerHash || !validPreflightPolicy(p) {
 			return ErrDenied
 		}
 		swarm, ok := s.SwarmPolicies[p.ProjectID]
@@ -166,7 +166,7 @@ func (a *Authority) preflight(s *state, project, task, impl, review, worker stri
 		report.Phases = append(report.Phases, PreflightPhase{Phase: phase, Verdict: reason, Required: true, Assurance: "cooperative-current-authority", Remediation: remedy})
 	}
 	observer, available := a.admission.(PreflightObserver)
-	if s.Version != 11 || !ok || !present || !time.Now().Before(p.ExpiresAt) || !available {
+	if s.Version < 11 || !ok || !present || !time.Now().Before(p.ExpiresAt) || !available {
 		fail("policy", "policy_refused", "owner must configure a fresh complete-loop preflight policy")
 		report.FailureClass = "permanent"
 		completePreflightPhases(&report)
@@ -361,7 +361,7 @@ func (a *Authority) preflight(s *state, project, task, impl, review, worker stri
 func (a *Authority) OverrideCapacity(owner string, req CapacityOverrideRequest) (CapacityOverride, error) {
 	var result CapacityOverride
 	e := a.transaction(false, true, func(s *state) error {
-		if s.Version != 11 || len(owner) != 64 || hash(owner) != s.OwnerHash || !validID(req.ID) || strings.TrimSpace(req.Reason) == "" || len(req.Reason) > 8192 || !time.Now().Before(req.ExpiresAt) {
+		if s.Version < 11 || len(owner) != 64 || hash(owner) != s.OwnerHash || !validID(req.ID) || strings.TrimSpace(req.Reason) == "" || len(req.Reason) > 8192 || !time.Now().Before(req.ExpiresAt) {
 			return ErrDenied
 		}
 		p := s.PreflightPolicies[req.ProjectID]
@@ -400,7 +400,7 @@ func (a *Authority) OverrideCapacity(owner string, req CapacityOverrideRequest) 
 func (a *Authority) CheckPreflight(token, session, project, task, key string) (PreflightReceipt, error) {
 	var result PreflightReceipt
 	e := a.transaction(false, true, func(s *state) error {
-		if actor, e := controller(s, token, session, project, "swarm.plan"); s.Version != 11 || e != nil || !validID(key) || !validID(task) || !subset([]string{"task:" + task}, actor.Scope.Resources) {
+		if actor, e := controller(s, token, session, project, "swarm.plan"); s.Version < 11 || e != nil || !validID(key) || !validID(task) || !subset([]string{"task:" + task}, actor.Scope.Resources) {
 			return ErrDenied
 		}
 		digest := identity("preflight.check", session, struct{ Project, Task string }{project, task})

@@ -53,28 +53,23 @@ func (a *LeaseAdmission) ObservePreflight(workspaceID, project, task string, spe
 	phase := func(name, verdict, assurance, remedy string, required bool, evidence string) {
 		o.Phases = append(o.Phases, sessions.PreflightPhase{Phase: name, Verdict: verdict, Assurance: assurance, Required: required, EvidenceDigest: evidence, Remediation: remedy})
 	}
-	tasks, e := store.ListTasks(&a.workspace, project, "")
+	canonical, e := store.ReadCheckpointCanonical(&a.workspace)
 	if e != nil {
 		return o, e
 	}
 	var found *store.Task
-	for i := range tasks {
-		if tasks[i].ID == task {
+	for i := range canonical.Tasks {
+		if canonical.Tasks[i].ID == task && canonical.Tasks[i].Project == project {
 			if found != nil {
 				return o, sessions.ErrDenied
 			}
-			found = tasks[i]
+			found = canonical.Tasks[i]
 		}
 	}
 	if found == nil {
 		return o, sessions.ErrDenied
 	}
-	raw, e := os.ReadFile(found.Path)
-	if e != nil {
-		return o, e
-	}
-	d := sha256.Sum256(raw)
-	o.TaskDigest = hex.EncodeToString(d[:])
+	o.TaskDigest = canonical.Digests[found.ID]
 	o.ClaimsDigest = safeDigest(found.Claims())
 	for _, claim := range found.Claims() {
 		o.ClaimResources = append(o.ClaimResources, "path:"+claim)
@@ -83,7 +78,7 @@ func (a *LeaseAdmission) ObservePreflight(workspaceID, project, task string, spe
 		o.Required = estimate.Expected()
 		o.Sized = true
 	}
-	roles, e := store.LoadRoles(&a.workspace)
+	roles, e := store.ReadCheckpointRoles(&a.workspace)
 	if e != nil {
 		return o, e
 	}

@@ -2,7 +2,6 @@ package application
 
 import (
 	"path/filepath"
-	"strings"
 
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
 	"github.com/mlnomadpy/dacli/internal/store"
@@ -32,19 +31,11 @@ func (o *NativeReviewObserver) ObserveReview(workspaceID, project, task string) 
 	if o == nil || workspaceID != o.workspace.ID {
 		return sessions.ReviewObservation{}, sessions.ErrDenied
 	}
-	tasks, err := store.ListTasks(&o.workspace, "", "")
+	canonical, err := store.ReadCheckpointCanonical(&o.workspace)
 	if err != nil {
-		return sessions.ReviewObservation{}, err
-	}
-	duplicates, err := store.DuplicateTaskFiles(&o.workspace)
-	if err != nil || len(duplicates) != 0 {
 		return sessions.ReviewObservation{}, sessions.ErrDenied
 	}
-	for _, broken := range store.BrokenTaskFiles() {
-		if strings.HasPrefix(broken.Path, o.workspace.Root+string(filepath.Separator)) {
-			return sessions.ReviewObservation{}, sessions.ErrDenied
-		}
-	}
+	tasks := canonical.Tasks
 	var selected *store.Task
 	for _, t := range tasks {
 		if t.ID == task {

@@ -55,7 +55,13 @@ type Lease struct {
 	ExpiresAt  time.Time
 	Released   bool
 }
+type CheckpointVerificationBinding struct {
+	ProjectID, TaskID, RunnerSession, DescriptorDigest string
+	Request                                            VerificationRequest
+}
+
 type operation struct {
+	CheckpointVerification *CheckpointVerificationBinding `json:",omitempty"`
 	Digest                 string
 	PublicationDecision    *PublicationDecision    `json:",omitempty"`
 	PublicationConsumption *PublicationConsumption `json:",omitempty"`

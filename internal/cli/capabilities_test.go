@@ -18,7 +18,9 @@ import (
 // registry projection below. A command/flag/tool addition or removal must be
 // reviewed as a compatibility-surface change and deliberately update it.
 // This projection includes owner migration and excludes legacy provider launchers.
-const capabilityRegistryGolden = "1f67fd1d2786ff7bfb6e34d78e342e1d7e65983b0f059ae971649040e5ff9885"
+// The six checkpoint commands preserve owner/controller mutation boundaries;
+// configure, record, reconcile and status emit typed JSON.
+const capabilityRegistryGolden = "2c0a141c5fa2e97c032f4e267abf4cbc9cf8a2485a0eab906b715c518a761bc4"
 
 func TestCapabilityRegistryGolden(t *testing.T) {
 	m := capabilityManifest()

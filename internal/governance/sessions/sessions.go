@@ -47,6 +47,11 @@ type record struct {
 	Hash string
 }
 type state struct {
+	CheckpointPolicies      map[string]CheckpointPolicy
+	CheckpointPolicyHistory map[string]map[string]CheckpointPolicy
+	Checkpoints             map[string][]CheckpointStatus
+	CheckpointOperations    map[string]CheckpointReceipt
+
 	PreflightPolicies      map[string]PreflightPolicy
 	PreflightPolicyHistory map[string]map[string]PreflightPolicy
 	CapacityOverrides      map[string]CapacityOverride
@@ -209,7 +214,7 @@ func (a *Authority) transaction(create bool, write bool, fn func(*state) error) 
 		}
 	} else {
 		s = state{}
-		if err != nil || json.Unmarshal(data, &s) != nil || (s.Version != a.version && !((a.version >= 6 && a.version <= 10) && s.Version >= a.version && s.Version <= 11)) || s.Binding != a.binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version >= 3 && (s.Leases == nil || s.Operations == nil)) || (s.Version >= 4 && (s.Revisions == nil || s.Grants == nil || s.Evidence == nil)) || (s.Version >= 5 && (s.ReviewGrants == nil || s.Reviews == nil)) || (s.Version >= 6 && (s.PublicationPolicies == nil || s.PublicationDecisions == nil || s.PublicationConsumed == nil)) {
+		if err != nil || json.Unmarshal(data, &s) != nil || (s.Version != a.version && !((a.version >= 6 && a.version <= 11) && s.Version >= a.version && s.Version <= 12)) || s.Binding != a.binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version >= 3 && (s.Leases == nil || s.Operations == nil)) || (s.Version >= 4 && (s.Revisions == nil || s.Grants == nil || s.Evidence == nil)) || (s.Version >= 5 && (s.ReviewGrants == nil || s.Reviews == nil)) || (s.Version >= 6 && (s.PublicationPolicies == nil || s.PublicationDecisions == nil || s.PublicationConsumed == nil)) {
 			return ErrStorage
 		}
 	}
@@ -237,6 +242,20 @@ func (a *Authority) transaction(create bool, write bool, fn func(*state) error) 
 	if s.Version >= 10 && (s.RecoveryPolicies == nil || s.RecoveryPolicyHistory == nil || s.Recoveries == nil || s.RecoveryOperations == nil) {
 		return ErrStorage
 	}
+	if s.Version < 12 {
+		for _, op := range s.Operations {
+			if op.CheckpointVerification != nil {
+				return ErrDenied
+			}
+		}
+	}
+	if s.Version < 12 && (s.CheckpointPolicies != nil || s.CheckpointPolicyHistory != nil || s.Checkpoints != nil || s.CheckpointOperations != nil) {
+		return ErrDenied
+	}
+	if s.Version >= 12 && (s.CheckpointPolicies == nil || s.CheckpointPolicyHistory == nil || s.Checkpoints == nil || s.CheckpointOperations == nil) {
+		return ErrDenied
+	}
+
 	if s.Version < 11 && (s.PreflightPolicies != nil || s.PreflightPolicyHistory != nil || s.CapacityOverrides != nil || s.PreflightOperations != nil || s.PreflightRetryBudgets != nil) {
 		return ErrStorage
 	}

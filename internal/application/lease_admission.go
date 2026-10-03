@@ -6,7 +6,6 @@ import (
 	"github.com/mlnomadpy/dacli/internal/store"
 	"github.com/mlnomadpy/dacli/internal/workspace"
 	"path/filepath"
-	"strings"
 )
 
 // LeaseAdmission reads only the explicitly owner-selected workspace. Markdown
@@ -28,22 +27,11 @@ func (a *LeaseAdmission) AdmitLease(workspaceID, project, task string) error {
 	if a == nil || workspaceID != a.workspace.ID {
 		return sessions.ErrDenied
 	}
-	tasks, err := store.ListTasks(&a.workspace, "", "")
+	canonical, err := store.ReadCheckpointCanonical(&a.workspace)
 	if err != nil {
-		return err
-	}
-	dups, err := store.DuplicateTaskFiles(&a.workspace)
-	if err != nil {
-		return err
-	}
-	if len(dups) != 0 {
 		return sessions.ErrDenied
 	}
-	for _, broken := range store.BrokenTaskFiles() {
-		if strings.HasPrefix(broken.Path, a.workspace.Root+string(filepath.Separator)) {
-			return sessions.ErrDenied
-		}
-	}
+	tasks := canonical.Tasks
 	count := 0
 	index := -1
 	for i, t := range tasks {

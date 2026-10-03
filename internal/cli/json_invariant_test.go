@@ -20,6 +20,7 @@ import (
 // so no command can quietly claim --json support. Adding an entry is the
 // deliberate act that says "I checked: this command honors --json."
 var jsonHonoringCommands = map[string]bool{
+	"native checkpoint configure": true, "native checkpoint record": true, "native checkpoint reconcile": true, "native checkpoint status": true,
 	"native preflight configure": true, "native preflight override": true, "native preflight check": true,
 	"native recovery configure":   true,
 	"native recovery preview":     true,
