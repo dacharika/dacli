@@ -434,3 +434,15 @@ read. Cooperative terminal reports require explicit owner acceptance; manual
 reconciliation records uncertainty, release risk and rationale. Recovery preserves
 original dispatch/lifecycle bindings and withdraws old-worker task authority before
 matched protection release. See [native recovery](GOVERNANCE_NATIVE_RECOVERY.md).
+
+`native preflight upgrade` explicitly migrates10→11 with all prior history intact.
+`native preflight configure` selects owner-private role/profile inputs and accepts
+precise manual assurance. `native preflight override` records a reasoned expiring
+size-only exact task/role waiver; it cannot waive grants, concurrency or readiness.
+`native preflight check` records a scoped controller's versioned complete-phase
+report and bounded transient retry count, using existing `swarm.plan` scope.
+Private hashes remain internal and are excluded from public proof digests. Preview,
+reservation, first native intent and handoff share fresh checks. Required unavailable
+integration/accounting/enforced token controls halt before implementation; optional
+controls stay visibly unsupported. These local commands add no MCP tools or host
+launchers. See [native preflight](GOVERNANCE_NATIVE_PREFLIGHT.md).

@@ -18,7 +18,7 @@ import (
 // registry projection below. A command/flag/tool addition or removal must be
 // reviewed as a compatibility-surface change and deliberately update it.
 // This projection includes owner migration and excludes legacy provider launchers.
-const capabilityRegistryGolden = "ef0b9364aff841471665b7406819c13af2d36800edf02cfa3c5abafc98d9f7f7"
+const capabilityRegistryGolden = "1f67fd1d2786ff7bfb6e34d78e342e1d7e65983b0f059ae971649040e5ff9885"
 
 func TestCapabilityRegistryGolden(t *testing.T) {
 	m := capabilityManifest()

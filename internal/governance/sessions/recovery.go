@@ -53,7 +53,7 @@ func (a *Authority) UpgradeRecovery(owner string) error {
 }
 func (a *Authority) ConfigureRecovery(owner string, p RecoveryPolicy) error {
 	return a.transaction(false, true, func(s *state) error {
-		if s.Version != 10 || len(owner) != 64 || hash(owner) != s.OwnerHash || p.SchemaVersion != 1 || !validID(p.ProjectID) || !validID(p.Revision) || strings.TrimSpace(p.Rationale) == "" || len(p.Rationale) > 8192 {
+		if s.Version < 10 || len(owner) != 64 || hash(owner) != s.OwnerHash || p.SchemaVersion != 1 || !validID(p.ProjectID) || !validID(p.Revision) || strings.TrimSpace(p.Rationale) == "" || len(p.Rationale) > 8192 {
 			return ErrDenied
 		}
 		if _, ok := s.SwarmPolicies[p.ProjectID]; !ok {
@@ -132,7 +132,7 @@ func recoveryTarget(s *state, kind, id string) (RecoveryTarget, Lease, error) {
 func (a *Authority) OwnerRecoveryTarget(owner, kind, id string) (RecoveryTarget, error) {
 	var t RecoveryTarget
 	e := a.transaction(false, false, func(s *state) error {
-		if s.Version != 10 || len(owner) != 64 || hash(owner) != s.OwnerHash {
+		if s.Version < 10 || len(owner) != 64 || hash(owner) != s.OwnerHash {
 			return ErrDenied
 		}
 		var e error
@@ -182,7 +182,7 @@ func (a *Authority) Recover(owner string, req RecoveryRequest) (RecoveryReceipt,
 	var result RecoveryReceipt
 	e := a.transaction(false, true, func(s *state) error {
 		// Authenticate even historical receipt reads; session/controller grants never substitute.
-		if s.Version != 10 || len(owner) != 64 || hash(owner) != s.OwnerHash || !validID(req.OperationKey) {
+		if s.Version < 10 || len(owner) != 64 || hash(owner) != s.OwnerHash || !validID(req.OperationKey) {
 			return ErrDenied
 		}
 		b, _ := json.Marshal(req)

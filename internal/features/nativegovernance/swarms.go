@@ -305,7 +305,7 @@ func swarmOperation(ctx *clikit.Ctx, args []string, kind string) error {
 		}
 	}
 	if e != nil {
-		return clikit.Refusedf("native swarm admission refused: scope, plan, resources, current owner policy or fresh manual-handoff capability unavailable")
+		return nativePreflightFailure(e, "native swarm admission refused: scope, plan, resources, current owner policy or fresh manual-handoff capability unavailable")
 	}
 	return json.NewEncoder(ctx.Stdout).Encode(result)
 }
