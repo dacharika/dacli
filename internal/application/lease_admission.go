@@ -2,6 +2,7 @@ package application
 
 import (
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
+	"github.com/mlnomadpy/dacli/internal/model"
 	"github.com/mlnomadpy/dacli/internal/store"
 	"github.com/mlnomadpy/dacli/internal/workspace"
 	"path/filepath"
@@ -41,16 +42,27 @@ func (a *LeaseAdmission) AdmitLease(workspaceID, project, task string) error {
 		}
 	}
 	count := 0
-	for _, t := range tasks {
+	index := -1
+	for i, t := range tasks {
 		if t.ID == task {
 			if t.Project != project {
 				return sessions.ErrDenied
 			}
 			count++
+			index = i
 		}
 	}
 	if count != 1 {
 		return sessions.ErrDenied
+	}
+	// The scheduler offers only unclaimed work; a claimed native task still
+	// needs leases and fresh dependency checks (governance/031). Evaluate a
+	// copy of only this active candidate without changing canonical status or
+	// making another active task available to the scheduler.
+	if tasks[index].Status == model.StatusActive {
+		candidate := *tasks[index]
+		candidate.Status = model.StatusOpen
+		tasks[index] = &candidate
 	}
 	frontier := store.ReadyFrontierForProject(tasks, project)
 	for _, t := range frontier.Ready {
