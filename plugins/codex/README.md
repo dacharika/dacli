@@ -1,9 +1,9 @@
-# dacli Codex plugin — local preview 0.3.0
+# dacli Codex plugin — local preview 0.4.0
 
 Owner-enrolled native session tools connect Codex to canonical tasks, external
 Git checkout attempts, fenced leases and revision-bound self-reports. An owner
 may separately enable named asynchronous verification through private runner
-configuration. The
+configuration or independent review through a separate reviewer connection. The
 portable `plugin.json` / `mcp.json` package and Codex compatibility manifests
 select the same native transport. No hooks, model launcher or CLI escape is
 included. The marketplace identity remains `dacli-governance@dacli-local`.
@@ -90,12 +90,42 @@ package never selects it.
 
 ## Identity and recovery boundaries
 
+For review, the owner provisions a new review-only root session and a private
+policy derived from the configured runner's named command/deadline digests:
+
+```sh
+dacli native reviewer add --config /private/owner/owner.json --task project/001 --worker-session WORKER_SESSION_ID --runner-config /private/owner/runner.json --policy-revision owner-policy-v1 --policy-out /private/owner/review-policy.json --review-config /private/owner/review.json --connection /private/owner/reviewer-session.json --credential /private/owner/reviewer.token --expires 1h
+```
+
+Every output must be a new private file. The command authenticates the owner and
+uses the existing task binding; it does not enable a task or acquire a worker
+lease. All configured runner checks are required by the generated policy. Use
+an owner-configured runner descriptor containing the intended review checks.
+Keep the worker lease current while review is being performed.
+
+In a **separate reviewer process**, select the reviewer connection with the
+optional `review_config_file` pointing to its private review profile. This
+selection advertises four read tools plus `propose_review` and `evaluate_review`.
+It excludes attempt, lease, evidence and verification mutations. The bootstrap
+forwards the profile path without reading credentials or policy. A selection
+containing both `runner_config_file` and `review_config_file` refuses: worker
+verification and independent review require separately enrolled identities.
+
+`propose_review` accepts exact attempt/revision/lease/fence, outcome, rationale
+and evidence IDs. Reviewer identity, grant and required policy come from private
+configuration. `evaluate_review` returns fresh eligibility and a reason. Exact
+proposal retries recover historical records; changed policy/checklist/tree,
+released leases or revoked authority can make fresh evaluation ineligible.
+Both approval and `request-changes` require the configured successful trusted
+checks. Neither a proposal nor eligibility accepts, merges or publishes a task.
+See [native review](../../docs/GOVERNANCE_NATIVE_REVIEW.md) for the full contract.
+
 One profile per OS home means one cooperative session per shared MCP process.
 Native children sharing it share that identity. Host labels and `_meta` are
 correlation data, not separately authenticated child or reviewer credentials.
 Use separately enrolled sessions and server processes when independence is
-required. Enrollment is owner-only; grants for trusted runners and independent
-review, acceptance consumption and deployment authorization are not exposed.
+required. Enrollment is owner-only; administration of grants, acceptance
+consumption and deployment authorization are not plugin tools.
 `submit_evidence` always records **self-reported** provenance. It is not trusted
 execution evidence. Optional named verification uses the separately enrolled
 local runner and retains its distinct provenance; it does not grant acceptance
@@ -149,6 +179,10 @@ old binary: it creates the old profile, verifies new-server refusal before
 migration, runs the explicit owner upgrade, confirms profile/credential retention
 and old-writer refusal, then exercises the same credentials through Codex.
 The current native receipt includes this migration proof.
+It also checks a separately provisioned reviewer through the actual Codex client:
+trusted evidence, exact replay, fresh policy changes, worker lease release,
+request changes, caller-override refusal and live reviewer revocation. No model
+turn or stronger independent reasoning guarantee is inferred from those checks.
 Historical `receipts/install-0.159.2.json` describes version 0.1.0 only.
 
 The deterministic allowlisted archive excludes historical probes/receipts,

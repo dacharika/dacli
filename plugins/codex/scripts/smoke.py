@@ -168,7 +168,7 @@ def smoke(codex, dacli, schema5_dacli=None):
             status = server.call('mcpServerStatus/list', {})['data']
             assert len(status) == 1 and not status[0]['toolsError'], 'native discovery unavailable'
             names = sorted(status[0]['tools'])
-            assert installed['version'] == '0.3.0'
+            assert installed['version'] == '0.4.0'
             assert names == sorted(['identity','workspace_status','task_list','task_get','register_attempt',
                                     'acquire_lease','renew_lease','release_lease','publish_revision','submit_evidence'])
             skills = server.call('skills/list', {'cwds':[str(workspace)], 'forceReload':True})
@@ -278,6 +278,80 @@ def smoke(codex, dacli, schema5_dacli=None):
             assert trusted['Revision']['ID'] == revision['ID']
             replay = call('request_verification', request=request)
             assert replay['state'] == 'completed' and replay['evidence']['ID'] == trusted['ID']
+            # Review uses a distinct owner-enrolled root and process. Derive its
+            # required descriptor from a separate one-check owner runner profile;
+            # the original successful issuer/evidence remain independently current.
+            review_checks = private / 'review-checks.json'
+            review_checks.write_text(json.dumps({'schema_version':1,'checks':[
+                {'id':'public-complete','command':'printf public-configured-check','deadline':'10s'}]}))
+            review_checks.chmod(0o600)
+            review_runner = private / 'review-runner.json'
+            run([dacli,'native','verifier','add','--config',str(owner),'--task','fixture/001',
+                 '--checks-file',str(review_checks),'--out',str(review_runner),
+                 '--credential',str(private / 'review-runner.token')])
+            review_profile = private / 'review-profile.json'
+            review_connection = private / 'review-session.json'
+            review_policy = private / 'review-policy.json'
+            worker_id = json.loads(async_profile.read_text())['session_id']
+            run([dacli,'native','reviewer','add','--config',str(owner),'--task','fixture/001',
+                 '--worker-session',worker_id,'--runner-config',str(review_runner),
+                 '--policy-revision','public-review-policy-v1','--policy-out',str(review_policy),
+                 '--review-config',str(review_profile),'--connection',str(review_connection),
+                 '--credential',str(private / 'review-session.token')])
+            reviewer_id = json.loads(review_connection.read_text())['session_id']
+            assert reviewer_id != worker_id and reviewer_id != json.loads(runner.read_text())['runner_session_id']
+            reviewer_selection = {'schema_version':1,'binary':dacli,'connection_file':str(review_connection),
+                                  'review_config_file':str(review_profile)}
+            selection.write_text(json.dumps(reviewer_selection))
+            review_server = Host(codex,workspace,env)
+            try:
+                review_status = review_server.call('mcpServerStatus/list',{})['data']
+                assert len(review_status)==1 and not review_status[0]['toolsError']
+                review_names = sorted(review_status[0]['tools'])
+                assert review_names == sorted(['identity','workspace_status','task_list','task_get',
+                                               'propose_review','evaluate_review'])
+                review_thread = review_server.call('thread/start',{'cwd':str(workspace),'ephemeral':True,
+                    'approvalPolicy':'never','sandbox':'read-only'})['thread']['id']
+                def review_raw(tool, args):
+                    return review_server.call('mcpServer/tool/call',{'threadId':review_thread,
+                        'server':review_status[0]['name'],'tool':tool,'arguments':dict(schema_version=1,**args)})
+                def review_call(tool, **args):
+                    response=review_raw(tool,args);assert not response.get('isError'),'review tool refused: '+tool
+                    result=response.get('structuredContent') or json.loads(response['content'][0]['text'])
+                    assert result['ok'],'review result refused: '+tool
+                    return result['data']
+                principal = review_call('identity')
+                assert principal['session_id']==reviewer_id
+                assert set(principal['scope']['Actions'])=={'read','review.propose','review.evaluate'}
+                before_review_status = review_call('task_get',task='fixture/001')['task']['status']
+                review_request={'operation_key':'public-review-approval','attempt_id':attempt['ID'],
+                    'lease_id':lease['ID'],'revision_id':revision['ID'],'expected_fence':lease['Fence'],
+                    'outcome':'approve','rationale':'Public exact revision passed owner-named check.',
+                    'evidence_ids':[trusted['ID']]}
+                proposal=review_call('propose_review',request=review_request)
+                eligible=review_call('evaluate_review',review_id=proposal['ID'])
+                assert eligible['Eligible'] and eligible['Reason']=='eligible'
+                assert eligible['Assurance']=='cooperative-credential-separation'
+                assert review_call('propose_review',request=review_request)['ID']==proposal['ID']
+                forged=review_raw('propose_review',{'request':dict(review_request,grant_id='public-forged-grant')})
+                assert forged.get('isError'),'caller grant override was accepted'
+                original_policy=review_policy.read_bytes()
+                changed=json.loads(original_policy);changed['revision']='public-review-policy-v2'
+                review_policy.write_text(json.dumps(changed))
+                stale=review_call('evaluate_review',review_id=proposal['ID'])
+                assert not stale['Eligible'] and stale['Reason']=='checklist-or-policy-changed'
+                assert review_call('propose_review',request=review_request)['ID']==proposal['ID']
+                review_policy.write_bytes(original_policy)
+                assert review_call('evaluate_review',review_id=proposal['ID'])['Eligible']
+                changes=review_call('propose_review',request=dict(review_request,
+                    operation_key='public-review-request-changes',outcome='request-changes'))
+                changes_result=review_call('evaluate_review',review_id=changes['ID'])
+                assert not changes_result['Eligible'] and changes_result['Reason']=='changes-requested'
+                assert review_call('task_get',task='fixture/001')['task']['status']==before_review_status
+            finally:
+                review_server.close()
+            selection.write_text(json.dumps({'schema_version':1,'binary':dacli,
+                'connection_file':str(async_profile),'runner_config_file':str(runner)}))
             cancelling = dict(request,operation_key='public-configured-cancel',check_id='public-cancel')
             call('request_verification', request=cancelling)
             deadline = time.monotonic()+15
@@ -302,6 +376,28 @@ def smoke(codex, dacli, schema5_dacli=None):
                 'LeaseID':lease['ID'],'ExpectedFence':lease['Fence']})
         finally:
             server.close()
+        # A historical proposal remains replayable after release, but fresh
+        # review eligibility must no longer authorize this worker revision.
+        selection.write_text(json.dumps(reviewer_selection))
+        review_server=Host(codex,workspace,env)
+        try:
+            review_status=review_server.call('mcpServerStatus/list',{})['data']
+            review_thread=review_server.call('thread/start',{'cwd':str(workspace),'ephemeral':True,
+                'approvalPolicy':'never','sandbox':'read-only'})['thread']['id']
+            released_review=review_call('evaluate_review',review_id=proposal['ID'])
+            assert not released_review['Eligible'] and released_review['Reason']=='worker-authority-invalid'
+            assert review_call('propose_review',request=review_request)['ID']==proposal['ID']
+            run([dacli,'native','revoke','--config',str(owner),'--session',reviewer_id])
+            try:
+                response=review_raw('identity',{})
+                reviewer_revoked=bool(response.get('isError')) and HostRPCError('identity',response).native_refusal
+            except HostRPCError as error:
+                reviewer_revoked=error.native_refusal
+            assert reviewer_revoked,'reviewer revocation was not authenticated'
+        finally:
+            review_server.close()
+        selection.write_text(json.dumps({'schema_version':1,'binary':dacli,
+            'connection_file':str(async_profile),'runner_config_file':str(runner)}))
         # Restart observes the durable incomplete reservation, never reruns it.
         server = Host(codex, workspace, env)
         try:
@@ -339,6 +435,15 @@ def smoke(codex, dacli, schema5_dacli=None):
             'configured_async_unrelated_reads_responsive':True,
             'configured_async_cancel_has_no_evidence':True,
             'configured_async_restart_preserves_unknown_and_completed':True,
+            'configured_review_tool_names':review_names,
+            'configured_review_separate_credentials':True,
+            'configured_review_exact_trusted_evidence_eligible':True,
+            'configured_review_exact_replay_is_historical':True,
+            'configured_review_fresh_policy_and_released_lease_refuse':True,
+            'configured_review_caller_grant_override_refused':True,
+            'configured_review_request_changes_ineligible':True,
+            'configured_review_preserves_task_status':True,
+            'configured_review_live_reviewer_revocation_refused':True,
             'native_owner_bootstrap_and_enrollment':True, 'native_identity_matches_enrollment':True,
             'canonical_task_reads':True, 'external_git_attempt_registered':True,
             'lease_acquired_and_released':True, 'committed_revision_published':True,

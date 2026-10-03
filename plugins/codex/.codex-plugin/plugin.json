@@ -1,7 +1,7 @@
 {
   "name": "dacli-governance",
-  "version": "0.3.0",
-  "description": "Scoped native governance with owner-configured asynchronous verification.",
+  "version": "0.4.0",
+  "description": "Scoped native governance with named verification and independent review.",
   "author": {
     "name": "Taha Bouhsine"
   },
@@ -12,7 +12,7 @@
   "interface": {
     "displayName": "dacli Governance Preview",
     "shortDescription": "Coordinate governed work",
-    "longDescription": "Owner-enrolled tools for tasks, checkout attempts, leases and revision evidence, with optional owner-configured named verification jobs. Cooperative local preview; shared MCP connections share one session identity.",
+    "longDescription": "Owner-enrolled tools for tasks, checkout attempts, leases and revision evidence, with optional named verification or separately provisioned review proposals. Cooperative local preview; shared MCP connections share one session identity.",
     "developerName": "Taha Bouhsine",
     "category": "Productivity",
     "capabilities": [

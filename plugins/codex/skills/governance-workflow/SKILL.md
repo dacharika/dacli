@@ -1,6 +1,6 @@
 ---
 name: governance-workflow
-description: Use owner-enrolled native dacli sessions to inspect tasks, lease checkout attempts, publish revisions and request optional owner-configured named verification through Codex.
+description: Use owner-enrolled native dacli sessions for scoped work, named verification or separately provisioned independent review through Codex.
 ---
 
 Use the host's native coding and collaboration tools. Do not launch a nested
@@ -31,15 +31,27 @@ Codex CLI or use `dacli spawn` to establish identity.
    cancellation, then inspect status. An unknown or pending durable operation
    requires owner reconciliation; never change its key to reexecute uncertain
    work. These tools accept no command, credential, grant or directory overrides.
-6. Release with `release_lease` when done. Leave trusted verification enrollment,
-   independent review and final acceptance to their separately authorized
-   workflows. These authority-granting operations are not plugin tools.
+6. Keep the worker lease current while a separately provisioned reviewer checks
+   the revision. Release with `release_lease` after review or when abandoning the
+   work. Leave reviewer/runner enrollment and final acceptance to the owner;
+   these authority-granting operations are not plugin tools.
+
+For a separately owner-provisioned reviewer connection, inspect `identity` and
+the canonical task using the read tools. Do not register an implementation
+attempt or acquire the worker's lease. Call `propose_review` with the exact
+attempt/revision/lease/fence, outcome, rationale and required trusted evidence
+IDs. Then call `evaluate_review` for current eligibility. A replayed proposal is
+historical; only fresh evaluation checks current policy, checklist, tree,
+evidence and authority. Both approval and a request for changes require the
+configured successful checks. A proposal or eligible observation never accepts,
+merges or publishes the task. A worker's connection cannot substitute for the
+reviewer's separate credentials and process.
 
 Use `tools/list` for exact required fields, including `schema_version: 1` and
 mutation `request` records. Policy refusals are final for unchanged requests.
 Report uncertainty and recovery needs instead of substituting a CLI escape.
 
-This 0.3.0 package exposes cooperative native session governance. All agents
+This 0.4.0 package exposes cooperative native session governance. All agents
 sharing one MCP process share its enrolled identity; host labels, `_meta` and
 thread/subagent IDs do not authenticate separate children or independent
 reviewers. Independent sessions need separately provisioned credentials and

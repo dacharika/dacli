@@ -222,9 +222,16 @@ provider spawning, acceptance or unconfigured verification execution in this
 catalog. Self-report evidence always stays self-reported. Trusted local
 verification is available only through a separately owner-configured runner,
 whether invoked with the local adapter or optional asynchronous tools.
-Independent reviewer integration, consumption and task acceptance are not exposed
-by this transport. A successful protocol call is not proof of task acceptance,
-strong host enforcement, or execution by Codex.
+An explicitly selected `--review-config` enables a separate reviewer connection
+instead of worker mutations or runner jobs. Its catalog contains four read tools
+plus typed `propose_review` and `evaluate_review`; see the
+[native review setup and contract](GOVERNANCE_NATIVE_REVIEW.md#owner-provisioning-and-native-tools).
+Review configuration and runner configuration cannot be combined. The owner
+provisions the reviewer and required named-check policy locally; requests cannot
+mint credentials, choose their grant or supply policy. Historical proposals and
+fresh eligibility remain distinct. Acceptance consumption and task acceptance
+are not exposed. A successful protocol call is not proof of task acceptance,
+strong host enforcement, independent reasoning or execution by Codex.
 
 Tests use real committed Git fixtures and explicit private session files. They
 exercise lifecycle bindings, dirty revision refusal, revocation during a server
