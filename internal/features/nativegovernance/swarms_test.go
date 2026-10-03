@@ -26,12 +26,15 @@ func TestNativeDispatchOwnerProvisioningUpgradedWorkerMCPAndAcknowledgement(t *t
 	testNativeOwnerProvisioning(t, true)
 }
 func testNativeOwnerProvisioning(t *testing.T, dispatch bool) {
-	testNativeLifecycleOwnerProvisioning(t, dispatch, false)
+	testNativeLifecycleOwnerProvisioning(t, dispatch, false, false)
 }
 func TestNativeLifecycleOwnerCLIAndSchema9WorkerInteroperability(t *testing.T) {
-	testNativeLifecycleOwnerProvisioning(t, true, true)
+	testNativeLifecycleOwnerProvisioning(t, true, true, false)
 }
-func testNativeLifecycleOwnerProvisioning(t *testing.T, dispatch, lifecycle bool) {
+func TestNativeRecoveryOwnerCLIAndSchema10WorkerInteroperability(t *testing.T) {
+	testNativeLifecycleOwnerProvisioning(t, true, true, true)
+}
+func testNativeLifecycleOwnerProvisioning(t *testing.T, dispatch, lifecycle, recovery bool) {
 	f := setupVerification(t, "printf verified", true)
 	if _, e := f.run(t); e != nil {
 		t.Fatal(e)
@@ -85,6 +88,11 @@ func testNativeLifecycleOwnerProvisioning(t *testing.T, dispatch, lifecycle bool
 		verificationJSON(t, policyFile, sessions.LifecyclePolicy{SchemaVersion: 1, ProjectID: "p", Revision: "lifecycle-v1", Source: "owner-manual-native-host", Freshness: time.Minute, CancellationEnabled: true, CancellationChannel: "unsupported"})
 		if out, e := verificationRun(t, f.w, func(c *clikit.Ctx, a []string) error { return lifecycleOwner(c, a, false) }, "--config", f.config, "--policy-file", policyFile); e != nil {
 			t.Fatalf("configure lifecycle %v %s", e, out)
+		}
+	}
+	if recovery {
+		if out, e := verificationRun(t, f.w, func(c *clikit.Ctx, a []string) error { return recoveryOperation(c, a, "upgrade") }, "--config", f.config); e != nil {
+			t.Fatalf("upgrade10 %v %s", e, out)
 		}
 	}
 	controllerProvision := swarmControllerAdd
@@ -251,6 +259,38 @@ func testNativeLifecycleOwnerProvisioning(t *testing.T, dispatch, lifecycle bool
 		after, _ := os.ReadFile(f.worker.Authority)
 		if !bytes.Equal(before, after) {
 			t.Fatal("old8 writer changed schema9 authority")
+		}
+	}
+	if recovery {
+		before, _ := os.ReadFile(f.worker.Authority)
+		if old := os.Getenv("DACLI_SCHEMA9_BINARY"); old != "" {
+			cmd := exec.Command(old, "native", "serve", "--connection", f.connection)
+			cmd.Stdin = strings.NewReader(init + request)
+			raw, e := cmd.CombinedOutput()
+			if e == nil || !strings.Contains(string(raw), "refused") {
+				t.Fatalf("actual old9 accepted10 %v %s", e, raw)
+			}
+		}
+		after, _ := os.ReadFile(f.worker.Authority)
+		if !bytes.Equal(before, after) {
+			t.Fatal("old9 changed schema10")
+		}
+		reqFile := filepath.Join(private, "recovery-request.json")
+		verificationJSON(t, reqFile, struct{ Kind, ProtectionID string }{"lease", lease.ID})
+		raw, e := verificationRun(t, f.w, func(c *clikit.Ctx, a []string) error { return recoveryOperation(c, a, "preview") }, "--config", f.config, "--request", reqFile, "--json")
+		var target sessions.RecoveryTarget
+		if e != nil || json.Unmarshal([]byte(raw), &target) != nil || target.ExpectedFence != lease.Fence {
+			t.Fatalf("owner recovery preview %v %s", e, raw)
+		}
+		r := sessions.RecoveryRequest{OperationKey: "owner-recover", Target: target, Mode: "owner-reconciliation", Rationale: "owner inspected fixture", Uncertainty: "subprocess cessation unverified", ReleaseRisk: "owner accepts stale writer risk"}
+		verificationJSON(t, reqFile, r)
+		raw, e = verificationRun(t, f.w, func(c *clikit.Ctx, a []string) error { return recoveryOperation(c, a, "apply") }, "--config", f.config, "--request", reqFile, "--json")
+		var receipt sessions.RecoveryReceipt
+		if e != nil || json.Unmarshal([]byte(raw), &receipt) != nil || receipt.GlobalFence <= lease.Fence {
+			t.Fatalf("owner recovery apply %v %s", e, raw)
+		}
+		if _, e := f.authority.RegisterAttempt(f.workerToken, f.worker.SessionID, sessions.AttemptRequest{RequestID: "recovered-worker", TaskID: f.task.ID, Checkout: f.w.Root}); e == nil {
+			t.Fatal("old worker reacquired recovered task")
 		}
 	}
 	// Old verifier profiles and evidence remain readable after exact schema upgrade.

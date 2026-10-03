@@ -189,6 +189,9 @@ func (a *Authority) CorrelateDispatchIntent(token, bridge string, req CorrelateD
 			result = old.Intent
 			return nil
 		}
+		if _, recovered := s.Recoveries["reservation:"+i.DispatchID]; recovered {
+			return ErrDenied
+		}
 		if _, cancelled := s.LifecycleCancellations[i.DispatchID]; cancelled {
 			return ErrDenied
 		}
@@ -253,6 +256,9 @@ func (a *Authority) AcknowledgeDispatchIntent(token, worker string, req Acknowle
 			}
 			result = old.Intent
 			return nil
+		}
+		if _, recovered := s.Recoveries["reservation:"+i.DispatchID]; recovered {
+			return ErrDenied
 		}
 		if _, cancelled := s.LifecycleCancellations[i.DispatchID]; cancelled {
 			return ErrDenied

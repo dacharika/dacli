@@ -420,7 +420,7 @@ func (a *Authority) admitDispatch(s *state, token, session string, req AdmitDisp
 		return DispatchReservation{}, ErrDenied
 	}
 	d, ok := s.Dispatches[req.DispatchID]
-	if !ok || d.ControllerSessionID != session || d.Reservation.Fence != req.ExpectedFence || d.Converted || !time.Now().Before(d.Reservation.ExpiresAt) {
+	if !ok || d.ControllerSessionID != session || d.Reservation.Fence != req.ExpectedFence || !reservationRetained(s, d) || !time.Now().Before(d.Reservation.ExpiresAt) {
 		return DispatchReservation{}, ErrDenied
 	}
 	r, e := controller(s, token, session, d.ProjectID, "swarm.dispatch")
@@ -545,7 +545,7 @@ func (a *Authority) handoffDispatch(s *state, token, worker string, req HandoffD
 		return nil
 	}
 	d, ok := s.Dispatches[req.DispatchID]
-	if !ok || d.Converted || d.ControllerSessionID == worker || d.Reservation.Fence != req.ExpectedFence || !time.Now().Before(d.Reservation.ExpiresAt) {
+	if !ok || !reservationRetained(s, d) || d.ControllerSessionID == worker || d.Reservation.Fence != req.ExpectedFence || !time.Now().Before(d.Reservation.ExpiresAt) {
 		return ErrDenied
 	}
 	cr, ok := s.Sessions[d.ControllerSessionID]
@@ -661,7 +661,7 @@ func (a *Authority) handoffDispatch(s *state, token, worker string, req HandoffD
 		}
 	}
 	for _, other := range s.Dispatches {
-		if other.ID != d.ID && !other.Converted && overlaps(*result, other.Reservation) {
+		if other.ID != d.ID && reservationRetained(s, other) && overlaps(*result, other.Reservation) {
 			return ErrDenied
 		}
 	}
@@ -693,7 +693,7 @@ func swarmOccupancy(s *state, p SwarmPolicy, snap SwarmSnapshot) (map[string]int
 	occupied := map[string]bool{}
 	excluded := []Lease{}
 	for _, d := range s.Dispatches {
-		if !d.Converted {
+		if reservationRetained(s, d) {
 			excluded = append(excluded, d.Reservation)
 			if d.ProjectID == p.ProjectID {
 				occupied[d.Reservation.TaskID] = true

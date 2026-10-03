@@ -278,7 +278,7 @@ func (a *Authority) AcquireLease(token, session string, req AcquireLeaseRequest)
 			}
 		}
 		for _, dispatch := range s.Dispatches {
-			if !dispatch.Converted && overlaps(result, dispatch.Reservation) {
+			if reservationRetained(s, dispatch) && overlaps(result, dispatch.Reservation) {
 				return ErrDenied
 			}
 		}

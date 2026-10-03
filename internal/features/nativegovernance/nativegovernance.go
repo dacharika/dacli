@@ -20,6 +20,10 @@ import (
 )
 
 var Commands = []clikit.Command{
+	{Path: "native recovery upgrade", Brief: "upgrade fenced owner native recovery", Mutates: true, JSON: false, Usage: "dacli native recovery upgrade --config <private-file>", Run: func(c *clikit.Ctx, a []string) error { return recoveryOperation(c, a, "upgrade") }},
+	{Path: "native recovery configure", Brief: "configure fenced owner native recovery", Mutates: true, JSON: true, Usage: "dacli native recovery configure --config <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return recoveryOperation(c, a, "configure") }},
+	{Path: "native recovery preview", Brief: "preview fenced owner native recovery", Mutates: false, JSON: true, Usage: "dacli native recovery preview --config <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return recoveryOperation(c, a, "preview") }},
+	{Path: "native recovery apply", Brief: "apply fenced owner native recovery", Mutates: true, JSON: true, Usage: "dacli native recovery apply --config <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return recoveryOperation(c, a, "apply") }},
 	{Path: "native lifecycle upgrade", Brief: "upgrade cooperative native lifecycle", Mutates: true, JSON: false, Usage: "dacli native lifecycle upgrade --config <private-file>", Run: func(c *clikit.Ctx, a []string) error { return lifecycleOwner(c, a, true) }},
 	{Path: "native lifecycle configure", Brief: "configure cooperative native lifecycle", Mutates: true, JSON: false, Usage: "dacli native lifecycle configure --config <private-file> --policy-file <private-file>", Run: func(c *clikit.Ctx, a []string) error { return lifecycleOwner(c, a, false) }},
 	{Path: "native lifecycle controller add", Brief: "controller add cooperative native lifecycle", Mutates: true, JSON: false, Usage: "dacli native lifecycle controller add --config <private-file> --project <project> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]", Run: func(c *clikit.Ctx, a []string) error { return swarmScopedActorAdd(c, a, false, true) }},
@@ -55,6 +59,8 @@ var Commands = []clikit.Command{
 // AuthenticatesExplicitly lists exactly the handlers exempt from the legacy grant gate.
 func AuthenticatesExplicitly(path string) bool {
 	switch path {
+	case "native recovery upgrade", "native recovery configure", "native recovery preview", "native recovery apply":
+		return true
 	case "native lifecycle upgrade", "native lifecycle configure", "native lifecycle controller add", "native lifecycle bridge add", "native lifecycle observe", "native lifecycle cancel", "native lifecycle cancel-ack", "native lifecycle status":
 		return true
 	case "native dispatch upgrade", "native dispatch bridge add", "native dispatch request", "native dispatch correlate", "native dispatch acknowledge", "native dispatch status", "native swarm upgrade", "native swarm configure", "native swarm controller add", "native swarm plan", "native swarm reserve", "native swarm admit", "native swarm handoff", "native bootstrap", "native enroll", "native revoke", "native upgrade", "native verifier add", "native verify", "native reviewer add":

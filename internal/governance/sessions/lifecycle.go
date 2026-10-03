@@ -88,7 +88,7 @@ func (a *Authority) UpgradeLifecycle(owner string) error {
 }
 func (a *Authority) ConfigureLifecycle(owner string, p LifecyclePolicy) error {
 	return a.transaction(false, true, func(s *state) error {
-		if s.Version != 9 || len(owner) != 64 || hash(owner) != s.OwnerHash || p.SchemaVersion != 1 || !validID(p.ProjectID) || !validID(p.Revision) || p.Source != "owner-manual-native-host" || p.Freshness <= 0 || p.Freshness > time.Hour || (p.CancellationChannel != "unsupported" && p.CancellationChannel != "owner-manual-native-host") {
+		if s.Version < 9 || len(owner) != 64 || hash(owner) != s.OwnerHash || p.SchemaVersion != 1 || !validID(p.ProjectID) || !validID(p.Revision) || p.Source != "owner-manual-native-host" || p.Freshness <= 0 || p.Freshness > time.Hour || (p.CancellationChannel != "unsupported" && p.CancellationChannel != "owner-manual-native-host") {
 			return ErrDenied
 		}
 		if _, ok := s.SwarmPolicies[p.ProjectID]; !ok {
@@ -120,7 +120,7 @@ func lifecycleBinding(i DispatchIntent) LifecycleBinding {
 }
 func lifecycleIntent(s *state, b LifecycleBinding) (DispatchIntent, error) {
 	i, ok := s.DispatchIntents[b.DispatchID]
-	if s.Version != 9 || !ok || !reflect.DeepEqual(lifecycleBinding(i), b) {
+	if s.Version < 9 || !ok || !reflect.DeepEqual(lifecycleBinding(i), b) {
 		return DispatchIntent{}, ErrDenied
 	}
 	return i, nil
@@ -129,6 +129,9 @@ func lifecycleIntent(s *state, b LifecycleBinding) (DispatchIntent, error) {
 // workerTaskWithdrawn includes descendants without revoking unrelated root tasks.
 // Withdrawal never expires and does not clear reservations or unreleased leases.
 func workerTaskWithdrawn(s *state, session, task string) bool {
+	if recoveryTaskWithdrawn(s, session, task) {
+		return true
+	}
 	for _, c := range s.LifecycleCancellations {
 		if c.Binding.TaskID != task {
 			continue
@@ -156,7 +159,7 @@ func (a *Authority) ObserveLifecycle(token, bridge string, req ObserveLifecycleR
 	var result LifecycleObservation
 	err := a.transaction(false, true, func(s *state) error {
 		i, ok := s.DispatchIntents[req.Binding.DispatchID]
-		if s.Version != 9 || !ok || i.ID != req.Binding.IntentID {
+		if s.Version < 9 || !ok || i.ID != req.Binding.IntentID {
 			return ErrDenied
 		}
 		var e error
@@ -214,7 +217,7 @@ func (a *Authority) CancelLifecycle(token, controller string, req CancelLifecycl
 	var result LifecycleCancellationResult
 	err := a.transaction(false, true, func(s *state) error {
 		i, ok := s.DispatchIntents[req.Binding.DispatchID]
-		if s.Version != 9 || !ok || i.ID != req.Binding.IntentID {
+		if s.Version < 9 || !ok || i.ID != req.Binding.IntentID {
 			return ErrDenied
 		}
 		var e error
@@ -284,7 +287,7 @@ func (a *Authority) AcknowledgeCancellation(token, bridge string, req Acknowledg
 	var result LifecycleCancellation
 	err := a.transaction(false, true, func(s *state) error {
 		i, ok := s.DispatchIntents[req.Binding.DispatchID]
-		if s.Version != 9 || !ok || i.ID != req.Binding.IntentID {
+		if s.Version < 9 || !ok || i.ID != req.Binding.IntentID {
 			return ErrDenied
 		}
 		var e error
@@ -334,7 +337,7 @@ func (a *Authority) LifecycleStatus(token, session, dispatch string) (LifecycleS
 	var result LifecycleStatus
 	err := a.transaction(false, false, func(s *state) error {
 		i, ok := s.DispatchIntents[dispatch]
-		if s.Version != 9 || !ok {
+		if s.Version < 9 || !ok {
 			return ErrDenied
 		}
 		r, e := authenticate(s, token, session, time.Now())
@@ -348,7 +351,7 @@ func (a *Authority) LifecycleStatus(token, session, dispatch string) (LifecycleS
 		if !ok {
 			return ErrDenied
 		}
-		result = LifecycleStatus{Binding: lifecycleBinding(i), Observations: append([]LifecycleObservation{}, s.LifecycleObservations[dispatch]...), State: "unknown", Freshness: "missing", ObservedAt: time.Now().UTC(), ResourcesRetained: !s.Dispatches[dispatch].Converted}
+		result = LifecycleStatus{Binding: lifecycleBinding(i), Observations: append([]LifecycleObservation{}, s.LifecycleObservations[dispatch]...), State: "unknown", Freshness: "missing", ObservedAt: time.Now().UTC(), ResourcesRetained: reservationRetained(s, s.Dispatches[dispatch])}
 		if i.Lease != nil {
 			if l, ok := s.Leases[i.Lease.ID]; ok {
 				result.ResourcesRetained = !l.Released
@@ -381,7 +384,7 @@ func (a *Authority) LifecycleStatus(token, session, dispatch string) (LifecycleS
 func (a *Authority) OwnerLifecyclePolicy(owner, project string) (LifecyclePolicy, error) {
 	var p LifecyclePolicy
 	e := a.transaction(false, false, func(s *state) error {
-		if s.Version != 9 || len(owner) != 64 || hash(owner) != s.OwnerHash {
+		if s.Version < 9 || len(owner) != 64 || hash(owner) != s.OwnerHash {
 			return ErrDenied
 		}
 		var ok bool
