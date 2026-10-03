@@ -3,9 +3,6 @@ package application
 import (
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
 	"github.com/mlnomadpy/dacli/internal/store"
-	"time"
-
-	"github.com/mlnomadpy/dacli/internal/eventlog"
 )
 
 func (a *LeaseAdmission) ObserveCheckpoint(w, project string, tasks []string) (sessions.CheckpointObservation, error) {
@@ -16,9 +13,10 @@ func (a *LeaseAdmission) ObserveCheckpoint(w, project string, tasks []string) (s
 	if e != nil {
 		return sessions.CheckpointObservation{Digest: safeDigest([]string{project, "canonical-unavailable"}), Findings: []sessions.CheckpointFinding{{Class: "inconsistent_task_record", Knowledge: "unknown", Reference: project, NextAction: "repair canonical duplicates, malformed records or dependency graph"}}}, nil
 	}
-	projectRecord, projectErr := store.LoadProject(&a.workspace, project)
-	if projectErr != nil {
-		return sessions.CheckpointObservation{Digest: safeDigest(snapshot), Findings: []sessions.CheckpointFinding{{Class: "inconsistent_task_record", Knowledge: "unknown", Reference: project, NextAction: "repair the canonical project landing policy"}}}, nil
+	canonical, projectErr := store.ReadCheckpointCanonical(&a.workspace)
+	projectRecord := canonical.Projects[project]
+	if projectErr != nil || projectRecord == nil {
+		return sessions.CheckpointObservation{Digest: safeDigest(snapshot), Findings: []sessions.CheckpointFinding{{Class: "inconsistent_task_record", Knowledge: "unknown", Reference: project, NextAction: "restore bounded readable canonical task/project records"}}}, nil
 	}
 	base := ""
 	if projectErr == nil {
@@ -28,39 +26,17 @@ func (a *LeaseAdmission) ObserveCheckpoint(w, project string, tasks []string) (s
 	if projectErr != nil || gitErr != nil {
 		return sessions.CheckpointObservation{Digest: safeDigest(snapshot), Findings: []sessions.CheckpointFinding{{Class: "transient_infrastructure", Knowledge: "unknown", Reference: project, NextAction: "restore the configured local landing base ref; workspace HEAD is not trunk", Retryable: true}}}, nil
 	}
-	projection, e := store.LocalDeliveryProjection(&a.workspace, project, time.Time{})
+	projection, e := store.CheckpointLocalProjection(&a.workspace, project, canonical.Tasks, tasks)
 	if e != nil {
 		return sessions.CheckpointObservation{Digest: safeDigest(snapshot), Trunk: trunkCommit, TrunkRef: trunkRef, Findings: []sessions.CheckpointFinding{{Class: "inconsistent_task_record", Knowledge: "unknown", Reference: project, NextAction: "restore readable local task/event/run projection"}}}, nil
 	}
-	allowed := map[string]bool{}
-	scopedObjects := map[string]string{}
-	for _, task := range tasks {
-		allowed[task] = true
-		scopedObjects[task] = task
-	}
-	events, eventErr := eventlog.List(&a.workspace, eventlog.Query{})
-	if eventErr != nil {
-		return sessions.CheckpointObservation{Digest: safeDigest(snapshot), Trunk: trunkCommit, TrunkRef: trunkRef, Findings: []sessions.CheckpointFinding{{Class: "inconsistent_task_record", Knowledge: "unknown", Reference: project, NextAction: "restore a readable canonical event log"}}}, nil
-	}
-	for _, event := range events {
-		if allowed[event.About] {
-			scopedObjects[event.ID] = event.About
-		}
-	}
-	runs, runErr := sessions.CheckpointRunTasks(a.workspace.RunsDir())
-	if runErr != nil {
-		return sessions.CheckpointObservation{}, runErr
-	}
-	for id, task := range runs {
-		if allowed[task] {
-			scopedObjects[id] = task
-		}
-	}
 	findings := []sessions.CheckpointFinding{}
 	for _, f := range projection.Findings {
-		task, scoped := scopedObjects[f.ObjectID]
-		if !scoped && f.ObjectID != project {
-			continue
+		task := ""
+		for _, ref := range f.RelatedRefs {
+			if ref.Kind == "task" {
+				task = ref.ID
+			}
 		}
 		if f.Severity == "info" {
 			continue

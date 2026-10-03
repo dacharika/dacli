@@ -4,10 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
 	"github.com/mlnomadpy/dacli/internal/model"
@@ -23,19 +20,11 @@ func (a *LeaseAdmission) ObserveSwarm(workspaceID, project string) (sessions.Swa
 	if a == nil || workspaceID != a.workspace.ID || project == "" {
 		return sessions.SwarmSnapshot{}, sessions.ErrDenied
 	}
-	tasks, e := store.ListTasks(&a.workspace, "", "")
+	canonical, e := store.ReadCheckpointCanonical(&a.workspace)
 	if e != nil {
 		return sessions.SwarmSnapshot{}, e
 	}
-	duplicates, e := store.DuplicateTaskFiles(&a.workspace)
-	if e != nil || len(duplicates) != 0 {
-		return sessions.SwarmSnapshot{}, sessions.ErrDenied
-	}
-	for _, broken := range store.BrokenTaskFiles() {
-		if strings.HasPrefix(broken.Path, a.workspace.Root+string(filepath.Separator)) {
-			return sessions.SwarmSnapshot{}, sessions.ErrDenied
-		}
-	}
+	tasks := canonical.Tasks
 	ready := map[string]bool{}
 	problems := map[string]bool{}
 	fr := store.ReadyFrontierForProject(tasks, project)
@@ -55,12 +44,7 @@ func (a *LeaseAdmission) ObserveSwarm(workspaceID, project string) (sessions.Swa
 			return sessions.SwarmSnapshot{}, sessions.ErrDenied
 		}
 		seen[t.ID] = true
-		data, e := os.ReadFile(t.Path)
-		if e != nil {
-			return sessions.SwarmSnapshot{}, e
-		}
-		digest := sha256.Sum256(data)
-		facts = append(facts, fact{t.ID, t.Project, string(t.Status), t.Path, hex.EncodeToString(digest[:])})
+		facts = append(facts, fact{t.ID, t.Project, string(t.Status), t.Path, canonical.Digests[t.ID]})
 		if t.Project != project {
 			continue
 		}

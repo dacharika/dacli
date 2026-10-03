@@ -3,10 +3,8 @@ package sessions
 import (
 	"context"
 	"github.com/mlnomadpy/dacli/internal/governance/checkout"
-	"github.com/mlnomadpy/dacli/internal/procmon"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -80,27 +78,4 @@ func (b *checkpointGitOutput) Write(p []byte) (int, error) {
 	}
 	b.data = append(b.data, p...)
 	return n, nil
-}
-
-// CheckpointRunTasks reads correlation only; it neither checks process liveness
-// nor claims native host authentication. Public projection filters by task IDs.
-func CheckpointRunTasks(runs string) (map[string]string, error) {
-	result := map[string]string{}
-	entries, e := os.ReadDir(runs)
-	if os.IsNotExist(e) {
-		return result, nil
-	}
-	if e != nil {
-		return nil, ErrStorage
-	}
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		record, e := procmon.ReadRecord(filepath.Join(runs, entry.Name(), "proc.txt"))
-		if e == nil {
-			result[entry.Name()] = record.Task
-		}
-	}
-	return result, nil
 }
