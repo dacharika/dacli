@@ -215,7 +215,7 @@ func TestLeaseExpiryEqualityAndUncertainCheckout(t *testing.T) {
 	a, owner, s, token, at, _ := leaseSetup(t)
 	l := mustAcquire(t, a, s, token, acquireReq(at, "first", "src"))
 	now := time.Now()
-	if currentLease(Lease{ExpiresAt: now}, now) {
+	if currentLease(&state{}, Lease{ExpiresAt: now}, now) {
 		t.Fatal("expiry equality accepted")
 	}
 	if err := a.transaction(false, true, func(st *state) error { old := st.Leases[l.ID]; old.ExpiresAt = now; st.Leases[l.ID] = old; return nil }); err != nil {

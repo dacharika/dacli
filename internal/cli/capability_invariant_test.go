@@ -174,6 +174,8 @@ func TestEveryCommandDeclaresItsCapability(t *testing.T) {
 		"release train": true, "release train authority": true,
 		// Native provisioning validates private owner files instead of ambient
 		// legacy grants; dispatcher tests cover both authority boundaries.
+		"native lifecycle upgrade": true, "native lifecycle configure": true, "native lifecycle controller add": true, "native lifecycle bridge add": true, "native lifecycle observe": true, "native lifecycle cancel": true, "native lifecycle cancel-ack": true,
+
 		"native dispatch upgrade": true, "native dispatch bridge add": true, "native dispatch request": true, "native dispatch correlate": true, "native dispatch acknowledge": true, "native swarm upgrade": true, "native swarm configure": true, "native swarm controller add": true, "native swarm reserve": true, "native swarm handoff": true, "native bootstrap": true, "native enroll": true, "native revoke": true, "native upgrade": true, "native verifier add": true, "native reviewer add": true, "native verify": true,
 	}
 

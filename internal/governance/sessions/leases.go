@@ -194,6 +194,9 @@ func leaseAuth(s *state, token, session, attemptID, action string, now time.Time
 	if err != nil {
 		return record{}, Attempt{}, err
 	}
+	if workerTaskWithdrawn(s, session, at.Request.TaskID) {
+		return record{}, Attempt{}, ErrDenied
+	}
 	if !subset([]string{action}, r.Scope.Actions) || !subset([]string{"task:" + at.Request.TaskID}, r.Scope.Resources) {
 		return record{}, Attempt{}, ErrDenied
 	}
@@ -335,7 +338,7 @@ func (a *Authority) changeLease(token, session, key, attempt, id string, fence u
 		if _, _, err := leaseAuth(s, token, session, attempt, action, now); err != nil {
 			return err
 		}
-		if !currentLease(old, now) {
+		if !currentLease(s, old, now) {
 			return ErrDenied
 		}
 		if release {
@@ -357,4 +360,6 @@ func (a *Authority) changeLease(token, session, key, attempt, id string, fence u
 	return result, nil
 }
 
-func currentLease(l Lease, now time.Time) bool { return !l.Released && now.Before(l.ExpiresAt) }
+func currentLease(s *state, l Lease, now time.Time) bool {
+	return !l.Released && now.Before(l.ExpiresAt) && !workerTaskWithdrawn(s, l.SessionID, l.TaskID)
+}

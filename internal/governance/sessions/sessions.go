@@ -47,6 +47,12 @@ type record struct {
 	Hash string
 }
 type state struct {
+	LifecyclePolicyHistory map[string]map[string]LifecyclePolicy
+	LifecyclePolicies      map[string]LifecyclePolicy
+	LifecycleObservations  map[string][]LifecycleObservation
+	LifecycleCancellations map[string]LifecycleCancellation
+	LifecycleOperations    map[string]LifecycleReceipt
+
 	DispatchIntents          map[string]DispatchIntent
 	DispatchIntentOperations map[string]DispatchIntentReceipt
 
@@ -74,11 +80,12 @@ type state struct {
 
 // Authority contains no cached authority snapshot; each operation reloads under lock.
 type Authority struct {
-	path           string
-	binding        Binding
-	version        int
-	admission      LeaseAdmission
-	reviewObserver ReviewObserver
+	path            string
+	binding         Binding
+	version         int
+	admission       LeaseAdmission
+	reviewObserver  ReviewObserver
+	persistOverride func([]byte) error // private fault-injection seam; nil uses atomic file persistence
 }
 
 func Open(path string, binding Binding, admission ...LeaseAdmission) (*Authority, error) {
@@ -191,7 +198,7 @@ func (a *Authority) transaction(create bool, write bool, fn func(*state) error) 
 		}
 	} else {
 		s = state{}
-		if err != nil || json.Unmarshal(data, &s) != nil || (s.Version != a.version && !((a.version == 6 || a.version == 7) && s.Version >= a.version && s.Version <= 8)) || s.Binding != a.binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version >= 3 && (s.Leases == nil || s.Operations == nil)) || (s.Version >= 4 && (s.Revisions == nil || s.Grants == nil || s.Evidence == nil)) || (s.Version >= 5 && (s.ReviewGrants == nil || s.Reviews == nil)) || (s.Version >= 6 && (s.PublicationPolicies == nil || s.PublicationDecisions == nil || s.PublicationConsumed == nil)) {
+		if err != nil || json.Unmarshal(data, &s) != nil || (s.Version != a.version && !((a.version == 6 || a.version == 7 || a.version == 8) && s.Version >= a.version && s.Version <= 9)) || s.Binding != a.binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version >= 3 && (s.Leases == nil || s.Operations == nil)) || (s.Version >= 4 && (s.Revisions == nil || s.Grants == nil || s.Evidence == nil)) || (s.Version >= 5 && (s.ReviewGrants == nil || s.Reviews == nil)) || (s.Version >= 6 && (s.PublicationPolicies == nil || s.PublicationDecisions == nil || s.PublicationConsumed == nil)) {
 			return ErrStorage
 		}
 	}
@@ -207,6 +214,12 @@ func (a *Authority) transaction(create bool, write bool, fn func(*state) error) 
 	if s.Version >= 8 && (s.DispatchIntents == nil || s.DispatchIntentOperations == nil) {
 		return ErrStorage
 	}
+	if s.Version < 9 && (s.LifecyclePolicyHistory != nil || s.LifecyclePolicies != nil || s.LifecycleObservations != nil || s.LifecycleCancellations != nil || s.LifecycleOperations != nil) {
+		return ErrStorage
+	}
+	if s.Version >= 9 && (s.LifecyclePolicyHistory == nil || s.LifecyclePolicies == nil || s.LifecycleObservations == nil || s.LifecycleCancellations == nil || s.LifecycleOperations == nil) {
+		return ErrStorage
+	}
 	if err = fn(&s); err != nil {
 		return err
 	}
@@ -220,6 +233,13 @@ func (a *Authority) transaction(create bool, write bool, fn func(*state) error) 
 	if err != nil {
 		return ErrStorage
 	}
+	if a.persistOverride != nil {
+		return a.persistOverride(data)
+	}
+	return a.persist(data)
+}
+
+func (a *Authority) persist(data []byte) error {
 	tmp, err := os.CreateTemp(filepath.Dir(a.path), ".sessions-*")
 	if err != nil {
 		return ErrStorage

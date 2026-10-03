@@ -98,6 +98,9 @@ func swarmConfigure(ctx *clikit.Ctx, args []string) error {
 func swarmControllerAdd(ctx *clikit.Ctx, args []string) error { return swarmActorAdd(ctx, args, false) }
 func dispatchBridgeAdd(ctx *clikit.Ctx, args []string) error  { return swarmActorAdd(ctx, args, true) }
 func swarmActorAdd(ctx *clikit.Ctx, args []string, bridge bool) error {
+	return swarmScopedActorAdd(ctx, args, bridge, false)
+}
+func swarmScopedActorAdd(ctx *clikit.Ctx, args []string, bridge, lifecycle bool) error {
 	f, e := flags(args, "config", "project", "connection", "credential", "expires")
 	if e != nil {
 		return e
@@ -126,6 +129,11 @@ func swarmActorAdd(ctx *clikit.Ctx, args []string, bridge bool) error {
 	p, e := a.OwnerSwarmPolicy(owner, f.Get("project"))
 	if e != nil {
 		return denied()
+	}
+	if lifecycle {
+		if _, e = a.OwnerLifecyclePolicy(owner, p.ProjectID); e != nil {
+			return denied()
+		}
 	}
 	admission, e := application.NewLeaseAdmission(w)
 	if e != nil {
@@ -180,6 +188,13 @@ func swarmActorAdd(ctx *clikit.Ctx, args []string, bridge bool) error {
 	actions := []string{"read", "swarm.plan", "swarm.reserve", "swarm.dispatch"}
 	if bridge {
 		actions = []string{"read", "dispatch.correlate"}
+	}
+	if lifecycle {
+		if bridge {
+			actions = append(actions, "dispatch.observe")
+		} else {
+			actions = append(actions, "dispatch.cancel")
+		}
 	}
 	s, token, e := a.Enroll(owner, sessions.Scope{Actions: actions, Resources: resources}, time.Now().Add(lifetime))
 	if e != nil {

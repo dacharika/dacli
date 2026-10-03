@@ -414,3 +414,15 @@ atomically records its acknowledgement and fenced lease. `native dispatch status
 requires an assigned authenticated participant with read/task scope. No command
 launches a coding CLI or grants owner authority. See the [cooperative Codex bridge](GOVERNANCE_NATIVE_DISPATCH_BRIDGE.md)
 for private versioned capability inputs, conservative loss handling and limits.
+
+`native lifecycle upgrade` is the explicit owner-only schema8→9 migration.
+`native lifecycle configure` records owner-selected freshness and scoped cancellation policy;
+`native lifecycle controller add` and `native lifecycle bridge add` separately provision `dispatch.cancel` and
+`dispatch.observe`, without changing existing grants. `native lifecycle observe`, `native lifecycle cancel`,
+`native lifecycle cancel-ack` and `native lifecycle status` use explicit private profiles and immutable exact
+bindings. Cancellation durably withdraws only the assigned worker's canonical
+task authority across descendants before any host-action permit, retaining
+uncertain writer resources for owner recovery. Acknowledgement and terminal
+reports remain independent; stale heartbeat becomes unknown. Late reports require
+the current assigned bridge, without restoring a revoked worker or controller.
+These are local commands, not added MCP tools. See [native lifecycle](GOVERNANCE_NATIVE_LIFECYCLE.md).
