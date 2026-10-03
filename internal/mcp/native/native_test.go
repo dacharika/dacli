@@ -87,7 +87,7 @@ func setup(t *testing.T) fixture {
 	if e = os.WriteFile(cred, []byte(token), 0600); e != nil {
 		t.Fatal(e)
 	}
-	c := Connection{1, w.Root, filepath.Join(private, "authority.json"), w.ID, "install", principal.ID, cred}
+	c := Connection{SchemaVersion: 1, Workspace: w.Root, Authority: filepath.Join(private, "authority.json"), WorkspaceID: w.ID, InstallationID: "install", SessionID: principal.ID, CredentialFile: cred}
 	path := filepath.Join(private, "connection.json")
 	save(t, path, c)
 	s, e := Open(path)
@@ -438,5 +438,54 @@ func TestNativeStatusIncompleteReadsAreSanitizedRefusals(t *testing.T) {
 				t.Fatalf("incomplete status did not produce typed refusal: %s", raw)
 			}
 		})
+	}
+}
+
+// Ordinary EOF drains already queued responses; only stalled owned stdout is
+// forcibly closed after the short drain interval.
+type drainingWriter struct{ io.WriteCloser }
+
+func (w drainingWriter) Write(b []byte) (int, error) {
+	time.Sleep(20 * time.Millisecond)
+	return w.WriteCloser.Write(b)
+}
+func TestNativeProtocolDrainsQueuedResponseOnEOF(t *testing.T) {
+	f := setup(t)
+	inR, inW := io.Pipe()
+	outR, outW := io.Pipe()
+	defer func() { _ = inW.Close(); _ = outR.Close() }()
+	done := make(chan error, 1)
+	go func() { e := f.s.Serve(inR, drainingWriter{outW}); _ = outW.Close(); done <- e }()
+	send := func(line string) {
+		t.Helper()
+		if _, e := io.WriteString(inW, line+"\n"); e != nil {
+			t.Fatal(e)
+		}
+	}
+	decoder := json.NewDecoder(outR)
+	receive := func(id int) {
+		t.Helper()
+		var r struct {
+			ID    int `json:"id"`
+			Error any `json:"error"`
+		}
+		if e := decoder.Decode(&r); e != nil || r.ID != id || r.Error != nil {
+			t.Fatal("queued response lost", id, r, e)
+		}
+	}
+	send(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{}}}`)
+	receive(1)
+	send(`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"identity","arguments":{"schema_version":1}}}`)
+	if e := inW.Close(); e != nil {
+		t.Fatal(e)
+	}
+	receive(2)
+	select {
+	case e := <-done:
+		if e != nil {
+			t.Fatal(e)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("EOF did not finish drained response")
 	}
 }

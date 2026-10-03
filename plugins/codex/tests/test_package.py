@@ -29,6 +29,13 @@ class PackageTests(unittest.TestCase):
             self.assertEqual(receipt[key], 3)
         self.assertFalse(receipt['model_turn_requested'])
         self.assertFalse(receipt['dacli_spawn_used'])
+        self.assertEqual(receipt['installed_version'], '0.3.0')
+        self.assertEqual(receipt['configured_async_completion_provenance'], 'trusted-local-runner')
+        for key in ('configured_async_exact_replay', 'configured_async_unrelated_reads_responsive',
+                    'configured_async_cancel_has_no_evidence', 'configured_async_restart_preserves_unknown_and_completed'):
+            self.assertTrue(receipt[key])
+        self.assertEqual(set(receipt['configured_async_tool_names']) - set(receipt['tool_names']),
+                         {'request_verification', 'get_verification_status', 'cancel_verification'})
 
     def test_manifests_and_transport_match(self):
         portable = json.loads((ROOT / 'plugin.json').read_text())
@@ -111,6 +118,25 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(response['argv'], ['native', 'serve', '--connection', str(self.profile)])
         self.assertFalse(response['ambient_present'])
         self.assertNotIn('ambient-secret', result.stdout + result.stderr)
+
+    def test_owner_selected_runner_path_is_forwarded_without_reading_it(self):
+        runner = self.base / 'absent-private-runner.json'
+        self.write_config(dict(self.config, runner_config_file=str(runner)))
+        result = self.run_server()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        response = json.loads(result.stdout)
+        self.assertEqual(response['argv'], ['native', 'serve', '--connection', str(self.profile),
+                                            '--runner-config', str(runner)])
+        self.assertFalse(response['ambient_present'])
+        self.assertFalse(runner.exists(), 'bootstrap created or read runner credentials')
+
+    def test_runner_selection_rejects_invalid_paths_and_command_overrides(self):
+        for value in ('', 'relative', None, True, 1, [], {}, '/private/\x00runner'):
+            self.write_config(dict(self.config, runner_config_file=value))
+            self.assert_refused()
+        for key in ('command', 'credential_file', 'grant_id', 'worker_session'):
+            self.write_config(dict(self.config, runner_config_file='/private/runner.json', **{key:'override'}))
+            self.assert_refused()
 
     def test_missing_malformed_and_legacy_selection_refuse(self):
         self.connection.unlink(); self.assert_refused()

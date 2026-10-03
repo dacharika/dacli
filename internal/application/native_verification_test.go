@@ -369,3 +369,40 @@ func TestNativeVerificationConstructorConfigMismatch(t *testing.T) {
 		t.Fatal("runner credential exposed")
 	}
 }
+
+func TestPreparedVerificationExecutesOnceSequentialAndConcurrent(t *testing.T) {
+	for _, parallel := range []bool{false, true} {
+		t.Run(fmt.Sprint(parallel), func(t *testing.T) {
+			marker := filepath.Join(t.TempDir(), "once")
+			f := nativeSetup(t, "printf ran >> '"+marker+"'")
+			prepared, receipt, e := f.executor.Prepare(f.workerToken, f.request)
+			if e != nil || receipt != nil {
+				t.Fatal(e, receipt)
+			}
+			results := make(chan error, 2)
+			execute := func() { _, e := prepared.Execute(context.Background()); results <- e }
+			if parallel {
+				go execute()
+				go execute()
+			} else {
+				execute()
+				execute()
+			}
+			success, refused := 0, 0
+			for i := 0; i < 2; i++ {
+				e := <-results
+				if e == nil {
+					success++
+				} else if errors.Is(e, sessions.ErrDenied) {
+					refused++
+				} else {
+					t.Fatal(e)
+				}
+			}
+			b, e := os.ReadFile(marker)
+			if e != nil || string(b) != "ran" || success != 1 || refused != 1 {
+				t.Fatal("prepared check reexecuted", string(b), success, refused, e)
+			}
+		})
+	}
+}

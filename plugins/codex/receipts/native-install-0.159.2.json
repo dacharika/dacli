@@ -1,20 +1,20 @@
 {
   "schema": "dacli-plugin-native-smoke/v1",
   "host_version": "codex-cli 0.159.2",
-  "installed_version": "0.2.0",
-  "observed_at": "2026-10-02T21:08:47.501129+00:00",
-  "dacli_binary_sha256": "cdd3ecaf22168de30c35eb314ee0218c888c082529d24f5ddbcec60c0021cbc0",
+  "installed_version": "0.3.0",
+  "observed_at": "2026-10-03T01:12:31.417737+00:00",
+  "dacli_binary_sha256": "69354fe1319b3a3f03fa37067ad251b56cbf544021badda1a90ca573e7aa67ae",
   "plugin_source_sha256": {
-    "plugin.json": "e92268a04dfdc361680fad4df862998e7e03ffb6c7fdab31bd2523c6d342aff5",
+    "plugin.json": "d3c7b413af3feae63c44b295268f9dce9b16a76b7f596f89c812936fad1cafe1",
     "mcp.json": "16622c2b3aac85f04f082fa262288a503f55cb6fc9f59fc806dea203db7e1854",
     ".mcp.json": "2969faaa58d54ab6fe7e6d342ce8c37b35d950b20cb8a9dc1ec411ee35d1d539",
-    ".codex-plugin/plugin.json": "953afff306921a113ac9c1d3b89397c6b8c6ff2954227f5830ba99aa910bb7e8",
+    ".codex-plugin/plugin.json": "bf20d89f6b25ed9bdbca0e4a52a27c2600970736f7c9fb08400fee6ec4ebf979",
     "LICENSE": "4927bc79435b7bc5a9acc680e135c239a28baf42cafe262cf163777653b3f013",
-    "README.md": "c6c9e481f984c03ef8ac88b21ec83ecc0f31764977023e4d3cb116c5ee15a2f4",
-    "skills/governance-workflow/SKILL.md": "8f08d23df7c24843f325ae62c1c2462f2c9722c1e520349cbfddbc711700c43e",
-    "scripts/serve.py": "6c08983b6cf0e8fec7e84c12d9b8041b04005a0e1088baa88d5bdc2cf52a6c15"
+    "README.md": "9bd3006a0664dc58f3eebfce696e8ccde2893026602605b4a5d782ceb72f3a5c",
+    "skills/governance-workflow/SKILL.md": "1c0f126647c4157bb8d36e2848c418c0929c0bf470b8db25ebfd900a59c72bdd",
+    "scripts/serve.py": "222c10b337fdf1b214bb8b4d7657665d359cd8e53b6a54864b154f1832597122"
   },
-  "smoke_script_sha256": "57de070c8dc75c5968e02731bf3557de92e875b2a0d1a68b7d4cdc42a4634963",
+  "smoke_script_sha256": "8a163b518511c7ee679519d3dc5dd5a360fef0771ea240c5f557b329666c7da4",
   "native_host_tool_discovery": true,
   "native_host_skill_discovery": true,
   "tool_names": [
@@ -29,6 +29,26 @@
     "task_list",
     "workspace_status"
   ],
+  "configured_async_tool_names": [
+    "acquire_lease",
+    "cancel_verification",
+    "get_verification_status",
+    "identity",
+    "publish_revision",
+    "register_attempt",
+    "release_lease",
+    "renew_lease",
+    "request_verification",
+    "submit_evidence",
+    "task_get",
+    "task_list",
+    "workspace_status"
+  ],
+  "configured_async_completion_provenance": "trusted-local-runner",
+  "configured_async_exact_replay": true,
+  "configured_async_unrelated_reads_responsive": true,
+  "configured_async_cancel_has_no_evidence": true,
+  "configured_async_restart_preserves_unknown_and_completed": true,
   "native_owner_bootstrap_and_enrollment": true,
   "native_identity_matches_enrollment": true,
   "canonical_task_reads": true,
@@ -51,6 +71,5 @@
   "forged_owner_upgrade_exit": 3,
   "already_target_upgrade_exit": 3,
   "old_schema5_writer_exit": 3,
-  "migration_preserved_existing_profile_and_credentials": true,
-  "dacli_source_commit": "52bf6d34618f125ef61eeb698c7190dc0814a1e0"
+  "migration_preserved_existing_profile_and_credentials": true
 }

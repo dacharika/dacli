@@ -52,6 +52,23 @@ type evidenceArgs struct {
 	version
 	Request sessions.EvidenceRequest `json:"request"`
 }
+type verificationRequest struct {
+	OperationKey  string `json:"operation_key"`
+	AttemptID     string `json:"attempt_id"`
+	LeaseID       string `json:"lease_id"`
+	RevisionID    string `json:"revision_id"`
+	CheckID       string `json:"check_id"`
+	ExpectedFence uint64 `json:"expected_fence"`
+}
+type verificationArgs struct {
+	version
+	Request verificationRequest `json:"request"`
+}
+
+func (r verificationRequest) native() application.NativeVerificationRequest {
+	return application.NativeVerificationRequest{OperationKey: r.OperationKey, AttemptID: r.AttemptID, LeaseID: r.LeaseID, RevisionID: r.RevisionID, CheckID: r.CheckID, ExpectedFence: r.ExpectedFence}
+}
+
 type tool struct {
 	Name         string `json:"name"`
 	Description  string `json:"description"`
@@ -59,7 +76,7 @@ type tool struct {
 	OutputSchema any    `json:"outputSchema"`
 }
 
-var arguments = map[string]any{"identity": version{}, "workspace_status": projectArgs{}, "task_list": listArgs{}, "task_get": taskArgs{}, "register_attempt": registerArgs{}, "acquire_lease": acquireArgs{}, "renew_lease": renewArgs{}, "release_lease": releaseArgs{}, "publish_revision": publishArgs{}, "submit_evidence": evidenceArgs{}}
+var arguments = map[string]any{"request_verification": verificationArgs{}, "get_verification_status": verificationArgs{}, "cancel_verification": verificationArgs{}, "identity": version{}, "workspace_status": projectArgs{}, "task_list": listArgs{}, "task_get": taskArgs{}, "register_attempt": registerArgs{}, "acquire_lease": acquireArgs{}, "renew_lease": renewArgs{}, "release_lease": releaseArgs{}, "publish_revision": publishArgs{}, "submit_evidence": evidenceArgs{}}
 var names = []string{"identity", "workspace_status", "task_list", "task_get", "register_attempt", "acquire_lease", "renew_lease", "release_lease", "publish_revision", "submit_evidence"}
 
 // The output envelope is identical in structuredContent and JSON text fallback.
@@ -101,7 +118,7 @@ func taskView(t *store.Task) taskData {
 	return taskData{t.ID, t.Project, t.Title, string(t.Status)}
 }
 
-var outputs = map[string]any{"identity": identityData{}, "workspace_status": application.WorkspaceStatus{}, "task_list": taskList{}, "task_get": taskResult{}, "register_attempt": sessions.Attempt{}, "acquire_lease": sessions.Lease{}, "renew_lease": sessions.Lease{}, "release_lease": sessions.Lease{}, "publish_revision": sessions.AttemptRevision{}, "submit_evidence": sessions.Evidence{}}
+var outputs = map[string]any{"request_verification": application.VerificationStatus{}, "get_verification_status": application.VerificationStatus{}, "cancel_verification": application.VerificationStatus{}, "identity": identityData{}, "workspace_status": application.WorkspaceStatus{}, "task_list": taskList{}, "task_get": taskResult{}, "register_attempt": sessions.Attempt{}, "acquire_lease": sessions.Lease{}, "renew_lease": sessions.Lease{}, "release_lease": sessions.Lease{}, "publish_revision": sessions.AttemptRevision{}, "submit_evidence": sessions.Evidence{}}
 
 func outputSchema(name string) any {
 	data := map[string]any{"type": "object", "additionalProperties": false}
@@ -130,6 +147,8 @@ func schema(t reflect.Type) any {
 		return map[string]any{"type": "string"}
 	case reflect.Int, reflect.Int64, reflect.Uint64:
 		return map[string]any{"type": "integer"}
+	case reflect.Pointer:
+		return map[string]any{"oneOf": []any{map[string]any{"type": "null"}, schema(t.Elem())}}
 	case reflect.Slice:
 		return map[string]any{"type": []string{"array", "null"}, "items": schema(t.Elem())}
 	case reflect.Struct:
@@ -165,6 +184,15 @@ func catalog() []tool {
 	}
 	return out
 }
+func (s *Server) catalog() []tool {
+	out := catalog()
+	if s.verification != nil {
+		for _, n := range []string{"request_verification", "get_verification_status", "cancel_verification"} {
+			out = append(out, tool{n, "Owner-configured named check; exact fenced identity; no caller commands or authority.", schema(reflect.TypeOf(arguments[n])), outputSchema(n)})
+		}
+	}
+	return out
+}
 func (s *Server) call(name string, raw json.RawMessage) (any, error) {
 	w, a, token, principal, e := s.authenticate()
 	if e != nil {
@@ -191,6 +219,19 @@ func (s *Server) call(name string, raw json.RawMessage) (any, error) {
 		}
 	}
 	switch x := arg.(type) {
+	case *verificationArgs:
+		if s.verification == nil {
+			return nil, ErrDenied
+		}
+		switch name {
+		case "request_verification":
+			return s.verification.Request(x.Request.native())
+		case "get_verification_status":
+			return s.verification.Status(x.Request.native())
+		case "cancel_verification":
+			return s.verification.Cancel(x.Request.native())
+		}
+		return nil, ErrDenied
 	case *version:
 		return identityData{principal.ID, principal.Scope, principal.ExpiresAt}, nil
 	case *projectArgs:

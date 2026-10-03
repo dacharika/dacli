@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -22,12 +21,7 @@ import (
 
 // Commands and issuer credentials are private owner configuration. A worker
 // supplies only an immutable check name and its fenced, committed revision.
-type configuredCheck struct {
-	ID       string `json:"id"`
-	Command  string `json:"command"`
-	Deadline string `json:"deadline"`
-	GrantID  string `json:"grant_id,omitempty"`
-}
+type configuredCheck = application.ConfiguredCheck
 type checksConfig struct {
 	SchemaVersion int                `json:"schema_version"`
 	Checks        []checkDeclaration `json:"checks"`
@@ -39,18 +33,7 @@ type checkDeclaration struct {
 	Command  string `json:"command"`
 	Deadline string `json:"deadline"`
 }
-type runnerProfile struct {
-	SchemaVersion   int               `json:"schema_version"`
-	Workspace       string            `json:"workspace"`
-	WorkspaceID     string            `json:"workspace_id"`
-	Authority       string            `json:"authority"`
-	InstallationID  string            `json:"installation_id"`
-	TaskID          string            `json:"task_id"`
-	Repository      string            `json:"repository"`
-	RunnerSessionID string            `json:"runner_session_id"`
-	CredentialFile  string            `json:"credential_file"`
-	Checks          []configuredCheck `json:"checks"`
-}
+type runnerProfile = application.NativeRunnerProfile
 type verificationRequest struct {
 	SchemaVersion int    `json:"schema_version"`
 	OperationKey  string `json:"operation_key"`
@@ -61,9 +44,6 @@ type verificationRequest struct {
 	ExpectedFence uint64 `json:"expected_fence"`
 }
 
-func verificationID(s string) bool {
-	return s != "" && len(s) <= 256 && strings.TrimSpace(s) == s && !strings.ContainsAny(s, "/\\\x00\r\n")
-}
 func privateJSON(path string, value any) error {
 	b, e := native.ReadPrivate(path, 65536)
 	if e != nil || native.Decode(b, value) != nil {
@@ -72,20 +52,11 @@ func privateJSON(path string, value any) error {
 	return nil
 }
 func descriptors(checks []configuredCheck, grants bool) ([]application.NativeCheck, error) {
-	if len(checks) == 0 || len(checks) > 32 {
+	trusted, e := application.NativeCheckDescriptors(checks, grants)
+	if e != nil {
 		return nil, denied()
 	}
-	seen := map[string]bool{}
-	result := make([]application.NativeCheck, 0, len(checks))
-	for _, c := range checks {
-		deadline, e := time.ParseDuration(c.Deadline)
-		if e != nil || deadline <= 0 || deadline > 10*time.Minute || !verificationID(c.ID) || strings.TrimSpace(c.Command) == "" || seen[c.ID] || (grants && !verificationID(c.GrantID)) {
-			return nil, denied()
-		}
-		seen[c.ID] = true
-		result = append(result, application.NativeCheck{Descriptor: sessions.CheckDescriptor{ID: c.ID, Command: c.Command, Deadline: deadline}, GrantID: c.GrantID})
-	}
-	return result, nil
+	return trusted, nil
 }
 func verificationLifetime(f *clikit.Flags) (time.Duration, error) {
 	lifetime := time.Hour
@@ -237,88 +208,32 @@ func verify(ctx *clikit.Ctx, args []string) error {
 			return clikit.Usagef("--%s is required", k)
 		}
 	}
-	var c native.Connection
-	var p runnerProfile
 	var request verificationRequest
-	if privateJSON(f.Get("connection"), &c) != nil || privateJSON(f.Get("runner-config"), &p) != nil || privateJSON(f.Get("request"), &request) != nil {
+	if privateJSON(f.Get("request"), &request) != nil || request.SchemaVersion != 1 {
 		return denied()
 	}
-	if c.SchemaVersion != 1 || p.SchemaVersion != 1 || request.SchemaVersion != 1 || c.WorkspaceID == "" || c.InstallationID == "" || !verificationID(c.SessionID) || c.WorkspaceID != p.WorkspaceID || c.InstallationID != p.InstallationID || !verificationID(p.RunnerSessionID) || !verificationID(p.TaskID) || !filepath.IsAbs(p.Repository) {
-		return denied()
-	}
-	// Compare physical authority paths as well as installation/workspace binding;
-	// a profile from another local authority cannot be substituted by its IDs.
-	for _, path := range []string{c.Authority, p.Authority} {
-		info, statErr := os.Lstat(path)
-		if statErr != nil || !info.Mode().IsRegular() {
-			return denied()
-		}
-	}
-	authority, e := filepath.EvalSymlinks(c.Authority)
-	runnerAuthority, re := filepath.EvalSymlinks(p.Authority)
-	if e != nil || re != nil || !filepath.IsAbs(authority) || !filepath.IsAbs(c.Authority) || !filepath.IsAbs(p.Authority) || authority != runnerAuthority {
-		return denied()
-	}
-	w, e := native.ResolveWorkspace(c.Workspace, c.WorkspaceID)
+	selected, e := application.OpenNativeVerificationProfile(f.Get("connection"), f.Get("runner-config"))
 	if e != nil {
 		return denied()
 	}
-	runnerWorkspace, e := native.ResolveWorkspace(p.Workspace, p.WorkspaceID)
-	if e != nil || runnerWorkspace.Root != w.Root {
-		return denied()
-	}
-	trusted, e := descriptors(p.Checks, true)
-	if e != nil {
-		return e
-	}
-	if !verificationID(request.OperationKey) || !verificationID(request.AttemptID) || !verificationID(request.LeaseID) || !verificationID(request.RevisionID) || !verificationID(request.CheckID) || request.ExpectedFence == 0 {
-		return denied()
-	}
-	workerToken, e := native.ReadCredential(c.CredentialFile)
+	access, e := selected.Authenticate()
 	if e != nil {
 		return denied()
 	}
-	admission, e := application.NewLeaseAdmission(w)
-	if e != nil {
-		return denied()
-	}
-	a, e := sessions.Open(authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID}, admission)
-	if e != nil {
-		return denied()
-	}
-	worker, e := a.Authenticate(workerToken, c.SessionID)
-	if e != nil {
-		return denied()
-	}
-	runnerToken, e := native.ReadCredential(p.CredentialFile)
-	if e != nil {
-		return denied()
-	}
-	runnerSession, e := a.Authenticate(runnerToken, p.RunnerSessionID)
-	if e != nil || runnerSession.Parent != "" || len(runnerSession.Scope.Actions) != 1 || runnerSession.Scope.Actions[0] != "verification.run" || len(runnerSession.Scope.Resources) != 1 || runnerSession.Scope.Resources[0] != "task:"+p.TaskID {
-		return denied()
-	}
-	if _, e = a.Authorize(workerToken, worker.ID, w.ID, "verification.request", "task:"+p.TaskID); e != nil {
-		return denied()
-	}
-	repository, e := checkout.ObserveRepositoryIdentity(w.Root)
-	if e != nil || repository.Repository != p.Repository {
-		return denied()
-	}
-	runner, e := application.NewNativeVerificationRunner(a, runnerToken, p.RunnerSessionID, trusted)
-	if e != nil {
+	req := application.NativeVerificationRequest{OperationKey: request.OperationKey, WorkerSession: access.Worker.ID, AttemptID: request.AttemptID, LeaseID: request.LeaseID, RevisionID: request.RevisionID, CheckID: request.CheckID, ExpectedFence: request.ExpectedFence}
+	if !application.ValidNativeVerificationRequest(req) {
 		return denied()
 	}
 	bounded, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	evidence, e := runner.Run(bounded, workerToken, application.NativeVerificationRequest{OperationKey: request.OperationKey, WorkerSession: worker.ID, AttemptID: request.AttemptID, LeaseID: request.LeaseID, RevisionID: request.RevisionID, CheckID: request.CheckID, ExpectedFence: request.ExpectedFence})
+	evidence, e := access.Run(bounded, req)
 	if errors.Is(e, sessions.ErrReconcile) {
 		return clikit.Refusedf("verification outcome unknown; preserve operation key and private profile for owner reconciliation")
 	}
 	if e != nil {
 		return denied()
 	}
-	if evidence.Revision.Observation.Repository != p.Repository || evidence.Revision.AttemptID != request.AttemptID {
+	if evidence.Revision.AttemptID != request.AttemptID {
 		return denied()
 	}
 	return clikit.EmitJSON(ctx, struct {

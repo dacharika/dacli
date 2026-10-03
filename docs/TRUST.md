@@ -339,6 +339,15 @@ without rerunning; pending outcomes require reconciliation. It does not accept a
 worker-selected command or upgrade self-reported evidence.
 These exact commands use native authority instead of the ambient legacy grant.
 These native commands refuse invocation through MCP tools. Help remains a read.
+An explicit owner-selected private runner enables three narrow native MCP tools
+for requesting a configured named check, reading its exact operation status and
+requesting cancellation. They use the same shared private-profile and runner
+services, derive session/grant authority from those files, and never dispatch
+CLI commands or accept tool-provided commands/credentials/directories. Durable
+status reads do not reserve execution. Pending operations after interruption
+remain uncertain; only committed runner receipts establish outcomes. Bounded
+owned POSIX process-group cleanup covers cooperative check children, not hostile
+processes that leave their group. Final acceptance and deployment remain separate.
 None replaces existing credentials or resets storage. Revoke sessions through the owning authority workflow; retain authority
 history and reconcile interrupted issuance rather than deleting the workspace.
 See [native MCP setup](GOVERNANCE_NATIVE_MCP.md) for private-file requirements and

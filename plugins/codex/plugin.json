@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "dacli-governance",
-  "version": "0.2.0",
-  "description": "Scoped native governance sessions for task attempts, leases and revision evidence.",
+  "version": "0.3.0",
+  "description": "Scoped native governance with owner-configured asynchronous verification.",
   "author": {
     "name": "Taha Bouhsine"
   },
@@ -18,7 +18,7 @@
       "interface": {
         "displayName": "dacli Governance Preview",
         "shortDescription": "Coordinate governed work",
-        "longDescription": "Owner-enrolled native session tools for tasks, external checkout attempts, leases and revision-bound self-reports. Cooperative local preview; shared MCP connections share one session identity.",
+        "longDescription": "Owner-enrolled tools for tasks, checkout attempts, leases and revision evidence, with optional owner-configured named verification jobs. Cooperative local preview; shared MCP connections share one session identity.",
         "developerName": "Taha Bouhsine",
         "category": "Productivity",
         "capabilities": [

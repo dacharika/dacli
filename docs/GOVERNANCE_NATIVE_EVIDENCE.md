@@ -151,10 +151,17 @@ The output is a typed evidence receipt containing revision and output digests;
 raw check output and private credentials are not printed. A failed check remains
 failed evidence, and does not establish verification eligibility.
 
-Both commands are local-only and excluded from both MCP surfaces. The plugin's
-ten-tool catalog still submits only self-reported evidence. Asynchronous plugin
-verification, independent reviewer setup and canonical acceptance remain separate
-deliveries. Owner-selected commands execute repository code with the local OS
+Both CLI commands remain local-only and excluded from both MCP surfaces. The
+plugin's default ten-tool catalog submits only self-reported evidence. An owner
+may enable asynchronous named verification by selecting this private runner
+profile at native server startup with `--runner-config`, or by adding
+`runner_config_file` to the plugin's private selection. This adds typed
+`request_verification`, `get_verification_status` and `cancel_verification`
+operations backed by the same profile validation and runner services; it does
+not dispatch the CLI commands. See
+[the asynchronous workflow](GOVERNANCE_NATIVE_MCP.md#protocol-and-tools).
+Independent reviewer setup and canonical acceptance remain separate deliveries.
+Owner-selected commands execute repository code with the local OS
 user's permissions; private files are not hostile-code confinement.
 
 Keep the exact operation key when recovering a lost response. A completed retry

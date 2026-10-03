@@ -2,11 +2,14 @@
 package nativegovernance
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/mlnomadpy/dacli/internal/clikit"
@@ -21,7 +24,7 @@ var Commands = []clikit.Command{
 	{Path: "native verify", Brief: "Run an owner-configured named check for a fenced native revision", Mutates: true, JSON: true, Usage: "dacli native verify --connection <private-file> --runner-config <private-file> --request <private-file> --json", Run: verify},
 	{Path: "native upgrade", Brief: "Owner-upgrade native authority from schema 5 to 6 without replacing credentials", Mutates: true, Usage: "dacli native upgrade --config <private-file>", Run: upgrade},
 	{Path: "native revoke", Brief: "Owner-revoke an exact native session using a private explicit owner configuration", Mutates: true, Usage: "dacli native revoke --config <private-file> --session <session-id>", Run: revoke},
-	{Path: "native serve", Brief: "Serve scoped native governance MCP using a private explicit session connection", Usage: "dacli native serve --connection <private-file>", Run: serve},
+	{Path: "native serve", Brief: "Serve scoped native governance MCP using a private explicit session connection", Usage: "dacli native serve --connection <private-file> [--runner-config <private-file>]", Run: serve},
 	{Path: "native bootstrap", Brief: "Initialize an absent native authority and privately save its owner credential", Mutates: true, Usage: "dacli native bootstrap --config <private-file>", Run: bootstrap},
 	{Path: "native enroll", Brief: "Owner-enroll a scoped native session for an existing canonical task", Mutates: true, Usage: "dacli native enroll --config <private-file> --task <ref> --connection <new-private-file> --credential <new-private-file> [--path <relative-path>]... [--expires <duration>] [--verification]", Run: enroll},
 }
@@ -56,18 +59,20 @@ func denied() error {
 	return clikit.Refusedf("native authority unavailable or refused; verify private configuration and credentials")
 }
 func serve(ctx *clikit.Ctx, args []string) error {
-	f, e := flags(args, "connection")
+	f, e := flags(args, "connection", "runner-config")
 	if e != nil {
 		return e
 	}
 	if f.Get("connection") == "" {
 		return clikit.Usagef("--connection is required")
 	}
-	s, e := native.Open(f.Get("connection"))
+	s, e := native.OpenWithRunner(f.Get("connection"), f.Get("runner-config"))
 	if e != nil {
 		return denied()
 	}
-	if e = s.Serve(os.Stdin, ctx.Stdout); e != nil {
+	bounded, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	if e = s.ServeContext(bounded, os.Stdin, ctx.Stdout); e != nil {
 		return denied()
 	}
 	return nil
