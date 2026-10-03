@@ -69,6 +69,14 @@ func (r verificationRequest) native() application.NativeVerificationRequest {
 	return application.NativeVerificationRequest{OperationKey: r.OperationKey, AttemptID: r.AttemptID, LeaseID: r.LeaseID, RevisionID: r.RevisionID, CheckID: r.CheckID, ExpectedFence: r.ExpectedFence}
 }
 
+type reviewArgs struct {
+	version
+	Request application.NativeReviewRequest `json:"request"`
+}
+type evaluateReviewArgs struct {
+	version
+	ReviewID string `json:"review_id"`
+}
 type tool struct {
 	Name         string `json:"name"`
 	Description  string `json:"description"`
@@ -76,7 +84,7 @@ type tool struct {
 	OutputSchema any    `json:"outputSchema"`
 }
 
-var arguments = map[string]any{"request_verification": verificationArgs{}, "get_verification_status": verificationArgs{}, "cancel_verification": verificationArgs{}, "identity": version{}, "workspace_status": projectArgs{}, "task_list": listArgs{}, "task_get": taskArgs{}, "register_attempt": registerArgs{}, "acquire_lease": acquireArgs{}, "renew_lease": renewArgs{}, "release_lease": releaseArgs{}, "publish_revision": publishArgs{}, "submit_evidence": evidenceArgs{}}
+var arguments = map[string]any{"propose_review": reviewArgs{}, "evaluate_review": evaluateReviewArgs{}, "request_verification": verificationArgs{}, "get_verification_status": verificationArgs{}, "cancel_verification": verificationArgs{}, "identity": version{}, "workspace_status": projectArgs{}, "task_list": listArgs{}, "task_get": taskArgs{}, "register_attempt": registerArgs{}, "acquire_lease": acquireArgs{}, "renew_lease": renewArgs{}, "release_lease": releaseArgs{}, "publish_revision": publishArgs{}, "submit_evidence": evidenceArgs{}}
 var names = []string{"identity", "workspace_status", "task_list", "task_get", "register_attempt", "acquire_lease", "renew_lease", "release_lease", "publish_revision", "submit_evidence"}
 
 // The output envelope is identical in structuredContent and JSON text fallback.
@@ -118,7 +126,7 @@ func taskView(t *store.Task) taskData {
 	return taskData{t.ID, t.Project, t.Title, string(t.Status)}
 }
 
-var outputs = map[string]any{"request_verification": application.VerificationStatus{}, "get_verification_status": application.VerificationStatus{}, "cancel_verification": application.VerificationStatus{}, "identity": identityData{}, "workspace_status": application.WorkspaceStatus{}, "task_list": taskList{}, "task_get": taskResult{}, "register_attempt": sessions.Attempt{}, "acquire_lease": sessions.Lease{}, "renew_lease": sessions.Lease{}, "release_lease": sessions.Lease{}, "publish_revision": sessions.AttemptRevision{}, "submit_evidence": sessions.Evidence{}}
+var outputs = map[string]any{"propose_review": sessions.Review{}, "evaluate_review": sessions.ReviewEligibility{}, "request_verification": application.VerificationStatus{}, "get_verification_status": application.VerificationStatus{}, "cancel_verification": application.VerificationStatus{}, "identity": identityData{}, "workspace_status": application.WorkspaceStatus{}, "task_list": taskList{}, "task_get": taskResult{}, "register_attempt": sessions.Attempt{}, "acquire_lease": sessions.Lease{}, "renew_lease": sessions.Lease{}, "release_lease": sessions.Lease{}, "publish_revision": sessions.AttemptRevision{}, "submit_evidence": sessions.Evidence{}}
 
 func outputSchema(name string) any {
 	data := map[string]any{"type": "object", "additionalProperties": false}
@@ -186,6 +194,13 @@ func catalog() []tool {
 }
 func (s *Server) catalog() []tool {
 	out := catalog()
+	if s.review != nil {
+		out = nil
+		for _, n := range []string{"identity", "workspace_status", "task_list", "task_get", "propose_review", "evaluate_review"} {
+			out = append(out, tool{n, "Scoped independent review proposal or fresh observation; no acceptance authority.", schema(reflect.TypeOf(arguments[n])), outputSchema(n)})
+		}
+		return out
+	}
 	if s.verification != nil {
 		for _, n := range []string{"request_verification", "get_verification_status", "cancel_verification"} {
 			out = append(out, tool{n, "Owner-configured named check; exact fenced identity; no caller commands or authority.", schema(reflect.TypeOf(arguments[n])), outputSchema(n)})
@@ -197,6 +212,13 @@ func (s *Server) call(name string, raw json.RawMessage) (any, error) {
 	w, a, token, principal, e := s.authenticate()
 	if e != nil {
 		return nil, ErrDenied
+	}
+	if s.review != nil {
+		switch name {
+		case "identity", "workspace_status", "task_list", "task_get", "propose_review", "evaluate_review":
+		default:
+			return nil, ErrDenied
+		}
 	}
 	template, ok := arguments[name]
 	if !ok {
@@ -219,6 +241,24 @@ func (s *Server) call(name string, raw json.RawMessage) (any, error) {
 		}
 	}
 	switch x := arg.(type) {
+	case *reviewArgs:
+		if s.review == nil {
+			return nil, ErrDenied
+		}
+		access, e := s.review.Authenticate()
+		if e != nil {
+			return nil, ErrDenied
+		}
+		return access.Propose(x.Request)
+	case *evaluateReviewArgs:
+		if s.review == nil {
+			return nil, ErrDenied
+		}
+		access, e := s.review.Authenticate()
+		if e != nil {
+			return nil, ErrDenied
+		}
+		return access.Evaluate(x.ReviewID)
 	case *verificationArgs:
 		if s.verification == nil {
 			return nil, ErrDenied

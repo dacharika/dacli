@@ -20,11 +20,12 @@ import (
 )
 
 var Commands = []clikit.Command{
+	{Path: "native reviewer add", Brief: "Owner-configure a separate private native reviewer and derived named-check policy", Mutates: true, Usage: "dacli native reviewer add --config <private-file> --task <ref> --worker-session <id> --runner-config <private-file> --policy-revision <id> --policy-out <new-private-file> --review-config <new-private-file> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]", Run: reviewerAdd},
 	{Path: "native verifier add", Brief: "Owner-configure private named checks with separately scoped verification authority", Mutates: true, Usage: "dacli native verifier add --config <private-file> --task <ref> --checks-file <private-file> --out <new-private-file> --credential <new-private-file> [--expires <duration>]", Run: verifierAdd},
 	{Path: "native verify", Brief: "Run an owner-configured named check for a fenced native revision", Mutates: true, JSON: true, Usage: "dacli native verify --connection <private-file> --runner-config <private-file> --request <private-file> --json", Run: verify},
 	{Path: "native upgrade", Brief: "Owner-upgrade native authority from schema 5 to 6 without replacing credentials", Mutates: true, Usage: "dacli native upgrade --config <private-file>", Run: upgrade},
 	{Path: "native revoke", Brief: "Owner-revoke an exact native session using a private explicit owner configuration", Mutates: true, Usage: "dacli native revoke --config <private-file> --session <session-id>", Run: revoke},
-	{Path: "native serve", Brief: "Serve scoped native governance MCP using a private explicit session connection", Usage: "dacli native serve --connection <private-file> [--runner-config <private-file>]", Run: serve},
+	{Path: "native serve", Brief: "Serve scoped native governance MCP using a private explicit session connection", Usage: "dacli native serve --connection <private-file> [--runner-config <private-file> | --review-config <private-file>]", Run: serve},
 	{Path: "native bootstrap", Brief: "Initialize an absent native authority and privately save its owner credential", Mutates: true, Usage: "dacli native bootstrap --config <private-file>", Run: bootstrap},
 	{Path: "native enroll", Brief: "Owner-enroll a scoped native session for an existing canonical task", Mutates: true, Usage: "dacli native enroll --config <private-file> --task <ref> --connection <new-private-file> --credential <new-private-file> [--path <relative-path>]... [--expires <duration>] [--verification]", Run: enroll},
 }
@@ -32,7 +33,7 @@ var Commands = []clikit.Command{
 // AuthenticatesExplicitly lists exactly the handlers exempt from the legacy grant gate.
 func AuthenticatesExplicitly(path string) bool {
 	switch path {
-	case "native bootstrap", "native enroll", "native revoke", "native upgrade", "native verifier add", "native verify":
+	case "native bootstrap", "native enroll", "native revoke", "native upgrade", "native verifier add", "native verify", "native reviewer add":
 		return true
 	}
 	return false
@@ -59,14 +60,17 @@ func denied() error {
 	return clikit.Refusedf("native authority unavailable or refused; verify private configuration and credentials")
 }
 func serve(ctx *clikit.Ctx, args []string) error {
-	f, e := flags(args, "connection", "runner-config")
+	f, e := flags(args, "connection", "runner-config", "review-config")
 	if e != nil {
 		return e
 	}
 	if f.Get("connection") == "" {
 		return clikit.Usagef("--connection is required")
 	}
-	s, e := native.OpenWithRunner(f.Get("connection"), f.Get("runner-config"))
+	if f.Get("runner-config") != "" && f.Get("review-config") != "" {
+		return clikit.Usagef("--runner-config and --review-config are mutually exclusive")
+	}
+	s, e := native.OpenWithProfiles(f.Get("connection"), f.Get("runner-config"), f.Get("review-config"))
 	if e != nil {
 		return denied()
 	}

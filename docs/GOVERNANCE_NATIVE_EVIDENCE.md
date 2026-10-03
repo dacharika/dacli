@@ -151,7 +151,7 @@ The output is a typed evidence receipt containing revision and output digests;
 raw check output and private credentials are not printed. A failed check remains
 failed evidence, and does not establish verification eligibility.
 
-Both CLI commands remain local-only and excluded from both MCP surfaces. The
+Both CLI commands remain local-only and excluded from both MCP surfaces. Separately owner-provisioned review profiles can reference these trusted receipts through the native review tools; self-reported evidence remains ineligible for that workflow. The
 plugin's default ten-tool catalog submits only self-reported evidence. An owner
 may enable asynchronous named verification by selecting this private runner
 profile at native server startup with `--runner-config`, or by adding

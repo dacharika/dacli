@@ -194,7 +194,7 @@ func TestNativeOwnerDispatcherUsesOnlyExplicitAuthority(t *testing.T) {
 	}
 }
 func TestNativeOwnerCommandsNeverReachLegacyMCP(t *testing.T) {
-	for _, path := range [][]string{{"native", "bootstrap"}, {"native", "enroll"}, {"native", "serve"}, {"native", "revoke"}, {"native", "upgrade"}} {
+	for _, path := range [][]string{{"native", "bootstrap"}, {"native", "enroll"}, {"native", "serve"}, {"native", "revoke"}, {"native", "upgrade"}, {"native", "verifier", "add"}, {"native", "verify"}, {"native", "reviewer", "add"}} {
 		_, msg, code := executor(t.TempDir())(path, false)
 		if code != 3 || !strings.Contains(msg, "local-only") {
 			t.Fatalf("native command reached legacy MCP: %v code%d %s", path, code, msg)

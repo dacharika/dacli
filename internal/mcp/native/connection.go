@@ -26,6 +26,7 @@ type Server struct {
 	path         string
 	connection   Connection
 	verification *application.NativeVerificationJobs
+	review       *application.NativeReviewProfile
 }
 
 func Open(path string) (*Server, error) {
@@ -72,14 +73,32 @@ func (s *Server) authenticate() (*workspace.Workspace, *sessions.Authority, stri
 	if e != nil {
 		return deny()
 	}
+	if s.review != nil {
+		if _, e := s.review.Authenticate(); e != nil {
+			return deny()
+		}
+	}
 	return w, a, token, session, nil
 }
 
 // OpenWithRunner enables only the owner's explicitly selected private profile.
 func OpenWithRunner(path, runnerPath string) (*Server, error) {
+	return OpenWithProfiles(path, runnerPath, "")
+}
+func OpenWithProfiles(path, runnerPath, reviewPath string) (*Server, error) {
+	if runnerPath != "" && reviewPath != "" {
+		return nil, ErrDenied
+	}
 	s, e := Open(path)
 	if e != nil {
 		return nil, e
+	}
+	if reviewPath != "" {
+		s.review, e = application.OpenNativeReviewProfile(path, reviewPath)
+		if e != nil {
+			return nil, ErrDenied
+		}
+		return s, nil
 	}
 	if runnerPath == "" {
 		return s, nil

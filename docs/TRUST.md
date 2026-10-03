@@ -353,6 +353,19 @@ history and reconcile interrupted issuance rather than deleting the workspace.
 See [native MCP setup](GOVERNANCE_NATIVE_MCP.md) for private-file requirements and
 cooperative assurance limits.
 
+Owner-only `native reviewer add` provisions a separate review-only root session
+and grant, deriving required named-check digests from a private runner profile.
+Its private outputs never overwrite an existing connection or credential. The
+reviewer cannot use implementation or runner actions, and a reviewer family with
+implementation history cannot qualify as independent. Explicit reviewer mode
+exposes only four reads and typed review proposal/evaluation; it cannot be mixed
+with a worker runner profile. No native or legacy MCP tool can issue this
+authority or choose its required policy. Fresh evaluation rechecks current
+checklist/policy, trusted exact-revision evidence and the still-current worker
+lease. Historical proposal replay never means current approval. This proves
+cooperative credential separation, not separate humans/models or independent
+reasoning. Neither proposals nor eligibility move tasks, merge or deploy.
+
 ## 6. What this doc does not claim
 
 - It does not claim prompt injection is solved. § 2 is explicit: attribution

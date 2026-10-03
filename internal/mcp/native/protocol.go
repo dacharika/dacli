@@ -191,7 +191,7 @@ func (s *Server) ServeContext(ctx context.Context, in io.Reader, out io.Writer) 
 				// come from the pinned private connection, never client labels.
 				// A newer client offer negotiates our supported version.
 				initialized = true
-				value = map[string]any{"protocolVersion": "2025-06-18", "capabilities": map[string]any{"tools": map[string]any{}}, "serverInfo": map[string]any{"name": "dacli-native-governance", "version": "0.1.0"}, "instructions": "Scoped cooperative governance services. No caller shell, owner operations, review or acceptance. Named verification is available only with owner-selected private runner configuration."}
+				value = map[string]any{"protocolVersion": "2025-06-18", "capabilities": map[string]any{"tools": map[string]any{}}, "serverInfo": map[string]any{"name": "dacli-native-governance", "version": "0.1.0"}, "instructions": "Scoped cooperative governance services. No caller shell, owner operations or acceptance. Named verification or independent review is available only with the corresponding owner-selected private profile."}
 			case "ping":
 				var p struct {
 					Meta map[string]any `json:"_meta,omitempty"`
