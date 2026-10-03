@@ -275,6 +275,62 @@ func validDigest(s string) bool {
 }
 func OutputDigest(output []byte) string { return "sha256:" + hash(string(output)) }
 
+// VerificationOperationState describes durable evidence, not process liveness.
+type VerificationOperationState string
+
+const (
+	VerificationAbsent    VerificationOperationState = "absent"
+	VerificationPending   VerificationOperationState = "pending"
+	VerificationCompleted VerificationOperationState = "completed"
+)
+
+type VerificationLookup struct {
+	State    VerificationOperationState
+	Evidence *Evidence
+}
+
+// LookupVerification reads an exact operation without reserving or executing it.
+// Historical receipts require current worker and runner authority, as Begin's
+// replay path does; they do not renew a lease or establish current eligibility.
+// Pending means reserved with no committed result, never proof of a live process.
+func (a *Authority) LookupVerification(workerToken, runnerToken, runnerSession string, req VerificationRequest, descriptor string) (VerificationLookup, error) {
+	var result VerificationLookup
+	err := a.transaction(false, false, func(s *state) error {
+		_, at, err := leaseAuth(s, workerToken, req.WorkerSession, req.AttemptID, "verification.request", time.Now())
+		if err != nil {
+			return err
+		}
+		if !validID(req.OperationKey) {
+			return ErrDenied
+		}
+		if _, err = runnerAuth(s, runnerToken, runnerSession, req, at, descriptor); err != nil {
+			return err
+		}
+		op, ok := s.Operations[req.OperationKey]
+		if !ok {
+			result.State = VerificationAbsent
+			return nil
+		}
+		if op.Digest != identity("run:"+descriptor, runnerSession, req) {
+			return ErrDenied
+		}
+		if op.Evidence != nil {
+			copy := *op.Evidence
+			result = VerificationLookup{State: VerificationCompleted, Evidence: &copy}
+			return nil
+		}
+		if !op.Pending {
+			return ErrReconcile
+		}
+		result.State = VerificationPending
+		return nil
+	})
+	if err != nil {
+		return VerificationLookup{}, err
+	}
+	return result, nil
+}
+
 // BeginVerification durably reserves an execution before external effects. An
 // exact committed retry recovers the receipt; an uncommitted retry refuses.
 func (a *Authority) BeginVerification(workerToken, runnerToken, runnerSession string, req VerificationRequest, descriptor string) (AttemptRevision, *Evidence, error) {

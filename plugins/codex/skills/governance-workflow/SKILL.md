@@ -1,6 +1,6 @@
 ---
 name: governance-workflow
-description: Use owner-enrolled native dacli sessions to inspect canonical tasks, register external checkout attempts, acquire leases and publish revision-bound self-reports through Codex.
+description: Use owner-enrolled native dacli sessions to inspect tasks, lease checkout attempts, publish revisions and request optional owner-configured named verification through Codex.
 ---
 
 Use the host's native coding and collaboration tools. Do not launch a nested
@@ -23,7 +23,15 @@ Codex CLI or use `dacli spawn` to establish identity.
    `submit_evidence` records an authenticated session's **self-report** bound to
    that revision. It does not turn a claimed exit code into trusted runner or
    CI evidence. Use unique operation keys and exact expected revision/fence.
-5. Release with `release_lease` when done. Leave trusted verification enrollment,
+5. If the owner has configured a separate runner and the catalog advertises
+   verification tools, call `request_verification` for the named check and exact
+   revision/lease/fence. Preserve the full operation identity. Use
+   `get_verification_status` to observe progress and the final receipt; submission
+   alone is not successful verification. Use `cancel_verification` to request
+   cancellation, then inspect status. An unknown or pending durable operation
+   requires owner reconciliation; never change its key to reexecute uncertain
+   work. These tools accept no command, credential, grant or directory overrides.
+6. Release with `release_lease` when done. Leave trusted verification enrollment,
    independent review and final acceptance to their separately authorized
    workflows. These authority-granting operations are not plugin tools.
 
@@ -31,7 +39,7 @@ Use `tools/list` for exact required fields, including `schema_version: 1` and
 mutation `request` records. Policy refusals are final for unchanged requests.
 Report uncertainty and recovery needs instead of substituting a CLI escape.
 
-This 0.2.0 package exposes cooperative native session governance. All agents
+This 0.3.0 package exposes cooperative native session governance. All agents
 sharing one MCP process share its enrolled identity; host labels, `_meta` and
 thread/subagent IDs do not authenticate separate children or independent
 reviewers. Independent sessions need separately provisioned credentials and

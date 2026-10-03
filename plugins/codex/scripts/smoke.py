@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import queue
+import shlex
 import signal
 import subprocess
 import tempfile
@@ -167,7 +168,7 @@ def smoke(codex, dacli, schema5_dacli=None):
             status = server.call('mcpServerStatus/list', {})['data']
             assert len(status) == 1 and not status[0]['toolsError'], 'native discovery unavailable'
             names = sorted(status[0]['tools'])
-            assert installed['version'] == '0.2.0'
+            assert installed['version'] == '0.3.0'
             assert names == sorted(['identity','workspace_status','task_list','task_get','register_attempt',
                                     'acquire_lease','renew_lease','release_lease','publish_revision','submit_evidence'])
             skills = server.call('skills/list', {'cwds':[str(workspace)], 'forceReload':True})
@@ -223,6 +224,98 @@ def smoke(codex, dacli, schema5_dacli=None):
             assert revoked, 'exact native revocation refusal was not confirmed'
         finally:
             server.close()
+        # A separate owner-enrolled worker and runner exercise the optional
+        # tools through the actual Codex client. No model turn or production
+        # credentials are involved, and the original profile remains retained.
+        async_profile = private / 'async-session.json'
+        run([dacli, 'native', 'enroll', '--config', str(owner), '--task', 'fixture/001',
+             '--connection', str(async_profile), '--credential', str(private / 'async-session.token'),
+             '--path', 'src', '--verification'])
+        run([dacli, 'task', 'claim', 'fixture/001'])
+        started = private / 'public-check-started'
+        checks = private / 'checks.json'
+        checks.write_text(json.dumps({'schema_version':1,'checks':[
+            {'id':'public-complete','command':'printf public-configured-check','deadline':'10s'},
+            {'id':'public-cancel','command':'printf started > '+shlex.quote(str(started))+'; sleep 60','deadline':'1m'}]}))
+        checks.chmod(0o600)
+        runner = private / 'runner.json'
+        run([dacli, 'native', 'verifier', 'add', '--config', str(owner), '--task', 'fixture/001',
+             '--checks-file', str(checks), '--out', str(runner), '--credential', str(private / 'runner.token')])
+        selection.write_text(json.dumps({'schema_version':1,'binary':dacli,
+            'connection_file':str(async_profile),'runner_config_file':str(runner)}))
+        server = Host(codex, workspace, env)
+        try:
+            status = server.call('mcpServerStatus/list', {})['data']
+            assert len(status) == 1 and not status[0]['toolsError']
+            async_names = sorted(status[0]['tools'])
+            assert async_names == sorted(names+['request_verification','get_verification_status','cancel_verification'])
+            thread = server.call('thread/start', {'cwd':str(workspace),'ephemeral':True,
+                                                 'approvalPolicy':'never','sandbox':'read-only'})
+            tid = thread['thread']['id']
+            # raw_call/call use the newly selected live server/thread above.
+            attempt = call('register_attempt', request={'RequestID':'public-async-attempt','TaskID':task_id,
+                'Checkout':str(workspace),'HostLabel':'public-native-host'})
+            expiry = (datetime.now(timezone.utc)+timedelta(minutes=10)).isoformat().replace('+00:00','Z')
+            lease = call('acquire_lease', request={'OperationKey':'public-async-acquire','AttemptID':attempt['ID'],
+                'Resources':[{'Kind':'path','Path':'src'}],'ExpiresAt':expiry})
+            revision = call('publish_revision', request={'OperationKey':'public-async-publish','AttemptID':attempt['ID'],
+                'LeaseID':lease['ID'],'ExpectedFence':lease['Fence'],'ExpectedRevision':0})
+            request = {'operation_key':'public-configured-complete','attempt_id':attempt['ID'],
+                'lease_id':lease['ID'],'revision_id':revision['ID'],'check_id':'public-complete',
+                'expected_fence':lease['Fence']}
+            submitted = call('request_verification', request=request)
+            assert submitted['operation_key'] == request['operation_key']
+            deadline = time.monotonic()+15
+            while True:
+                completed = call('get_verification_status', request=request)
+                if completed['state'] == 'completed':
+                    break
+                assert time.monotonic() < deadline, 'configured check did not complete'
+                assert completed['state'] in ('admitting','reserved')
+                time.sleep(0.02)
+            trusted = completed['evidence']
+            assert trusted['Provenance'] == 'trusted-local-runner' and trusted['ExitCode'] == 0
+            assert trusted['Revision']['ID'] == revision['ID']
+            replay = call('request_verification', request=request)
+            assert replay['state'] == 'completed' and replay['evidence']['ID'] == trusted['ID']
+            cancelling = dict(request,operation_key='public-configured-cancel',check_id='public-cancel')
+            call('request_verification', request=cancelling)
+            deadline = time.monotonic()+15
+            while not started.exists():
+                assert time.monotonic() < deadline, 'configured cancellation check did not start'
+                time.sleep(0.02)
+            observed = time.monotonic()
+            call('identity'); call('task_get', task='fixture/001')
+            assert time.monotonic()-observed < 10, 'unrelated calls blocked behind check'
+            cancel_result = call('cancel_verification', request=cancelling)
+            assert cancel_result['state'] in ('cancellation_requested','reconciliation_required')
+            deadline = time.monotonic()+15
+            while True:
+                cancelled = call('get_verification_status', request=cancelling)
+                if cancelled['state'] == 'reconciliation_required':
+                    break
+                assert time.monotonic() < deadline, 'cancellation did not finish'
+                assert cancelled['state'] == 'cancellation_requested'
+                time.sleep(0.02)
+            assert cancelled['evidence'] is None
+            call('release_lease', request={'OperationKey':'public-async-release','AttemptID':attempt['ID'],
+                'LeaseID':lease['ID'],'ExpectedFence':lease['Fence']})
+        finally:
+            server.close()
+        # Restart observes the durable incomplete reservation, never reruns it.
+        server = Host(codex, workspace, env)
+        try:
+            status = server.call('mcpServerStatus/list', {})['data']
+            thread = server.call('thread/start', {'cwd':str(workspace),'ephemeral':True,
+                                                 'approvalPolicy':'never','sandbox':'read-only'})
+            tid = thread['thread']['id']
+            recovered = call('get_verification_status', request=cancelling)
+            assert recovered['state'] == 'reconciliation_required' and recovered['evidence'] is None
+            recovered_complete = call('get_verification_status', request=request)
+            assert recovered_complete['state'] == 'completed' and recovered_complete['evidence']['ID'] == trusted['ID']
+        finally:
+            server.close()
+        selection.write_text(json.dumps({'schema_version':1,'binary':dacli,'connection_file':str(profile)}))
         profile.rename(private / 'retained-session.json')
         missing_profile = subprocess.run(['python3', str(Path(installed['installedPath']) / 'scripts/serve.py')],
             env=env, cwd=workspace, input='', capture_output=True, text=True, timeout=10)
@@ -240,6 +333,12 @@ def smoke(codex, dacli, schema5_dacli=None):
             'smoke_script_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
             'native_host_tool_discovery':True,
             'native_host_skill_discovery':True, 'tool_names':names,
+            'configured_async_tool_names':async_names,
+            'configured_async_completion_provenance':trusted['Provenance'],
+            'configured_async_exact_replay':True,
+            'configured_async_unrelated_reads_responsive':True,
+            'configured_async_cancel_has_no_evidence':True,
+            'configured_async_restart_preserves_unknown_and_completed':True,
             'native_owner_bootstrap_and_enrollment':True, 'native_identity_matches_enrollment':True,
             'canonical_task_reads':True, 'external_git_attempt_registered':True,
             'lease_acquired_and_released':True, 'committed_revision_published':True,

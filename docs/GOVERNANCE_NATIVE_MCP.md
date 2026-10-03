@@ -52,10 +52,23 @@ still permits task-only leases. Canonical readiness is checked later through
 Enrollment does not spawn an agent or mint trusted runner/reviewer authority.
 Use distinct credentials and MCP instances for independently acting sessions.
 For the separate local trusted-verification workflow, owner enrollment may opt
-into `--verification` to grant `verification.request`. This does not add a
-verification tool to the MCP catalog. See
+into `--verification` to grant `verification.request`. The default MCP catalog
+remains unchanged; an owner may explicitly select a private runner at server
+startup to enable named asynchronous verification. See
 [private named verification setup](GOVERNANCE_NATIVE_EVIDENCE.md#private-local-verification-setup)
 for owner runner provisioning and the local `native verify` adapter.
+
+```sh
+dacli native serve --connection /absolute/private/session.json \
+  --runner-config /absolute/private/runner.json
+```
+
+The runner is separately enrolled with exact named grants. Its profile must
+match the worker's physical authority, workspace, installation, task and
+repository. Configuration is pinned at startup and validated afresh for
+verification calls; commands and credentials stay in private owner files.
+Malformed, replaced, revoked or mismatched configuration refuses. Tools cannot
+select a different runner, command, directory, credential or grant.
 
 Owner and session secrets are written only into newly created private files,
 never argv, stdout, tool arguments or diagnostics. Existing output paths refuse.
@@ -133,7 +146,7 @@ Request IDs are non-null strings or integer numbers. Incoming frames are
 bounded to 1 MiB. Supported methods are `initialize`,
 `ping`, `notifications/initialized`, `tools/list`, and `tools/call`.
 
-The exact tools are `identity`, `workspace_status`, `task_list`, `task_get`,
+The default tools are `identity`, `workspace_status`, `task_list`, `task_get`,
 `register_attempt`, `acquire_lease`, `renew_lease`, `release_lease`,
 `publish_revision`, and `submit_evidence`. Discover their typed schemas rather
 than guessing arguments. Every tool requires `schema_version: 1`; unknown
@@ -142,6 +155,59 @@ use a typed `request` object matching the existing shared request field names
 (for example `OperationKey`, `AttemptID`, `LeaseID`, `ExpectedFence`). Time values
 are RFC3339 strings. Scope and operation identity are derived from credentials;
 callers cannot supply a replacement authenticated session.
+
+With an explicitly configured runner, the catalog additionally advertises
+`request_verification`, `get_verification_status` and `cancel_verification`.
+All three require `schema_version: 1` and the same exact `request` object:
+
+```json
+{
+  "operation_key": "owner-check-for-revision-1",
+  "attempt_id": "registered-attempt-id",
+  "lease_id": "current-lease-id",
+  "revision_id": "published-revision-id",
+  "check_id": "owner-configured-check-name",
+  "expected_fence": 1
+}
+```
+
+Their typed result contains `operation_key`, `state` and nullable `evidence`.
+States are `absent`, `admitting`, `reserved`, `cancellation_requested`,
+`completed` and `reconciliation_required`. Admission is not proof of process
+start; reservation is durable but is not proof of a live process. Only a
+completed receipt records an outcome; inspect its exit code and provenance.
+Failed checks can have completed receipts with nonzero exit codes.
+
+Jobs run outside the protocol reader. Two active jobs are admitted without a
+queue; capacity is checked before reserving another execution. Exact duplicates
+recover the same in-process state or durable receipt rather than executing
+again. Status and cancellation authenticate the original caller and full
+operation binding without reserving work. Completed receipts are historical
+and do not extend lease eligibility. A pending reservation after restart is
+`reconciliation_required`; preserve its key and configuration for the owner.
+Do not use a new key to rerun an uncertain operation.
+
+Up to sixteen tool calls are handled concurrently with serialized output.
+Responses may arrive out of order; clients must match JSON-RPC request IDs.
+Excess in-flight calls refuse rather than creating an unbounded queue. EOF,
+context cancellation and transport failures cancel owned jobs and wait for
+bounded teardown; incomplete durable outcomes remain available for recovery.
+
+Cancellation requests target the exact in-process job. They do not fabricate a
+successful receipt or erase a reservation. A committed receipt wins a race with
+cancellation; otherwise interrupted reserved work remains uncertain. Native
+checks use owned POSIX process groups with bounded pipe draining to terminate
+cooperative children on cancellation/deadline and clean up background children
+on completion. Unsupported platforms refuse execution. Children that leave the
+group deliberately are outside this cooperative guarantee.
+
+Progress is represented by bounded status snapshots. This transport does not
+send progress notifications after a submission response has completed. Protocol
+`notifications/cancelled` is distinct from cancelling a durable verification job;
+use the typed cancellation tool and inspect status for that purpose. See the
+[MCP progress](https://modelcontextprotocol.io/specification/2025-06-18/basic/utilities/progress)
+and [cancellation](https://modelcontextprotocol.io/specification/2025-06-18/basic/utilities/cancellation)
+specifications for request-scoped notification semantics.
 
 Successes and refusals have tool-specific object output schemas and are checked
 against the emitted schema before returning. `structuredContent` and the JSON
@@ -153,8 +219,9 @@ Session-file startup failures exit 3 before processing input.
 
 There is no CLI/shell escape hatch, owner enrollment, policy/grant administration,
 provider spawning, acceptance or unconfigured verification execution in this
-catalog. Self-report evidence always stays self-reported. Trusted verification is
-available through a separately configured local adapter, not this transport.
+catalog. Self-report evidence always stays self-reported. Trusted local
+verification is available only through a separately owner-configured runner,
+whether invoked with the local adapter or optional asynchronous tools.
 Independent reviewer integration, consumption and task acceptance are not exposed
 by this transport. A successful protocol call is not proof of task acceptance,
 strong host enforcement, or execution by Codex.

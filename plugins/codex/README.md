@@ -1,7 +1,9 @@
-# dacli Codex plugin — local preview 0.2.0
+# dacli Codex plugin — local preview 0.3.0
 
 Owner-enrolled native session tools connect Codex to canonical tasks, external
-Git checkout attempts, fenced leases and revision-bound self-reports. The
+Git checkout attempts, fenced leases and revision-bound self-reports. An owner
+may separately enable named asynchronous verification through private runner
+configuration. The
 portable `plugin.json` / `mcp.json` package and Codex compatibility manifests
 select the same native transport. No hooks, model launcher or CLI escape is
 included. The marketplace identity remains `dacli-governance@dacli-local`.
@@ -41,7 +43,7 @@ commands, chat, manifests or tool arguments. Native profile details and authorit
 lifecycle are documented in the repository's `docs/GOVERNANCE_NATIVE_MCP.md`.
 
 Create `~/.config/dacli/plugin/connection.json` in the OS home visible to the MCP
-process, also mode `0600`, with exactly these fields:
+process, also mode `0600`, with these required fields:
 
 ```json
 {
@@ -51,12 +53,23 @@ process, also mode `0600`, with exactly these fields:
 }
 ```
 
+To enable verification, explicitly enroll the worker with `--verification` and
+provision a separate runner using `native verifier add` as documented in
+`docs/GOVERNANCE_NATIVE_EVIDENCE.md`. Add the optional
+`"runner_config_file": "/private/owner/runner.json"` selection field. The
+bootstrap passes that reference as `native serve --runner-config`; it does not
+read runner credentials, mint grants or accept check commands. Without this
+field the default ten-tool catalog is unchanged. Invalid configured runners
+refuse startup rather than silently dropping verification or choosing another
+authority. Restart the MCP process after changing selection or configuration.
+
 This selection is bounded to 16 KiB and must be an owner-owned regular file;
 final-component symlinks, duplicate keys, unknown fields/versions, public modes
 and missing/malformed selections refuse. Parent directory aliases are allowed;
 protect those directories against replacement. The bootstrap never reads token
 bytes: it removes ambient `DACLI_AGENT` and executes only
-`dacli native serve --connection <profile>`. The native server validates the
+`dacli native serve --connection <profile>` with the optional owner-selected
+runner reference. The native server validates the
 private profile and credentials and reauthenticates requests. Neither bootstrap
 nor server falls back to operator authority or the legacy adapter. Selection of
 the executable is a trusted owner action, not a binary integrity guarantee.
@@ -65,6 +78,13 @@ Restart/open a new Codex chat after installing or changing the connection.
 Call `identity`, then `workspace_status`, `task_list` and `task_get`. Follow the
 bundled workflow and advertised schemas for `register_attempt`, `acquire_lease`,
 `renew_lease`, `release_lease`, `publish_revision` and `submit_evidence`.
+With the configured runner, discover `request_verification`,
+`get_verification_status` and `cancel_verification`. A request identifies an
+owner-configured check and an exact fenced revision; it supplies no command,
+credential, grant or replacement directory. Preserve its operation identity for
+status, cancellation and recovery. Status queries remain responsive during
+execution. Cancellation requests do not create successful evidence; pending
+durable records require reconciliation if execution cannot commit an outcome.
 The old legacy MCP CLI remains a separate explicit repository interface; this
 package never selects it.
 
@@ -77,7 +97,9 @@ Use separately enrolled sessions and server processes when independence is
 required. Enrollment is owner-only; grants for trusted runners and independent
 review, acceptance consumption and deployment authorization are not exposed.
 `submit_evidence` always records **self-reported** provenance. It is not trusted
-execution evidence. Host filesystem and shell actions remain outside these
+execution evidence. Optional named verification uses the separately enrolled
+local runner and retains its distinct provenance; it does not grant acceptance
+or deployment authority. Host filesystem and shell actions remain outside these
 cooperative gates; no containment or universal enforcement is claimed.
 
 For an existing schema-5 authority, the owner runs the exact migration once:

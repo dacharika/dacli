@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
@@ -15,6 +16,7 @@ type NativeVerificationRunner struct {
 	authority      *sessions.Authority
 	token, session string
 	checks         map[string]NativeCheck
+	repository     string
 }
 
 // String prevents formatted executor values from revealing private credentials.
@@ -52,22 +54,64 @@ func NewNativeVerificationRunner(authority *sessions.Authority, token, session s
 	return r, nil
 }
 func (r *NativeVerificationRunner) Run(ctx context.Context, workerToken string, req NativeVerificationRequest) (sessions.Evidence, error) {
-	if r == nil || ctx == nil {
+	if ctx == nil {
 		return sessions.Evidence{}, sessions.ErrDenied
 	}
-	c, ok := r.checks[req.CheckID]
-	if !ok {
-		return sessions.Evidence{}, sessions.ErrDenied
-	}
-	request := sessions.VerificationRequest{OperationKey: req.OperationKey, WorkerSession: req.WorkerSession, AttemptID: req.AttemptID, LeaseID: req.LeaseID, RevisionID: req.RevisionID, CheckID: req.CheckID, GrantID: c.GrantID, ExpectedFence: req.ExpectedFence}
-	digest := sessions.CheckDigest(c.Descriptor)
-	rev, receipt, err := r.authority.BeginVerification(workerToken, r.token, r.session, request, digest)
-	if err != nil {
-		return sessions.Evidence{}, err
+	prepared, receipt, e := r.Prepare(workerToken, req)
+	if e != nil {
+		return sessions.Evidence{}, e
 	}
 	if receipt != nil {
 		return *receipt, nil
 	}
+	return prepared.Execute(ctx)
+}
+
+// Prepare reserves exactly one durable operation before asynchronous execution.
+func (r *NativeVerificationRunner) Prepare(workerToken string, req NativeVerificationRequest) (*nativePreparedVerification, *sessions.Evidence, error) {
+	if r == nil || !ValidNativeVerificationRequest(req) {
+		return nil, nil, sessions.ErrDenied
+	}
+	c, ok := r.checks[req.CheckID]
+	if !ok {
+		return nil, nil, sessions.ErrDenied
+	}
+	request := sessions.VerificationRequest{OperationKey: req.OperationKey, WorkerSession: req.WorkerSession, AttemptID: req.AttemptID, LeaseID: req.LeaseID, RevisionID: req.RevisionID, CheckID: req.CheckID, GrantID: c.GrantID, ExpectedFence: req.ExpectedFence}
+	digest := sessions.CheckDigest(c.Descriptor)
+	rev, receipt, e := r.authority.BeginVerification(workerToken, r.token, r.session, request, digest)
+	if e != nil {
+		return nil, nil, e
+	}
+	observed := rev
+	if receipt != nil {
+		observed = receipt.Revision
+	}
+	if r.repository != "" && observed.Observation.Repository != r.repository {
+		return nil, nil, sessions.ErrDenied
+	}
+	if receipt != nil {
+		return nil, receipt, nil
+	}
+	return &nativePreparedVerification{runner: r, workerToken: workerToken, request: request, check: c, revision: rev, digest: digest, consumed: &atomic.Bool{}}, nil, nil
+}
+
+type nativePreparedVerification struct {
+	runner      *NativeVerificationRunner
+	workerToken string
+	request     sessions.VerificationRequest
+	check       NativeCheck
+	revision    sessions.AttemptRevision
+	digest      string
+	consumed    *atomic.Bool
+}
+
+func (nativePreparedVerification) String() string   { return "nativePreparedVerification" }
+func (nativePreparedVerification) GoString() string { return "nativePreparedVerification" }
+func (p *nativePreparedVerification) Execute(ctx context.Context) (sessions.Evidence, error) {
+	if p == nil || p.consumed == nil || !p.consumed.CompareAndSwap(false, true) || ctx == nil || ctx.Err() != nil {
+		return sessions.Evidence{}, sessions.ErrDenied
+	}
+	r, c, rev, request, digest, workerToken := p.runner, p.check, p.revision, p.request, p.digest, p.workerToken
 	bounded, cancel := context.WithTimeout(ctx, c.Descriptor.Deadline)
 	defer cancel()
 	ev, output, runErr := store.RunAcceptanceVerificationRevisionContext(bounded, rev.Observation.Locator, r.session, c.Descriptor.Command, rev.Observation.Commit, rev.Observation.Tree)
@@ -84,4 +128,24 @@ func (r *NativeVerificationRunner) Run(ctx context.Context, workerToken string, 
 	}
 	result := sessions.VerificationResult{Commit: ev.CommitSHA, Tree: ev.TreeSHA, Directory: ev.WorkingDirectory, CommandDigest: digest, OutputDigest: ev.ArtifactHash, Output: output, ExitCode: ev.ExitCode, Clean: ev.Clean}
 	return r.authority.CompleteVerification(workerToken, r.token, r.session, request, result)
+}
+
+func (a *NativeVerificationAccess) Run(ctx context.Context, req NativeVerificationRequest) (sessions.Evidence, error) {
+	req.WorkerSession = a.Worker.ID
+	return a.Runner.Run(ctx, a.workerToken, req)
+}
+func (a *NativeVerificationAccess) Lookup(req NativeVerificationRequest) (sessions.VerificationLookup, error) {
+	req.WorkerSession = a.Worker.ID
+	if !ValidNativeVerificationRequest(req) {
+		return sessions.VerificationLookup{}, sessions.ErrDenied
+	}
+	c, ok := a.Runner.checks[req.CheckID]
+	if !ok {
+		return sessions.VerificationLookup{}, sessions.ErrDenied
+	}
+	lookup, e := a.Runner.authority.LookupVerification(a.workerToken, a.Runner.token, a.Runner.session, sessions.VerificationRequest{OperationKey: req.OperationKey, WorkerSession: req.WorkerSession, AttemptID: req.AttemptID, LeaseID: req.LeaseID, RevisionID: req.RevisionID, CheckID: req.CheckID, GrantID: c.GrantID, ExpectedFence: req.ExpectedFence}, sessions.CheckDigest(c.Descriptor))
+	if e == nil && lookup.Evidence != nil && a.Runner.repository != "" && lookup.Evidence.Revision.Observation.Repository != a.Runner.repository {
+		return sessions.VerificationLookup{}, sessions.ErrDenied
+	}
+	return lookup, e
 }

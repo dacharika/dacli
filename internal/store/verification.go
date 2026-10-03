@@ -246,7 +246,7 @@ func runVerificationWithContext(ctx context.Context, dir, verifier, command stri
 		var buffer verificationBuffer
 		c.Stdout = &buffer
 		c.Stderr = &buffer
-		err = c.Run()
+		err = runNativeVerificationCommand(c)
 		out = buffer.output
 		if ctx.Err() != nil {
 			err = ctx.Err()
@@ -697,7 +697,7 @@ func runVerificationGit(ctx context.Context, dir string, args ...string) (string
 	cmd.WaitDelay = 250 * time.Millisecond
 	var output verificationGitBuffer
 	cmd.Stdout = &output
-	if err := cmd.Run(); err != nil {
+	if err := runNativeVerificationCommand(cmd); err != nil {
 		return "", err
 	}
 	return output.String(), ctx.Err()
