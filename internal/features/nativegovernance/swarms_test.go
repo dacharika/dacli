@@ -20,6 +20,12 @@ import (
 )
 
 func TestNativeSwarmOwnerProvisioningUpgradedWorkerMCPAndHandoff(t *testing.T) {
+	testNativeOwnerProvisioning(t, false)
+}
+func TestNativeDispatchOwnerProvisioningUpgradedWorkerMCPAndAcknowledgement(t *testing.T) {
+	testNativeOwnerProvisioning(t, true)
+}
+func testNativeOwnerProvisioning(t *testing.T, dispatch bool) {
 	f := setupVerification(t, "printf verified", true)
 	if _, e := f.run(t); e != nil {
 		t.Fatal(e)
@@ -35,7 +41,18 @@ func TestNativeSwarmOwnerProvisioningUpgradedWorkerMCPAndHandoff(t *testing.T) {
 	verificationGit(t, f.w.Root, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "declare resource scope")
 	private := t.TempDir()
 	capability := filepath.Join(private, "capability.json")
-	verificationJSON(t, capability, application.ManualSwarmCapability{SchemaVersion: 1, WorkspaceID: f.w.ID, ProjectID: "p", Harness: "codex", Source: "owner-manual-native-handoff", ObservedAt: time.Now(), ExpiresAt: time.Now().Add(30 * time.Minute)})
+	profile := application.ManualSwarmCapability{SchemaVersion: 1, WorkspaceID: f.w.ID, ProjectID: "p", Harness: "codex", Source: "owner-manual-native-handoff", ObservedAt: time.Now(), ExpiresAt: time.Now().Add(30 * time.Minute)}
+	if dispatch {
+		probeFile := filepath.Join(private, "probe.json")
+		probeData := dispatchProbeFixture(t)
+		if e := os.WriteFile(probeFile, probeData, 0600); e != nil {
+			t.Fatal(e)
+		}
+		sum := sha256.Sum256(probeData)
+		profile.SchemaVersion = 2
+		profile.Codex = &application.CodexDispatchCapability{SchemaVersion: 1, ProbeFile: probeFile, ProbeSHA256: hex.EncodeToString(sum[:]), NativeHostAttestation: "owner-observed-native-collaboration", ChildProfileChannel: "owner-manual-separate-process"}
+	}
+	verificationJSON(t, capability, profile)
 	data, _ := os.ReadFile(capability)
 	digest := sha256.Sum256(data)
 	policy := sessions.SwarmPolicy{ProjectID: "p", Revision: "v1", Harness: "codex", CapabilityDigest: "sha256:" + hex.EncodeToString(digest[:]), Width: 1, WIP: 1, TTL: time.Hour, Roles: []sessions.SwarmRole{{ID: "implementation", Kind: "implementation", Harness: "codex", Capacity: 1}, {ID: "review", Kind: "review", Harness: "codex", Capacity: 1}}, Placements: map[string]sessions.SwarmPlacement{f.task.ID: {Checkout: f.w.Root, ImplementKind: "implementation", ReviewKind: "review"}}}
@@ -49,10 +66,33 @@ func TestNativeSwarmOwnerProvisioningUpgradedWorkerMCPAndHandoff(t *testing.T) {
 		raw, _ := status.CombinedOutput()
 		t.Fatalf("configure %v %s git=%s", e, out, raw)
 	}
+	if dispatch {
+		if out, e := verificationRun(t, f.w, dispatchUpgrade, "--config", f.config); e != nil {
+			t.Fatalf("upgrade8 %v %s", e, out)
+		}
+	}
 	controllerFile := filepath.Join(private, "controller.json")
 	controllerToken := filepath.Join(private, "controller.token")
 	if out, e := verificationRun(t, f.w, swarmControllerAdd, "--config", f.config, "--project", "p", "--connection", controllerFile, "--credential", controllerToken); e != nil {
 		t.Fatalf("controller %v %s", e, out)
+	}
+	bridgeFile := filepath.Join(private, "bridge.json")
+	if dispatch {
+		if out, e := verificationRun(t, f.w, dispatchBridgeAdd, "--config", f.config, "--project", "p", "--connection", bridgeFile, "--credential", filepath.Join(private, "bridge.token")); e != nil {
+			t.Fatalf("bridge provision %v %s", e, out)
+		}
+		var bridge native.Connection
+		if e := privateJSON(bridgeFile, &bridge); e != nil {
+			t.Fatal(e)
+		}
+		bt, e := native.ReadCredential(bridge.CredentialFile)
+		if e != nil {
+			t.Fatal(e)
+		}
+		principal, e := f.authority.Authenticate(bt, bridge.SessionID)
+		if e != nil || strings.Join(principal.Scope.Actions, ",") != "read,dispatch.correlate" {
+			t.Fatalf("bridge overprivileged %+v %v", principal, e)
+		}
 	}
 	beforeAuthority, e := os.ReadFile(f.worker.Authority)
 	if e != nil {
@@ -126,7 +166,46 @@ func TestNativeSwarmOwnerProvisioningUpgradedWorkerMCPAndHandoff(t *testing.T) {
 	}
 	req := sessions.HandoffDispatchRequest{OperationKey: "handoff", DispatchID: d.ID, AttemptID: at.ID, ExpectedFence: d.Reservation.Fence}
 	var lease sessions.Lease
-	e = json.Unmarshal([]byte(runOperation("handoff", f.connection, req)), &lease)
+	if !dispatch {
+		e = json.Unmarshal([]byte(runOperation("handoff", f.connection, req)), &lease)
+	} else {
+		var bridge native.Connection
+		if e := privateJSON(bridgeFile, &bridge); e != nil {
+			t.Fatal(e)
+		}
+		request := sessions.RequestDispatchIntent{OperationKey: "intent", DispatchID: d.ID, BridgeSessionID: bridge.SessionID, WorkerSessionID: f.worker.SessionID, PromptSpecDigest: "sha256:" + strings.Repeat("a", 64), ExpectedFence: d.Reservation.Fence}
+		var permit sessions.DispatchIntentResult
+		if e = json.Unmarshal([]byte(runOperation("dispatch-request", controllerFile, request)), &permit); e != nil || !permit.HostActionAuthorized {
+			t.Fatalf("CLI permit %+v %v", permit, e)
+		}
+		var replay sessions.DispatchIntentResult
+		if e = json.Unmarshal([]byte(runOperation("dispatch-request", controllerFile, request)), &replay); e != nil || replay.HostActionAuthorized {
+			t.Fatal("CLI replay launched", e)
+		}
+		var correlated sessions.DispatchIntent
+		correlation := sessions.CorrelateDispatchIntent{OperationKey: "correlation", DispatchID: d.ID, IntentID: permit.Intent.ID, HostAgentID: "/root/native_worker", State: "host_correlated", ExpectedFence: d.Reservation.Fence, ExpectedSequence: 1}
+		if e = json.Unmarshal([]byte(runOperation("dispatch-correlate", bridgeFile, correlation)), &correlated); e != nil {
+			t.Fatal(e)
+		}
+		var acknowledged sessions.DispatchIntent
+		ack := sessions.AcknowledgeDispatchIntent{OperationKey: "ack", DispatchID: d.ID, IntentID: permit.Intent.ID, AttemptID: at.ID, HostAgentID: correlated.HostAgentID, ExpectedFence: d.Reservation.Fence, ExpectedSequence: correlated.Sequence}
+		if e = json.Unmarshal([]byte(runOperation("dispatch-acknowledge", f.connection, ack)), &acknowledged); e != nil || acknowledged.Lease == nil {
+			t.Fatalf("CLI acknowledgement %+v %v", acknowledged, e)
+		}
+		lease = *acknowledged.Lease
+		var status sessions.DispatchIntent
+		if e = json.Unmarshal([]byte(runOperation("dispatch-status", f.connection, struct{ DispatchID string }{d.ID})), &status); e != nil || status.State != "acknowledged" {
+			t.Fatal("CLI status", e)
+		}
+		if old := os.Getenv("DACLI_SCHEMA7_BINARY"); old != "" {
+			cmd := exec.Command(old, "native", "serve", "--connection", f.connection)
+			cmd.Stdin = strings.NewReader(init + `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"identity","arguments":{"schema_version":1}}}` + "\n")
+			raw, e := cmd.CombinedOutput()
+			if e == nil || !strings.Contains(string(raw), "refused") {
+				t.Fatalf("actual old7 accepted8 %v %s", e, raw)
+			}
+		}
+	}
 	if e != nil || lease.SessionID != f.worker.SessionID {
 		t.Fatalf("separate worker handoff %v %+v", e, lease)
 	}

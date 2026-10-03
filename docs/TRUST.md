@@ -402,3 +402,15 @@ use explicit private native profiles and refuse legacy MCP invocation. Read-only
 scope, exact checkout base and fresh owner-attested manual native capability. No
 operation here launches coding CLIs or grants unattended Codex child identity.
 See [native swarm planning](GOVERNANCE_NATIVE_SWARM_PLANNING.md).
+
+`native dispatch upgrade` is the explicit owner-only schema 7 → 8 migration.
+`native dispatch bridge add` owner-enrolls a separate correlation-only root
+session. `native dispatch request` authenticates the controller and persists a
+single intent before returning its first native-host permit; replay never grants
+another launch. `native dispatch correlate` authenticates the assigned bridge
+and records sequenced correlation or typed manual/unknown observations.
+`native dispatch acknowledge` authenticates the assigned independent worker and
+atomically records its acknowledgement and fenced lease. `native dispatch status`
+requires an assigned authenticated participant with read/task scope. No command
+launches a coding CLI or grants owner authority. See the [cooperative Codex bridge](GOVERNANCE_NATIVE_DISPATCH_BRIDGE.md)
+for private versioned capability inputs, conservative loss handling and limits.

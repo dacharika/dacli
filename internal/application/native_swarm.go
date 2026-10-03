@@ -107,3 +107,11 @@ func (a *LeaseAdmission) AdmitSwarmCapability(w, p, h, d string) error {
 	}
 	return a.swarmCapability.AdmitSwarmCapability(w, p, h, d)
 }
+
+func (a *LeaseAdmission) AdmitDispatchCapability(w, p, h, d string) error {
+	observer, ok := a.swarmCapability.(sessions.DispatchCapabilityAdmission)
+	if !ok || w != a.workspace.ID {
+		return sessions.ErrDenied
+	}
+	return observer.AdmitDispatchCapability(w, p, h, d)
+}
