@@ -426,3 +426,11 @@ uncertain writer resources for owner recovery. Acknowledgement and terminal
 reports remain independent; stale heartbeat becomes unknown. Late reports require
 the current assigned bridge, without restoring a revoked worker or controller.
 These are local commands, not added MCP tools. See [native lifecycle](GOVERNANCE_NATIVE_LIFECYCLE.md).
+
+`native recovery upgrade` explicitly migrates schema9→10 without dropping history.
+`native recovery configure` records owner assurance policy. `native recovery apply`
+is owner-only exact fenced recovery; `native recovery preview` is a private owner
+read. Cooperative terminal reports require explicit owner acceptance; manual
+reconciliation records uncertainty, release risk and rationale. Recovery preserves
+original dispatch/lifecycle bindings and withdraws old-worker task authority before
+matched protection release. See [native recovery](GOVERNANCE_NATIVE_RECOVERY.md).

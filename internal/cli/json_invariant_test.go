@@ -20,6 +20,9 @@ import (
 // so no command can quietly claim --json support. Adding an entry is the
 // deliberate act that says "I checked: this command honors --json."
 var jsonHonoringCommands = map[string]bool{
+	"native recovery configure":   true,
+	"native recovery preview":     true,
+	"native recovery apply":       true,
 	"native lifecycle observe":    true,
 	"native lifecycle cancel":     true,
 	"native lifecycle cancel-ack": true,
