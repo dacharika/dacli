@@ -84,6 +84,9 @@ func dispatchActor(s *state, token, id, project, action string) (record, error) 
 }
 func dispatchBoundActor(s *state, id, project, action string, d DispatchReservation) bool {
 	r, ok := s.Sessions[id]
+	if action == "lease.acquire" && workerTaskWithdrawn(s, id, d.Reservation.TaskID) {
+		return false
+	}
 	if !ok || r.Parent != "" || !swarmLineageCurrent(s, id, time.Now()) || !subset([]string{action}, r.Scope.Actions) || (action != "lease.acquire" && !subset([]string{"project:" + project}, r.Scope.Resources)) {
 		return false
 	}
@@ -97,7 +100,7 @@ func dispatchBoundActor(s *state, id, project, action string, d DispatchReservat
 func (a *Authority) RequestDispatchIntent(token, controllerID string, req RequestDispatchIntent) (DispatchIntentResult, error) {
 	var result DispatchIntentResult
 	err := a.transaction(false, true, func(s *state) error {
-		if s.Version != 8 {
+		if s.Version < 8 {
 			return ErrDenied
 		}
 		d, ok := s.Dispatches[req.DispatchID]
@@ -169,7 +172,7 @@ func (a *Authority) CorrelateDispatchIntent(token, bridge string, req CorrelateD
 	var result DispatchIntent
 	err := a.transaction(false, true, func(s *state) error {
 		i, ok := s.DispatchIntents[req.DispatchID]
-		if s.Version != 8 || !ok || i.ID != req.IntentID || i.BridgeSessionID != bridge {
+		if s.Version < 8 || !ok || i.ID != req.IntentID || i.BridgeSessionID != bridge {
 			return ErrDenied
 		}
 		if _, e := dispatchActor(s, token, bridge, i.Reservation.ProjectID, "dispatch.correlate"); e != nil {
@@ -185,6 +188,9 @@ func (a *Authority) CorrelateDispatchIntent(token, bridge string, req CorrelateD
 			}
 			result = old.Intent
 			return nil
+		}
+		if _, cancelled := s.LifecycleCancellations[i.DispatchID]; cancelled {
+			return ErrDenied
 		}
 		if req.ExpectedSequence != i.Sequence || (i.State != "dispatch_requested" && !((i.State == "dispatch_unknown" || i.State == "manual_handoff_required") && req.State == "host_correlated")) {
 			return ErrDenied
@@ -231,7 +237,7 @@ func (a *Authority) AcknowledgeDispatchIntent(token, worker string, req Acknowle
 	var result DispatchIntent
 	err := a.transaction(false, true, func(s *state) error {
 		i, ok := s.DispatchIntents[req.DispatchID]
-		if s.Version != 8 || !ok || i.ID != req.IntentID || i.WorkerSessionID != worker {
+		if s.Version < 8 || !ok || i.ID != req.IntentID || i.WorkerSessionID != worker {
 			return ErrDenied
 		}
 		if _, _, e := leaseAuth(s, token, worker, req.AttemptID, "lease.acquire", time.Now()); e != nil {
@@ -248,7 +254,10 @@ func (a *Authority) AcknowledgeDispatchIntent(token, worker string, req Acknowle
 			result = old.Intent
 			return nil
 		}
-		if req.ExpectedSequence != i.Sequence || i.State != "host_correlated" || i.HostAgentID != req.HostAgentID || !dispatchBoundActor(s, i.BridgeSessionID, i.Reservation.ProjectID, "dispatch.correlate", i.Reservation) {
+		if _, cancelled := s.LifecycleCancellations[i.DispatchID]; cancelled {
+			return ErrDenied
+		}
+		if !lifecycleDispatchEligible(s, i.DispatchID) || req.ExpectedSequence != i.Sequence || i.State != "host_correlated" || i.HostAgentID != req.HostAgentID || !dispatchBoundActor(s, i.BridgeSessionID, i.Reservation.ProjectID, "dispatch.correlate", i.Reservation) {
 			return ErrDenied
 		}
 		if a.dispatchCapability(s, i.Reservation) != nil {
@@ -288,7 +297,7 @@ func (a *Authority) DispatchIntentStatus(token, actor, dispatchID string) (Dispa
 	var result DispatchIntent
 	err := a.transaction(false, false, func(s *state) error {
 		i, ok := s.DispatchIntents[dispatchID]
-		if s.Version != 8 || !ok {
+		if s.Version < 8 || !ok {
 			return ErrDenied
 		}
 		r, e := authenticate(s, token, actor, time.Now())

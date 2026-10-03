@@ -20,6 +20,15 @@ import (
 )
 
 var Commands = []clikit.Command{
+	{Path: "native lifecycle upgrade", Brief: "upgrade cooperative native lifecycle", Mutates: true, JSON: false, Usage: "dacli native lifecycle upgrade --config <private-file>", Run: func(c *clikit.Ctx, a []string) error { return lifecycleOwner(c, a, true) }},
+	{Path: "native lifecycle configure", Brief: "configure cooperative native lifecycle", Mutates: true, JSON: false, Usage: "dacli native lifecycle configure --config <private-file> --policy-file <private-file>", Run: func(c *clikit.Ctx, a []string) error { return lifecycleOwner(c, a, false) }},
+	{Path: "native lifecycle controller add", Brief: "controller add cooperative native lifecycle", Mutates: true, JSON: false, Usage: "dacli native lifecycle controller add --config <private-file> --project <project> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]", Run: func(c *clikit.Ctx, a []string) error { return swarmScopedActorAdd(c, a, false, true) }},
+	{Path: "native lifecycle bridge add", Brief: "bridge add cooperative native lifecycle", Mutates: true, JSON: false, Usage: "dacli native lifecycle bridge add --config <private-file> --project <project> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]", Run: func(c *clikit.Ctx, a []string) error { return swarmScopedActorAdd(c, a, true, true) }},
+	{Path: "native lifecycle observe", Brief: "observe cooperative native lifecycle", Mutates: true, JSON: true, Usage: "dacli native lifecycle observe --connection <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return lifecycleOperation(c, a, "observe") }},
+	{Path: "native lifecycle cancel", Brief: "cancel cooperative native lifecycle", Mutates: true, JSON: true, Usage: "dacli native lifecycle cancel --connection <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return lifecycleOperation(c, a, "cancel") }},
+	{Path: "native lifecycle cancel-ack", Brief: "cancel-ack cooperative native lifecycle", Mutates: true, JSON: true, Usage: "dacli native lifecycle cancel-ack --connection <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return lifecycleOperation(c, a, "cancel-ack") }},
+	{Path: "native lifecycle status", Brief: "status cooperative native lifecycle", Mutates: false, JSON: true, Usage: "dacli native lifecycle status --connection <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return lifecycleOperation(c, a, "status") }},
+
 	{Path: "native dispatch upgrade", Brief: "Owner-upgrade authority schema7 to8 preserving history", Mutates: true, Usage: "dacli native dispatch upgrade --config <private-file>", Run: dispatchUpgrade},
 	{Path: "native dispatch bridge add", Brief: "Owner-enroll separate correlation-only native bridge", Mutates: true, Usage: "dacli native dispatch bridge add --config <private-file> --project <project> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]", Run: dispatchBridgeAdd},
 	{Path: "native dispatch request", Brief: "request cooperative native dispatch intent", Mutates: true, JSON: true, Usage: "dacli native dispatch request --connection <private-file> --capability-file <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return swarmOperation(c, a, "dispatch-request") }},
@@ -46,6 +55,8 @@ var Commands = []clikit.Command{
 // AuthenticatesExplicitly lists exactly the handlers exempt from the legacy grant gate.
 func AuthenticatesExplicitly(path string) bool {
 	switch path {
+	case "native lifecycle upgrade", "native lifecycle configure", "native lifecycle controller add", "native lifecycle bridge add", "native lifecycle observe", "native lifecycle cancel", "native lifecycle cancel-ack", "native lifecycle status":
+		return true
 	case "native dispatch upgrade", "native dispatch bridge add", "native dispatch request", "native dispatch correlate", "native dispatch acknowledge", "native dispatch status", "native swarm upgrade", "native swarm configure", "native swarm controller add", "native swarm plan", "native swarm reserve", "native swarm admit", "native swarm handoff", "native bootstrap", "native enroll", "native revoke", "native upgrade", "native verifier add", "native verify", "native reviewer add":
 		return true
 	}

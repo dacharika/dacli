@@ -413,6 +413,12 @@ func (a *Authority) ReserveWave(token, session string, req ReserveWaveRequest) (
 	return wave, nil
 }
 func (a *Authority) admitDispatch(s *state, token, session string, req AdmitDispatchRequest) (DispatchReservation, error) {
+	if !lifecycleDispatchEligible(s, req.DispatchID) {
+		return DispatchReservation{}, ErrDenied
+	}
+	if _, cancelled := s.LifecycleCancellations[req.DispatchID]; cancelled {
+		return DispatchReservation{}, ErrDenied
+	}
 	d, ok := s.Dispatches[req.DispatchID]
 	if !ok || d.ControllerSessionID != session || d.Reservation.Fence != req.ExpectedFence || d.Converted || !time.Now().Before(d.Reservation.ExpiresAt) {
 		return DispatchReservation{}, ErrDenied

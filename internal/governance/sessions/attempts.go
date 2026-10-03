@@ -115,6 +115,9 @@ func (a *Authority) RegisterAttempt(token, sessionID string, req AttemptRequest)
 		if err != nil {
 			return err
 		}
+		if workerTaskWithdrawn(s, sessionID, req.TaskID) {
+			return ErrDenied
+		}
 		if !subset([]string{"attempt.register"}, r.Scope.Actions) || !subset([]string{"task:" + req.TaskID}, r.Scope.Resources) {
 			return ErrDenied
 		}
@@ -135,6 +138,9 @@ func (a *Authority) RegisterAttempt(token, sessionID string, req AttemptRequest)
 		r, err := authenticate(s, token, sessionID, time.Now())
 		if err != nil {
 			return err
+		}
+		if workerTaskWithdrawn(s, sessionID, req.TaskID) {
+			return ErrDenied
 		}
 		if !subset([]string{"attempt.register"}, r.Scope.Actions) || !subset([]string{"task:" + req.TaskID}, r.Scope.Resources) {
 			return ErrDenied

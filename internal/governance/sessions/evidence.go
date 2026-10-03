@@ -92,7 +92,7 @@ func activeAttempt(s *state, token, session, attempt, lease string, fence uint64
 		return Attempt{}, err
 	}
 	l, ok := s.Leases[lease]
-	if !ok || l.AttemptID != attempt || l.SessionID != session || l.Fence != fence || !currentLease(l, time.Now()) {
+	if !ok || l.AttemptID != attempt || l.SessionID != session || l.Fence != fence || !currentLease(s, l, time.Now()) {
 		return Attempt{}, ErrDenied
 	}
 	return at, nil
@@ -148,6 +148,9 @@ func (a *Authority) PublishAttemptRevision(token, session string, req PublishRev
 	return result, nil
 }
 func currentRevision(s *state, at Attempt, id, lease string, fence uint64) (AttemptRevision, error) {
+	if workerTaskWithdrawn(s, at.SessionID, at.Request.TaskID) {
+		return AttemptRevision{}, ErrDenied
+	}
 	history := s.Revisions[at.ID]
 	if len(history) == 0 {
 		return AttemptRevision{}, ErrDenied

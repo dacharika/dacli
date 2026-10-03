@@ -250,7 +250,7 @@ func reviewWorker(s *state, at Attempt, req ReviewRequest) error {
 	}
 	b, ok := s.Tasks[at.Request.TaskID]
 	l, lok := s.Leases[req.LeaseID]
-	if !ok || b.Repository != at.Observation.Repository || b.ProjectID != at.ProjectID || !b.AdmissionEnabled || !subset([]string{"verification.request"}, r.Scope.Actions) || !subset([]string{"task:" + at.Request.TaskID}, r.Scope.Resources) || !lok || l.AttemptID != at.ID || l.SessionID != at.SessionID || l.Fence != req.ExpectedFence || !currentLease(l, time.Now()) {
+	if !ok || b.Repository != at.Observation.Repository || b.ProjectID != at.ProjectID || !b.AdmissionEnabled || !subset([]string{"verification.request"}, r.Scope.Actions) || !subset([]string{"task:" + at.Request.TaskID}, r.Scope.Resources) || !lok || l.AttemptID != at.ID || l.SessionID != at.SessionID || l.Fence != req.ExpectedFence || !currentLease(s, l, time.Now()) {
 		return ErrDenied
 	}
 	return nil

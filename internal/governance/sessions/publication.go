@@ -134,7 +134,7 @@ func publicationCurrent(s *state, session string, req PublicationDecisionRequest
 	b, ok := s.Tasks[at.Request.TaskID]
 	l, lok := s.Leases[req.LeaseID]
 	history := s.PublicationPolicies[at.Request.TaskID]
-	if !ok || !b.AdmissionEnabled || b.Repository != at.Observation.Repository || b.ProjectID != at.ProjectID || len(history) == 0 || !lok || l.SessionID != session || l.AttemptID != at.ID || l.Fence != req.ExpectedFence || !currentLease(l, time.Now()) || !time.Now().Before(req.ExpiresAt) {
+	if !ok || !b.AdmissionEnabled || b.Repository != at.Observation.Repository || b.ProjectID != at.ProjectID || len(history) == 0 || !lok || l.SessionID != session || l.AttemptID != at.ID || l.Fence != req.ExpectedFence || !currentLease(s, l, time.Now()) || !time.Now().Before(req.ExpiresAt) {
 		return Attempt{}, AttemptRevision{}, PublicationPolicy{}, ErrDenied
 	}
 	p := history[len(history)-1]
