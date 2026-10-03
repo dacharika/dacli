@@ -1,0 +1,818 @@
+{
+  "schema": "dacli-codex-native-boundary-observation/v1",
+  "observed_at": "2026-10-03T12:40:21.396252+00:00",
+  "host_version": "codex-cli 0.159.2",
+  "assurance": "cooperative-owner-manual-separate-process",
+  "diagnostic_host_report": {
+    "schema": "dacli-codex-native-boundaries/v2",
+    "stage": "host",
+    "host_version": "codex-cli 0.159.2",
+    "host_binary_sha256": "50ac633af64851511f9bbc71032cdae7f1ba20b3234c189687d61ba846c354c5",
+    "dacli_binary_sha256": "1aa492ab289bedaf9faa3ab73de52df562622cd736ad4c7edb992792009898c2",
+    "source_sha256": "05fdfcf7ddc8c775c84b258877d446411e9b6e187c0da41c8870d6583ef47505",
+    "fixture_only": true,
+    "model_turn_requested": false,
+    "worker_credentials_read_by_probe": false,
+    "cases": [
+      {
+        "case": "observe",
+        "action_succeeded": true,
+        "hook_inventory_entries": 1,
+        "host_thread_correlation_sha256": "f179413b2e3cbee42f8b7a8d21836d3e9404131f4a0e72f51cebb7d0ad162d37",
+        "session_id": "5fc3bb8aad2e66dfca48095d713d10b7e24bfcbf96d75839e85ff498b2d2327b",
+        "attempt_id": "3834cc8d71274972ba896f704b758a91b0c13f5294237769a493f8f5c67fb11f",
+        "base_commit": "d53f188c7b6579ecc97a4bc58b8b1bd38c92863e",
+        "base_tree": "fd5067cdb3fd8ea81e1dbaa59ba3e797cf571f87",
+        "tool_text_structured_parity": true,
+        "authenticated_tool_attribution": true,
+        "unsupported_tool": "refused",
+        "host_notifications": [
+          "mcpServer/startupStatus/updated",
+          "other",
+          "thread/started"
+        ],
+        "tool_calls": [
+          {
+            "request_id": 1,
+            "method": "initialize",
+            "outcome": "response"
+          },
+          {
+            "request_id": 2,
+            "method": "hooks/list",
+            "outcome": "response"
+          },
+          {
+            "request_id": 3,
+            "method": "mcpServerStatus/list",
+            "outcome": "response"
+          },
+          {
+            "request_id": 4,
+            "method": "thread/start",
+            "outcome": "response"
+          },
+          {
+            "request_id": 5,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "identity"
+          },
+          {
+            "request_id": 6,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "task_get"
+          },
+          {
+            "request_id": 7,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "register_attempt"
+          },
+          {
+            "request_id": 8,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "unsupported_boundary_fixture_tool"
+          }
+        ],
+        "app_server_exit_code": 0,
+        "elapsed_seconds": 0.348,
+        "hooks": {
+          "callback_entered": false,
+          "callback_completed": false,
+          "events_entered": [],
+          "observed_action": "completed",
+          "hook_path_exercised": false,
+          "tool_hook_path_exercised": false,
+          "blocking": "unexercised"
+        },
+        "model_turn_requested": false
+      },
+      {
+        "case": "deny",
+        "action_succeeded": true,
+        "hook_inventory_entries": 1,
+        "host_thread_correlation_sha256": "086e789b1abe06fda033f7a4273c04bec74ee78074a76a051a8fcc40205d8136",
+        "session_id": "5fc3bb8aad2e66dfca48095d713d10b7e24bfcbf96d75839e85ff498b2d2327b",
+        "attempt_id": "2e7f227d049ba0d93d346b7ad085a29d0f5a84c1f48532eb59e5617a96691bee",
+        "base_commit": "d53f188c7b6579ecc97a4bc58b8b1bd38c92863e",
+        "base_tree": "fd5067cdb3fd8ea81e1dbaa59ba3e797cf571f87",
+        "tool_text_structured_parity": true,
+        "authenticated_tool_attribution": true,
+        "unsupported_tool": "refused",
+        "host_notifications": [
+          "mcpServer/startupStatus/updated",
+          "other",
+          "thread/started"
+        ],
+        "tool_calls": [
+          {
+            "request_id": 1,
+            "method": "initialize",
+            "outcome": "response"
+          },
+          {
+            "request_id": 2,
+            "method": "hooks/list",
+            "outcome": "response"
+          },
+          {
+            "request_id": 3,
+            "method": "mcpServerStatus/list",
+            "outcome": "response"
+          },
+          {
+            "request_id": 4,
+            "method": "thread/start",
+            "outcome": "response"
+          },
+          {
+            "request_id": 5,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "identity"
+          },
+          {
+            "request_id": 6,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "task_get"
+          },
+          {
+            "request_id": 7,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "register_attempt"
+          },
+          {
+            "request_id": 8,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "unsupported_boundary_fixture_tool"
+          }
+        ],
+        "app_server_exit_code": 0,
+        "elapsed_seconds": 0.241,
+        "hooks": {
+          "callback_entered": false,
+          "callback_completed": false,
+          "events_entered": [],
+          "observed_action": "completed",
+          "hook_path_exercised": false,
+          "tool_hook_path_exercised": false,
+          "blocking": "unexercised"
+        },
+        "model_turn_requested": false
+      },
+      {
+        "case": "disabled",
+        "action_succeeded": true,
+        "hook_inventory_entries": 1,
+        "host_thread_correlation_sha256": "c5fb6b3d30405ce18ed308ce2374cbf8b353b7fad2410fe30a474bfe3186604c",
+        "session_id": "5fc3bb8aad2e66dfca48095d713d10b7e24bfcbf96d75839e85ff498b2d2327b",
+        "attempt_id": "ff9037fab7e9d6daf4927d913534eda8849bf1577a34bcf2ab24da3204609fdf",
+        "base_commit": "d53f188c7b6579ecc97a4bc58b8b1bd38c92863e",
+        "base_tree": "fd5067cdb3fd8ea81e1dbaa59ba3e797cf571f87",
+        "tool_text_structured_parity": true,
+        "authenticated_tool_attribution": true,
+        "unsupported_tool": "refused",
+        "host_notifications": [
+          "mcpServer/startupStatus/updated",
+          "other",
+          "thread/started"
+        ],
+        "tool_calls": [
+          {
+            "request_id": 1,
+            "method": "initialize",
+            "outcome": "response"
+          },
+          {
+            "request_id": 2,
+            "method": "hooks/list",
+            "outcome": "response"
+          },
+          {
+            "request_id": 3,
+            "method": "mcpServerStatus/list",
+            "outcome": "response"
+          },
+          {
+            "request_id": 4,
+            "method": "thread/start",
+            "outcome": "response"
+          },
+          {
+            "request_id": 5,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "identity"
+          },
+          {
+            "request_id": 6,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "task_get"
+          },
+          {
+            "request_id": 7,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "register_attempt"
+          },
+          {
+            "request_id": 8,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "unsupported_boundary_fixture_tool"
+          }
+        ],
+        "app_server_exit_code": 0,
+        "elapsed_seconds": 0.236,
+        "hooks": {
+          "callback_entered": false,
+          "callback_completed": false,
+          "events_entered": [],
+          "observed_action": "completed",
+          "hook_path_exercised": false,
+          "tool_hook_path_exercised": false,
+          "blocking": "unexercised"
+        },
+        "model_turn_requested": false
+      },
+      {
+        "case": "untrusted",
+        "action_succeeded": true,
+        "hook_inventory_entries": 1,
+        "host_thread_correlation_sha256": "6ebe76c0c128485f850ac54ae22d1db73b1558be9aae17c9484281695b7ea463",
+        "session_id": "5fc3bb8aad2e66dfca48095d713d10b7e24bfcbf96d75839e85ff498b2d2327b",
+        "attempt_id": "ae7b6d2de0eeb1ce06e180dc132938e2ac08ce1735654acde3da36aac9c6c9d6",
+        "base_commit": "d53f188c7b6579ecc97a4bc58b8b1bd38c92863e",
+        "base_tree": "fd5067cdb3fd8ea81e1dbaa59ba3e797cf571f87",
+        "tool_text_structured_parity": true,
+        "authenticated_tool_attribution": true,
+        "unsupported_tool": "refused",
+        "host_notifications": [
+          "mcpServer/startupStatus/updated",
+          "other",
+          "thread/started"
+        ],
+        "tool_calls": [
+          {
+            "request_id": 1,
+            "method": "initialize",
+            "outcome": "response"
+          },
+          {
+            "request_id": 2,
+            "method": "hooks/list",
+            "outcome": "response"
+          },
+          {
+            "request_id": 3,
+            "method": "mcpServerStatus/list",
+            "outcome": "response"
+          },
+          {
+            "request_id": 4,
+            "method": "thread/start",
+            "outcome": "response"
+          },
+          {
+            "request_id": 5,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "identity"
+          },
+          {
+            "request_id": 6,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "task_get"
+          },
+          {
+            "request_id": 7,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "register_attempt"
+          },
+          {
+            "request_id": 8,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "unsupported_boundary_fixture_tool"
+          }
+        ],
+        "app_server_exit_code": 0,
+        "elapsed_seconds": 0.276,
+        "hooks": {
+          "callback_entered": false,
+          "callback_completed": false,
+          "events_entered": [],
+          "observed_action": "completed",
+          "hook_path_exercised": false,
+          "tool_hook_path_exercised": false,
+          "blocking": "unexercised"
+        },
+        "model_turn_requested": false
+      },
+      {
+        "case": "malformed",
+        "action_succeeded": true,
+        "hook_inventory_entries": 1,
+        "host_thread_correlation_sha256": "a925a716595040554dd46557fda27775538385fb27ebdafcd87d939d06af5ed4",
+        "session_id": "5fc3bb8aad2e66dfca48095d713d10b7e24bfcbf96d75839e85ff498b2d2327b",
+        "attempt_id": "06fdeba752f69dc64917d19019464092352edf9d91a3b6336667256e74b89d85",
+        "base_commit": "d53f188c7b6579ecc97a4bc58b8b1bd38c92863e",
+        "base_tree": "fd5067cdb3fd8ea81e1dbaa59ba3e797cf571f87",
+        "tool_text_structured_parity": true,
+        "authenticated_tool_attribution": true,
+        "unsupported_tool": "refused",
+        "host_notifications": [
+          "mcpServer/startupStatus/updated",
+          "other",
+          "thread/started"
+        ],
+        "tool_calls": [
+          {
+            "request_id": 1,
+            "method": "initialize",
+            "outcome": "response"
+          },
+          {
+            "request_id": 2,
+            "method": "hooks/list",
+            "outcome": "response"
+          },
+          {
+            "request_id": 3,
+            "method": "mcpServerStatus/list",
+            "outcome": "response"
+          },
+          {
+            "request_id": 4,
+            "method": "thread/start",
+            "outcome": "response"
+          },
+          {
+            "request_id": 5,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "identity"
+          },
+          {
+            "request_id": 6,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "task_get"
+          },
+          {
+            "request_id": 7,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "register_attempt"
+          },
+          {
+            "request_id": 8,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "unsupported_boundary_fixture_tool"
+          }
+        ],
+        "app_server_exit_code": 0,
+        "elapsed_seconds": 0.235,
+        "hooks": {
+          "callback_entered": false,
+          "callback_completed": false,
+          "events_entered": [],
+          "observed_action": "completed",
+          "hook_path_exercised": false,
+          "tool_hook_path_exercised": false,
+          "blocking": "unexercised"
+        },
+        "model_turn_requested": false
+      },
+      {
+        "case": "timeout",
+        "action_succeeded": true,
+        "hook_inventory_entries": 1,
+        "host_thread_correlation_sha256": "45264e32a1916ba7f1d80fd7d2bac5b88bb6c1b3d037be4ec6cc10e3d58bb252",
+        "session_id": "5fc3bb8aad2e66dfca48095d713d10b7e24bfcbf96d75839e85ff498b2d2327b",
+        "attempt_id": "1b61f19080836c70ef0c39f5564cf89d8589b40daa11c81d72f972e11fa6117e",
+        "base_commit": "d53f188c7b6579ecc97a4bc58b8b1bd38c92863e",
+        "base_tree": "fd5067cdb3fd8ea81e1dbaa59ba3e797cf571f87",
+        "tool_text_structured_parity": true,
+        "authenticated_tool_attribution": true,
+        "unsupported_tool": "refused",
+        "host_notifications": [
+          "mcpServer/startupStatus/updated",
+          "other",
+          "thread/started"
+        ],
+        "tool_calls": [
+          {
+            "request_id": 1,
+            "method": "initialize",
+            "outcome": "response"
+          },
+          {
+            "request_id": 2,
+            "method": "hooks/list",
+            "outcome": "response"
+          },
+          {
+            "request_id": 3,
+            "method": "mcpServerStatus/list",
+            "outcome": "response"
+          },
+          {
+            "request_id": 4,
+            "method": "thread/start",
+            "outcome": "response"
+          },
+          {
+            "request_id": 5,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "identity"
+          },
+          {
+            "request_id": 6,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "task_get"
+          },
+          {
+            "request_id": 7,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "register_attempt"
+          },
+          {
+            "request_id": 8,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "unsupported_boundary_fixture_tool"
+          }
+        ],
+        "app_server_exit_code": 0,
+        "elapsed_seconds": 0.238,
+        "hooks": {
+          "callback_entered": false,
+          "callback_completed": false,
+          "events_entered": [],
+          "observed_action": "completed",
+          "hook_path_exercised": false,
+          "tool_hook_path_exercised": false,
+          "blocking": "unexercised"
+        },
+        "model_turn_requested": false
+      },
+      {
+        "case": "error",
+        "action_succeeded": true,
+        "hook_inventory_entries": 1,
+        "host_thread_correlation_sha256": "29a2de8f87792ed5c4ec94e57bf9b4903e899297318ddccdb3e3bc31673496ee",
+        "session_id": "5fc3bb8aad2e66dfca48095d713d10b7e24bfcbf96d75839e85ff498b2d2327b",
+        "attempt_id": "b800aff6dc0669a386e8e8d0cde13c6a10837c182967ac18678c39e98c977360",
+        "base_commit": "d53f188c7b6579ecc97a4bc58b8b1bd38c92863e",
+        "base_tree": "fd5067cdb3fd8ea81e1dbaa59ba3e797cf571f87",
+        "tool_text_structured_parity": true,
+        "authenticated_tool_attribution": true,
+        "unsupported_tool": "refused",
+        "host_notifications": [
+          "mcpServer/startupStatus/updated",
+          "other",
+          "thread/started"
+        ],
+        "tool_calls": [
+          {
+            "request_id": 1,
+            "method": "initialize",
+            "outcome": "response"
+          },
+          {
+            "request_id": 2,
+            "method": "hooks/list",
+            "outcome": "response"
+          },
+          {
+            "request_id": 3,
+            "method": "mcpServerStatus/list",
+            "outcome": "response"
+          },
+          {
+            "request_id": 4,
+            "method": "thread/start",
+            "outcome": "response"
+          },
+          {
+            "request_id": 5,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "identity"
+          },
+          {
+            "request_id": 6,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "task_get"
+          },
+          {
+            "request_id": 7,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "register_attempt"
+          },
+          {
+            "request_id": 8,
+            "method": "mcpServer/tool/call",
+            "outcome": "response",
+            "tool": "unsupported_boundary_fixture_tool"
+          }
+        ],
+        "app_server_exit_code": 0,
+        "elapsed_seconds": 0.238,
+        "hooks": {
+          "callback_entered": false,
+          "callback_completed": false,
+          "events_entered": [],
+          "observed_action": "completed",
+          "hook_path_exercised": false,
+          "tool_hook_path_exercised": false,
+          "blocking": "unexercised"
+        },
+        "model_turn_requested": false
+      }
+    ],
+    "independent_host": {
+      "case": "observe",
+      "action_succeeded": true,
+      "hook_inventory_entries": 1,
+      "host_thread_correlation_sha256": "ba0663e268b32233c2edfd6611e2ba444d5d339d096de426414655eaed6e0531",
+      "session_id": "b4448f89db5e8a947038866ac0a6be88f77bc4f83b46986ce6f67ae050f2c3bb",
+      "attempt_id": "1258aac6e7f134f2e04649df1f93cd9055e39b7c7e79ab8b64c8e0b232cffafd",
+      "base_commit": "d53f188c7b6579ecc97a4bc58b8b1bd38c92863e",
+      "base_tree": "fd5067cdb3fd8ea81e1dbaa59ba3e797cf571f87",
+      "tool_text_structured_parity": true,
+      "authenticated_tool_attribution": true,
+      "unsupported_tool": "refused",
+      "host_notifications": [
+        "mcpServer/startupStatus/updated",
+        "other",
+        "thread/started"
+      ],
+      "tool_calls": [
+        {
+          "request_id": 1,
+          "method": "initialize",
+          "outcome": "response"
+        },
+        {
+          "request_id": 2,
+          "method": "hooks/list",
+          "outcome": "response"
+        },
+        {
+          "request_id": 3,
+          "method": "mcpServerStatus/list",
+          "outcome": "response"
+        },
+        {
+          "request_id": 4,
+          "method": "thread/start",
+          "outcome": "response"
+        },
+        {
+          "request_id": 5,
+          "method": "mcpServer/tool/call",
+          "outcome": "response",
+          "tool": "identity"
+        },
+        {
+          "request_id": 6,
+          "method": "mcpServer/tool/call",
+          "outcome": "response",
+          "tool": "task_get"
+        },
+        {
+          "request_id": 7,
+          "method": "mcpServer/tool/call",
+          "outcome": "response",
+          "tool": "register_attempt"
+        },
+        {
+          "request_id": 8,
+          "method": "mcpServer/tool/call",
+          "outcome": "response",
+          "tool": "unsupported_boundary_fixture_tool"
+        }
+      ],
+      "app_server_exit_code": 0,
+      "elapsed_seconds": 0.238,
+      "hooks": {
+        "callback_entered": false,
+        "callback_completed": false,
+        "events_entered": [],
+        "observed_action": "completed",
+        "hook_path_exercised": false,
+        "tool_hook_path_exercised": false,
+        "blocking": "unexercised"
+      },
+      "model_turn_requested": false
+    },
+    "shared_selection_control": {
+      "case": "observe",
+      "action_succeeded": true,
+      "hook_inventory_entries": 1,
+      "host_thread_correlation_sha256": "dae386cd0c98dfcffd5447e06d390ec87584a7b92562c42284db1f818b847ac1",
+      "session_id": "5fc3bb8aad2e66dfca48095d713d10b7e24bfcbf96d75839e85ff498b2d2327b",
+      "attempt_id": "bbb29a88b65afb7047222060f7f52a0fd191af3927a710a0d61492e9a4599cc9",
+      "base_commit": "d53f188c7b6579ecc97a4bc58b8b1bd38c92863e",
+      "base_tree": "fd5067cdb3fd8ea81e1dbaa59ba3e797cf571f87",
+      "tool_text_structured_parity": true,
+      "authenticated_tool_attribution": true,
+      "unsupported_tool": "refused",
+      "host_notifications": [
+        "mcpServer/startupStatus/updated",
+        "other",
+        "thread/started"
+      ],
+      "tool_calls": [
+        {
+          "request_id": 1,
+          "method": "initialize",
+          "outcome": "response"
+        },
+        {
+          "request_id": 2,
+          "method": "hooks/list",
+          "outcome": "response"
+        },
+        {
+          "request_id": 3,
+          "method": "mcpServerStatus/list",
+          "outcome": "response"
+        },
+        {
+          "request_id": 4,
+          "method": "thread/start",
+          "outcome": "response"
+        },
+        {
+          "request_id": 5,
+          "method": "mcpServer/tool/call",
+          "outcome": "response",
+          "tool": "identity"
+        },
+        {
+          "request_id": 6,
+          "method": "mcpServer/tool/call",
+          "outcome": "response",
+          "tool": "task_get"
+        },
+        {
+          "request_id": 7,
+          "method": "mcpServer/tool/call",
+          "outcome": "response",
+          "tool": "register_attempt"
+        },
+        {
+          "request_id": 8,
+          "method": "mcpServer/tool/call",
+          "outcome": "response",
+          "tool": "unsupported_boundary_fixture_tool"
+        }
+      ],
+      "app_server_exit_code": 0,
+      "elapsed_seconds": 0.245,
+      "hooks": {
+        "callback_entered": false,
+        "callback_completed": false,
+        "events_entered": [],
+        "observed_action": "completed",
+        "hook_path_exercised": false,
+        "tool_hook_path_exercised": false,
+        "blocking": "unexercised"
+      },
+      "model_turn_requested": false
+    },
+    "independent_boundary": "distinct-session",
+    "shared_boundary": "shared",
+    "hook_matrix_complete": false,
+    "reviewer_independence_certified_from_session_ids": false,
+    "native_child_exercised": false,
+    "tool_route": "diagnostic-mcpServer/tool/call",
+    "limits": [
+      "Direct RPC coverage is not model-issued tool hook coverage.",
+      "Caller labels and hook metadata do not authenticate native children.",
+      "Native child stage requires actual root collaboration and separately provisioned own process.",
+      "Unentered callbacks remain unexercised; hook enforcement is not certified."
+    ]
+  },
+  "native_child_report": {
+    "schema": "dacli-codex-native-boundaries/v2",
+    "stage": "child",
+    "session_id": "efe3d6b7a77b216663de0dbe81f9ca8105d386ded759fc7d327e8db06de6fbef",
+    "attempt_id": "428a3b657d9313b5ae39736c5679e4ff3df4513184581fb7317b8bdff1b87a07",
+    "own_stdio_authenticated": true,
+    "text_structured_parity": true,
+    "tool_calls": [
+      {
+        "request_id": 1,
+        "method": "initialize",
+        "outcome": "response"
+      },
+      {
+        "request_id": 2,
+        "method": "tools/list",
+        "outcome": "response"
+      },
+      {
+        "request_id": 3,
+        "method": "tools/call",
+        "outcome": "response",
+        "tool": "identity"
+      },
+      {
+        "request_id": 4,
+        "method": "tools/call",
+        "outcome": "response",
+        "tool": "task_get"
+      },
+      {
+        "request_id": 5,
+        "method": "tools/call",
+        "outcome": "response",
+        "tool": "register_attempt"
+      }
+    ],
+    "host_identity_cryptographically_bound": false,
+    "automatic_child_profile_delivery": false,
+    "stdio_exit_code": 0
+  },
+  "actual_native_child_correlation": "/root/native_boundary_child",
+  "provenance": {
+    "host_report_sha256": "8af3267e7f4d1c1be12e79666b244289162ad0ac59ce5786dd8dc81ce66f3b61",
+    "child_report_sha256": "e76b527afa1d7c84dcaaec37d86db06b59295d6aa206557ff39fbc5a966986a9",
+    "actual_host_terminal_sha256": "31e893304c9657fafb66a8885e8e4143c157998cb01a7adf093f81d75ea36468",
+    "actual_child_terminal_sha256": "4d042e0f3d7f41c089cc728115fe1e365628232e7d491b1c703678bf3ca75a56",
+    "guard_receipt_history": "Initial guard receipt prefix was reused during a preliminary v2 rerun. Earlier guard files are not preserved at that prefix and must not be cited as v1 frozen validation. Separately versioned v2 and v3 guard records are authoritative; original root host failure and source freezes remain distinct."
+  },
+  "observed_boundaries": {
+    "independent_host_sessions": "distinct-authenticated-native-sessions",
+    "shared_selection_different_host_labels": "same-authenticated-native-session",
+    "actual_native_child": "own-credentialed-stdio-authenticated-session-via-owner-manual-selection",
+    "automatic_child_profile_delivery": false,
+    "cryptographic_native_host_binding": false,
+    "reviewer_independence_inferred_from_session_ids": false,
+    "diagnostic_model_turn_requested": false,
+    "actual_native_collaboration_child_spawned": true,
+    "global_production_authority_changed": false
+  },
+  "hook_boundary": {
+    "configured_cases": [
+      "observe",
+      "deny",
+      "disabled",
+      "untrusted",
+      "malformed",
+      "timeout",
+      "error"
+    ],
+    "callback_entry_observed": false,
+    "pretooluse_callback_entry_observed": false,
+    "timeout_callback_exercised": false,
+    "malformed_callback_exercised": false,
+    "blocking_enforcement_certified": false,
+    "unsupported_tool_response": "actual-native-proxy-refusal",
+    "criterion_3": "open: direct diagnostic route did not enter callbacks, so timeout/malformed or blocking/nonblocking callback enforcement remains unexercised"
+  },
+  "acceptance_evidence": {
+    "criterion_1": "actual-version/session-registration/tool-attribution/lifecycle-observed",
+    "criterion_2": "independent-hosts-and-actual-native-child-credential-distinction-observed",
+    "criterion_3": "open-unexercised-hook-callback-path",
+    "criterion_4": "supported-beta-manual-identity-boundary-documented"
+  },
+  "limits": [
+    "Actual host agent name is correlation only, never a credential.",
+    "Owner-issued distinct sessions alone do not waive native reviewer ancestry/current-grant checks.",
+    "Direct diagnostic tool calls did not exercise model-issued tool hooks.",
+    "Disabled/untrusted hook configuration did not stop the diagnostic proxy, but no callback enforcement result is inferred.",
+    "Timeout and malformed handlers were configured but never entered; their host enforcement remains unverified.",
+    "Historical model-launching receipts remain provenance; no coding CLI/model fallback was used."
+  ],
+  "execution_evidence": {
+    "host_process_count": 9,
+    "actual_host_stage_exit_code": 0,
+    "actual_host_stage_elapsed_seconds": 3.0910885829944164,
+    "actual_child_exit_code": 0,
+    "actual_child_stdio_exit_code": 0,
+    "actual_child_source_sha256_verified": true,
+    "production_authority_before_sha256": "7ce9c51f648f34f47beb7d4a7b93617860dc7aee61d28e609858f5943425f7c3",
+    "production_authority_after_sha256": "7ce9c51f648f34f47beb7d4a7b93617860dc7aee61d28e609858f5943425f7c3",
+    "production_authority_unchanged": true
+  }
+}
