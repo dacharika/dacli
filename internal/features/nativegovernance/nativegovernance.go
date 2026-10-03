@@ -20,6 +20,13 @@ import (
 )
 
 var Commands = []clikit.Command{
+	{Path: "native swarm upgrade", Brief: "Owner-upgrade native authority from schema 6 to 7 preserving history", Mutates: true, Usage: "dacli native swarm upgrade --config <private-file>", Run: swarmUpgrade},
+	{Path: "native swarm configure", Brief: "Owner-configure pinned native swarm placements and capacity", Mutates: true, Usage: "dacli native swarm configure --config <private-file> --policy-file <private-file>", Run: swarmConfigure},
+	{Path: "native swarm controller add", Brief: "Owner-enroll a separate native swarm controller", Mutates: true, Usage: "dacli native swarm controller add --config <private-file> --project <project> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]", Run: swarmControllerAdd},
+	{Path: "native swarm plan", Brief: "Plan scoped native work using fresh owner-attested manual handoff capability", JSON: true, Usage: "dacli native swarm plan --connection <private-file> --capability-file <private-file> --project <project> --json", Run: func(c *clikit.Ctx, a []string) error { return swarmOperation(c, a, "plan") }},
+	{Path: "native swarm reserve", Brief: "Atomically reserve a fresh native swarm plan", Mutates: true, JSON: true, Usage: "dacli native swarm reserve --connection <private-file> --capability-file <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return swarmOperation(c, a, "reserve") }},
+	{Path: "native swarm admit", Brief: "Freshly admit an exact reserved manual native dispatch", JSON: true, Usage: "dacli native swarm admit --connection <private-file> --capability-file <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return swarmOperation(c, a, "admit") }},
+	{Path: "native swarm handoff", Brief: "Convert an admitted reservation to an independently enrolled worker lease", Mutates: true, JSON: true, Usage: "dacli native swarm handoff --connection <private-file> --capability-file <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return swarmOperation(c, a, "handoff") }},
 	{Path: "native reviewer add", Brief: "Owner-configure a separate private native reviewer and derived named-check policy", Mutates: true, Usage: "dacli native reviewer add --config <private-file> --task <ref> --worker-session <id> --runner-config <private-file> --policy-revision <id> --policy-out <new-private-file> --review-config <new-private-file> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]", Run: reviewerAdd},
 	{Path: "native verifier add", Brief: "Owner-configure private named checks with separately scoped verification authority", Mutates: true, Usage: "dacli native verifier add --config <private-file> --task <ref> --checks-file <private-file> --out <new-private-file> --credential <new-private-file> [--expires <duration>]", Run: verifierAdd},
 	{Path: "native verify", Brief: "Run an owner-configured named check for a fenced native revision", Mutates: true, JSON: true, Usage: "dacli native verify --connection <private-file> --runner-config <private-file> --request <private-file> --json", Run: verify},
@@ -33,7 +40,7 @@ var Commands = []clikit.Command{
 // AuthenticatesExplicitly lists exactly the handlers exempt from the legacy grant gate.
 func AuthenticatesExplicitly(path string) bool {
 	switch path {
-	case "native bootstrap", "native enroll", "native revoke", "native upgrade", "native verifier add", "native verify", "native reviewer add":
+	case "native swarm upgrade", "native swarm configure", "native swarm controller add", "native swarm plan", "native swarm reserve", "native swarm admit", "native swarm handoff", "native bootstrap", "native enroll", "native revoke", "native upgrade", "native verifier add", "native verify", "native reviewer add":
 		return true
 	}
 	return false

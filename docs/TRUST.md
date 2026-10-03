@@ -385,3 +385,20 @@ reasoning. Neither proposals nor eligibility move tasks, merge or deploy.
   meant to be usable by a `ro` agent. Both are filed as findings against this
   task; neither is fixed here — flipping a live gate is a behavior change, not
   a documentation change.
+
+
+`native swarm upgrade` is an explicit owner-only schema 6 → 7 migration preserving
+all existing authority and history. `native swarm configure` atomically records
+validated owner-selected task/repository bindings, pinned roles/harness and finite
+capacity policy. `native swarm controller add` enrolls planning/reservation/dispatch
+admission scope in new private outputs; it grants no owner or worker lease powers.
+`native swarm reserve` authenticates the controller and atomically persists exact
+operation-keyed dispatch reservations under the same authority lock as leases.
+`native swarm handoff` authenticates the separate scoped worker and converts one
+current reservation to its lease without a protection gap. Expired or revoked
+writer reservations remain protected until explicitly reconciled. These commands
+use explicit private native profiles and refuse legacy MCP invocation. Read-only
+`native swarm plan` and `native swarm admit` reobserve policy, canonical readiness,
+scope, exact checkout base and fresh owner-attested manual native capability. No
+operation here launches coding CLIs or grants unattended Codex child identity.
+See [native swarm planning](GOVERNANCE_NATIVE_SWARM_PLANNING.md).
