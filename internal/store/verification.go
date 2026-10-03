@@ -152,7 +152,7 @@ func PersistVerificationArtifact(w *workspace.Workspace, ev VerificationEvidence
 // The caller selects the command and deadline from trusted configuration.
 func RunAcceptanceVerificationContext(ctx context.Context, dir, verifier, command string) (VerificationEvidence, []byte, error) {
 	if ctx == nil {
-		return VerificationEvidence{}, nil, &VerificationPolicyError{Reason: "verification context required"}
+		return VerificationEvidence{ExitCode: 1}, nil, &VerificationPolicyError{Reason: "verification context required"}
 	}
 	return runVerificationWithContext(ctx, dir, verifier, command, true, true, "", "")
 }
@@ -161,7 +161,7 @@ func RunAcceptanceVerificationContext(ctx context.Context, dir, verifier, comman
 // expected commit/tree before executing the configured command.
 func RunAcceptanceVerificationRevisionContext(ctx context.Context, dir, verifier, command, commit, tree string) (VerificationEvidence, []byte, error) {
 	if ctx == nil || commit == "" || tree == "" {
-		return VerificationEvidence{}, nil, &VerificationPolicyError{Reason: "verification context and exact revision required"}
+		return VerificationEvidence{ExitCode: 1}, nil, &VerificationPolicyError{Reason: "verification context and exact revision required"}
 	}
 	return runVerificationWithContext(ctx, dir, verifier, command, true, true, commit, tree)
 }
@@ -199,9 +199,11 @@ func runVerification(dir, verifier, command string, acceptanceGrade bool) (Verif
 }
 func runVerificationWithContext(ctx context.Context, dir, verifier, command string, acceptanceGrade, native bool, expectedCommit, expectedTree string) (VerificationEvidence, []byte, error) {
 	absDir, _ := filepath.Abs(dir)
+	// core/597: Git observation may fail before execution. Default to failure
+	// until a real command completes, so an unstarted check cannot appear green.
 	ev := VerificationEvidence{
 		Command: command, Argv: []string{"sh", "-c", command}, WorkingDirectory: absDir,
-		Verifier: verifier, ExitCode: 0,
+		Verifier: verifier, ExitCode: 1,
 		RuntimeVersions: map[string]string{"go": runtime.Version(), "os": runtime.GOOS, "arch": runtime.GOARCH},
 		ToolVersions:    map[string]string{},
 	}
@@ -256,7 +258,9 @@ func runVerificationWithContext(ctx context.Context, dir, verifier, command stri
 	ev.DurationMS = time.Since(started).Milliseconds()
 	sum := sha256.Sum256(out)
 	ev.ArtifactHash = "sha256:" + hex.EncodeToString(sum[:])
-	if err != nil {
+	if err == nil {
+		ev.ExitCode = 0
+	} else {
 		ev.ExitCode = 1
 		var ee *exec.ExitError
 		if errors.As(err, &ee) {
