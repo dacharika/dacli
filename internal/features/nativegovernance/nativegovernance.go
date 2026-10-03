@@ -20,6 +20,12 @@ import (
 )
 
 var Commands = []clikit.Command{
+	{Path: "native dispatch upgrade", Brief: "Owner-upgrade authority schema7 to8 preserving history", Mutates: true, Usage: "dacli native dispatch upgrade --config <private-file>", Run: dispatchUpgrade},
+	{Path: "native dispatch bridge add", Brief: "Owner-enroll separate correlation-only native bridge", Mutates: true, Usage: "dacli native dispatch bridge add --config <private-file> --project <project> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]", Run: dispatchBridgeAdd},
+	{Path: "native dispatch request", Brief: "request cooperative native dispatch intent", Mutates: true, JSON: true, Usage: "dacli native dispatch request --connection <private-file> --capability-file <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return swarmOperation(c, a, "dispatch-request") }},
+	{Path: "native dispatch correlate", Brief: "correlate cooperative native dispatch intent", Mutates: true, JSON: true, Usage: "dacli native dispatch correlate --connection <private-file> --capability-file <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return swarmOperation(c, a, "dispatch-correlate") }},
+	{Path: "native dispatch acknowledge", Brief: "acknowledge cooperative native dispatch intent", Mutates: true, JSON: true, Usage: "dacli native dispatch acknowledge --connection <private-file> --capability-file <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return swarmOperation(c, a, "dispatch-acknowledge") }},
+	{Path: "native dispatch status", Brief: "status cooperative native dispatch intent", Mutates: false, JSON: true, Usage: "dacli native dispatch status --connection <private-file> --capability-file <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return swarmOperation(c, a, "dispatch-status") }},
 	{Path: "native swarm upgrade", Brief: "Owner-upgrade native authority from schema 6 to 7 preserving history", Mutates: true, Usage: "dacli native swarm upgrade --config <private-file>", Run: swarmUpgrade},
 	{Path: "native swarm configure", Brief: "Owner-configure pinned native swarm placements and capacity", Mutates: true, Usage: "dacli native swarm configure --config <private-file> --policy-file <private-file>", Run: swarmConfigure},
 	{Path: "native swarm controller add", Brief: "Owner-enroll a separate native swarm controller", Mutates: true, Usage: "dacli native swarm controller add --config <private-file> --project <project> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]", Run: swarmControllerAdd},
@@ -40,7 +46,7 @@ var Commands = []clikit.Command{
 // AuthenticatesExplicitly lists exactly the handlers exempt from the legacy grant gate.
 func AuthenticatesExplicitly(path string) bool {
 	switch path {
-	case "native swarm upgrade", "native swarm configure", "native swarm controller add", "native swarm plan", "native swarm reserve", "native swarm admit", "native swarm handoff", "native bootstrap", "native enroll", "native revoke", "native upgrade", "native verifier add", "native verify", "native reviewer add":
+	case "native dispatch upgrade", "native dispatch bridge add", "native dispatch request", "native dispatch correlate", "native dispatch acknowledge", "native dispatch status", "native swarm upgrade", "native swarm configure", "native swarm controller add", "native swarm plan", "native swarm reserve", "native swarm admit", "native swarm handoff", "native bootstrap", "native enroll", "native revoke", "native upgrade", "native verifier add", "native verify", "native reviewer add":
 		return true
 	}
 	return false

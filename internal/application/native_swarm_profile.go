@@ -14,6 +14,8 @@ import (
 // handoff, not proof of an unattended host API or authenticated child identity.
 // The bridge must still record intent/acknowledgement; no agents run here.
 type ManualSwarmCapability struct {
+	Codex *CodexDispatchCapability `json:"codex,omitempty"`
+
 	SchemaVersion int       `json:"schema_version"`
 	WorkspaceID   string    `json:"workspace_id"`
 	ProjectID     string    `json:"project_id"`
@@ -35,7 +37,7 @@ func (f manualSwarmCapabilityFile) AdmitSwarmCapability(w, p, h, d string) error
 	}
 	digest := sha256.Sum256(data)
 	now := time.Now()
-	if c.SchemaVersion != 1 || c.Source != "owner-manual-native-handoff" || c.WorkspaceID != w || c.ProjectID != p || c.Harness != h || d != "sha256:"+hex.EncodeToString(digest[:]) || c.ObservedAt.After(now.Add(30*time.Second)) || !c.ExpiresAt.After(now) || !c.ExpiresAt.After(c.ObservedAt) || c.ExpiresAt.After(c.ObservedAt.Add(time.Hour)) || now.Sub(c.ObservedAt) > time.Hour {
+	if (c.SchemaVersion != 1 && c.SchemaVersion != 2) || c.Source != "owner-manual-native-handoff" || c.WorkspaceID != w || c.ProjectID != p || c.Harness != h || d != "sha256:"+hex.EncodeToString(digest[:]) || c.ObservedAt.After(now.Add(30*time.Second)) || !c.ExpiresAt.After(now) || !c.ExpiresAt.After(c.ObservedAt) || c.ExpiresAt.After(c.ObservedAt.Add(time.Hour)) || now.Sub(c.ObservedAt) > time.Hour {
 		return sessions.ErrDenied
 	}
 	return nil
@@ -52,7 +54,7 @@ func OpenNativeSwarm(connectionPath, capabilityPath string) (*NativeSwarmAccess,
 		return nil, sessions.ErrDenied
 	}
 	var c nativeconfig.Connection
-	if nativeconfig.Decode(data, &c) != nil || c.SchemaVersion != 1 || c.WorkspaceID == "" || c.SessionID == "" || c.InstallationID == "" || !filepath.IsAbs(c.Authority) || !filepath.IsAbs(c.CredentialFile) || !filepath.IsAbs(capabilityPath) {
+	if nativeconfig.Decode(data, &c) != nil || (c.SchemaVersion != 1 && c.SchemaVersion != 2) || c.WorkspaceID == "" || c.SessionID == "" || c.InstallationID == "" || !filepath.IsAbs(c.Authority) || !filepath.IsAbs(c.CredentialFile) || !filepath.IsAbs(capabilityPath) {
 		return nil, sessions.ErrDenied
 	}
 	access := &NativeSwarmAccess{connectionPath: connectionPath, capabilityPath: capabilityPath, connection: c}

@@ -136,7 +136,7 @@ func (a *Authority) ConfigureSwarmWithBindings(owner string, p SwarmPolicy, bind
 		}
 	}
 	return a.transaction(false, true, func(s *state) error {
-		if s.Version != 7 || len(owner) != 64 || hash(owner) != s.OwnerHash {
+		if s.Version < 7 || len(owner) != 64 || hash(owner) != s.OwnerHash {
 			return ErrDenied
 		}
 		if old, ok := s.SwarmPolicies[p.ProjectID]; ok && old.Revision == p.Revision && !reflect.DeepEqual(old, p) {
@@ -188,7 +188,7 @@ func (a *Authority) planSwarm(s *state, token, session, project, action string) 
 		return SwarmPlan{}, e
 	}
 	policy, ok := s.SwarmPolicies[project]
-	if s.Version != 7 || !ok || policy.Stopped {
+	if s.Version < 7 || !ok || policy.Stopped {
 		return SwarmPlan{}, ErrDenied
 	}
 	capability, ok := a.admission.(SwarmCapabilityAdmission)
@@ -511,165 +511,172 @@ func (a *Authority) AdmitDispatch(token, session string, req AdmitDispatchReques
 func (a *Authority) HandoffDispatch(token, worker string, req HandoffDispatchRequest) (Lease, error) {
 	var result Lease
 	e := a.transaction(false, true, func(s *state) error {
-		r, at, e := leaseAuth(s, token, worker, req.AttemptID, "lease.acquire", time.Now())
-		if e != nil {
-			return e
-		}
-		if !validID(req.OperationKey) {
+		if _, exists := s.DispatchIntents[req.DispatchID]; exists {
 			return ErrDenied
 		}
-		digest := identity("swarm.handoff", worker, req)
-		if old, ok := s.SwarmOperations[req.OperationKey]; ok {
-			if old.Digest != digest || old.Lease == nil {
-				return ErrDenied
-			}
-			result = *old.Lease
-			return nil
-		}
-		d, ok := s.Dispatches[req.DispatchID]
-		if !ok || d.Converted || d.ControllerSessionID == worker || d.Reservation.Fence != req.ExpectedFence || !time.Now().Before(d.Reservation.ExpiresAt) {
-			return ErrDenied
-		}
-		cr, ok := s.Sessions[d.ControllerSessionID]
-		if !ok {
-			return ErrDenied
-		}
-		// Authenticate the controller's ancestry without recovering its bearer token.
-		seen := map[string]bool{}
-		for cur := cr; ; {
-			if seen[cur.ID] {
-				return ErrDenied
-			}
-			seen[cur.ID] = true
-			if cur.Revoked || !time.Now().Before(cur.ExpiresAt) {
-				return ErrDenied
-			}
-			if cur.Parent == "" {
-				break
-			}
-			next, ok := s.Sessions[cur.Parent]
-			if !ok {
-				return ErrDenied
-			}
-			cur = next
-		}
-		p, ok := s.SwarmPolicies[d.ProjectID]
-		if !ok || p.Stopped || p.Revision != d.PolicyRevision {
-			return ErrDenied
-		}
-		capability, ok := a.admission.(SwarmCapabilityAdmission)
-		if !ok || capability.AdmitSwarmCapability(s.Binding.Workspace, d.ProjectID, p.Harness, p.CapabilityDigest) != nil {
-			return ErrDenied
-		}
-		if at.Request.TaskID != d.Reservation.TaskID || at.Observation.Locator != d.Reservation.Checkout || at.Observation.Repository != d.Reservation.Repository {
-			return ErrDenied
-		}
-		for _, res := range d.Reservation.Resources {
-			if !subset([]string{res.Kind + ":" + res.Path}, r.Scope.Resources) || !subset([]string{res.Kind + ":" + res.Path}, cr.Scope.Resources) {
-				return ErrDenied
-			}
-		}
-		if !subset([]string{"swarm.dispatch"}, cr.Scope.Actions) || a.admission == nil || a.admission.AdmitLease(s.Binding.Workspace, d.ProjectID, at.Request.TaskID) != nil {
-			return ErrDenied
-		}
-		if !subset([]string{"project:" + d.ProjectID}, cr.Scope.Resources) {
-			return ErrDenied
-		}
-		binding, ok := s.Tasks[d.Reservation.TaskID]
-		if !ok || !binding.AdmissionEnabled || binding.ProjectID != d.ProjectID || binding.Repository != d.Reservation.Repository {
-			return ErrDenied
-		}
-		adapter, ok := a.admission.(SwarmAdmission)
-		if !ok {
-			return ErrDenied
-		}
-		snapshot, e := adapter.ObserveSwarm(s.Binding.Workspace, d.ProjectID)
-		if e != nil {
-			return ErrDenied
-		}
-		fresh := false
-		for _, candidate := range snapshot.Candidates {
-			if candidate.TaskID == d.Reservation.TaskID {
-				resources, e := canonicalResources(d.Reservation.Checkout, candidate.TaskID, candidate.Resources)
-				if e != nil || candidate.Reason != "ready" || !reflect.DeepEqual(resources, d.Reservation.Resources) {
-					return ErrDenied
-				}
-				fresh = true
-			}
-		}
-		if !fresh {
-			return ErrDenied
-		}
-		if !swarmCapacityAvailable(s, p, snapshot, d) {
-			return ErrDenied
-		}
-		placement, ok := p.Placements[d.Reservation.TaskID]
-		if !ok || placement.Checkout != d.Reservation.Checkout || p.Harness != d.Harness {
-			return ErrDenied
-		}
-		impl, review := false, false
-		for _, role := range p.Roles {
-			if role.Harness != d.Harness {
-				continue
-			}
-			if role.ID == d.ImplementationRole && role.Kind == placement.ImplementKind {
-				impl = true
-			}
-			if role.ID == d.ReviewRole && role.Kind == placement.ReviewKind {
-				review = true
-			}
-		}
-		if !impl || !review {
-			return ErrDenied
-		}
-
-		if e := checkLeaseCheckout(at); e != nil {
-			return e
-		}
-		obs, e := checkout.Observe(at.Observation.Locator)
-		if e != nil || obs.Commit != at.Observation.Commit || obs.Tree != at.Observation.Tree || obs.Commit != d.BaseCommit || obs.Tree != d.BaseTree {
-			return ErrDenied
-		}
-		result = d.Reservation
-		result.AttemptID = at.ID
-		result.SessionID = worker
-		result.ExpiresAt = d.Reservation.ExpiresAt
-		if result.ExpiresAt.After(r.ExpiresAt) {
-			return ErrDenied
-		}
-		for _, old := range s.Leases {
-			if !old.Released && overlaps(result, old) {
-				return ErrDenied
-			}
-		}
-		for _, other := range s.Dispatches {
-			if other.ID != d.ID && !other.Converted && overlaps(result, other.Reservation) {
-				return ErrDenied
-			}
-		}
-		if capability.AdmitSwarmCapability(s.Binding.Workspace, d.ProjectID, p.Harness, p.CapabilityDigest) != nil {
-			return ErrDenied
-		}
-		if _, _, e := leaseAuth(s, token, worker, req.AttemptID, "lease.acquire", time.Now()); e != nil || !time.Now().Before(d.Reservation.ExpiresAt) || !swarmLineageCurrent(s, d.ControllerSessionID, time.Now()) {
-			return ErrDenied
-		}
-		if s.Fence == math.MaxUint64 {
-			return ErrDenied
-		}
-		s.Fence++
-		result.Fence = s.Fence
-		d.Converted = true
-		d.WorkerSessionID = worker
-		d.AttemptID = at.ID
-		s.Dispatches[d.ID] = d
-		s.Leases[result.ID] = result
-		s.SwarmOperations[req.OperationKey] = SwarmReceipt{Digest: digest, Lease: &result}
-		return nil
+		return a.handoffDispatch(s, token, worker, req, &result)
 	})
 	if e != nil {
 		return Lease{}, e
 	}
 	return result, nil
+}
+
+func (a *Authority) handoffDispatch(s *state, token, worker string, req HandoffDispatchRequest, result *Lease) error {
+	r, at, e := leaseAuth(s, token, worker, req.AttemptID, "lease.acquire", time.Now())
+	if e != nil {
+		return e
+	}
+	if !validID(req.OperationKey) {
+		return ErrDenied
+	}
+	digest := identity("swarm.handoff", worker, req)
+	if old, ok := s.SwarmOperations[req.OperationKey]; ok {
+		if old.Digest != digest || old.Lease == nil {
+			return ErrDenied
+		}
+		*result = *old.Lease
+		return nil
+	}
+	d, ok := s.Dispatches[req.DispatchID]
+	if !ok || d.Converted || d.ControllerSessionID == worker || d.Reservation.Fence != req.ExpectedFence || !time.Now().Before(d.Reservation.ExpiresAt) {
+		return ErrDenied
+	}
+	cr, ok := s.Sessions[d.ControllerSessionID]
+	if !ok {
+		return ErrDenied
+	}
+	// Authenticate the controller's ancestry without recovering its bearer token.
+	seen := map[string]bool{}
+	for cur := cr; ; {
+		if seen[cur.ID] {
+			return ErrDenied
+		}
+		seen[cur.ID] = true
+		if cur.Revoked || !time.Now().Before(cur.ExpiresAt) {
+			return ErrDenied
+		}
+		if cur.Parent == "" {
+			break
+		}
+		next, ok := s.Sessions[cur.Parent]
+		if !ok {
+			return ErrDenied
+		}
+		cur = next
+	}
+	p, ok := s.SwarmPolicies[d.ProjectID]
+	if !ok || p.Stopped || p.Revision != d.PolicyRevision {
+		return ErrDenied
+	}
+	capability, ok := a.admission.(SwarmCapabilityAdmission)
+	if !ok || capability.AdmitSwarmCapability(s.Binding.Workspace, d.ProjectID, p.Harness, p.CapabilityDigest) != nil {
+		return ErrDenied
+	}
+	if at.Request.TaskID != d.Reservation.TaskID || at.Observation.Locator != d.Reservation.Checkout || at.Observation.Repository != d.Reservation.Repository {
+		return ErrDenied
+	}
+	for _, res := range d.Reservation.Resources {
+		if !subset([]string{res.Kind + ":" + res.Path}, r.Scope.Resources) || !subset([]string{res.Kind + ":" + res.Path}, cr.Scope.Resources) {
+			return ErrDenied
+		}
+	}
+	if !subset([]string{"swarm.dispatch"}, cr.Scope.Actions) || a.admission == nil || a.admission.AdmitLease(s.Binding.Workspace, d.ProjectID, at.Request.TaskID) != nil {
+		return ErrDenied
+	}
+	if !subset([]string{"project:" + d.ProjectID}, cr.Scope.Resources) {
+		return ErrDenied
+	}
+	binding, ok := s.Tasks[d.Reservation.TaskID]
+	if !ok || !binding.AdmissionEnabled || binding.ProjectID != d.ProjectID || binding.Repository != d.Reservation.Repository {
+		return ErrDenied
+	}
+	adapter, ok := a.admission.(SwarmAdmission)
+	if !ok {
+		return ErrDenied
+	}
+	snapshot, e := adapter.ObserveSwarm(s.Binding.Workspace, d.ProjectID)
+	if e != nil {
+		return ErrDenied
+	}
+	fresh := false
+	for _, candidate := range snapshot.Candidates {
+		if candidate.TaskID == d.Reservation.TaskID {
+			resources, e := canonicalResources(d.Reservation.Checkout, candidate.TaskID, candidate.Resources)
+			if e != nil || candidate.Reason != "ready" || !reflect.DeepEqual(resources, d.Reservation.Resources) {
+				return ErrDenied
+			}
+			fresh = true
+		}
+	}
+	if !fresh {
+		return ErrDenied
+	}
+	if !swarmCapacityAvailable(s, p, snapshot, d) {
+		return ErrDenied
+	}
+	placement, ok := p.Placements[d.Reservation.TaskID]
+	if !ok || placement.Checkout != d.Reservation.Checkout || p.Harness != d.Harness {
+		return ErrDenied
+	}
+	impl, review := false, false
+	for _, role := range p.Roles {
+		if role.Harness != d.Harness {
+			continue
+		}
+		if role.ID == d.ImplementationRole && role.Kind == placement.ImplementKind {
+			impl = true
+		}
+		if role.ID == d.ReviewRole && role.Kind == placement.ReviewKind {
+			review = true
+		}
+	}
+	if !impl || !review {
+		return ErrDenied
+	}
+
+	if e := checkLeaseCheckout(at); e != nil {
+		return e
+	}
+	obs, e := checkout.Observe(at.Observation.Locator)
+	if e != nil || obs.Commit != at.Observation.Commit || obs.Tree != at.Observation.Tree || obs.Commit != d.BaseCommit || obs.Tree != d.BaseTree {
+		return ErrDenied
+	}
+	*result = d.Reservation
+	result.AttemptID = at.ID
+	result.SessionID = worker
+	result.ExpiresAt = d.Reservation.ExpiresAt
+	if result.ExpiresAt.After(r.ExpiresAt) {
+		return ErrDenied
+	}
+	for _, old := range s.Leases {
+		if !old.Released && overlaps(*result, old) {
+			return ErrDenied
+		}
+	}
+	for _, other := range s.Dispatches {
+		if other.ID != d.ID && !other.Converted && overlaps(*result, other.Reservation) {
+			return ErrDenied
+		}
+	}
+	if capability.AdmitSwarmCapability(s.Binding.Workspace, d.ProjectID, p.Harness, p.CapabilityDigest) != nil {
+		return ErrDenied
+	}
+	if _, _, e := leaseAuth(s, token, worker, req.AttemptID, "lease.acquire", time.Now()); e != nil || !time.Now().Before(d.Reservation.ExpiresAt) || !swarmLineageCurrent(s, d.ControllerSessionID, time.Now()) {
+		return ErrDenied
+	}
+	if s.Fence == math.MaxUint64 {
+		return ErrDenied
+	}
+	s.Fence++
+	result.Fence = s.Fence
+	d.Converted = true
+	d.WorkerSessionID = worker
+	d.AttemptID = at.ID
+	s.Dispatches[d.ID] = d
+	s.Leases[result.ID] = *result
+	s.SwarmOperations[req.OperationKey] = SwarmReceipt{Digest: digest, Lease: result}
+	return nil
 }
 
 // Retained reservations and unreleased leases occupy capacity even after expiry.

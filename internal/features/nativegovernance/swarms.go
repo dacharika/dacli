@@ -95,7 +95,9 @@ func swarmConfigure(ctx *clikit.Ctx, args []string) error {
 	fmt.Fprintln(ctx.Stdout, "Owner-selected native swarm policy configured; dispatch capabilities still require fresh trusted host observation.")
 	return nil
 }
-func swarmControllerAdd(ctx *clikit.Ctx, args []string) error {
+func swarmControllerAdd(ctx *clikit.Ctx, args []string) error { return swarmActorAdd(ctx, args, false) }
+func dispatchBridgeAdd(ctx *clikit.Ctx, args []string) error  { return swarmActorAdd(ctx, args, true) }
+func swarmActorAdd(ctx *clikit.Ctx, args []string, bridge bool) error {
 	f, e := flags(args, "config", "project", "connection", "credential", "expires")
 	if e != nil {
 		return e
@@ -175,7 +177,11 @@ func swarmControllerAdd(ctx *clikit.Ctx, args []string) error {
 			_ = os.Remove(f.Get("connection"))
 		}
 	}()
-	s, token, e := a.Enroll(owner, sessions.Scope{Actions: []string{"read", "swarm.plan", "swarm.reserve", "swarm.dispatch"}, Resources: resources}, time.Now().Add(lifetime))
+	actions := []string{"read", "swarm.plan", "swarm.reserve", "swarm.dispatch"}
+	if bridge {
+		actions = []string{"read", "dispatch.correlate"}
+	}
+	s, token, e := a.Enroll(owner, sessions.Scope{Actions: actions, Resources: resources}, time.Now().Add(lifetime))
 	if e != nil {
 		return denied()
 	}
@@ -198,7 +204,11 @@ func swarmControllerAdd(ctx *clikit.Ctx, args []string) error {
 		return e
 	}
 	completed = true
-	fmt.Fprintf(ctx.Stdout, "Native controller %s enrolled with planning and dispatch admission scope; no worker or owner authority.\n", s.ID)
+	if bridge {
+		fmt.Fprintf(ctx.Stdout, "Native bridge %s enrolled with correlation scope.\n", s.ID)
+	} else {
+		fmt.Fprintf(ctx.Stdout, "Native controller %s enrolled with planning and dispatch admission scope; no worker or owner authority.\n", s.ID)
+	}
 	return nil
 }
 
@@ -233,6 +243,30 @@ func swarmOperation(ctx *clikit.Ctx, args []string, kind string) error {
 			return denied()
 		}
 		switch kind {
+		case "dispatch-request":
+			var req sessions.RequestDispatchIntent
+			if native.Decode(data, &req) != nil {
+				return denied()
+			}
+			result, e = access.RequestDispatch(req)
+		case "dispatch-correlate":
+			var req sessions.CorrelateDispatchIntent
+			if native.Decode(data, &req) != nil {
+				return denied()
+			}
+			result, e = access.CorrelateDispatch(req)
+		case "dispatch-acknowledge":
+			var req sessions.AcknowledgeDispatchIntent
+			if native.Decode(data, &req) != nil {
+				return denied()
+			}
+			result, e = access.AcknowledgeDispatch(req)
+		case "dispatch-status":
+			var req struct{ DispatchID string }
+			if native.Decode(data, &req) != nil {
+				return denied()
+			}
+			result, e = access.DispatchStatus(req.DispatchID)
 		case "reserve":
 			var req sessions.ReserveWaveRequest
 			if native.Decode(data, &req) != nil {

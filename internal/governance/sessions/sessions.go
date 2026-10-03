@@ -47,6 +47,9 @@ type record struct {
 	Hash string
 }
 type state struct {
+	DispatchIntents          map[string]DispatchIntent
+	DispatchIntentOperations map[string]DispatchIntentReceipt
+
 	SwarmPolicies        map[string]SwarmPolicy
 	Dispatches           map[string]DispatchReservation
 	SwarmOperations      map[string]SwarmReceipt
@@ -188,7 +191,7 @@ func (a *Authority) transaction(create bool, write bool, fn func(*state) error) 
 		}
 	} else {
 		s = state{}
-		if err != nil || json.Unmarshal(data, &s) != nil || (s.Version != a.version && !(a.version == 6 && s.Version == 7)) || s.Binding != a.binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version >= 3 && (s.Leases == nil || s.Operations == nil)) || (s.Version >= 4 && (s.Revisions == nil || s.Grants == nil || s.Evidence == nil)) || (s.Version >= 5 && (s.ReviewGrants == nil || s.Reviews == nil)) || (s.Version >= 6 && (s.PublicationPolicies == nil || s.PublicationDecisions == nil || s.PublicationConsumed == nil)) {
+		if err != nil || json.Unmarshal(data, &s) != nil || (s.Version != a.version && !((a.version == 6 || a.version == 7) && s.Version >= a.version && s.Version <= 8)) || s.Binding != a.binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version >= 3 && (s.Leases == nil || s.Operations == nil)) || (s.Version >= 4 && (s.Revisions == nil || s.Grants == nil || s.Evidence == nil)) || (s.Version >= 5 && (s.ReviewGrants == nil || s.Reviews == nil)) || (s.Version >= 6 && (s.PublicationPolicies == nil || s.PublicationDecisions == nil || s.PublicationConsumed == nil)) {
 			return ErrStorage
 		}
 	}
@@ -196,6 +199,12 @@ func (a *Authority) transaction(create bool, write bool, fn func(*state) error) 
 		return ErrStorage
 	}
 	if s.Version >= 7 && (s.SwarmPolicies == nil || s.Dispatches == nil || s.SwarmOperations == nil) {
+		return ErrStorage
+	}
+	if s.Version < 8 && (s.DispatchIntents != nil || s.DispatchIntentOperations != nil) {
+		return ErrStorage
+	}
+	if s.Version >= 8 && (s.DispatchIntents == nil || s.DispatchIntentOperations == nil) {
 		return ErrStorage
 	}
 	if err = fn(&s); err != nil {
