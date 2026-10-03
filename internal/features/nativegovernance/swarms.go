@@ -101,6 +101,12 @@ func swarmActorAdd(ctx *clikit.Ctx, args []string, bridge bool) error {
 	return swarmScopedActorAdd(ctx, args, bridge, false)
 }
 func swarmScopedActorAdd(ctx *clikit.Ctx, args []string, bridge, lifecycle bool) error {
+	return scopedActorAdd(ctx, args, bridge, lifecycle, false)
+}
+func checkpointControllerAdd(ctx *clikit.Ctx, args []string) error {
+	return scopedActorAdd(ctx, args, false, false, true)
+}
+func scopedActorAdd(ctx *clikit.Ctx, args []string, bridge, lifecycle, checkpoint bool) error {
 	f, e := flags(args, "config", "project", "connection", "credential", "expires")
 	if e != nil {
 		return e
@@ -195,6 +201,9 @@ func swarmScopedActorAdd(ctx *clikit.Ctx, args []string, bridge, lifecycle bool)
 		} else {
 			actions = append(actions, "dispatch.cancel")
 		}
+	}
+	if checkpoint {
+		actions = append(actions, "checkpoint.read", "checkpoint.record", "checkpoint.reconcile")
 	}
 	s, token, e := a.Enroll(owner, sessions.Scope{Actions: actions, Resources: resources}, time.Now().Add(lifetime))
 	if e != nil {

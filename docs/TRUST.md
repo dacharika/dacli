@@ -446,3 +446,14 @@ reservation, first native intent and handoff share fresh checks. Required unavai
 integration/accounting/enforced token controls halt before implementation; optional
 controls stay visibly unsupported. These local commands add no MCP tools or host
 launchers. See [native preflight](GOVERNANCE_NATIVE_PREFLIGHT.md).
+
+`native checkpoint upgrade` explicitly migrates11→12 preserving prior authority,
+preflight receipts and retry counters. `native checkpoint configure` enables a
+project's owner-bounded reconciliation gate. `native checkpoint controller add`
+issues a separate scoped controller connection. `native checkpoint record` stores
+immutable references under CAS; it never asserts producer completion.
+`native checkpoint reconcile` freshly observes canonical tasks and authenticated
+producer records before a single wave. `native checkpoint status` separates
+historical facts from current eligibility and returns no host permit or release
+permission. Integration and acceptance contract references remain unknown until
+core592/core594 supply actual authenticated producer outcomes.

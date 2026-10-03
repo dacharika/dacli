@@ -58,6 +58,9 @@ type SwarmPlan struct {
 	Verdicts                                                 []SwarmVerdict
 }
 type ReserveWaveRequest struct {
+	CheckpointID, InvocationID, ReconciliationDigest string
+	CheckpointSequence                               uint64
+
 	OperationKey string
 	Plan         SwarmPlan
 	ExpiresAt    time.Time
@@ -435,6 +438,9 @@ func (a *Authority) ReserveWave(token, session string, req ReserveWaveRequest) (
 			wave = *old.Wave
 			return nil
 		}
+		if e := a.consumeCheckpoint(s, token, session, req, ""); e != nil {
+			return e
+		}
 		fresh, e := a.planSwarm(s, token, session, req.Plan.ProjectID, "swarm.reserve")
 		if e != nil {
 			return e
@@ -452,6 +458,11 @@ func (a *Authority) ReserveWave(token, session string, req ReserveWaveRequest) (
 			return e
 		}
 		wave = SwarmWave{ID: id, PlanID: fresh.ID, Dispatches: []DispatchReservation{}}
+		gateSource := *s
+		gateSource.Dispatches = map[string]DispatchReservation{}
+		for id, d := range s.Dispatches {
+			gateSource.Dispatches[id] = d
+		}
 		for _, v := range fresh.Verdicts {
 			if !v.Selected {
 				continue
@@ -489,6 +500,17 @@ func (a *Authority) ReserveWave(token, session string, req ReserveWaveRequest) (
 		}
 		if s.Version >= 11 && capability.AdmitSwarmCapability(s.Binding.Workspace, p.ProjectID, p.Harness, p.CapabilityDigest) != nil {
 			return ErrDenied
+		}
+		if _, e := controller(s, token, session, req.Plan.ProjectID, "swarm.reserve"); e != nil || !time.Now().Before(req.ExpiresAt) {
+			return ErrDenied
+		}
+		for _, d := range wave.Dispatches {
+			if !preflightBoundCurrent(s, d) {
+				return ErrDenied
+			}
+		}
+		if e := a.consumeCheckpoint(&gateSource, token, session, req, wave.ID); e != nil {
+			return e
 		}
 		if _, e := controller(s, token, session, req.Plan.ProjectID, "swarm.reserve"); e != nil || !time.Now().Before(req.ExpiresAt) {
 			return ErrDenied

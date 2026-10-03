@@ -378,7 +378,11 @@ func (a *Authority) BeginVerification(workerToken, runnerToken, runnerSession st
 		if _, err = runnerAuth(s, runnerToken, runnerSession, req, at, descriptor); err != nil {
 			return err
 		}
-		s.Operations[req.OperationKey] = operation{Digest: digest, Pending: true}
+		op := operation{Digest: digest, Pending: true}
+		if s.Version >= 12 {
+			op.CheckpointVerification = &CheckpointVerificationBinding{ProjectID: at.ProjectID, TaskID: at.Request.TaskID, RunnerSession: runnerSession, DescriptorDigest: descriptor, Request: req}
+		}
+		s.Operations[req.OperationKey] = op
 		return nil
 	})
 	return rev, receipt, err
@@ -434,7 +438,7 @@ func (a *Authority) CompleteVerification(workerToken, runnerToken, runnerSession
 		}
 		result = Evidence{ID: id, IssuerSession: runnerSession, Provenance: "trusted-local-runner", GrantID: g.ID, Revision: rev, CheckID: g.CheckID, CommandDigest: g.CommandDigest, OutputDigest: res.OutputDigest, ExitCode: res.ExitCode, RecordedAt: time.Now().UTC()}
 		s.Evidence[id] = result
-		s.Operations[req.OperationKey] = operation{Digest: digest, Evidence: &result, ResultDigest: identity("result", runnerSession, res)}
+		s.Operations[req.OperationKey] = operation{Digest: digest, Evidence: &result, ResultDigest: identity("result", runnerSession, res), CheckpointVerification: s.Operations[req.OperationKey].CheckpointVerification}
 		return nil
 	})
 	if err != nil {
