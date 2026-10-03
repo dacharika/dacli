@@ -51,6 +51,11 @@ still permits task-only leases. Canonical readiness is checked later through
 `application.NewLeaseAdmission`; recording admission is not task readiness.
 Enrollment does not spawn an agent or mint trusted runner/reviewer authority.
 Use distinct credentials and MCP instances for independently acting sessions.
+For the separate local trusted-verification workflow, owner enrollment may opt
+into `--verification` to grant `verification.request`. This does not add a
+verification tool to the MCP catalog. See
+[private named verification setup](GOVERNANCE_NATIVE_EVIDENCE.md#private-local-verification-setup)
+for owner runner provisioning and the local `native verify` adapter.
 
 Owner and session secrets are written only into newly created private files,
 never argv, stdout, tool arguments or diagnostics. Existing output paths refuse.
@@ -148,8 +153,9 @@ Session-file startup failures exit 3 before processing input.
 
 There is no CLI/shell escape hatch, owner enrollment, policy/grant administration,
 provider spawning, acceptance or unconfigured verification execution in this
-catalog. Self-report evidence always stays self-reported. Trusted verification,
-independent reviewer integration, consumption and task acceptance are not exposed
+catalog. Self-report evidence always stays self-reported. Trusted verification is
+available through a separately configured local adapter, not this transport.
+Independent reviewer integration, consumption and task acceptance are not exposed
 by this transport. A successful protocol call is not proof of task acceptance,
 strong host enforcement, or execution by Codex.
 

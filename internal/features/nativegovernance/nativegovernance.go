@@ -17,17 +17,19 @@ import (
 )
 
 var Commands = []clikit.Command{
+	{Path: "native verifier add", Brief: "Owner-configure private named checks with separately scoped verification authority", Mutates: true, Usage: "dacli native verifier add --config <private-file> --task <ref> --checks-file <private-file> --out <new-private-file> --credential <new-private-file> [--expires <duration>]", Run: verifierAdd},
+	{Path: "native verify", Brief: "Run an owner-configured named check for a fenced native revision", Mutates: true, JSON: true, Usage: "dacli native verify --connection <private-file> --runner-config <private-file> --request <private-file> --json", Run: verify},
 	{Path: "native upgrade", Brief: "Owner-upgrade native authority from schema 5 to 6 without replacing credentials", Mutates: true, Usage: "dacli native upgrade --config <private-file>", Run: upgrade},
 	{Path: "native revoke", Brief: "Owner-revoke an exact native session using a private explicit owner configuration", Mutates: true, Usage: "dacli native revoke --config <private-file> --session <session-id>", Run: revoke},
 	{Path: "native serve", Brief: "Serve scoped native governance MCP using a private explicit session connection", Usage: "dacli native serve --connection <private-file>", Run: serve},
 	{Path: "native bootstrap", Brief: "Initialize an absent native authority and privately save its owner credential", Mutates: true, Usage: "dacli native bootstrap --config <private-file>", Run: bootstrap},
-	{Path: "native enroll", Brief: "Owner-enroll a scoped native session for an existing canonical task", Mutates: true, Usage: "dacli native enroll --config <private-file> --task <ref> --connection <new-private-file> --credential <new-private-file> [--path <relative-path>]... [--expires <duration>]", Run: enroll},
+	{Path: "native enroll", Brief: "Owner-enroll a scoped native session for an existing canonical task", Mutates: true, Usage: "dacli native enroll --config <private-file> --task <ref> --connection <new-private-file> --credential <new-private-file> [--path <relative-path>]... [--expires <duration>] [--verification]", Run: enroll},
 }
 
 // AuthenticatesExplicitly lists exactly the handlers exempt from the legacy grant gate.
 func AuthenticatesExplicitly(path string) bool {
 	switch path {
-	case "native bootstrap", "native enroll", "native revoke", "native upgrade":
+	case "native bootstrap", "native enroll", "native revoke", "native upgrade", "native verifier add", "native verify":
 		return true
 	}
 	return false
@@ -146,7 +148,7 @@ func bootstrap(ctx *clikit.Ctx, args []string) error {
 	return nil
 }
 func enroll(ctx *clikit.Ctx, args []string) error {
-	f, e := flags(args, "config", "task", "connection", "credential", "path", "expires")
+	f, e := flags(args, "config", "task", "connection", "credential", "path", "expires", "verification")
 	if e != nil {
 		return e
 	}
@@ -154,6 +156,9 @@ func enroll(ctx *clikit.Ctx, args []string) error {
 		if f.Get(k) == "" {
 			return clikit.Usagef("--%s is required", k)
 		}
+	}
+	if len(f.All("verification")) > 0 && f.Get("verification") != "true" {
+		return clikit.Usagef("--verification must be a bare boolean flag")
 	}
 	lifetime := time.Hour
 	if f.Get("expires") != "" {
@@ -214,7 +219,11 @@ func enroll(ctx *clikit.Ctx, args []string) error {
 	if e = a.BindTask(owner, sessions.TaskBinding{TaskID: task.ID, ProjectID: task.Project, Repository: obs.Repository, AdmissionEnabled: true}); e != nil {
 		return denied()
 	}
-	s, token, e := a.Enroll(owner, sessions.Scope{Actions: []string{"read", "attempt.register", "lease.acquire", "lease.renew", "lease.release", "attempt.publish", "evidence.submit"}, Resources: paths}, time.Now().Add(lifetime))
+	actions := []string{"read", "attempt.register", "lease.acquire", "lease.renew", "lease.release", "attempt.publish", "evidence.submit"}
+	if len(f.All("verification")) > 0 {
+		actions = append(actions, "verification.request")
+	}
+	s, token, e := a.Enroll(owner, sessions.Scope{Actions: actions, Resources: paths}, time.Now().Add(lifetime))
 	if e != nil {
 		return denied()
 	}

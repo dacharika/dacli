@@ -43,6 +43,7 @@ var jsonHonoringCommands = map[string]bool{
 	"whoami":                  true,
 	"status":                  true,
 	"next":                    true,
+	"native verify":           true,
 	"critical-path":           true,
 	"doctor":                  true,
 	"project show":            true,

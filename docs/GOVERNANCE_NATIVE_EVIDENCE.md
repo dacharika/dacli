@@ -5,11 +5,14 @@ acceptance, deployment authority or task closure. Those decisions must be made
 by later owner/reviewer integrations. No task status database, provider registry
 or process fixture is required.
 
-Authorities now use schema 4. An owner explicitly calls `UpgradeEvidence` for
+Evidence was introduced in schema 4; current authorities use schema 6.
+An owner explicitly calls `UpgradeEvidence` for
 schema 3; `UpgradeLeases` for schema 2 and `Upgrade` for schema 1 migrate directly
-to schema 4. Existing session IDs, hashes, revocations, bindings, attempts,
+to the current schema. Existing session IDs, hashes, revocations, bindings, attempts,
 leases, operation receipts and global fences survive the schema 3 migration.
-Opening never upgrades implicitly; old writers refuse the new version. Back up
+Opening never upgrades implicitly; old writers refuse the new version. The local
+`native upgrade` command supports exactly schema 5 to 6 as described in
+[native MCP setup](GOVERNANCE_NATIVE_MCP.md#explicit-schema-5-to-6-upgrade). Back up
 and reconcile the authority under owner control before attempting a migration.
 
 `PublishAttemptRevision` requires the owning attempt session's exact
@@ -86,3 +89,84 @@ commit changes, revocation and expiration during execution. Separate test
 processes mutate authority while the command is paused outside the lock.
 Additional tests cover output/check/descriptor substitutions, delegated grants,
 issuer/scope substitution, replay, migration preservation and old writer refusal.
+
+## Private local verification setup
+
+The owner can configure the existing runner without a coding-provider launcher.
+First enroll an implementation session with `native enroll --verification` to
+explicitly add `verification.request`. Existing sessions and ordinary enrollment
+retain their narrower permissions. Publish the worker's clean committed revision
+under its current lease before requesting verification.
+
+Store named check definitions in a private regular file outside the repository:
+
+```json
+{
+  "schema_version": 1,
+  "checks": [{"id": "unit", "command": "go test ./...", "deadline": "2m"}]
+}
+```
+
+Create a separate runner and its private profile using the explicit owner config:
+
+```sh
+dacli native verifier add --config /private/owner.json --task project/001 \
+  --checks-file /private/checks.json --out /private/runner.json \
+  --credential /private/runner.token --expires 1h
+```
+
+The task must already have an owner-attested binding. Setup reads that binding
+without creating it or changing its admission policy. At most 32 check IDs are
+allowed, and they must be unique; setup checks that the generated private profile
+fits its 64 KiB read limit before issuing authority.
+Deadlines must be positive and at most ten minutes. The runner is an independently
+enrolled root session with only `verification.run` for the exact task. Each grant
+binds the repository, named command bytes, deadline and expiry. Configuration and
+credential files remain private; they are not part of the plugin package or worker
+MCP connection. Do not give a worker the runner credential as its session identity.
+
+The worker request file contains only the operation and exact revision bindings:
+
+```json
+{
+  "schema_version": 1,
+  "operation_key": "unit-first",
+  "attempt_id": "issued-attempt-id",
+  "lease_id": "issued-lease-id",
+  "revision_id": "issued-revision-id",
+  "check_id": "unit",
+  "expected_fence": 1
+}
+```
+
+```sh
+dacli native verify --connection /private/worker.json \
+  --runner-config /private/runner.json --request /private/request.json --json
+```
+
+The adapter derives the worker session from its authenticated connection and
+requires matching workspace, installation and authority bindings. Requests cannot
+select a command, working directory, issuer, credential, grant or provenance.
+The output is a typed evidence receipt containing revision and output digests;
+raw check output and private credentials are not printed. A failed check remains
+failed evidence, and does not establish verification eligibility.
+
+Both commands are local-only and excluded from both MCP surfaces. The plugin's
+ten-tool catalog still submits only self-reported evidence. Asynchronous plugin
+verification, independent reviewer setup and canonical acceptance remain separate
+deliveries. Owner-selected commands execute repository code with the local OS
+user's permissions; private files are not hostile-code confinement.
+
+Keep the exact operation key when recovering a lost response. A completed retry
+returns its historical receipt without executing again. An interrupted reserved
+operation with no committed result requires owner reconciliation, never an
+automatic fresh key or rerun. Revoking the runner through `native revoke` prevents
+future verification authority; it does not terminate the host or undo execution.
+
+Setup validates descriptors and reserves new output files before issuance. It
+never overwrites existing credentials. Session and grant issuance use durable
+owner operations; they are not one atomic transaction with private file writes.
+After issuance begins, an interrupted or failed setup preserves authority history
+and private outputs, and reports nonsecret runner/grant IDs for reconciliation.
+An incomplete profile fails closed. Preserve these files and revoke the reported
+runner before deciding on a new setup; never reset the authority as recovery.
