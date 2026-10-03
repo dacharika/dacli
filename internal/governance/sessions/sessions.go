@@ -47,6 +47,9 @@ type record struct {
 	Hash string
 }
 type state struct {
+	SwarmPolicies        map[string]SwarmPolicy
+	Dispatches           map[string]DispatchReservation
+	SwarmOperations      map[string]SwarmReceipt
 	Version              int
 	Binding              Binding
 	OwnerHash            string
@@ -175,6 +178,9 @@ func (a *Authority) transaction(create bool, write bool, fn func(*state) error) 
 	}
 	s := state{ReviewGrants: map[string]ReviewGrant{}, Reviews: map[string]Review{}, Revisions: map[string][]AttemptRevision{}, Grants: map[string]VerificationGrant{}, Evidence: map[string]Evidence{}, Leases: map[string]Lease{}, Operations: map[string]operation{}, Version: a.version, Tasks: map[string]TaskBinding{}, Attempts: map[string]Attempt{}, Binding: a.binding, Sessions: map[string]record{}}
 	initializePublication(&s)
+	if a.version >= 7 {
+		initializeSwarms(&s)
+	}
 	data, err := os.ReadFile(a.path)
 	if create {
 		if !os.IsNotExist(err) {
@@ -182,9 +188,15 @@ func (a *Authority) transaction(create bool, write bool, fn func(*state) error) 
 		}
 	} else {
 		s = state{}
-		if err != nil || json.Unmarshal(data, &s) != nil || s.Version != a.version || s.Binding != a.binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version >= 3 && (s.Leases == nil || s.Operations == nil)) || (s.Version >= 4 && (s.Revisions == nil || s.Grants == nil || s.Evidence == nil)) || (s.Version >= 5 && (s.ReviewGrants == nil || s.Reviews == nil)) || (s.Version >= 6 && (s.PublicationPolicies == nil || s.PublicationDecisions == nil || s.PublicationConsumed == nil)) {
+		if err != nil || json.Unmarshal(data, &s) != nil || (s.Version != a.version && !(a.version == 6 && s.Version == 7)) || s.Binding != a.binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version >= 3 && (s.Leases == nil || s.Operations == nil)) || (s.Version >= 4 && (s.Revisions == nil || s.Grants == nil || s.Evidence == nil)) || (s.Version >= 5 && (s.ReviewGrants == nil || s.Reviews == nil)) || (s.Version >= 6 && (s.PublicationPolicies == nil || s.PublicationDecisions == nil || s.PublicationConsumed == nil)) {
 			return ErrStorage
 		}
+	}
+	if s.Version < 7 && (s.SwarmPolicies != nil || s.Dispatches != nil || s.SwarmOperations != nil) {
+		return ErrStorage
+	}
+	if s.Version >= 7 && (s.SwarmPolicies == nil || s.Dispatches == nil || s.SwarmOperations == nil) {
+		return ErrStorage
 	}
 	if err = fn(&s); err != nil {
 		return err

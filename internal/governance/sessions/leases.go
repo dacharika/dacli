@@ -274,6 +274,11 @@ func (a *Authority) AcquireLease(token, session string, req AcquireLeaseRequest)
 				return ErrDenied
 			}
 		}
+		for _, dispatch := range s.Dispatches {
+			if !dispatch.Converted && overlaps(result, dispatch.Reservation) {
+				return ErrDenied
+			}
+		}
 		if s.Fence == math.MaxUint64 {
 			return ErrDenied
 		}

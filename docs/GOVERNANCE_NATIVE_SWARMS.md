@@ -16,9 +16,7 @@ lag kernel capability; inspect the installed catalog rather than infer tools
 from this contract. Existing cooperative review is credential separation, not
 proof of distinct human operators or hostile-process containment.
 
-Native swarm planning, dispatch reservations, host observation, bounded loops,
-child provisioning and loop-driven canonical acceptance are **not implemented by
-these existing services**. Coding CLI launchers are not a fallback. DACLI owns
+Core/589 adds [native planning and atomic dispatch reservations](GOVERNANCE_NATIVE_SWARM_PLANNING.md), with explicit owner-attested manual native handoff admission and a separate-worker lease conversion. Host observation, bounded loops, child provisioning and loop-driven canonical acceptance remain **unimplemented by these services**. Coding CLI launchers are not a fallback. DACLI owns
 coordination and admission; hosts own agent execution, model selection within
 owner policy, and native cancellation. A controller never runs `codex`,
 `claude`, Antigravity or another coding CLI subprocess. Named verification
