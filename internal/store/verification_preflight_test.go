@@ -50,11 +50,12 @@ func TestNativeVerificationPreflightFailureStatus(t *testing.T) {
 			var ev VerificationEvidence
 			var out []byte
 			var err error
-			if kind == "revision-mismatch" {
+			switch kind {
+			case "revision-mismatch":
 				ev, out, err = RunAcceptanceVerificationRevisionContext(ctx, dir, "runner", command, strings.Repeat("0", 40), strings.Repeat("0", 40))
-			} else if kind == "missing-revision" {
+			case "missing-revision":
 				ev, out, err = RunAcceptanceVerificationRevisionContext(ctx, dir, "runner", command, "", "")
-			} else {
+			default:
 				ev, out, err = RunAcceptanceVerificationContext(ctx, dir, "runner", command)
 			}
 			if err == nil || !strings.Contains(err.Error(), want) {
