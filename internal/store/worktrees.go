@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -43,7 +44,7 @@ type ReclaimableWorktree struct {
 //
 // trunk is the local trunk branch (e.g. "main"); pass "" to skip the merged
 // check. The workspace's own main worktree and every path in protect (e.g. the
-// caller's cwd) are never returned.
+// caller's cwd), and locked worktrees, are never returned.
 func ReclaimableWorktrees(w *workspace.Workspace, trunk string, protect ...string) ([]ReclaimableWorktree, error) {
 	wts, err := gitx.ListWorktrees(w.Root)
 	if err != nil {
@@ -82,7 +83,7 @@ func ReclaimableWorktrees(w *workspace.Workspace, trunk string, protect ...strin
 	var out []ReclaimableWorktree
 	for _, wt := range wts {
 		p := cleanPath(wt.Path)
-		if skip[p] {
+		if skip[p] || wt.Locked {
 			continue
 		}
 		// Only ever touch worktrees under the workspace's own worktrees dir —
@@ -123,16 +124,19 @@ func mergedIntoTrunk(root, branch, trunk string) bool {
 
 // PruneWorktrees reclaims every ReclaimableWorktrees entry: it removes the
 // worktree, and for a landed branch deletes the local branch too. A per-worktree
-// failure is skipped, never fatal — reclaiming disk is best-effort housekeeping
-// that must not wedge its caller. Returns the entries actually removed.
+// failure does not stop other candidates, but is returned with its path and
+// recovery action: silent drops made apply disagree with preview (core/439).
+// Returns the entries actually removed even when another removal failed.
 func PruneWorktrees(w *workspace.Workspace, trunk string, protect ...string) ([]ReclaimableWorktree, error) {
 	cand, err := ReclaimableWorktrees(w, trunk, protect...)
 	if err != nil {
 		return nil, err
 	}
 	var removed []ReclaimableWorktree
+	var failures []error
 	for _, c := range cand {
 		if err := gitx.RemoveWorktree(w.Root, c.Path); err != nil {
+			failures = append(failures, fmt.Errorf("prune %s: %w; inspect the worktree and Git registration, resolve the removal failure, then preview again", c.Path, err))
 			continue
 		}
 		if c.Merged && c.Branch != "" {
@@ -140,7 +144,7 @@ func PruneWorktrees(w *workspace.Workspace, trunk string, protect ...string) ([]
 		}
 		removed = append(removed, c)
 	}
-	return removed, nil
+	return removed, errors.Join(failures...)
 }
 
 // cleanPath canonicalizes a path for identity comparison, resolving symlinks so
