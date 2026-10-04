@@ -244,13 +244,16 @@ func reviewAttempt(s *state, id string) (Attempt, error) {
 	return Attempt{}, ErrDenied
 }
 func reviewWorker(s *state, at Attempt, req ReviewRequest) error {
+	return reviewWorkerExcept(s, at, req, "")
+}
+func reviewWorkerExcept(s *state, at Attempt, req ReviewRequest, closing string) error {
 	r, _, err := rootSession(s, at.SessionID, time.Now())
 	if err != nil {
 		return err
 	}
 	b, ok := s.Tasks[at.Request.TaskID]
 	l, lok := s.Leases[req.LeaseID]
-	if !ok || b.Repository != at.Observation.Repository || b.ProjectID != at.ProjectID || !b.AdmissionEnabled || !subset([]string{"verification.request"}, r.Scope.Actions) || !subset([]string{"task:" + at.Request.TaskID}, r.Scope.Resources) || !lok || l.AttemptID != at.ID || l.SessionID != at.SessionID || l.Fence != req.ExpectedFence || !currentLease(s, l, time.Now()) {
+	if !ok || b.Repository != at.Observation.Repository || b.ProjectID != at.ProjectID || !b.AdmissionEnabled || !subset([]string{"verification.request"}, r.Scope.Actions) || !subset([]string{"task:" + at.Request.TaskID}, r.Scope.Resources) || !lok || l.AttemptID != at.ID || l.SessionID != at.SessionID || l.Fence != req.ExpectedFence || !currentLeaseExcept(s, l, time.Now(), closing) {
 		return ErrDenied
 	}
 	return nil
@@ -290,6 +293,9 @@ func reviewEvidence(s *state, at Attempt, rev AttemptRevision, ids []string, che
 	return len(found) == len(checks)
 }
 func (a *Authority) reviewCurrent(s *state, session string, req ReviewRequest) (AttemptRevision, ReviewObservation, ReviewReason) {
+	return a.reviewCurrentExcept(s, session, req, "")
+}
+func (a *Authority) reviewCurrentExcept(s *state, session string, req ReviewRequest, closing string) (AttemptRevision, ReviewObservation, ReviewReason) {
 	at, err := reviewAttempt(s, req.AttemptID)
 	if err != nil {
 		return AttemptRevision{}, ReviewObservation{}, ReviewWorkerInvalid
@@ -298,10 +304,10 @@ func (a *Authority) reviewCurrent(s *state, session string, req ReviewRequest) (
 	if !ok || !reviewGrantCurrent(s, session, at, g) {
 		return AttemptRevision{}, ReviewObservation{}, ReviewAuthorityInvalid
 	}
-	if reviewWorker(s, at, req) != nil {
+	if reviewWorkerExcept(s, at, req, closing) != nil {
 		return AttemptRevision{}, ReviewObservation{}, ReviewWorkerInvalid
 	}
-	rev, err := currentRevision(s, at, req.RevisionID, req.LeaseID, req.ExpectedFence)
+	rev, err := currentRevisionExcept(s, at, req.RevisionID, req.LeaseID, req.ExpectedFence, closing)
 	if err != nil {
 		return AttemptRevision{}, ReviewObservation{}, ReviewRevisionStale
 	}
@@ -319,7 +325,7 @@ func (a *Authority) reviewCurrent(s *state, session string, req ReviewRequest) (
 	if !reviewGrantCurrent(s, session, at, g) {
 		return AttemptRevision{}, ReviewObservation{}, ReviewAuthorityInvalid
 	}
-	if reviewWorker(s, at, req) != nil {
+	if reviewWorkerExcept(s, at, req, closing) != nil {
 		return AttemptRevision{}, ReviewObservation{}, ReviewWorkerInvalid
 	}
 	return rev, obs, ReviewEligible

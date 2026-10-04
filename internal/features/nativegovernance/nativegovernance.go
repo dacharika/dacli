@@ -20,6 +20,8 @@ import (
 )
 
 var Commands = []clikit.Command{
+	{Path: "native acceptance upgrade", Brief: "Explicit owner upgrades durable canonical acceptance", Mutates: true, Usage: "dacli native acceptance upgrade --config <owner>", Run: nativeAcceptanceUpgrade},
+	{Path: "native acceptance candidate", Brief: "Independent authenticated reviewer exports exact eligible producers", JSON: true, Usage: "dacli native acceptance candidate --connection <reviewer> --review-config <profile> --review <id>", Run: nativeAcceptanceCandidate},
 	{Path: "native budget upgrade", Brief: "upgrade owner-estimated native budget policy", Mutates: true, JSON: false, Usage: "dacli native budget upgrade --config <private-file>", Run: func(c *clikit.Ctx, a []string) error { return budgetOwner(c, a, "upgrade") }},
 	{Path: "native budget configure", Brief: "configure owner-estimated native budget policy", Mutates: true, JSON: true, Usage: "dacli native budget configure --config <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return budgetOwner(c, a, "configure") }},
 	{Path: "native budget quote", Brief: "quote owner-estimated native budget allocations", Mutates: false, JSON: true, Usage: "dacli native budget quote --connection <private-file> --capability-file <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return budgetCommand(c, a, "quote") }},
@@ -75,6 +77,8 @@ var Commands = []clikit.Command{
 // AuthenticatesExplicitly lists exactly the handlers exempt from the legacy grant gate.
 func AuthenticatesExplicitly(path string) bool {
 	switch path {
+	case "accept apply-native", "native acceptance upgrade", "native acceptance candidate":
+		return true
 	case "native budget upgrade", "native budget configure", "native budget quote", "native budget status", "native budget settle", "native budget controller add":
 		return true
 	case "native checkpoint upgrade", "native checkpoint configure", "native checkpoint record", "native checkpoint reconcile", "native checkpoint status", "native checkpoint controller add", "native preflight upgrade", "native preflight configure", "native preflight override", "native preflight check":

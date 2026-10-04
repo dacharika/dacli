@@ -129,6 +129,12 @@ func lifecycleIntent(s *state, b LifecycleBinding) (DispatchIntent, error) {
 // workerTaskWithdrawn includes descendants without revoking unrelated root tasks.
 // Withdrawal never expires and does not clear reservations or unreleased leases.
 func workerTaskWithdrawn(s *state, session, task string) bool {
+	return workerTaskWithdrawnExcept(s, session, task, "")
+}
+func workerTaskWithdrawnExcept(s *state, session, task, closing string) bool {
+	if terminal, ok := s.TaskTerminals[task]; ok && (closing == "" || terminal.OperationKey != closing || terminal.State != "closing") {
+		return true
+	}
 	if recoveryTaskWithdrawn(s, session, task) {
 		return true
 	}

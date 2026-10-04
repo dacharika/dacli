@@ -8,7 +8,8 @@ has drifted — file that as a bug, the same as any other doc claiming a
 capability that isn't there.
 
 The native trust boundary is documented in [native transport](GOVERNANCE_NATIVE_MCP.md),
-[native evidence](GOVERNANCE_NATIVE_EVIDENCE.md) and [native review](GOVERNANCE_NATIVE_REVIEW.md).
+[native evidence](GOVERNANCE_NATIVE_EVIDENCE.md), [native review](GOVERNANCE_NATIVE_REVIEW.md) and
+[native canonical acceptance](GOVERNANCE_NATIVE_ACCEPTANCE.md).
 The tables below also retain the administrative CLI's legacy cooperative identity
 model. Neither model claims to confine a host with direct filesystem access.
 
@@ -468,3 +469,14 @@ retains its estimated liability. Settlement cannot release protection or produce
 host permission. `native budget quote` and `native budget status` expose estimates,
 null provider usage and unsupported provider/host spending enforcement. These
 commands add no MCP tools or host launcher. See [native budgets](GOVERNANCE_NATIVE_BUDGETS.md).
+
+`native acceptance upgrade` is an explicit owner-authenticated13→14 migration.
+`native acceptance candidate` authenticates the separately provisioned reviewer
+and exports safe exact producer bindings, not a completion permit.
+`accept apply-native` authenticates the explicit owner, repeats current independent
+review/evidence and clean genuine local landing checks, and retires only that task
+durably before canonical effects. Closing retains resources and does not mean
+Applied. Exact raw canonical DONE readback plus durable finalization is required;
+tracked partial effects refuse with explicit owner-reconciliation policy exit3.
+No native acceptance route launches a process, borrows a runner/reviewer credential,
+releases a lease or falls back to legacy proposals.

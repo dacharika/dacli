@@ -148,7 +148,10 @@ func (a *Authority) PublishAttemptRevision(token, session string, req PublishRev
 	return result, nil
 }
 func currentRevision(s *state, at Attempt, id, lease string, fence uint64) (AttemptRevision, error) {
-	if workerTaskWithdrawn(s, at.SessionID, at.Request.TaskID) {
+	return currentRevisionExcept(s, at, id, lease, fence, "")
+}
+func currentRevisionExcept(s *state, at Attempt, id, lease string, fence uint64, closing string) (AttemptRevision, error) {
+	if workerTaskWithdrawnExcept(s, at.SessionID, at.Request.TaskID, closing) {
 		return AttemptRevision{}, ErrDenied
 	}
 	history := s.Revisions[at.ID]

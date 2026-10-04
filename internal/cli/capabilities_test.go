@@ -20,7 +20,9 @@ import (
 // This projection includes owner migration and excludes legacy provider launchers.
 // The six checkpoint commands preserve owner/controller mutation boundaries;
 // configure, record, reconcile and status emit typed JSON.
-const capabilityRegistryGolden = "add2c062e9da2797d13ee22ed1cb4c27c8bdc39116c945f9f54df7b09544c801"
+// Native acceptance adds owner-only upgrade/apply and reviewer candidate export;
+// candidate/apply emit typed JSON, with no legacy or MCP write fallback.
+const capabilityRegistryGolden = "a59368193c56df79c86d283743de90c970f359bbd4d3fcc7871138127a66b19e"
 
 func TestCapabilityRegistryGolden(t *testing.T) {
 	m := capabilityManifest()

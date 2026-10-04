@@ -249,6 +249,11 @@ func (a *Authority) planSwarm(s *state, token, session, project, action string) 
 		}
 		seen[c.TaskID] = true
 		v := SwarmVerdict{TaskID: c.TaskID, Reason: c.Reason}
+		if _, retired := s.TaskTerminals[c.TaskID]; retired {
+			v.Reason = "task_execution_retired"
+			plan.Verdicts = append(plan.Verdicts, v)
+			continue
+		}
 		if c.Reason != "ready" {
 			plan.Verdicts = append(plan.Verdicts, v)
 			continue
@@ -583,6 +588,11 @@ func (a *Authority) ReserveWave(token, session string, req ReserveWaveRequest) (
 	return wave, nil
 }
 func (a *Authority) admitDispatch(s *state, token, session string, req AdmitDispatchRequest) (DispatchReservation, error) {
+	if d, ok := s.Dispatches[req.DispatchID]; ok {
+		if _, retired := s.TaskTerminals[d.Reservation.TaskID]; retired {
+			return DispatchReservation{}, ErrDenied
+		}
+	}
 	if d, ok := s.Dispatches[req.DispatchID]; !ok || !budgetDispatchCurrent(s, d) {
 		return DispatchReservation{}, ErrDenied
 	}

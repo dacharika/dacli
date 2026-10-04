@@ -367,5 +367,8 @@ func (a *Authority) changeLease(token, session, key, attempt, id string, fence u
 }
 
 func currentLease(s *state, l Lease, now time.Time) bool {
-	return !l.Released && now.Before(l.ExpiresAt) && !workerTaskWithdrawn(s, l.SessionID, l.TaskID)
+	return currentLeaseExcept(s, l, now, "")
+}
+func currentLeaseExcept(s *state, l Lease, now time.Time, closing string) bool {
+	return !l.Released && now.Before(l.ExpiresAt) && !workerTaskWithdrawnExcept(s, l.SessionID, l.TaskID, closing)
 }

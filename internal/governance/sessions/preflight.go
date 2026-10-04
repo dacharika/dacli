@@ -165,6 +165,13 @@ func (a *Authority) preflight(s *state, project, task, impl, review, worker stri
 	fail := func(phase, reason, remedy string) {
 		report.Phases = append(report.Phases, PreflightPhase{Phase: phase, Verdict: reason, Required: true, Assurance: "cooperative-current-authority", Remediation: remedy})
 	}
+	if _, retired := s.TaskTerminals[task]; retired {
+		fail("policy", "policy_refused", "task execution retired by native acceptance; retained resources require separate owner cleanup")
+		report.FailureClass = "permanent"
+		completePreflightPhases(&report)
+		report.ProofDigest = preflightDigest(report)
+		return report, nil
+	}
 	observer, available := a.admission.(PreflightObserver)
 	if s.Version < 11 || !ok || !present || !time.Now().Before(p.ExpiresAt) || !available {
 		fail("policy", "policy_refused", "owner must configure a fresh complete-loop preflight policy")

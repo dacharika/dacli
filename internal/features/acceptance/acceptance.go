@@ -39,6 +39,7 @@ const acceptApplyUsage = "dacli accept apply <task> --proposal <id> [--allow-unl
 
 // Commands is this slice's table, aggregated by the app layer (cli.go).
 var Commands = []clikit.Command{
+	{Path: "accept apply-native", Brief: "Explicit native owner consumes independently reviewed exact landed evidence and closes the canonical task", JSON: true, Mutates: true, Usage: nativeApplyUsage, Run: cmdAcceptApplyNative},
 	{Path: "accept", Brief: "Workspace owner validates a worker proposal against fixed acceptance and reviewed-head evidence, then closes it; this does not merge the branch", JSON: true, Usage: acceptUsage, Run: cmdAccept},
 	{Path: "accept propose", Brief: "Independent read-only reviewer records a verified, exact-tree acceptance handoff", JSON: true, Usage: acceptProposeUsage, Run: cmdAcceptPropose},
 	{Path: "accept apply", Brief: "Task owner atomically validates and applies one independent acceptance handoff", JSON: true, Mutates: true, Usage: acceptApplyUsage, Run: cmdAcceptApply},

@@ -237,3 +237,11 @@ func (a *NativeReviewAccess) Evaluate(id string) (sessions.ReviewEligibility, er
 	}
 	return a.authority.EvaluateReview(a.token, a.session, id)
 }
+
+// AcceptanceCandidate exports only a freshly eligible issuer's stored native facts.
+func (a *NativeReviewAccess) AcceptanceCandidate(reviewID string) (sessions.NativeAcceptanceCandidate, error) {
+	if a == nil {
+		return sessions.NativeAcceptanceCandidate{}, sessions.ErrDenied
+	}
+	return a.authority.ReadNativeAcceptanceCandidate(a.token, a.session, reviewID)
+}
