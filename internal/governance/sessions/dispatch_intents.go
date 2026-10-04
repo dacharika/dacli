@@ -167,7 +167,7 @@ func (a *Authority) RequestDispatchIntent(token, controllerID string, req Reques
 		if _, e := dispatchActor(s, token, controllerID, d.ProjectID, "swarm.dispatch"); e != nil {
 			return e
 		}
-		if !dispatchBoundActor(s, req.BridgeSessionID, d.ProjectID, "dispatch.correlate", d) || !dispatchBoundActor(s, req.WorkerSessionID, d.ProjectID, "lease.acquire", d) || !time.Now().Before(d.Reservation.ExpiresAt) || !preflightBoundCurrent(s, d) {
+		if !dispatchBoundActor(s, req.BridgeSessionID, d.ProjectID, "dispatch.correlate", d) || !dispatchBoundActor(s, req.WorkerSessionID, d.ProjectID, "lease.acquire", d) || !time.Now().Before(d.Reservation.ExpiresAt) || !preflightBoundCurrent(s, d) || !budgetDispatchCurrent(s, d) {
 			return ErrDenied
 		}
 		s.DispatchIntents[d.ID] = intent

@@ -457,3 +457,14 @@ producer records before a single wave. `native checkpoint status` separates
 historical facts from current eligibility and returns no host permit or release
 permission. Integration and acceptance contract references remain unknown until
 core592/core594 supply actual authenticated producer outcomes.
+
+`native budget upgrade` explicitly migrates12→13 preserving prior maps and
+immutable operations. `native budget configure` records owner-estimated token
+allocation limits, phase/model estimates, immutable accounting cycles and rolling
+window policy. `native budget controller add` separately enrolls scoped budget
+read/quote/settlement and checkpoint authority. `native budget settle` accepts
+only exact durable producer IDs and original reservation fences; unknown work
+retains its estimated liability. Settlement cannot release protection or produce
+host permission. `native budget quote` and `native budget status` expose estimates,
+null provider usage and unsupported provider/host spending enforcement. These
+commands add no MCP tools or host launcher. See [native budgets](GOVERNANCE_NATIVE_BUDGETS.md).

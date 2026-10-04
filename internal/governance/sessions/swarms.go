@@ -47,6 +47,7 @@ type SwarmPolicy struct {
 type SwarmVerdict struct {
 	TaskID, Reason, ImplementationRole, ReviewRole string
 	Preflight                                      *PreflightReport
+	Budget                                         *BudgetQuote
 	Selected                                       bool
 	Resources                                      []Resource
 	Checkout, Repository, BaseCommit, BaseTree     string
@@ -315,6 +316,25 @@ func (a *Authority) planSwarm(s *state, token, session, project, action string) 
 			plan.Verdicts = append(plan.Verdicts, v)
 			continue
 		}
+		// Known-zero local estimated headroom halts before role/model routing.
+		if budgetPolicy, enabled := s.BudgetPolicies[project]; enabled {
+			status, err := budgetStatus(s, budgetPolicy, time.Now().UTC())
+			if err != nil {
+				return SwarmPlan{}, err
+			}
+			if status.Cycle.Remaining <= budgetPolicy.RecoveryFloor || status.Window.Remaining <= budgetPolicy.RecoveryFloor {
+				q, err := calculateBudgetQuote(budgetPolicy, c.TaskID, status, &PreflightReport{Allowed: true, ExpiresAt: budgetPolicy.ExpiresAt}, 0, time.Now().UTC())
+				if err != nil {
+					return SwarmPlan{}, err
+				}
+				q.Allowed = false
+				q.Reason = "insufficient_complete_cycle_headroom"
+				v.Budget = finishBudgetQuote(q, nil)
+				v.Reason = "budget_" + q.Reason
+				plan.Verdicts = append(plan.Verdicts, v)
+				continue
+			}
+		}
 		pick := func(kind, id string) string {
 			for _, role := range roles {
 				if role.ID == id && role.Kind == kind && role.Harness == policy.Harness && used[id] < role.Capacity {
@@ -354,6 +374,27 @@ func (a *Authority) planSwarm(s *state, token, session, project, action string) 
 				plan.Verdicts = append(plan.Verdicts, v)
 				continue
 			}
+		}
+		priorBudget := int64(0)
+		for _, selectedVerdict := range plan.Verdicts {
+			if selectedVerdict.Selected && selectedVerdict.Budget != nil {
+				var err error
+				priorBudget, err = budgetAdd(priorBudget, selectedVerdict.Budget.Total)
+				if err != nil {
+					return SwarmPlan{}, err
+				}
+			}
+		}
+		quote, err := a.quoteBudget(s, project, c.TaskID, v.Preflight, priorBudget)
+		if err != nil {
+			return SwarmPlan{}, err
+		}
+		v.Budget = quote
+		if quote != nil && !quote.Allowed {
+			used[impl]--
+			v.Reason = "budget_" + quote.Reason
+			plan.Verdicts = append(plan.Verdicts, v)
+			continue
 		}
 		used[review]++
 		selected++
@@ -407,6 +448,11 @@ func (a *Authority) planSwarm(s *state, token, session, project, action string) 
 			}
 		}
 	}
+	for _, v := range plan.Verdicts {
+		if v.Selected && !budgetQuoteCurrent(s, v.Budget) {
+			return SwarmPlan{}, ErrDenied
+		}
+	}
 	plan.ID = planDigest(plan)
 	return plan, nil
 }
@@ -458,10 +504,9 @@ func (a *Authority) ReserveWave(token, session string, req ReserveWaveRequest) (
 			return e
 		}
 		wave = SwarmWave{ID: id, PlanID: fresh.ID, Dispatches: []DispatchReservation{}}
-		gateSource := *s
-		gateSource.Dispatches = map[string]DispatchReservation{}
-		for id, d := range s.Dispatches {
-			gateSource.Dispatches[id] = d
+		gateSource, e := cloneAuthorityState(s)
+		if e != nil {
+			return e
 		}
 		for _, v := range fresh.Verdicts {
 			if !v.Selected {
@@ -479,6 +524,9 @@ func (a *Authority) ReserveWave(token, session string, req ReserveWaveRequest) (
 			if v.Preflight != nil {
 				d.PreflightDigest = v.Preflight.ProofDigest
 				d.PreflightExpiresAt = v.Preflight.ExpiresAt
+			}
+			if e := allocateBudget(s, d, wave.ID, v.Budget); e != nil {
+				return e
 			}
 			s.Dispatches[id] = d
 			wave.Dispatches = append(wave.Dispatches, d)
@@ -520,6 +568,12 @@ func (a *Authority) ReserveWave(token, session string, req ReserveWaveRequest) (
 				return ErrDenied
 			}
 		}
+		s.Checkpoints = gateSource.Checkpoints
+		for _, d := range wave.Dispatches {
+			if !budgetDispatchCurrent(s, d) {
+				return ErrDenied
+			}
+		}
 		s.SwarmOperations[req.OperationKey] = SwarmReceipt{Digest: digest, Wave: &wave}
 		return nil
 	})
@@ -529,6 +583,9 @@ func (a *Authority) ReserveWave(token, session string, req ReserveWaveRequest) (
 	return wave, nil
 }
 func (a *Authority) admitDispatch(s *state, token, session string, req AdmitDispatchRequest) (DispatchReservation, error) {
+	if d, ok := s.Dispatches[req.DispatchID]; !ok || !budgetDispatchCurrent(s, d) {
+		return DispatchReservation{}, ErrDenied
+	}
 	if !lifecycleDispatchEligible(s, req.DispatchID) {
 		return DispatchReservation{}, ErrDenied
 	}

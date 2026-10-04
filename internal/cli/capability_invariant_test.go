@@ -174,7 +174,8 @@ func TestEveryCommandDeclaresItsCapability(t *testing.T) {
 		"release train": true, "release train authority": true,
 		// Native provisioning validates private owner files instead of ambient
 		// legacy grants; dispatcher tests cover both authority boundaries.
-		"native checkpoint upgrade": true, "native checkpoint configure": true, "native checkpoint record": true, "native checkpoint reconcile": true, "native checkpoint controller add": true,
+		"native checkpoint upgrade": true, "native budget upgrade": true, "native budget configure": true, "native budget settle": true, "native budget controller add": true,
+		"native checkpoint configure": true, "native checkpoint record": true, "native checkpoint reconcile": true, "native checkpoint controller add": true,
 		"native preflight upgrade": true, "native preflight configure": true, "native preflight override": true, "native preflight check": true,
 		"native recovery upgrade": true, "native recovery configure": true, "native recovery apply": true, "native lifecycle upgrade": true, "native lifecycle configure": true, "native lifecycle controller add": true, "native lifecycle bridge add": true, "native lifecycle observe": true, "native lifecycle cancel": true, "native lifecycle cancel-ack": true,
 

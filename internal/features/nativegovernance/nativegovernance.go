@@ -20,6 +20,12 @@ import (
 )
 
 var Commands = []clikit.Command{
+	{Path: "native budget upgrade", Brief: "upgrade owner-estimated native budget policy", Mutates: true, JSON: false, Usage: "dacli native budget upgrade --config <private-file>", Run: func(c *clikit.Ctx, a []string) error { return budgetOwner(c, a, "upgrade") }},
+	{Path: "native budget configure", Brief: "configure owner-estimated native budget policy", Mutates: true, JSON: true, Usage: "dacli native budget configure --config <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return budgetOwner(c, a, "configure") }},
+	{Path: "native budget quote", Brief: "quote owner-estimated native budget allocations", Mutates: false, JSON: true, Usage: "dacli native budget quote --connection <private-file> --capability-file <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return budgetCommand(c, a, "quote") }},
+	{Path: "native budget status", Brief: "status owner-estimated native budget allocations", Mutates: false, JSON: true, Usage: "dacli native budget status --connection <private-file> --capability-file <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return budgetCommand(c, a, "status") }},
+	{Path: "native budget settle", Brief: "settle owner-estimated native budget allocations", Mutates: true, JSON: true, Usage: "dacli native budget settle --connection <private-file> --capability-file <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return budgetCommand(c, a, "settle") }},
+	{Path: "native budget controller add", Brief: "owner enroll scoped budget controller", Mutates: true, Usage: "dacli native budget controller add --config <private-file> --project <project> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]", Run: budgetControllerAdd},
 	{Path: "native checkpoint upgrade", Brief: "upgrade native durable checkpoint policy", Mutates: true, JSON: false, Usage: "dacli native checkpoint upgrade --config <private-file>", Run: func(c *clikit.Ctx, a []string) error { return checkpointOwner(c, a, "upgrade") }},
 	{Path: "native checkpoint configure", Brief: "configure native durable checkpoint policy", Mutates: true, JSON: true, Usage: "dacli native checkpoint configure --config <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return checkpointOwner(c, a, "configure") }},
 	{Path: "native checkpoint record", Brief: "record durable bounded checkpoint", Mutates: true, JSON: true, Usage: "dacli native checkpoint record --connection <private-file> --capability-file <private-file> --request <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return checkpointCommand(c, a, "record") }},
@@ -69,6 +75,8 @@ var Commands = []clikit.Command{
 // AuthenticatesExplicitly lists exactly the handlers exempt from the legacy grant gate.
 func AuthenticatesExplicitly(path string) bool {
 	switch path {
+	case "native budget upgrade", "native budget configure", "native budget quote", "native budget status", "native budget settle", "native budget controller add":
+		return true
 	case "native checkpoint upgrade", "native checkpoint configure", "native checkpoint record", "native checkpoint reconcile", "native checkpoint status", "native checkpoint controller add", "native preflight upgrade", "native preflight configure", "native preflight override", "native preflight check":
 		return true
 	case "native recovery upgrade", "native recovery configure", "native recovery preview", "native recovery apply":

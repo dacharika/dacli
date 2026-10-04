@@ -327,6 +327,7 @@ func (a *Authority) reconcileCheckpoint(s *state, p CheckpointPolicy, out Checkp
 			selected := false
 			resourceConflict := false
 			transientPreflight, permanentPreflight := false, false
+			budgetBlocked := false
 			for _, v := range plan.Verdicts {
 				if !checkpointTask(p, v.TaskID) {
 					continue
@@ -340,6 +341,9 @@ func (a *Authority) reconcileCheckpoint(s *state, p CheckpointPolicy, out Checkp
 						out.Diagnostics = append(out.Diagnostics, CheckpointFinding{Class: "candidate_preflight", Knowledge: "known", TaskID: v.TaskID, Reference: v.TaskID, Retryable: transient, NextAction: "inspect this excluded candidate's typed preflight report; healthy selected backfill remains eligible"})
 					}
 				}
+				if v.Budget != nil && !v.Budget.Allowed {
+					budgetBlocked = true
+				}
 				if v.Selected {
 					selected = true
 				}
@@ -349,7 +353,9 @@ func (a *Authority) reconcileCheckpoint(s *state, p CheckpointPolicy, out Checkp
 				}
 			}
 			if !selected && len(out.Findings) == 0 {
-				if permanentPreflight {
+				if budgetBlocked {
+					add("budget_admission", "known", "", p.ProjectID, "owner-estimated complete-cycle headroom exhausted, cooldown active, or model estimate binding unavailable; provider enforcement remains unsupported", false)
+				} else if permanentPreflight {
 					add("policy_refusal", "known", "", p.ProjectID, "owner must repair permanent selected-candidate preflight failures before a bounded retry", false)
 				} else if resourceConflict {
 					add("resource_conflict", "known", "", p.ProjectID, "preserve occupied protections; no safe task can be selected", false)
@@ -372,6 +378,9 @@ func (a *Authority) reconcileCheckpoint(s *state, p CheckpointPolicy, out Checkp
 		}
 	}
 	for _, f := range out.Findings {
+		if f.Class == "budget_admission" {
+			continue
+		}
 		progress = append(progress, identity("checkpoint.blocker", "", []string{f.Class, f.Knowledge, f.TaskID}))
 	}
 	uniqueProgress := map[string]bool{}

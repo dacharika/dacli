@@ -89,7 +89,7 @@ func (a *Authority) ConfigureCheckpoints(owner string, p CheckpointPolicy) error
 	p.TaskIDs = append([]string(nil), p.TaskIDs...)
 	sort.Strings(p.TaskIDs)
 	return a.transaction(false, true, func(s *state) error {
-		if s.Version != 12 || len(owner) != 64 || hash(owner) != s.OwnerHash || p.SchemaVersion != 1 || !validID(p.ProjectID) || !validID(p.Revision) || p.Harness != "codex" || p.MaxCycles < 1 || p.MaxCycles > 1000 || p.MaxNoProgress < 1 || p.MaxNoProgress > 100 || len(p.TaskIDs) == 0 || len(p.TaskIDs) > 256 || !time.Now().Before(p.ExpiresAt) || p.ExpiresAt.After(time.Now().Add(24*time.Hour)) {
+		if s.Version < 12 || len(owner) != 64 || hash(owner) != s.OwnerHash || p.SchemaVersion != 1 || !validID(p.ProjectID) || !validID(p.Revision) || p.Harness != "codex" || p.MaxCycles < 1 || p.MaxCycles > 1000 || p.MaxNoProgress < 1 || p.MaxNoProgress > 100 || len(p.TaskIDs) == 0 || len(p.TaskIDs) > 256 || !time.Now().Before(p.ExpiresAt) || p.ExpiresAt.After(time.Now().Add(24*time.Hour)) {
 			return ErrDenied
 		}
 		sw, ok := s.SwarmPolicies[p.ProjectID]
@@ -133,7 +133,7 @@ func checkpointAuth(s *state, token, session, project, action string) (Checkpoin
 		return CheckpointPolicy{}, e
 	}
 	p, ok := s.CheckpointPolicies[project]
-	if s.Version != 12 || !ok {
+	if s.Version < 12 || !ok {
 		return p, ErrDenied
 	}
 	for _, t := range p.TaskIDs {

@@ -106,7 +106,13 @@ func swarmScopedActorAdd(ctx *clikit.Ctx, args []string, bridge, lifecycle bool)
 func checkpointControllerAdd(ctx *clikit.Ctx, args []string) error {
 	return scopedActorAdd(ctx, args, false, false, true)
 }
+func budgetControllerAdd(ctx *clikit.Ctx, args []string) error {
+	return scopedActorAddBudget(ctx, args, false, false, true, true)
+}
 func scopedActorAdd(ctx *clikit.Ctx, args []string, bridge, lifecycle, checkpoint bool) error {
+	return scopedActorAddBudget(ctx, args, bridge, lifecycle, checkpoint, false)
+}
+func scopedActorAddBudget(ctx *clikit.Ctx, args []string, bridge, lifecycle, checkpoint, budget bool) error {
 	f, e := flags(args, "config", "project", "connection", "credential", "expires")
 	if e != nil {
 		return e
@@ -204,6 +210,9 @@ func scopedActorAdd(ctx *clikit.Ctx, args []string, bridge, lifecycle, checkpoin
 	}
 	if checkpoint {
 		actions = append(actions, "checkpoint.read", "checkpoint.record", "checkpoint.reconcile")
+	}
+	if budget {
+		actions = append(actions, "budget.read", "budget.quote", "budget.settle")
 	}
 	s, token, e := a.Enroll(owner, sessions.Scope{Actions: actions, Resources: resources}, time.Now().Add(lifetime))
 	if e != nil {
