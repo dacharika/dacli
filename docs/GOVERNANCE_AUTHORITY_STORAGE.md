@@ -1,61 +1,87 @@
-# Durable session authority storage
+# Native authority storage decision
 
-Sessions, credential hashes, revocations, owner task reference bindings and
-external attempt records share one locked, atomically replaced aggregate.
-Version 3 is the current schema. New bootstraps create version 3. Normal readers
-and writers refuse versions 1 and 2 and unknown versions. An explicit `Upgrade(owner)`
-operation accepts only version 1 and the matching owner bearer credential;
-it retains binding, owner hash, session hashes, IDs and revocations exactly
-and upgrades directly to version 3. UpgradeLeases(owner) separately upgrades
-version 2 to version 3 and preserves task bindings and attempts as well.
-Version 1 and 2 writers refuse version 3. Upgrade is not automatic on Open or auth.
-Back up authority storage before the owner chooses a migration.
+DACLI retains a hybrid authority model: canonical projects and task status stay
+in the Markdown workspace, while native credentials, leases, decisions,
+verification, review and producer histories stay in one private locked aggregate.
+Status remains task-folder position. Cloud proposal v1 semantics do not change.
+The storage experiment is a disposable projection, not a new writer or cutover.
 
-`BindTask` requires the owner credential and binds a canonical task ID to a
-project and canonical local Git common-directory identity, with explicit
-admission policy. It is a reference binding, not task-status storage. Agents cannot
-create those references. Repository and project references are immutable;
-the owner can change admission policy. Task IDs must be supplied canonically by the
-trusted owner; no prefix resolution or ambient task discovery occurs here.
+## Decision and alternatives
 
-`RegisterAttempt` requires current session credentials with exact
-`attempt.register` action and `task:<canonical ID>` resource. It observes the
-explicit absolute checkout outside the authority lock, then revalidates auth,
-expiry, ancestors, binding, scope, admission policy and repository identity while
-recording the attempt under that lock. There is no snapshot-based write API.
-Request IDs are authority-wide. Exact retries recover the original attempt and
-observation time; changed session, request or revision is refused. Even retries
-require current authority and a clean checkout. Errors redact paths and tokens.
+| Model | Benefit | Constraint | Decision |
+|---|---|---|---|
+| Existing Markdown plus locked private aggregate | Preserves canonical IDs, owner workflows and current audit history; native transactions serialize credential/lease/decision changes | Markdown writers do not share the native lock; a repeated canonical readiness observation is not a transaction across both stores | Retain as current authority |
+| Local transactional database | Could transact task, lease and decision changes together after all writers use one interface | Requires a verified importer, exclusive writer transition, recovery and compatibility rules; concurrent legacy direct writers would otherwise fork authority | No adoption or activation in this delivery |
+| Hosted transactional authority | Could coordinate multiple machines under authenticated tenant boundaries | Requires the separately tracked hosted API, worker, tenant and synchronization contract | No local cutover; preserve cloud proposal v1 |
 
-The bounded local Git observer accepts a checkout root with committed HEAD,
-a clean index and worktree including untracked files. Indexed submodules are refused. It records
-canonical checkout locator, canonical local common Git directory, immutable
-commit/tree object IDs and observation time. Remote URLs do not establish
-repository identity. Relocating a repository requires a new owner task binding.
-Unborn or unresolved HEAD and dirty checkouts are refused. Git subprocesses have
-an overall five-second deadline, bounded stdout, and no inherited Git overrides.
-This is a historical observation: concurrent external writers can change bytes
-between observations. Registration neither freezes bytes nor grants a lease,
-certifies host identity, launches providers, creates process records or changes
-task status. Host labels are untrusted correlation observations only.
+A future cutover must identify every writer, prove source identity/count/digest
+reconciliation, stop conflicting direct writes and define recovery before it
+activates a new authority. An imported projection cannot satisfy that transition.
 
-Cooperative single-authority limits remain: protect the authority directory and
-Git checkout from hostile local writers. Atomic replacement and a shared
-exclusive lock serialize participating writers, not arbitrary OS mutations.
-File aliases are refused; directory aliases share canonical locks. Crash locks
-are never stolen. Owners reconcile crashed writers before manual lock removal;
-unknown external effects must not be replayed automatically. No provider,
-network or external mutation runs under the authority lock.
+## Versions and current observations
 
-Owner admission policy enables attempt recording; it does not attest to the legacy task ready frontier. Lease acquisition queries canonical task readiness separately through the trusted application adapter. The observer refuses repositories with configured clean/process filters and indexed submodules before status, disables fsmonitor, and bounds inherited output pipes with WaitDelay. Unauthenticated requests are denied before observation; current authority is rechecked inside persistence. These are cooperative observations, not protection against concurrent hostile config rewrites.
+The installed runtime can support native authority through schema16. This is a
+maximum supported format, not a claim that every workspace has migrated. The
+owner's production authority remains schema10 during this delivery. Disposable
+tests exercise a real schema6 bootstrap, explicit owner upgrades through16 and
+nonempty session/controller history. No production migration is performed.
 
+Normal operations never migrate storage. The existing explicit owner migration
+routes preserve their required source-version checks and histories; unsupported
+or already-target versions refuse with exit3. Owner credentials and private
+configuration are required, never `DACLI_AGENT` or a host label. Preserve a private
+backup before any separately chosen owner upgrade. Older binaries retain their
+existing refusal behavior for formats they do not support.
 
-Durable fenced leases share this same aggregate. Acquire/Renew/Release authenticate
-current session and registered attempt under its lock; complete resource sets,
-operation receipts and the global fence counter commit together. The owner supplies
-a trusted read-only admission adapter backed by ReadyFrontierForProject. Legacy
-Markdown writers do not share this lock, so this is fresh graph observation rather
-than strict concurrent-readiness linearization. Expired/revoked reservations remain
-uncertain and cannot be silently reused. Only authenticated release frees them;
-owner reconciliation of abandoned reservations is a later bounded delivery. See
-internal/governance/sessions/README.md for exact scope, resource and retry semantics.
+## Owner observations and disposable import
+
+```bash
+dacli native storage observe --config <private-owner.json> --json
+dacli native storage experiment --config <private-owner.json> \
+  --destination <absolute-separate-private-directory> --mode projection-only --json
+```
+
+Each call rereads the same explicit owner profile and authenticates current owner
+authority. Enrolled worker credentials cannot substitute. Public observations
+contain actual schema, collection IDs/counts/digests, output-digest references and
+retained protections; credential hashes, command bodies and raw private state are
+excluded. The source aggregate is observed under its existing cooperative lock.
+Its existing transaction loader is not a bounded whole-file I/O contract; the
+additional snapshot read has its own size bound.
+
+The experiment reads the complete bounded canonical task graph, verifies exact
+raw task-body digests and imports into private files outside the live workspace.
+It preserves original authority bytes inside a versioned snapshot envelope that
+native authority readers reject, alongside task snapshots and a projection.
+It reparses actual imported task identities/counts/body digests and recovers exact
+authority bytes before writing its manifest. Public results identify the source
+and file digests and always report `authoritative: false`.
+
+Files publish using an atomic no-replace link. An existing file resumes only when
+its exact expected bytes and private permissions match. Changed source, task
+identity, imported bytes or an activation mode refuses. Four actual subprocess
+fixtures interrupt after authority snapshot, task snapshot, projection and
+manifest publication, then reopen and resume the same source without changing
+live authority or canonical task bytes. Temporary publication hardlinks remain
+for observation; the experiment never automatically deletes them.
+
+## Cooperative concurrency and writer boundaries
+
+Native transactions share one canonical authority path and exclusive lock. File
+aliases are refused; directory aliases resolve to the same authority/lock paths.
+Atomic replacement serializes participating native writers, not arbitrary local
+filesystem mutations. Crash locks are not stolen automatically: an owner must
+confirm that a writer has stopped before choosing lock reconciliation.
+
+`BindTask` is an owner-attested immutable task/project/repository reference whose
+admission setting is explicit; it stores no task-status authority. Attempt
+registration observes a clean explicit Git checkout and reauthenticates its
+binding before persistence. Fresh lease admission resolves canonical dependency
+readiness separately. Expired or revoked leases can still protect uncertain
+writers; authenticated release and owner recovery remain separate operations.
+
+Markdown writers do not take the aggregate lock. The experiment repeats source
+observations and refuses drift, but does not claim serializable cross-store
+snapshots or protection from hostile local writers. It grants no activation,
+merge, acceptance, push, deployment, process termination or release authority.
+Retention is described in [artifact retention](GOVERNANCE_ARTIFACT_RETENTION.md).

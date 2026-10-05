@@ -26,6 +26,9 @@ var Commands = []clikit.Command{
 	{Path: "native controller step", Brief: "step durable bounded native controller", Mutates: true, JSON: true, Usage: "dacli native controller step --connection <private-file> --capability-file <private-file> --request <private-file>", Run: func(c *clikit.Ctx, a []string) error { return controllerCommand(c, a, "step") }},
 	{Path: "native controller reconcile", Brief: "reconcile durable bounded native controller", Mutates: true, JSON: true, Usage: "dacli native controller reconcile --connection <private-file> --capability-file <private-file> --request <private-file>", Run: func(c *clikit.Ctx, a []string) error { return controllerCommand(c, a, "reconcile") }},
 	{Path: "native controller status", Brief: "status durable bounded native controller", Mutates: false, JSON: true, Usage: "dacli native controller status --connection <private-file> --capability-file <private-file> --project <id> --invocation <id>", Run: func(c *clikit.Ctx, a []string) error { return controllerCommand(c, a, "status") }},
+	{Path: "native storage observe", Brief: "Owner-only native authority inventory", JSON: true, Usage: "dacli native storage observe --config <private-file> --json", Run: func(c *clikit.Ctx, a []string) error { return storageCommand(c, a, "observe") }},
+	{Path: "native storage experiment", Brief: "Import an isolated non-authoritative storage projection", Mutates: true, JSON: true, Usage: "dacli native storage experiment --config <private-file> --destination <separate-private-dir> --mode projection-only --json", Run: func(c *clikit.Ctx, a []string) error { return storageCommand(c, a, "experiment") }},
+	{Path: "native storage retention", Brief: "Dry-run exact artifacts with native evidence and protection holds", JSON: true, Usage: "dacli native storage retention --config <private-file> --project <id> --json", Run: func(c *clikit.Ctx, a []string) error { return storageCommand(c, a, "retention") }},
 	{Path: "native controller enroll", Brief: "enroll durable bounded native controller", Mutates: true, JSON: false, Usage: "dacli native controller enroll --config <owner> --project <id> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]", Run: controllerEnroll},
 	{Path: "native policy upgrade", Brief: "Explicit owner upgrades native policy", Mutates: true, Usage: "dacli native policy upgrade --config <owner>", Run: nativePolicyUpgrade},
 	{Path: "native policy configure", Brief: "Owner configures exact native action policy", Mutates: true, Usage: "dacli native policy configure --config <owner> --request <policy>", Run: nativePolicyConfigure},
@@ -89,6 +92,8 @@ var Commands = []clikit.Command{
 // AuthenticatesExplicitly lists exactly the handlers exempt from the legacy grant gate.
 func AuthenticatesExplicitly(path string) bool {
 	switch path {
+	case "native storage observe", "native storage experiment", "native storage retention":
+		return true
 	case "native controller upgrade", "native controller configure", "native controller start", "native controller step", "native controller reconcile", "native controller status", "native controller enroll", "native policy upgrade", "native policy configure", "native policy evaluate", "native policy approve", "native policy status", "accept apply-native", "native acceptance upgrade", "native acceptance candidate":
 		return true
 	case "native budget upgrade", "native budget configure", "native budget quote", "native budget status", "native budget settle", "native budget controller add":
