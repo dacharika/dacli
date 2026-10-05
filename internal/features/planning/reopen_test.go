@@ -381,3 +381,75 @@ func TestTaskRmReadOnlyRootCannotUseOrphanOverride(t *testing.T) {
 		t.Fatalf("task disappeared after read-only refusal: %v", err)
 	}
 }
+
+func TestTaskRmRootRefusesMalformedPIDRecoveryEvidence(t *testing.T) {
+	w, ctx := taskAddEnv(t)
+	owner, _ := spawnPlanningAgent(t, w, "retained-owner", model.GrantRW)
+	task, err := store.CreateTask(w, owner, "p", "Preserve malformed PID", store.TaskOpts{Accept: []string{"x"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(task.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := w.RunDir("retained")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	body := "child: " + owner + "\ntask: " + task.ID + "\npid: not-a-pid\n"
+	if err := os.WriteFile(filepath.Join(dir, "proc.txt"), []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	err = cmdTaskRm(ctx, []string{task.ID, "--force"})
+	if clikit.ExitCode(err) != 3 || !strings.Contains(err.Error(), "evidence is unreadable") {
+		t.Fatalf("malformed PID recovery evidence must refuse with exit3: %v (exit %d)", err, clikit.ExitCode(err))
+	}
+	after, err := os.ReadFile(task.Path)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatalf("refused removal changed original task: %v", err)
+	}
+	entries, err := os.ReadDir(w.TombstonesDir("p"))
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("refused removal wrote tombstone: %v", entries)
+	}
+}
+
+func TestTaskRmRootRefusesActiveZeroRecoveryEvidence(t *testing.T) {
+	w, ctx := taskAddEnv(t)
+	owner, _ := spawnPlanningAgent(t, w, "retained-owner", model.GrantRW)
+	task, err := store.CreateTask(w, owner, "p", "Preserve unknown zero PID", store.TaskOpts{Accept: []string{"x"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(task.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := w.RunDir("retained")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	body := "child: " + owner + "\ntask: " + task.ID + "\npid: 0\n"
+	if err := os.WriteFile(filepath.Join(dir, "proc.txt"), []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	err = cmdTaskRm(ctx, []string{task.ID, "--force"})
+	if clikit.ExitCode(err) != 3 || !strings.Contains(err.Error(), "evidence is unreadable") {
+		t.Fatalf("active zero recovery evidence must refuse with exit3: %v (exit %d)", err, clikit.ExitCode(err))
+	}
+	after, err := os.ReadFile(task.Path)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatalf("refused removal changed original task: %v", err)
+	}
+	entries, err := os.ReadDir(w.TombstonesDir("p"))
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("refused removal wrote tombstone: %v", entries)
+	}
+}

@@ -1351,7 +1351,7 @@ func OwnerTaskHasRecoveryLease(w *workspace.Workspace, ownerID, taskID string) (
 			continue
 		}
 		runDir := w.RunDir(e.Name())
-		rec, err := procmon.ReadRecord(filepath.Join(runDir, "proc.txt"))
+		rec, err := procmon.ReadRetainedRecord(filepath.Join(runDir, "proc.txt"))
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue

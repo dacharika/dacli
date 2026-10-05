@@ -369,21 +369,6 @@ func loadAgentRunState(w *workspace.Workspace) (agentRunState, error) {
 	return state, nil
 }
 
-// liveChildren indexes the agent ids that currently have a running process,
-// in ONE scan of the runs tree rather than one per agent — ActiveInRole is
-// called per role on every spawn gate.
-func liveChildren(w *workspace.Workspace) map[string]bool {
-	out := map[string]bool{}
-	state, err := loadAgentRunState(w)
-	if err != nil {
-		return out
-	}
-	for child := range state.live {
-		out[child] = true
-	}
-	return out
-}
-
 // RetireAgent marks an agent retired, freeing its WIP slot. The file stays —
 // lineage and attribution outlive the agent.
 func RetireAgent(w *workspace.Workspace, id string) error {
