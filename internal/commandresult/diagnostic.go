@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 	"syscall"
 )
@@ -91,7 +92,7 @@ func Run(cmd *exec.Cmd, opts RunOptions) ([]byte, error) {
 	// Legacy wrappers often interpolate the returned output alongside err. Make
 	// that compatibility surface obey the same bounded disclosure policy too;
 	// otherwise a typed safe error could sit next to a raw leaked token.
-	safeOut := boundedTail(Redact(string(out), opts.WorkspaceRoot))
+	safeOut := boundedTail(redactCommand(string(out), opts.WorkspaceRoot, cmd))
 	return []byte(safeOut), NewExternalError(cmd, opts, stdout, stderr, err, timedOut)
 }
 
@@ -119,8 +120,8 @@ func output(cmd *exec.Cmd) (stdoutBytes, stderrBytes []byte, err error) {
 // NewExternalError classifies a failed command that was executed by a wrapper
 // with custom stream handling.
 func NewExternalError(cmd *exec.Cmd, opts RunOptions, stdout, stderr []byte, cause error, timedOut bool) error {
-	executable := filepath.Base(cmd.Path)
-	operation := strings.TrimSpace(Redact(opts.Operation, opts.WorkspaceRoot))
+	executable := redactCommand(filepath.Base(cmd.Path), opts.WorkspaceRoot, cmd)
+	operation := strings.TrimSpace(redactCommand(opts.Operation, opts.WorkspaceRoot, cmd))
 	if operation == "" {
 		operation = executable
 	}
@@ -129,9 +130,9 @@ func NewExternalError(cmd *exec.Cmd, opts RunOptions, stdout, stderr []byte, cau
 		Operation:  operation,
 		Executable: executable,
 		Timeout:    timedOut,
-		StdoutTail: boundedTail(Redact(string(stdout), opts.WorkspaceRoot)),
-		StderrTail: boundedTail(Redact(string(stderr), opts.WorkspaceRoot)),
-		CwdScope:   cwdScope(cmd.Dir, opts.WorkspaceRoot),
+		StdoutTail: boundedTail(redactCommand(string(stdout), opts.WorkspaceRoot, cmd)),
+		StderrTail: boundedTail(redactCommand(string(stderr), opts.WorkspaceRoot, cmd)),
+		CwdScope:   redactCommand(cwdScope(cmd.Dir, opts.WorkspaceRoot), opts.WorkspaceRoot, cmd),
 	}
 	if timedOut {
 		d.Kind, d.Retryable = "timeout", true
@@ -229,6 +230,7 @@ func cwdScope(cwd, root string) string {
 }
 
 var (
+	helperSecret    = regexp.MustCompile(`(?im)^([\t ]*(?:password|passwd|token|access_token|oauth_token)[\t ]*=[\t ]*)[^\r\n]*`)
 	unixPathPattern = regexp.MustCompile(`(^|[ =(:])(/[[:alnum:]_.~@%+,:=-]+(?:/[[:alnum:]_.~@%+,:=-]+)*)`)
 	urlSecret       = regexp.MustCompile(`(?i)(https?://)[^/@\s]+@`)
 	tokenPattern    = regexp.MustCompile(`(?i)\b(?:gh[pousr]_[A-Za-z0-9_]{8,}|github_pat_[A-Za-z0-9_]{8,}|bearer\s+[A-Za-z0-9._~+/=-]{8,})\b`)
@@ -238,27 +240,127 @@ var (
 // Secret-valued environment variables, recognizable tokens, URL credentials,
 // and absolute paths outside workspaceRoot never survive it.
 func Redact(value, workspaceRoot string) string {
-	redacted := value
-	for _, entry := range os.Environ() {
+	return redactEnvironment(value, workspaceRoot, os.Environ())
+}
+
+func redactCommand(value, workspaceRoot string, cmd *exec.Cmd) string {
+	// Protect both inherited parent secrets and the child's effective environment.
+	// Values are used only for replacement; none are retained in diagnostics.
+	return redactEnvironment(value, workspaceRoot, append(os.Environ(), cmd.Environ()...))
+}
+
+func redactEnvironment(value, workspaceRoot string, environment []string) string {
+	secrets := []string{}
+	seen := map[string]bool{}
+	for _, entry := range environment {
 		name, secret, ok := strings.Cut(entry, "=")
 		if !ok || len(secret) < 4 || !secretName(name) {
 			continue
 		}
-		redacted = strings.ReplaceAll(redacted, secret, "<redacted>")
-	}
-	redacted = tokenPattern.ReplaceAllString(redacted, "<redacted>")
-	redacted = urlSecret.ReplaceAllString(redacted, "${1}<redacted>@")
-	if runtime.GOOS != "windows" {
-		redacted = unixPathPattern.ReplaceAllStringFunc(redacted, func(match string) string {
-			prefix := ""
-			path := match
-			if match[0] != '/' {
-				prefix, path = match[:1], match[1:]
+		// Streaming callers may sanitize complete lines independently. Protect
+		// nonempty CR/LF components too, so splitting a known multiline secret
+		// does not turn its fragments into unrecognized diagnostic text.
+		values := append([]string{secret}, strings.FieldsFunc(secret, func(r rune) bool { return r == '\n' || r == '\r' })...)
+		for _, value := range values {
+			if !seen[value] {
+				secrets = append(secrets, value)
+				seen[value] = true
 			}
-			return prefix + disclosedPath(path, workspaceRoot)
-		})
+		}
 	}
-	return redacted
+	// Longest matches win at the same position. Matching scans the original
+	// input once, so a shorter parent value cannot corrupt a child match and
+	// emitted redaction markers are never processed as secret input.
+	sort.Slice(secrets, func(i, j int) bool { return len(secrets[i]) > len(secrets[j]) })
+	// Discover all spans against the original text. Neither structural
+	// classification nor known-secret matching may erase the other's syntax.
+	spans := structuralSpans(value, workspaceRoot)
+	for i := 0; i < len(value); i++ {
+		for _, secret := range secrets {
+			if strings.HasPrefix(value[i:], secret) {
+				spans = append(spans, disclosureSpan{i, i + len(secret), "<redacted>"})
+				break
+			}
+		}
+	}
+	return renderDisclosure(value, spans)
+}
+
+type disclosureSpan struct {
+	start, end  int
+	replacement string
+}
+
+func structuralSpans(value, workspaceRoot string) []disclosureSpan {
+	var spans []disclosureSpan
+	for _, match := range helperSecret.FindAllStringSubmatchIndex(value, -1) {
+		spans = append(spans, disclosureSpan{match[3], match[1], "<redacted>"})
+	}
+	for _, match := range tokenPattern.FindAllStringIndex(value, -1) {
+		spans = append(spans, disclosureSpan{match[0], match[1], "<redacted>"})
+	}
+	for _, match := range urlSecret.FindAllStringSubmatchIndex(value, -1) {
+		spans = append(spans, disclosureSpan{match[3], match[1] - 1, "<redacted>"})
+	}
+	if runtime.GOOS != "windows" {
+		spans = append(spans, quotedPathSpans(value, workspaceRoot)...)
+		for _, match := range unixPathPattern.FindAllStringSubmatchIndex(value, -1) {
+			start, end := match[4], match[5]
+			spans = append(spans, disclosureSpan{start, end, disclosedPath(value[start:end], workspaceRoot)})
+		}
+	}
+	return spans
+}
+
+// Quoted paths can contain whitespace that the unquoted path matcher cannot
+// distinguish from ordinary prose. An unterminated quote ends at the newline.
+func quotedPathSpans(value, workspaceRoot string) []disclosureSpan {
+	var spans []disclosureSpan
+	for i := 0; i < len(value); i++ {
+		quote := value[i]
+		if (quote != '\'' && quote != '"') || i+1 >= len(value) || value[i+1] != '/' {
+			continue
+		}
+		end := i + 1
+		for end < len(value) && value[end] != quote && value[end] != '\n' && value[end] != '\r' {
+			end++
+		}
+		spans = append(spans, disclosureSpan{i + 1, end, disclosedPath(value[i+1:end], workspaceRoot)})
+		i = end - 1
+		if end < len(value) && value[end] == quote {
+			i = end
+		}
+	}
+	return spans
+}
+
+func renderDisclosure(value string, spans []disclosureSpan) string {
+	sort.Slice(spans, func(i, j int) bool {
+		if spans[i].start != spans[j].start {
+			return spans[i].start < spans[j].start
+		}
+		return spans[i].end > spans[j].end
+	})
+	var out strings.Builder
+	cursor := 0
+	for i := 0; i < len(spans); {
+		span := spans[i]
+		i++
+		// Overlap means both protected structures must be hidden as a union.
+		// A known larger secret cannot leave fragments around a URL/path span.
+		for i < len(spans) && spans[i].start < span.end {
+			if spans[i].end > span.end {
+				span.end = spans[i].end
+			}
+			span.replacement = "<redacted>"
+			i++
+		}
+		out.WriteString(value[cursor:span.start])
+		out.WriteString(span.replacement)
+		cursor = span.end
+	}
+	out.WriteString(value[cursor:])
+	return out.String()
 }
 
 // SanitizeTail is the compatibility boundary for wrappers that must manage
@@ -266,6 +368,13 @@ func Redact(value, workspaceRoot string) string {
 // Run before legacy callers can interpolate retained output (issue #876).
 func SanitizeTail(value, workspaceRoot string) string {
 	return boundedTail(Redact(value, workspaceRoot))
+}
+
+// SanitizeCommandTail applies the same bounded disclosure policy as Run to
+// wrappers with custom stream handling, including the effective child secrets.
+// It is pure: it does not execute cmd or manufacture a process error.
+func SanitizeCommandTail(cmd *exec.Cmd, value, workspaceRoot string) string {
+	return boundedTail(redactCommand(value, workspaceRoot, cmd))
 }
 
 func secretName(name string) bool {
