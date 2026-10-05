@@ -375,6 +375,31 @@ func (a *Authority) quoteBudget(s *state, project, task string, report *Prefligh
 	if e != nil {
 		return nil, e
 	}
+	if report != nil && report.RoutingRole != "" {
+		taskPolicy := p.Tasks[task]
+		chosen := taskPolicy.Phases["implementation"]
+		if chosen.RoleID != report.RoutingRole {
+			alternative, found := taskPolicy.Alternatives[report.RoutingRole]
+			if !found {
+				return &BudgetQuote{Allowed: false, Reason: "owner_route_estimate_unknown"}, nil
+			}
+			phases := map[string]BudgetEstimate{}
+			for phase, estimate := range taskPolicy.Phases {
+				phases[phase] = estimate
+			}
+			phases["implementation"] = alternative
+			if _, present := phases["correction"]; present {
+				phases["correction"] = alternative
+			}
+			taskPolicy.Phases = phases
+			tasks := map[string]BudgetTask{}
+			for id, value := range p.Tasks {
+				tasks[id] = value
+			}
+			tasks[task] = taskPolicy
+			p.Tasks = tasks
+		}
+	}
 	q, e := calculateBudgetQuote(p, task, status, report, already, time.Now().UTC())
 	if e != nil {
 		return nil, e
@@ -390,6 +415,13 @@ func (a *Authority) quoteBudget(s *state, project, task string, report *Prefligh
 		return nil, ErrDenied
 	}
 	preflight := s.PreflightPolicies[project].Tasks[task]
+	if report != nil && report.RoutingRole != "" {
+		var found bool
+		preflight, found = routingPreflightSpec(s, project, task, report.RoutingRole)
+		if !found {
+			return nil, ErrDenied
+		}
+	}
 	obs, e := observer.ObservePreflight(s.Binding.Workspace, project, task, preflight, s.SwarmPolicies[project].Placements[task])
 	if e != nil {
 		return nil, e

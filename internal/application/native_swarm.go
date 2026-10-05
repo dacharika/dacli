@@ -65,7 +65,12 @@ func (a *LeaseAdmission) ObserveSwarm(workspaceID, project string) (sessions.Swa
 		for _, path := range t.Claims() {
 			resources = append(resources, sessions.Resource{Kind: "path", Path: path})
 		}
-		candidates = append(candidates, sessions.SwarmCandidate{TaskID: t.ID, ProjectID: t.Project, Status: string(t.Status), Reason: reason, Priority: model.Priority(t.Priority()).Rank(), Resources: resources})
+		points, sized := t.Estimate()
+		required := float64(0)
+		if sized {
+			required = points.Expected()
+		}
+		candidates = append(candidates, sessions.SwarmCandidate{RequiredPoints: required, Sized: sized, TaskID: t.ID, ProjectID: t.Project, Status: string(t.Status), Reason: reason, Priority: model.Priority(t.Priority()).Rank(), Resources: resources})
 	}
 	data, e := json.Marshal(facts)
 	if e != nil {

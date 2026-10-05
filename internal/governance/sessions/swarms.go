@@ -16,6 +16,8 @@ import (
 type SwarmCandidate struct {
 	TaskID, ProjectID, Status, Reason string
 	Priority                          int
+	RequiredPoints                    float64
+	Sized                             bool
 	Resources                         []Resource
 }
 type SwarmSnapshot struct {
@@ -45,6 +47,7 @@ type SwarmPolicy struct {
 	Placements                                     map[string]SwarmPlacement
 }
 type SwarmVerdict struct {
+	Routing                                        *NativeModelRoutingSelection `json:",omitempty"`
 	TaskID, Reason, ImplementationRole, ReviewRole string
 	Preflight                                      *PreflightReport
 	Budget                                         *BudgetQuote
@@ -71,6 +74,7 @@ type SwarmWave struct {
 	Dispatches []DispatchReservation
 }
 type DispatchReservation struct {
+	Routing                                                                                                           *NativeModelRoutingSelection `json:",omitempty"`
 	ID, ControllerSessionID, ProjectID, PolicyRevision, ImplementationRole, ReviewRole, Harness, BaseCommit, BaseTree string
 	Reservation                                                                                                       Lease
 	PreflightExpiresAt                                                                                                time.Time
@@ -360,6 +364,14 @@ func (a *Authority) planSwarmLimited(s *state, token, session, project, action s
 		impl := choose(placement.ImplementKind, used)
 		if s.Version >= 11 {
 			impl = pick(placement.ImplementKind, s.PreflightPolicies[project].Tasks[c.TaskID].ImplementationRole)
+			if _, enabled := s.ModelRoutingPolicies[project]; enabled {
+				selection, e := a.selectModelRouting(s, project, c.TaskID, used, 0, "")
+				if e != nil {
+					return SwarmPlan{}, e
+				}
+				v.Routing = &selection
+				impl = pick(placement.ImplementKind, selection.RoleID)
+			}
 		}
 		if impl != "" {
 			used[impl]++
@@ -795,6 +807,9 @@ func (a *Authority) handoffDispatch(s *state, token, worker string, req HandoffD
 	d.WorkerSessionID = worker
 	d.AttemptID = at.ID
 	s.Dispatches[d.ID] = d
+	if d.Routing != nil {
+		s.ModelRoutingSelections[d.ID] = *d.Routing
+	}
 	s.Leases[result.ID] = *result
 	s.SwarmOperations[req.OperationKey] = SwarmReceipt{Digest: digest, Lease: result}
 	return nil
@@ -963,7 +978,7 @@ func (a *Authority) reserveWaveStateLimited(s *state, token, session string, req
 				return e
 			}
 			s.Fence++
-			d := DispatchReservation{ID: id, ControllerSessionID: session, ProjectID: p.ProjectID, PolicyRevision: p.Revision, ImplementationRole: v.ImplementationRole, ReviewRole: v.ReviewRole, Harness: p.Harness, BaseCommit: v.BaseCommit, BaseTree: v.BaseTree, Reservation: Lease{ID: id, SessionID: session, TaskID: v.TaskID, Repository: v.Repository, Checkout: v.Checkout, Resources: v.Resources, Fence: s.Fence, ExpiresAt: req.ExpiresAt}}
+			d := DispatchReservation{ID: id, ControllerSessionID: session, ProjectID: p.ProjectID, PolicyRevision: p.Revision, ImplementationRole: v.ImplementationRole, ReviewRole: v.ReviewRole, Harness: p.Harness, BaseCommit: v.BaseCommit, BaseTree: v.BaseTree, Routing: v.Routing, Reservation: Lease{ID: id, SessionID: session, TaskID: v.TaskID, Repository: v.Repository, Checkout: v.Checkout, Resources: v.Resources, Fence: s.Fence, ExpiresAt: req.ExpiresAt}}
 			if v.Preflight != nil {
 				d.PreflightDigest = v.Preflight.ProofDigest
 				d.PreflightExpiresAt = v.Preflight.ExpiresAt
@@ -972,6 +987,9 @@ func (a *Authority) reserveWaveStateLimited(s *state, token, session string, req
 				return e
 			}
 			s.Dispatches[id] = d
+			if d.Routing != nil {
+				s.ModelRoutingSelections[id] = *d.Routing
+			}
 			wave.Dispatches = append(wave.Dispatches, d)
 		}
 		if len(wave.Dispatches) == 0 {

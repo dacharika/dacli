@@ -47,6 +47,10 @@ type record struct {
 	Hash string
 }
 type state struct {
+	ModelRoutingPolicies   map[string]NativeModelRoutingPolicy
+	ModelRoutingHistory    map[string]NativeModelRoutingPolicy
+	ModelRoutingSelections map[string]NativeModelRoutingSelection
+
 	ControllerPolicies      map[string]ControllerPolicy
 	ControllerPolicyHistory map[string]ControllerPolicy
 	ControllerInvocations   map[string]controllerInvocation
@@ -425,7 +429,7 @@ func (a *Authority) Revoke(owner, id string) error {
 // decodeAuthorityState shares the exact supported schema interpreter with bounded readers.
 func decodeAuthorityState(data []byte, binding Binding, version int) (state, error) {
 	var s state
-	if json.Unmarshal(data, &s) != nil || (s.Version != version && !((version >= 6 && version <= 12) && s.Version >= version && s.Version <= 16)) || s.Binding != binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version >= 3 && (s.Leases == nil || s.Operations == nil)) || (s.Version >= 4 && (s.Revisions == nil || s.Grants == nil || s.Evidence == nil)) || (s.Version >= 5 && (s.ReviewGrants == nil || s.Reviews == nil)) || (s.Version >= 6 && (s.PublicationPolicies == nil || s.PublicationDecisions == nil || s.PublicationConsumed == nil)) {
+	if json.Unmarshal(data, &s) != nil || (s.Version != version && !((version >= 6 && version <= 12) && s.Version >= version && s.Version <= 17)) || s.Binding != binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version >= 3 && (s.Leases == nil || s.Operations == nil)) || (s.Version >= 4 && (s.Revisions == nil || s.Grants == nil || s.Evidence == nil)) || (s.Version >= 5 && (s.ReviewGrants == nil || s.Reviews == nil)) || (s.Version >= 6 && (s.PublicationPolicies == nil || s.PublicationDecisions == nil || s.PublicationConsumed == nil)) {
 		return state{}, ErrStorage
 	}
 	if e := validateAuthorityMaps(&s); e != nil {
@@ -473,6 +477,12 @@ func validateAuthorityMaps(s *state) error {
 		return ErrDenied
 	}
 
+	if s.Version < 17 && (s.ModelRoutingPolicies != nil || s.ModelRoutingHistory != nil || s.ModelRoutingSelections != nil) {
+		return ErrDenied
+	}
+	if s.Version >= 17 && (s.ModelRoutingPolicies == nil || s.ModelRoutingHistory == nil || s.ModelRoutingSelections == nil) {
+		return ErrDenied
+	}
 	if s.Version < 16 && (s.ControllerPolicies != nil || s.ControllerPolicyHistory != nil || s.ControllerInvocations != nil || s.ControllerHistory != nil || s.ControllerOperations != nil) {
 		return ErrStorage
 	}

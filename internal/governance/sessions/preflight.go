@@ -69,6 +69,8 @@ type PreflightRoleCapacity struct {
 	Capacity                              team.TaskCapacityVerdict
 }
 type PreflightReport struct {
+	RoutingPolicyDigest                                                                                                                   string `json:",omitempty"`
+	RoutingRole                                                                                                                           string `json:",omitempty"`
 	AuthorityDigest                                                                                                                       string
 	RoleCapacities                                                                                                                        []PreflightRoleCapacity
 	SchemaVersion                                                                                                                         int
@@ -159,9 +161,26 @@ func (a *Authority) ConfigurePreflight(owner string, p PreflightPolicy) error {
 func finiteNonnegative(n float64) bool { return !math.IsNaN(n) && !math.IsInf(n, 0) && n >= 0 }
 func roleDigest(r team.Role) string    { return identity("preflight.role", "", r) }
 func (a *Authority) preflight(s *state, project, task, impl, review, worker string) (PreflightReport, error) {
-	p, ok := s.PreflightPolicies[project]
-	spec, present := p.Tasks[task]
+	p := s.PreflightPolicies[project]
+	spec, present := routingPreflightSpec(s, project, task, impl)
+	return a.preflightSpec(s, project, task, impl, review, worker, p, spec, present)
+}
+func (a *Authority) preflightSpec(s *state, project, task, impl, review, worker string, p PreflightPolicy, spec PreflightTask, present bool) (PreflightReport, error) {
+	_, ok := s.PreflightPolicies[project]
 	report := PreflightReport{SchemaVersion: 1, Workspace: s.Binding.Workspace, ProjectID: project, TaskID: task, PolicyRevision: p.Revision, Harness: p.Harness, ObservedAt: time.Now().UTC(), ExpiresAt: p.ExpiresAt.UTC(), Phases: []PreflightPhase{}}
+	if _, enabled := s.ModelRoutingPolicies[project]; enabled {
+		report.RoutingRole = impl
+		p := s.ModelRoutingPolicies[project]
+		report.RoutingPolicyDigest = identity("model.routing.policy", "", p)
+		if p.ExpiresAt.Before(report.ExpiresAt) {
+			report.ExpiresAt = p.ExpiresAt
+		}
+		for _, candidate := range p.Tasks[task].Candidates {
+			if candidate.RoleID == impl && candidate.ExpiresAt.Before(report.ExpiresAt) {
+				report.ExpiresAt = candidate.ExpiresAt
+			}
+		}
+	}
 	fail := func(phase, reason, remedy string) {
 		report.Phases = append(report.Phases, PreflightPhase{Phase: phase, Verdict: reason, Required: true, Assurance: "cooperative-current-authority", Remediation: remedy})
 	}
@@ -486,7 +505,7 @@ func implementationCharter(kind string) bool { return kind == "implement" || kin
 func reviewCharter(kind string) bool         { return kind == "review" || kind == "reviewer" }
 
 func preflightBoundCurrent(s *state, d DispatchReservation) bool {
-	return s.Version < 11 || d.PreflightDigest != "" && time.Now().Before(d.PreflightExpiresAt)
+	return modelRoutingCurrent(s, d) && (s.Version < 11 || d.PreflightDigest != "" && time.Now().Before(d.PreflightExpiresAt))
 }
 
 func preflightReportError(report PreflightReport) error {

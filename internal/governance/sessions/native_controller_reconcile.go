@@ -291,6 +291,14 @@ func (a *Authority) controllerTransition(s *state, token, session string, iv *co
 	st.Retryable = false
 	st.NextAction = "request original dispatch intent"
 	for _, d := range wave.Dispatches {
+		if d.Routing != nil {
+			for _, id := range []string{d.Routing.Route.BridgeSession, d.Routing.Route.WorkerSession, d.Routing.Route.RunnerSession, d.Routing.Route.ReviewerSession} {
+				if controllerRoot(s, id) == controllerRoot(s, session) {
+					return ErrDenied
+				}
+			}
+			iv.Routes[d.Reservation.TaskID] = d.Routing.Route
+		}
 		st.Actions = append(st.Actions, ControllerAction{ID: d.ID, Kind: "dispatch", TaskID: d.Reservation.TaskID, DispatchID: d.ID, Fence: d.Reservation.Fence, ReservationFence: d.Reservation.Fence})
 		st.Refs = append(st.Refs, CheckpointRefs{TaskID: d.Reservation.TaskID, DispatchID: d.ID})
 	}
@@ -448,7 +456,7 @@ func (a *Authority) controllerProgressWave(s *state, token, session string, iv *
 		}
 		controllerRef(st, CheckpointRefs{TaskID: action.TaskID, DispatchID: d.ID, EvidenceID: ev.ID})
 		if ev.ExitCode != 0 {
-			if e := controllerCorrection(iv, n, action, rev.ID, ev.ID); e != nil {
+			if e := a.controllerCorrection(s, iv, n, action, rev.ID, ev.ID); e != nil {
 				return e
 			}
 			if st.Terminal {
@@ -495,7 +503,7 @@ func (a *Authority) controllerProgressWave(s *state, token, session string, iv *
 		}
 		controllerRef(st, CheckpointRefs{TaskID: action.TaskID, DispatchID: d.ID, ReviewID: review.ID})
 		if review.Request.Outcome != "approve" {
-			if e := controllerCorrection(iv, n, action, rev.ID, review.ID); e != nil {
+			if e := a.controllerCorrection(s, iv, n, action, rev.ID, review.ID); e != nil {
 				return e
 			}
 			if st.Terminal {
@@ -527,7 +535,7 @@ func (a *Authority) controllerProgressWave(s *state, token, session string, iv *
 	}
 	return nil
 }
-func controllerCorrection(iv *controllerInvocation, n int, old ControllerAction, revision, source string) error {
+func (a *Authority) controllerCorrection(s *state, iv *controllerInvocation, n int, old ControllerAction, revision, source string) error {
 	st := &iv.Status
 	if _, issued := iv.CorrectionSources[source]; issued {
 		st.Phase = "correction"
@@ -538,6 +546,19 @@ func controllerCorrection(iv *controllerInvocation, n int, old ControllerAction,
 		controllerHalt(iv, "correction_limit", "owner examines rejected/failing work; correction bound exhausted", false, true)
 		return nil
 	}
+	var route *NativeModelRoutingSelection
+	if _, enabled := s.ModelRoutingPolicies[st.ProjectID]; enabled {
+		previous := s.Dispatches[old.DispatchID].ImplementationRole
+		selection, e := a.selectModelRouting(s, st.ProjectID, old.TaskID, map[string]int{}, st.Corrections+1, previous)
+		if e != nil {
+			return e
+		}
+		if selection.RoleID == "" {
+			controllerHalt(iv, "model_route_unavailable", "owner must provision a harder capable approved route without resetting correction bounds", false, true)
+			return nil
+		}
+		route = &selection
+	}
 	st.Corrections++
 	iv.CorrectionSources[source] = revision
 	old.Kind = "correction"
@@ -545,9 +566,19 @@ func controllerCorrection(iv *controllerInvocation, n int, old ControllerAction,
 	old.OperationKey = old.ID
 	old.ActorID = iv.Routes[old.TaskID].WorkerSession
 	old.RevisionID = revision
+	if route != nil {
+		s.ModelRoutingSelections[old.ID] = *route
+		// The descriptor is a next-turn request, not permission to borrow the old
+		// worker's lease. Existing writers stay protected pending owner recovery.
+		// ActorID remains the original protected writer. The separate selected
+		// routing record describes a future turn and confers no old-lease rights.
+	}
 	st.Actions[n] = old
 	st.Phase = "correction"
 	st.NextAction = "original worker corrects actual failing evidence or independent rejection"
+	if route != nil {
+		st.NextAction = "next-turn model route recorded; owner must reconcile retained original writer before a new worker dispatch"
+	}
 	st.HaltClass = ""
 	return nil
 }
