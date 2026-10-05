@@ -146,7 +146,7 @@ Request IDs are non-null strings or integer numbers. Incoming frames are
 bounded to 1 MiB. Supported methods are `initialize`,
 `ping`, `notifications/initialized`, `tools/list`, and `tools/call`.
 
-The default tools are `identity`, `workspace_status`, `task_list`, `task_get`,
+The default tools also include `get_policy_status`, alongside `identity`, `workspace_status`, `task_list`, `task_get`,
 `register_attempt`, `acquire_lease`, `renew_lease`, `release_lease`,
 `publish_revision`, and `submit_evidence`. Discover their typed schemas rather
 than guessing arguments. Every tool requires `schema_version: 1`; unknown
@@ -237,3 +237,34 @@ Tests use real committed Git fixtures and explicit private session files. They
 exercise lifecycle bindings, dirty revision refusal, revocation during a server
 lifetime, wrong scope/session/workspace, forbidden tools, private file rejection,
 typed output/fallback parity and legacy-transport owner-command exclusion.
+
+## Scoped policy observations
+
+`get_policy_status` requires `schema_version: 1`, exact canonical `project` and
+`task` IDs, and optionally `decision_id`. The enrolled session must have `read`
+authority for the workspace and exact task. It resolves canonical identity and
+reads current task/project binding and policy under fresh authority. It never
+loads an owner credential or changes policy, decisions, approvals, consumption
+or task state. Worker, configured runner and separately configured reviewer
+catalogs expose this read operation.
+
+The typed result always includes `effect_authorized: false`. States are
+`unavailable`, `stopped`, `expired`, `denied`, `approval_required` and `allowed`.
+Even `allowed` describes an observation, not permission to perform an effect.
+Authority schemas predating policy storage and authorized tasks without policy
+return `unavailable`; reads never migrate them or infer allow. Unknown or
+cross-task decision IDs refuse.
+
+Optional decisions are historical. `matches_current_policy` distinguishes their
+policy snapshot from current owner configuration. Approval, consumption and
+observed outcome appear separately; an unknown outcome never becomes completed
+through observation. Prepared canonical bodies, private paths and credentials
+are absent from this projection. Actual owner acceptance still revalidates its
+existing policy and provenance gates.
+
+Fixed native catalog and schema fixtures preserve version-1 field names and
+types. The foundation catalogs contain eleven worker, fourteen configured runner
+and seven reviewer tools. The explicit legacy MCP transport remains separate;
+its CLI compatibility never becomes a native agent shell gateway. Named check
+progress remains bounded polling, and typed cancellation remains distinct from
+request notifications and host termination.

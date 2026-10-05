@@ -139,7 +139,7 @@ func TestNativeVersionAndCatalogRefusal(t *testing.T) {
 			t.Fatalf("schema accepted %s", raw)
 		}
 	}
-	want := []string{"identity", "workspace_status", "task_list", "task_get", "register_attempt", "acquire_lease", "renew_lease", "release_lease", "publish_revision", "submit_evidence"}
+	want := []string{"get_policy_status", "identity", "workspace_status", "task_list", "task_get", "register_attempt", "acquire_lease", "renew_lease", "release_lease", "publish_revision", "submit_evidence"}
 	got := []string{}
 	for _, tool := range catalog() {
 		got = append(got, tool.Name)

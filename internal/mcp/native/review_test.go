@@ -155,7 +155,7 @@ func TestNativeReviewerModeCatalogueAndProtocol(t *testing.T) {
 	for _, tool := range f.server.catalog() {
 		got = append(got, tool.Name)
 	}
-	want := []string{"identity", "workspace_status", "task_list", "task_get", "propose_review", "evaluate_review"}
+	want := []string{"identity", "workspace_status", "task_list", "task_get", "get_policy_status", "propose_review", "evaluate_review"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatal("review mode widened", got)
 	}

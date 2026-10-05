@@ -1,0 +1,2768 @@
+{
+  "acquire_lease": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "properties": {
+              "AttemptID": {
+                "type": "string"
+              },
+              "Checkout": {
+                "type": "string"
+              },
+              "ExpiresAt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "Fence": {
+                "type": "integer"
+              },
+              "ID": {
+                "type": "string"
+              },
+              "Released": {
+                "type": "boolean"
+              },
+              "Repository": {
+                "type": "string"
+              },
+              "Resources": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "Kind": {
+                      "type": "string"
+                    },
+                    "Path": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "Kind",
+                    "Path"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "SessionID": {
+                "type": "string"
+              },
+              "TaskID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "ID",
+              "AttemptID",
+              "SessionID",
+              "TaskID",
+              "Repository",
+              "Checkout",
+              "Resources",
+              "Fence",
+              "ExpiresAt",
+              "Released"
+            ],
+            "type": "object"
+          },
+          "error": {
+            "type": "null"
+          },
+          "ok": {
+            "const": true,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "exit_code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  },
+  "cancel_verification": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "properties": {
+              "evidence": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "CheckID": {
+                        "type": "string"
+                      },
+                      "CommandDigest": {
+                        "type": "string"
+                      },
+                      "ExitCode": {
+                        "type": "integer"
+                      },
+                      "GrantID": {
+                        "type": "string"
+                      },
+                      "ID": {
+                        "type": "string"
+                      },
+                      "IssuerSession": {
+                        "type": "string"
+                      },
+                      "OutputDigest": {
+                        "type": "string"
+                      },
+                      "Provenance": {
+                        "type": "string"
+                      },
+                      "RecordedAt": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "Revision": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "AttemptID": {
+                            "type": "string"
+                          },
+                          "Fence": {
+                            "type": "integer"
+                          },
+                          "ID": {
+                            "type": "string"
+                          },
+                          "LeaseID": {
+                            "type": "string"
+                          },
+                          "Observation": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "Commit": {
+                                "type": "string"
+                              },
+                              "Locator": {
+                                "type": "string"
+                              },
+                              "ObservedAt": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "Repository": {
+                                "type": "string"
+                              },
+                              "Tree": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "Locator",
+                              "Repository",
+                              "Commit",
+                              "Tree",
+                              "ObservedAt"
+                            ],
+                            "type": "object"
+                          },
+                          "PublishedAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "Sequence": {
+                            "type": "integer"
+                          },
+                          "SessionID": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "ID",
+                          "AttemptID",
+                          "SessionID",
+                          "LeaseID",
+                          "Sequence",
+                          "Fence",
+                          "Observation",
+                          "PublishedAt"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "ID",
+                      "IssuerSession",
+                      "Provenance",
+                      "GrantID",
+                      "Revision",
+                      "CheckID",
+                      "CommandDigest",
+                      "OutputDigest",
+                      "ExitCode",
+                      "RecordedAt"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "operation_key": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "operation_key",
+              "state",
+              "evidence"
+            ],
+            "type": "object"
+          },
+          "error": {
+            "type": "null"
+          },
+          "ok": {
+            "const": true,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "exit_code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  },
+  "evaluate_review": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "properties": {
+              "Assurance": {
+                "type": "string"
+              },
+              "Eligible": {
+                "type": "boolean"
+              },
+              "Reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "Eligible",
+              "Reason",
+              "Assurance"
+            ],
+            "type": "object"
+          },
+          "error": {
+            "type": "null"
+          },
+          "ok": {
+            "const": true,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "exit_code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  },
+  "get_policy_status": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "properties": {
+              "current_policy": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "allow": {
+                        "type": "boolean"
+                      },
+                      "digest": {
+                        "type": "string"
+                      },
+                      "expires_at": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "require_approval": {
+                        "type": "boolean"
+                      },
+                      "revision": {
+                        "type": "string"
+                      },
+                      "stopped": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "revision",
+                      "digest",
+                      "allow",
+                      "require_approval",
+                      "stopped",
+                      "expires_at"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "decision": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "action_digest": {
+                        "type": "string"
+                      },
+                      "approval": {
+                        "oneOf": [
+                          {
+                            "type": "null"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "current": {
+                                "type": "boolean"
+                              },
+                              "expires_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "expires_at",
+                              "current"
+                            ],
+                            "type": "object"
+                          }
+                        ]
+                      },
+                      "consumption": {
+                        "oneOf": [
+                          {
+                            "type": "null"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "canonical_outcome_digest": {
+                                "type": "string"
+                              },
+                              "consumed_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "operation_key": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "operation_key",
+                              "consumed_at",
+                              "canonical_outcome_digest"
+                            ],
+                            "type": "object"
+                          }
+                        ]
+                      },
+                      "expires_at": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "historical": {
+                        "type": "boolean"
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "matches_current_policy": {
+                        "type": "boolean"
+                      },
+                      "outcome": {
+                        "oneOf": [
+                          {
+                            "type": "null"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "expected_outcome_digest": {
+                                "type": "string"
+                              },
+                              "observed_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "observed_outcome_digest": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "state",
+                              "expected_outcome_digest",
+                              "observed_outcome_digest",
+                              "observed_at"
+                            ],
+                            "type": "object"
+                          }
+                        ]
+                      },
+                      "policy_digest": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "action_digest",
+                      "policy_digest",
+                      "historical",
+                      "matches_current_policy",
+                      "expires_at",
+                      "approval",
+                      "consumption",
+                      "outcome"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "effect_authorized": {
+                "const": false,
+                "type": "boolean"
+              },
+              "observed_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "project": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              },
+              "task": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "project",
+              "task",
+              "state",
+              "effect_authorized",
+              "observed_at",
+              "current_policy",
+              "decision"
+            ],
+            "type": "object"
+          },
+          "error": {
+            "type": "null"
+          },
+          "ok": {
+            "const": true,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "exit_code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  },
+  "get_verification_status": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "properties": {
+              "evidence": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "CheckID": {
+                        "type": "string"
+                      },
+                      "CommandDigest": {
+                        "type": "string"
+                      },
+                      "ExitCode": {
+                        "type": "integer"
+                      },
+                      "GrantID": {
+                        "type": "string"
+                      },
+                      "ID": {
+                        "type": "string"
+                      },
+                      "IssuerSession": {
+                        "type": "string"
+                      },
+                      "OutputDigest": {
+                        "type": "string"
+                      },
+                      "Provenance": {
+                        "type": "string"
+                      },
+                      "RecordedAt": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "Revision": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "AttemptID": {
+                            "type": "string"
+                          },
+                          "Fence": {
+                            "type": "integer"
+                          },
+                          "ID": {
+                            "type": "string"
+                          },
+                          "LeaseID": {
+                            "type": "string"
+                          },
+                          "Observation": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "Commit": {
+                                "type": "string"
+                              },
+                              "Locator": {
+                                "type": "string"
+                              },
+                              "ObservedAt": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "Repository": {
+                                "type": "string"
+                              },
+                              "Tree": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "Locator",
+                              "Repository",
+                              "Commit",
+                              "Tree",
+                              "ObservedAt"
+                            ],
+                            "type": "object"
+                          },
+                          "PublishedAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "Sequence": {
+                            "type": "integer"
+                          },
+                          "SessionID": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "ID",
+                          "AttemptID",
+                          "SessionID",
+                          "LeaseID",
+                          "Sequence",
+                          "Fence",
+                          "Observation",
+                          "PublishedAt"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "ID",
+                      "IssuerSession",
+                      "Provenance",
+                      "GrantID",
+                      "Revision",
+                      "CheckID",
+                      "CommandDigest",
+                      "OutputDigest",
+                      "ExitCode",
+                      "RecordedAt"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "operation_key": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "operation_key",
+              "state",
+              "evidence"
+            ],
+            "type": "object"
+          },
+          "error": {
+            "type": "null"
+          },
+          "ok": {
+            "const": true,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "exit_code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  },
+  "identity": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "properties": {
+              "expires_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "scope": {
+                "additionalProperties": false,
+                "properties": {
+                  "Actions": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
+                  "Resources": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "Actions",
+                  "Resources"
+                ],
+                "type": "object"
+              },
+              "session_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "session_id",
+              "scope",
+              "expires_at"
+            ],
+            "type": "object"
+          },
+          "error": {
+            "type": "null"
+          },
+          "ok": {
+            "const": true,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "exit_code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  },
+  "propose_review": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "properties": {
+              "CreatedAt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "ID": {
+                "type": "string"
+              },
+              "IssuerSession": {
+                "type": "string"
+              },
+              "Observation": {
+                "additionalProperties": false,
+                "properties": {
+                  "ChecklistDigest": {
+                    "type": "string"
+                  },
+                  "Checks": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "CommandDigest": {
+                          "type": "string"
+                        },
+                        "ID": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "ID",
+                        "CommandDigest"
+                      ],
+                      "type": "object"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
+                  "PolicyRevision": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ChecklistDigest",
+                  "PolicyRevision",
+                  "Checks"
+                ],
+                "type": "object"
+              },
+              "Request": {
+                "additionalProperties": false,
+                "properties": {
+                  "AttemptID": {
+                    "type": "string"
+                  },
+                  "EvidenceIDs": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
+                  "ExpectedFence": {
+                    "type": "integer"
+                  },
+                  "GrantID": {
+                    "type": "string"
+                  },
+                  "LeaseID": {
+                    "type": "string"
+                  },
+                  "OperationKey": {
+                    "type": "string"
+                  },
+                  "Outcome": {
+                    "type": "string"
+                  },
+                  "Rationale": {
+                    "type": "string"
+                  },
+                  "RevisionID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "OperationKey",
+                  "GrantID",
+                  "AttemptID",
+                  "LeaseID",
+                  "RevisionID",
+                  "ExpectedFence",
+                  "Outcome",
+                  "Rationale",
+                  "EvidenceIDs"
+                ],
+                "type": "object"
+              },
+              "Revision": {
+                "additionalProperties": false,
+                "properties": {
+                  "AttemptID": {
+                    "type": "string"
+                  },
+                  "Fence": {
+                    "type": "integer"
+                  },
+                  "ID": {
+                    "type": "string"
+                  },
+                  "LeaseID": {
+                    "type": "string"
+                  },
+                  "Observation": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "Commit": {
+                        "type": "string"
+                      },
+                      "Locator": {
+                        "type": "string"
+                      },
+                      "ObservedAt": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "Repository": {
+                        "type": "string"
+                      },
+                      "Tree": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "Locator",
+                      "Repository",
+                      "Commit",
+                      "Tree",
+                      "ObservedAt"
+                    ],
+                    "type": "object"
+                  },
+                  "PublishedAt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "Sequence": {
+                    "type": "integer"
+                  },
+                  "SessionID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ID",
+                  "AttemptID",
+                  "SessionID",
+                  "LeaseID",
+                  "Sequence",
+                  "Fence",
+                  "Observation",
+                  "PublishedAt"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "ID",
+              "IssuerSession",
+              "Request",
+              "Revision",
+              "Observation",
+              "CreatedAt"
+            ],
+            "type": "object"
+          },
+          "error": {
+            "type": "null"
+          },
+          "ok": {
+            "const": true,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "exit_code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  },
+  "publish_revision": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "properties": {
+              "AttemptID": {
+                "type": "string"
+              },
+              "Fence": {
+                "type": "integer"
+              },
+              "ID": {
+                "type": "string"
+              },
+              "LeaseID": {
+                "type": "string"
+              },
+              "Observation": {
+                "additionalProperties": false,
+                "properties": {
+                  "Commit": {
+                    "type": "string"
+                  },
+                  "Locator": {
+                    "type": "string"
+                  },
+                  "ObservedAt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "Repository": {
+                    "type": "string"
+                  },
+                  "Tree": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "Locator",
+                  "Repository",
+                  "Commit",
+                  "Tree",
+                  "ObservedAt"
+                ],
+                "type": "object"
+              },
+              "PublishedAt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "Sequence": {
+                "type": "integer"
+              },
+              "SessionID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "ID",
+              "AttemptID",
+              "SessionID",
+              "LeaseID",
+              "Sequence",
+              "Fence",
+              "Observation",
+              "PublishedAt"
+            ],
+            "type": "object"
+          },
+          "error": {
+            "type": "null"
+          },
+          "ok": {
+            "const": true,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "exit_code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  },
+  "register_attempt": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "properties": {
+              "ID": {
+                "type": "string"
+              },
+              "Observation": {
+                "additionalProperties": false,
+                "properties": {
+                  "Commit": {
+                    "type": "string"
+                  },
+                  "Locator": {
+                    "type": "string"
+                  },
+                  "ObservedAt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "Repository": {
+                    "type": "string"
+                  },
+                  "Tree": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "Locator",
+                  "Repository",
+                  "Commit",
+                  "Tree",
+                  "ObservedAt"
+                ],
+                "type": "object"
+              },
+              "ProjectID": {
+                "type": "string"
+              },
+              "RegisteredAt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "Request": {
+                "additionalProperties": false,
+                "properties": {
+                  "Checkout": {
+                    "type": "string"
+                  },
+                  "HostLabel": {
+                    "type": "string"
+                  },
+                  "RequestID": {
+                    "type": "string"
+                  },
+                  "TaskID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "RequestID",
+                  "TaskID",
+                  "Checkout",
+                  "HostLabel"
+                ],
+                "type": "object"
+              },
+              "SessionID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "ID",
+              "SessionID",
+              "Request",
+              "ProjectID",
+              "Observation",
+              "RegisteredAt"
+            ],
+            "type": "object"
+          },
+          "error": {
+            "type": "null"
+          },
+          "ok": {
+            "const": true,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "exit_code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  },
+  "release_lease": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "properties": {
+              "AttemptID": {
+                "type": "string"
+              },
+              "Checkout": {
+                "type": "string"
+              },
+              "ExpiresAt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "Fence": {
+                "type": "integer"
+              },
+              "ID": {
+                "type": "string"
+              },
+              "Released": {
+                "type": "boolean"
+              },
+              "Repository": {
+                "type": "string"
+              },
+              "Resources": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "Kind": {
+                      "type": "string"
+                    },
+                    "Path": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "Kind",
+                    "Path"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "SessionID": {
+                "type": "string"
+              },
+              "TaskID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "ID",
+              "AttemptID",
+              "SessionID",
+              "TaskID",
+              "Repository",
+              "Checkout",
+              "Resources",
+              "Fence",
+              "ExpiresAt",
+              "Released"
+            ],
+            "type": "object"
+          },
+          "error": {
+            "type": "null"
+          },
+          "ok": {
+            "const": true,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "exit_code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  },
+  "renew_lease": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "properties": {
+              "AttemptID": {
+                "type": "string"
+              },
+              "Checkout": {
+                "type": "string"
+              },
+              "ExpiresAt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "Fence": {
+                "type": "integer"
+              },
+              "ID": {
+                "type": "string"
+              },
+              "Released": {
+                "type": "boolean"
+              },
+              "Repository": {
+                "type": "string"
+              },
+              "Resources": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "Kind": {
+                      "type": "string"
+                    },
+                    "Path": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "Kind",
+                    "Path"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "SessionID": {
+                "type": "string"
+              },
+              "TaskID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "ID",
+              "AttemptID",
+              "SessionID",
+              "TaskID",
+              "Repository",
+              "Checkout",
+              "Resources",
+              "Fence",
+              "ExpiresAt",
+              "Released"
+            ],
+            "type": "object"
+          },
+          "error": {
+            "type": "null"
+          },
+          "ok": {
+            "const": true,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "exit_code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  },
+  "request_verification": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "properties": {
+              "evidence": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "CheckID": {
+                        "type": "string"
+                      },
+                      "CommandDigest": {
+                        "type": "string"
+                      },
+                      "ExitCode": {
+                        "type": "integer"
+                      },
+                      "GrantID": {
+                        "type": "string"
+                      },
+                      "ID": {
+                        "type": "string"
+                      },
+                      "IssuerSession": {
+                        "type": "string"
+                      },
+                      "OutputDigest": {
+                        "type": "string"
+                      },
+                      "Provenance": {
+                        "type": "string"
+                      },
+                      "RecordedAt": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "Revision": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "AttemptID": {
+                            "type": "string"
+                          },
+                          "Fence": {
+                            "type": "integer"
+                          },
+                          "ID": {
+                            "type": "string"
+                          },
+                          "LeaseID": {
+                            "type": "string"
+                          },
+                          "Observation": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "Commit": {
+                                "type": "string"
+                              },
+                              "Locator": {
+                                "type": "string"
+                              },
+                              "ObservedAt": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "Repository": {
+                                "type": "string"
+                              },
+                              "Tree": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "Locator",
+                              "Repository",
+                              "Commit",
+                              "Tree",
+                              "ObservedAt"
+                            ],
+                            "type": "object"
+                          },
+                          "PublishedAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "Sequence": {
+                            "type": "integer"
+                          },
+                          "SessionID": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "ID",
+                          "AttemptID",
+                          "SessionID",
+                          "LeaseID",
+                          "Sequence",
+                          "Fence",
+                          "Observation",
+                          "PublishedAt"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "ID",
+                      "IssuerSession",
+                      "Provenance",
+                      "GrantID",
+                      "Revision",
+                      "CheckID",
+                      "CommandDigest",
+                      "OutputDigest",
+                      "ExitCode",
+                      "RecordedAt"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "operation_key": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "operation_key",
+              "state",
+              "evidence"
+            ],
+            "type": "object"
+          },
+          "error": {
+            "type": "null"
+          },
+          "ok": {
+            "const": true,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "exit_code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  },
+  "submit_evidence": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "properties": {
+              "CheckID": {
+                "type": "string"
+              },
+              "CommandDigest": {
+                "type": "string"
+              },
+              "ExitCode": {
+                "type": "integer"
+              },
+              "GrantID": {
+                "type": "string"
+              },
+              "ID": {
+                "type": "string"
+              },
+              "IssuerSession": {
+                "type": "string"
+              },
+              "OutputDigest": {
+                "type": "string"
+              },
+              "Provenance": {
+                "type": "string"
+              },
+              "RecordedAt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "Revision": {
+                "additionalProperties": false,
+                "properties": {
+                  "AttemptID": {
+                    "type": "string"
+                  },
+                  "Fence": {
+                    "type": "integer"
+                  },
+                  "ID": {
+                    "type": "string"
+                  },
+                  "LeaseID": {
+                    "type": "string"
+                  },
+                  "Observation": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "Commit": {
+                        "type": "string"
+                      },
+                      "Locator": {
+                        "type": "string"
+                      },
+                      "ObservedAt": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "Repository": {
+                        "type": "string"
+                      },
+                      "Tree": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "Locator",
+                      "Repository",
+                      "Commit",
+                      "Tree",
+                      "ObservedAt"
+                    ],
+                    "type": "object"
+                  },
+                  "PublishedAt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "Sequence": {
+                    "type": "integer"
+                  },
+                  "SessionID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ID",
+                  "AttemptID",
+                  "SessionID",
+                  "LeaseID",
+                  "Sequence",
+                  "Fence",
+                  "Observation",
+                  "PublishedAt"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "ID",
+              "IssuerSession",
+              "Provenance",
+              "GrantID",
+              "Revision",
+              "CheckID",
+              "CommandDigest",
+              "OutputDigest",
+              "ExitCode",
+              "RecordedAt"
+            ],
+            "type": "object"
+          },
+          "error": {
+            "type": "null"
+          },
+          "ok": {
+            "const": true,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "exit_code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  },
+  "task_get": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "properties": {
+              "task": {
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "project": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "project",
+                  "title",
+                  "status"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "task"
+            ],
+            "type": "object"
+          },
+          "error": {
+            "type": "null"
+          },
+          "ok": {
+            "const": true,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "exit_code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  },
+  "task_list": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "properties": {
+              "tasks": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "project": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "project",
+                    "title",
+                    "status"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "tasks"
+            ],
+            "type": "object"
+          },
+          "error": {
+            "type": "null"
+          },
+          "ok": {
+            "const": true,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "exit_code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  },
+  "workspace_status": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "properties": {
+              "pending_events": {
+                "type": "integer"
+              },
+              "project_filter": {
+                "type": "string"
+              },
+              "projects": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "active": {
+                      "type": "integer"
+                    },
+                    "blocked": {
+                      "type": "integer"
+                    },
+                    "done": {
+                      "type": "integer"
+                    },
+                    "implemented_unlanded": {
+                      "type": "integer"
+                    },
+                    "open": {
+                      "type": "integer"
+                    },
+                    "slug": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "slug",
+                    "title",
+                    "open",
+                    "active",
+                    "blocked",
+                    "done",
+                    "implemented_unlanded"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "schema": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "schema",
+              "projects",
+              "pending_events"
+            ],
+            "type": "object"
+          },
+          "error": {
+            "type": "null"
+          },
+          "ok": {
+            "const": true,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "exit_code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  }
+}

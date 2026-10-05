@@ -271,7 +271,7 @@ func TestAsyncNativeProtocolResponsiveAndStrict(t *testing.T) {
 		} `json:"tools"`
 	}
 	_ = json.Unmarshal(r["result"], &listing)
-	if len(listing.Tools) != 13 {
+	if len(listing.Tools) != 14 {
 		t.Fatal("explicit runner catalog absent", string(r["result"]))
 	}
 	request := map[string]any{"operation_key": f.request.OperationKey, "attempt_id": f.request.AttemptID, "lease_id": f.request.LeaseID, "revision_id": f.request.RevisionID, "check_id": f.request.CheckID, "expected_fence": f.request.ExpectedFence}

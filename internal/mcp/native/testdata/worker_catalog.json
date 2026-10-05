@@ -1,0 +1,2158 @@
+{
+  "tools": [
+    {
+      "name": "get_policy_status",
+      "description": "Explicit scoped native governance operation; no host enforcement or acceptance authority.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "decision_id": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          },
+          "task": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "project",
+          "task"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "properties": {
+                  "current_policy": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "allow": {
+                            "type": "boolean"
+                          },
+                          "digest": {
+                            "type": "string"
+                          },
+                          "expires_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "require_approval": {
+                            "type": "boolean"
+                          },
+                          "revision": {
+                            "type": "string"
+                          },
+                          "stopped": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "revision",
+                          "digest",
+                          "allow",
+                          "require_approval",
+                          "stopped",
+                          "expires_at"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
+                  "decision": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "action_digest": {
+                            "type": "string"
+                          },
+                          "approval": {
+                            "oneOf": [
+                              {
+                                "type": "null"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "current": {
+                                    "type": "boolean"
+                                  },
+                                  "expires_at": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "expires_at",
+                                  "current"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "consumption": {
+                            "oneOf": [
+                              {
+                                "type": "null"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "canonical_outcome_digest": {
+                                    "type": "string"
+                                  },
+                                  "consumed_at": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "operation_key": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "operation_key",
+                                  "consumed_at",
+                                  "canonical_outcome_digest"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "expires_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "historical": {
+                            "type": "boolean"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "matches_current_policy": {
+                            "type": "boolean"
+                          },
+                          "outcome": {
+                            "oneOf": [
+                              {
+                                "type": "null"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "expected_outcome_digest": {
+                                    "type": "string"
+                                  },
+                                  "observed_at": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "observed_outcome_digest": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "state",
+                                  "expected_outcome_digest",
+                                  "observed_outcome_digest",
+                                  "observed_at"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "policy_digest": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "action_digest",
+                          "policy_digest",
+                          "historical",
+                          "matches_current_policy",
+                          "expires_at",
+                          "approval",
+                          "consumption",
+                          "outcome"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
+                  "effect_authorized": {
+                    "const": false,
+                    "type": "boolean"
+                  },
+                  "observed_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "project": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string"
+                  },
+                  "task": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "project",
+                  "task",
+                  "state",
+                  "effect_authorized",
+                  "observed_at",
+                  "current_policy",
+                  "decision"
+                ],
+                "type": "object"
+              },
+              "error": {
+                "type": "null"
+              },
+              "ok": {
+                "const": true,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "type": "object"
+              },
+              "error": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "exit_code": {
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "exit_code",
+                  "message"
+                ],
+                "type": "object"
+              },
+              "ok": {
+                "const": false,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "identity",
+      "description": "Explicit scoped native governance operation; no host enforcement or acceptance authority.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "properties": {
+                  "expires_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "scope": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "Actions": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": [
+                          "array",
+                          "null"
+                        ]
+                      },
+                      "Resources": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": [
+                          "array",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "Actions",
+                      "Resources"
+                    ],
+                    "type": "object"
+                  },
+                  "session_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "session_id",
+                  "scope",
+                  "expires_at"
+                ],
+                "type": "object"
+              },
+              "error": {
+                "type": "null"
+              },
+              "ok": {
+                "const": true,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "type": "object"
+              },
+              "error": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "exit_code": {
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "exit_code",
+                  "message"
+                ],
+                "type": "object"
+              },
+              "ok": {
+                "const": false,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "workspace_status",
+      "description": "Explicit scoped native governance operation; no host enforcement or acceptance authority.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "project"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "properties": {
+                  "pending_events": {
+                    "type": "integer"
+                  },
+                  "project_filter": {
+                    "type": "string"
+                  },
+                  "projects": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "active": {
+                          "type": "integer"
+                        },
+                        "blocked": {
+                          "type": "integer"
+                        },
+                        "done": {
+                          "type": "integer"
+                        },
+                        "implemented_unlanded": {
+                          "type": "integer"
+                        },
+                        "open": {
+                          "type": "integer"
+                        },
+                        "slug": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "slug",
+                        "title",
+                        "open",
+                        "active",
+                        "blocked",
+                        "done",
+                        "implemented_unlanded"
+                      ],
+                      "type": "object"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
+                  "schema": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "schema",
+                  "projects",
+                  "pending_events"
+                ],
+                "type": "object"
+              },
+              "error": {
+                "type": "null"
+              },
+              "ok": {
+                "const": true,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "type": "object"
+              },
+              "error": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "exit_code": {
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "exit_code",
+                  "message"
+                ],
+                "type": "object"
+              },
+              "ok": {
+                "const": false,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "task_list",
+      "description": "Explicit scoped native governance operation; no host enforcement or acceptance authority.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "project",
+          "status"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "properties": {
+                  "tasks": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "project": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "project",
+                        "title",
+                        "status"
+                      ],
+                      "type": "object"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "tasks"
+                ],
+                "type": "object"
+              },
+              "error": {
+                "type": "null"
+              },
+              "ok": {
+                "const": true,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "type": "object"
+              },
+              "error": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "exit_code": {
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "exit_code",
+                  "message"
+                ],
+                "type": "object"
+              },
+              "ok": {
+                "const": false,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "task_get",
+      "description": "Explicit scoped native governance operation; no host enforcement or acceptance authority.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          },
+          "task": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "task"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "properties": {
+                  "task": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "project": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "project",
+                      "title",
+                      "status"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "task"
+                ],
+                "type": "object"
+              },
+              "error": {
+                "type": "null"
+              },
+              "ok": {
+                "const": true,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "type": "object"
+              },
+              "error": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "exit_code": {
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "exit_code",
+                  "message"
+                ],
+                "type": "object"
+              },
+              "ok": {
+                "const": false,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "register_attempt",
+      "description": "Explicit scoped native governance operation; no host enforcement or acceptance authority.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "request": {
+            "additionalProperties": false,
+            "properties": {
+              "Checkout": {
+                "type": "string"
+              },
+              "HostLabel": {
+                "type": "string"
+              },
+              "RequestID": {
+                "type": "string"
+              },
+              "TaskID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "RequestID",
+              "TaskID",
+              "Checkout",
+              "HostLabel"
+            ],
+            "type": "object"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "request"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "properties": {
+                  "ID": {
+                    "type": "string"
+                  },
+                  "Observation": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "Commit": {
+                        "type": "string"
+                      },
+                      "Locator": {
+                        "type": "string"
+                      },
+                      "ObservedAt": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "Repository": {
+                        "type": "string"
+                      },
+                      "Tree": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "Locator",
+                      "Repository",
+                      "Commit",
+                      "Tree",
+                      "ObservedAt"
+                    ],
+                    "type": "object"
+                  },
+                  "ProjectID": {
+                    "type": "string"
+                  },
+                  "RegisteredAt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "Request": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "Checkout": {
+                        "type": "string"
+                      },
+                      "HostLabel": {
+                        "type": "string"
+                      },
+                      "RequestID": {
+                        "type": "string"
+                      },
+                      "TaskID": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "RequestID",
+                      "TaskID",
+                      "Checkout",
+                      "HostLabel"
+                    ],
+                    "type": "object"
+                  },
+                  "SessionID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ID",
+                  "SessionID",
+                  "Request",
+                  "ProjectID",
+                  "Observation",
+                  "RegisteredAt"
+                ],
+                "type": "object"
+              },
+              "error": {
+                "type": "null"
+              },
+              "ok": {
+                "const": true,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "type": "object"
+              },
+              "error": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "exit_code": {
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "exit_code",
+                  "message"
+                ],
+                "type": "object"
+              },
+              "ok": {
+                "const": false,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "acquire_lease",
+      "description": "Explicit scoped native governance operation; no host enforcement or acceptance authority.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "request": {
+            "additionalProperties": false,
+            "properties": {
+              "AttemptID": {
+                "type": "string"
+              },
+              "ExpiresAt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "OperationKey": {
+                "type": "string"
+              },
+              "Resources": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "Kind": {
+                      "type": "string"
+                    },
+                    "Path": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "Kind",
+                    "Path"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "OperationKey",
+              "AttemptID",
+              "Resources",
+              "ExpiresAt"
+            ],
+            "type": "object"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "request"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "properties": {
+                  "AttemptID": {
+                    "type": "string"
+                  },
+                  "Checkout": {
+                    "type": "string"
+                  },
+                  "ExpiresAt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "Fence": {
+                    "type": "integer"
+                  },
+                  "ID": {
+                    "type": "string"
+                  },
+                  "Released": {
+                    "type": "boolean"
+                  },
+                  "Repository": {
+                    "type": "string"
+                  },
+                  "Resources": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "Kind": {
+                          "type": "string"
+                        },
+                        "Path": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "Kind",
+                        "Path"
+                      ],
+                      "type": "object"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
+                  "SessionID": {
+                    "type": "string"
+                  },
+                  "TaskID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ID",
+                  "AttemptID",
+                  "SessionID",
+                  "TaskID",
+                  "Repository",
+                  "Checkout",
+                  "Resources",
+                  "Fence",
+                  "ExpiresAt",
+                  "Released"
+                ],
+                "type": "object"
+              },
+              "error": {
+                "type": "null"
+              },
+              "ok": {
+                "const": true,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "type": "object"
+              },
+              "error": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "exit_code": {
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "exit_code",
+                  "message"
+                ],
+                "type": "object"
+              },
+              "ok": {
+                "const": false,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "renew_lease",
+      "description": "Explicit scoped native governance operation; no host enforcement or acceptance authority.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "request": {
+            "additionalProperties": false,
+            "properties": {
+              "AttemptID": {
+                "type": "string"
+              },
+              "ExpectedFence": {
+                "type": "integer"
+              },
+              "ExpiresAt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "LeaseID": {
+                "type": "string"
+              },
+              "OperationKey": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "OperationKey",
+              "AttemptID",
+              "LeaseID",
+              "ExpectedFence",
+              "ExpiresAt"
+            ],
+            "type": "object"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "request"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "properties": {
+                  "AttemptID": {
+                    "type": "string"
+                  },
+                  "Checkout": {
+                    "type": "string"
+                  },
+                  "ExpiresAt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "Fence": {
+                    "type": "integer"
+                  },
+                  "ID": {
+                    "type": "string"
+                  },
+                  "Released": {
+                    "type": "boolean"
+                  },
+                  "Repository": {
+                    "type": "string"
+                  },
+                  "Resources": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "Kind": {
+                          "type": "string"
+                        },
+                        "Path": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "Kind",
+                        "Path"
+                      ],
+                      "type": "object"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
+                  "SessionID": {
+                    "type": "string"
+                  },
+                  "TaskID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ID",
+                  "AttemptID",
+                  "SessionID",
+                  "TaskID",
+                  "Repository",
+                  "Checkout",
+                  "Resources",
+                  "Fence",
+                  "ExpiresAt",
+                  "Released"
+                ],
+                "type": "object"
+              },
+              "error": {
+                "type": "null"
+              },
+              "ok": {
+                "const": true,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "type": "object"
+              },
+              "error": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "exit_code": {
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "exit_code",
+                  "message"
+                ],
+                "type": "object"
+              },
+              "ok": {
+                "const": false,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "release_lease",
+      "description": "Explicit scoped native governance operation; no host enforcement or acceptance authority.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "request": {
+            "additionalProperties": false,
+            "properties": {
+              "AttemptID": {
+                "type": "string"
+              },
+              "ExpectedFence": {
+                "type": "integer"
+              },
+              "LeaseID": {
+                "type": "string"
+              },
+              "OperationKey": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "OperationKey",
+              "AttemptID",
+              "LeaseID",
+              "ExpectedFence"
+            ],
+            "type": "object"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "request"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "properties": {
+                  "AttemptID": {
+                    "type": "string"
+                  },
+                  "Checkout": {
+                    "type": "string"
+                  },
+                  "ExpiresAt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "Fence": {
+                    "type": "integer"
+                  },
+                  "ID": {
+                    "type": "string"
+                  },
+                  "Released": {
+                    "type": "boolean"
+                  },
+                  "Repository": {
+                    "type": "string"
+                  },
+                  "Resources": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "Kind": {
+                          "type": "string"
+                        },
+                        "Path": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "Kind",
+                        "Path"
+                      ],
+                      "type": "object"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
+                  "SessionID": {
+                    "type": "string"
+                  },
+                  "TaskID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ID",
+                  "AttemptID",
+                  "SessionID",
+                  "TaskID",
+                  "Repository",
+                  "Checkout",
+                  "Resources",
+                  "Fence",
+                  "ExpiresAt",
+                  "Released"
+                ],
+                "type": "object"
+              },
+              "error": {
+                "type": "null"
+              },
+              "ok": {
+                "const": true,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "type": "object"
+              },
+              "error": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "exit_code": {
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "exit_code",
+                  "message"
+                ],
+                "type": "object"
+              },
+              "ok": {
+                "const": false,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "publish_revision",
+      "description": "Explicit scoped native governance operation; no host enforcement or acceptance authority.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "request": {
+            "additionalProperties": false,
+            "properties": {
+              "AttemptID": {
+                "type": "string"
+              },
+              "ExpectedFence": {
+                "type": "integer"
+              },
+              "ExpectedRevision": {
+                "type": "integer"
+              },
+              "LeaseID": {
+                "type": "string"
+              },
+              "OperationKey": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "OperationKey",
+              "AttemptID",
+              "LeaseID",
+              "ExpectedFence",
+              "ExpectedRevision"
+            ],
+            "type": "object"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "request"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "properties": {
+                  "AttemptID": {
+                    "type": "string"
+                  },
+                  "Fence": {
+                    "type": "integer"
+                  },
+                  "ID": {
+                    "type": "string"
+                  },
+                  "LeaseID": {
+                    "type": "string"
+                  },
+                  "Observation": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "Commit": {
+                        "type": "string"
+                      },
+                      "Locator": {
+                        "type": "string"
+                      },
+                      "ObservedAt": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "Repository": {
+                        "type": "string"
+                      },
+                      "Tree": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "Locator",
+                      "Repository",
+                      "Commit",
+                      "Tree",
+                      "ObservedAt"
+                    ],
+                    "type": "object"
+                  },
+                  "PublishedAt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "Sequence": {
+                    "type": "integer"
+                  },
+                  "SessionID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ID",
+                  "AttemptID",
+                  "SessionID",
+                  "LeaseID",
+                  "Sequence",
+                  "Fence",
+                  "Observation",
+                  "PublishedAt"
+                ],
+                "type": "object"
+              },
+              "error": {
+                "type": "null"
+              },
+              "ok": {
+                "const": true,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "type": "object"
+              },
+              "error": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "exit_code": {
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "exit_code",
+                  "message"
+                ],
+                "type": "object"
+              },
+              "ok": {
+                "const": false,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "submit_evidence",
+      "description": "Explicit scoped native governance operation; no host enforcement or acceptance authority.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "request": {
+            "additionalProperties": false,
+            "properties": {
+              "AttemptID": {
+                "type": "string"
+              },
+              "CheckID": {
+                "type": "string"
+              },
+              "ExitCode": {
+                "type": "integer"
+              },
+              "ExpectedFence": {
+                "type": "integer"
+              },
+              "LeaseID": {
+                "type": "string"
+              },
+              "OperationKey": {
+                "type": "string"
+              },
+              "OutputDigest": {
+                "type": "string"
+              },
+              "RevisionID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "OperationKey",
+              "AttemptID",
+              "LeaseID",
+              "RevisionID",
+              "CheckID",
+              "ExpectedFence",
+              "ExitCode",
+              "OutputDigest"
+            ],
+            "type": "object"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "request"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "properties": {
+                  "CheckID": {
+                    "type": "string"
+                  },
+                  "CommandDigest": {
+                    "type": "string"
+                  },
+                  "ExitCode": {
+                    "type": "integer"
+                  },
+                  "GrantID": {
+                    "type": "string"
+                  },
+                  "ID": {
+                    "type": "string"
+                  },
+                  "IssuerSession": {
+                    "type": "string"
+                  },
+                  "OutputDigest": {
+                    "type": "string"
+                  },
+                  "Provenance": {
+                    "type": "string"
+                  },
+                  "RecordedAt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "Revision": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "AttemptID": {
+                        "type": "string"
+                      },
+                      "Fence": {
+                        "type": "integer"
+                      },
+                      "ID": {
+                        "type": "string"
+                      },
+                      "LeaseID": {
+                        "type": "string"
+                      },
+                      "Observation": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "Commit": {
+                            "type": "string"
+                          },
+                          "Locator": {
+                            "type": "string"
+                          },
+                          "ObservedAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "Repository": {
+                            "type": "string"
+                          },
+                          "Tree": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "Locator",
+                          "Repository",
+                          "Commit",
+                          "Tree",
+                          "ObservedAt"
+                        ],
+                        "type": "object"
+                      },
+                      "PublishedAt": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "Sequence": {
+                        "type": "integer"
+                      },
+                      "SessionID": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "ID",
+                      "AttemptID",
+                      "SessionID",
+                      "LeaseID",
+                      "Sequence",
+                      "Fence",
+                      "Observation",
+                      "PublishedAt"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "ID",
+                  "IssuerSession",
+                  "Provenance",
+                  "GrantID",
+                  "Revision",
+                  "CheckID",
+                  "CommandDigest",
+                  "OutputDigest",
+                  "ExitCode",
+                  "RecordedAt"
+                ],
+                "type": "object"
+              },
+              "error": {
+                "type": "null"
+              },
+              "ok": {
+                "const": true,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "type": "object"
+              },
+              "error": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "exit_code": {
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "exit_code",
+                  "message"
+                ],
+                "type": "object"
+              },
+              "ok": {
+                "const": false,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      }
+    }
+  ]
+}

@@ -28,6 +28,12 @@ type listArgs struct {
 	Project string `json:"project"`
 	Status  string `json:"status"`
 }
+type policyArgs struct {
+	version
+	Project    string `json:"project"`
+	Task       string `json:"task"`
+	DecisionID string `json:"decision_id,omitempty"`
+}
 type registerArgs struct {
 	version
 	Request sessions.AttemptRequest `json:"request"`
@@ -84,8 +90,8 @@ type tool struct {
 	OutputSchema any    `json:"outputSchema"`
 }
 
-var arguments = map[string]any{"propose_review": reviewArgs{}, "evaluate_review": evaluateReviewArgs{}, "request_verification": verificationArgs{}, "get_verification_status": verificationArgs{}, "cancel_verification": verificationArgs{}, "identity": version{}, "workspace_status": projectArgs{}, "task_list": listArgs{}, "task_get": taskArgs{}, "register_attempt": registerArgs{}, "acquire_lease": acquireArgs{}, "renew_lease": renewArgs{}, "release_lease": releaseArgs{}, "publish_revision": publishArgs{}, "submit_evidence": evidenceArgs{}}
-var names = []string{"identity", "workspace_status", "task_list", "task_get", "register_attempt", "acquire_lease", "renew_lease", "release_lease", "publish_revision", "submit_evidence"}
+var arguments = map[string]any{"get_policy_status": policyArgs{}, "propose_review": reviewArgs{}, "evaluate_review": evaluateReviewArgs{}, "request_verification": verificationArgs{}, "get_verification_status": verificationArgs{}, "cancel_verification": verificationArgs{}, "identity": version{}, "workspace_status": projectArgs{}, "task_list": listArgs{}, "task_get": taskArgs{}, "register_attempt": registerArgs{}, "acquire_lease": acquireArgs{}, "renew_lease": renewArgs{}, "release_lease": releaseArgs{}, "publish_revision": publishArgs{}, "submit_evidence": evidenceArgs{}}
+var names = []string{"get_policy_status", "identity", "workspace_status", "task_list", "task_get", "register_attempt", "acquire_lease", "renew_lease", "release_lease", "publish_revision", "submit_evidence"}
 
 // The output envelope is identical in structuredContent and JSON text fallback.
 type failure struct {
@@ -126,7 +132,7 @@ func taskView(t *store.Task) taskData {
 	return taskData{t.ID, t.Project, t.Title, string(t.Status)}
 }
 
-var outputs = map[string]any{"propose_review": sessions.Review{}, "evaluate_review": sessions.ReviewEligibility{}, "request_verification": application.VerificationStatus{}, "get_verification_status": application.VerificationStatus{}, "cancel_verification": application.VerificationStatus{}, "identity": identityData{}, "workspace_status": application.WorkspaceStatus{}, "task_list": taskList{}, "task_get": taskResult{}, "register_attempt": sessions.Attempt{}, "acquire_lease": sessions.Lease{}, "renew_lease": sessions.Lease{}, "release_lease": sessions.Lease{}, "publish_revision": sessions.AttemptRevision{}, "submit_evidence": sessions.Evidence{}}
+var outputs = map[string]any{"get_policy_status": sessions.NativePolicyObservation{}, "propose_review": sessions.Review{}, "evaluate_review": sessions.ReviewEligibility{}, "request_verification": application.VerificationStatus{}, "get_verification_status": application.VerificationStatus{}, "cancel_verification": application.VerificationStatus{}, "identity": identityData{}, "workspace_status": application.WorkspaceStatus{}, "task_list": taskList{}, "task_get": taskResult{}, "register_attempt": sessions.Attempt{}, "acquire_lease": sessions.Lease{}, "renew_lease": sessions.Lease{}, "release_lease": sessions.Lease{}, "publish_revision": sessions.AttemptRevision{}, "submit_evidence": sessions.Evidence{}}
 
 func outputSchema(name string) any {
 	data := map[string]any{"type": "object", "additionalProperties": false}
@@ -178,6 +184,9 @@ func schema(t reflect.Type) any {
 				required = append(required, n)
 			}
 		}
+		if t == reflect.TypeOf(sessions.NativePolicyObservation{}) {
+			props["effect_authorized"] = map[string]any{"type": "boolean", "const": false}
+		}
 		if t == reflect.TypeOf(version{}) {
 			props["schema_version"] = map[string]any{"type": "integer", "const": 1}
 		}
@@ -196,7 +205,7 @@ func (s *Server) catalog() []tool {
 	out := catalog()
 	if s.review != nil {
 		out = nil
-		for _, n := range []string{"identity", "workspace_status", "task_list", "task_get", "propose_review", "evaluate_review"} {
+		for _, n := range []string{"identity", "workspace_status", "task_list", "task_get", "get_policy_status", "propose_review", "evaluate_review"} {
 			out = append(out, tool{n, "Scoped independent review proposal or fresh observation; no acceptance authority.", schema(reflect.TypeOf(arguments[n])), outputSchema(n)})
 		}
 		return out
@@ -215,7 +224,7 @@ func (s *Server) call(name string, raw json.RawMessage) (any, error) {
 	}
 	if s.review != nil {
 		switch name {
-		case "identity", "workspace_status", "task_list", "task_get", "propose_review", "evaluate_review":
+		case "identity", "workspace_status", "task_list", "task_get", "get_policy_status", "propose_review", "evaluate_review":
 		default:
 			return nil, ErrDenied
 		}
@@ -241,6 +250,8 @@ func (s *Server) call(name string, raw json.RawMessage) (any, error) {
 		}
 	}
 	switch x := arg.(type) {
+	case *policyArgs:
+		return application.ObserveNativePolicy(w, a, token, principal.ID, x.Project, x.Task, x.DecisionID)
 	case *reviewArgs:
 		if s.review == nil {
 			return nil, ErrDenied
