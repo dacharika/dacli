@@ -47,22 +47,16 @@ func observe(locator string, identityOnly bool) (Observation, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	return observeWithContext(ctx, root, identityOnly, false)
+}
+
+func observeWithContext(ctx context.Context, root string, identityOnly, genuine bool) (Observation, error) {
+	rawRun := gitRunner(ctx, root, genuine)
 	run := func(args ...string) (string, error) {
-		cmd := exec.CommandContext(ctx, "git", append([]string{"--no-optional-locks", "-c", "core.fsmonitor=false", "-C", root}, args...)...)
-		cmd.WaitDelay = 250 * time.Millisecond
-		for _, e := range os.Environ() {
-			if !strings.HasPrefix(e, "GIT_") {
-				cmd.Env = append(cmd.Env, e)
-			}
-		}
-		cmd.Env = append(cmd.Env, "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_TERMINAL_PROMPT=0")
-		var out boundedBuffer
-		cmd.Stdout = &out
-		if cmd.Run() != nil {
-			return "", ErrInvalid
-		}
-		return strings.TrimSpace(out.String()), nil
+		raw, e := rawRun(args...)
+		return strings.TrimSpace(string(raw)), e
 	}
+
 	top, err := run("rev-parse", "--show-toplevel")
 	if err != nil {
 		return Observation{}, ErrInvalid
@@ -131,4 +125,32 @@ func (b *boundedBuffer) Write(p []byte) (int, error) {
 		return 0, ErrInvalid
 	}
 	return b.Buffer.Write(p)
+}
+
+// gitRunner is shared read-only observation plumbing; genuine mode disables
+// replacement objects only for explicitly pinned changed-path observations.
+func gitRunner(ctx context.Context, root string, genuine bool) func(...string) ([]byte, error) {
+	return func(args ...string) ([]byte, error) {
+		flags := []string{"--no-optional-locks", "-c", "core.fsmonitor=false", "-C", root}
+		if genuine {
+			flags = append([]string{"--no-replace-objects"}, flags...)
+		}
+		cmd := exec.CommandContext(ctx, "git", append(flags, args...)...)
+		cmd.WaitDelay = 250 * time.Millisecond
+		for _, e := range os.Environ() {
+			if !strings.HasPrefix(e, "GIT_") {
+				cmd.Env = append(cmd.Env, e)
+			}
+		}
+		cmd.Env = append(cmd.Env, "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_TERMINAL_PROMPT=0")
+		var out, diagnostic boundedBuffer
+		cmd.Stdout = &out
+		if genuine {
+			cmd.Stderr = &diagnostic
+		}
+		if cmd.Run() != nil {
+			return nil, ErrInvalid
+		}
+		return append([]byte(nil), out.Bytes()...), nil
+	}
 }
