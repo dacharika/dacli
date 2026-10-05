@@ -3,6 +3,9 @@ package store
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -381,4 +384,231 @@ func TestNativeAcceptanceContextRefusesWrongRevisionBeforeCommand(t *testing.T) 
 	if _, err = os.Stat(marker); !os.IsNotExist(err) {
 		t.Fatal("command executed on wrong revision", err)
 	}
+}
+
+func nativeDiagnosticGit(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	for _, args := range [][]string{{"init"}, {"-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid", "commit", "--allow-empty", "-m", "base"}} {
+		c := exec.Command("git", args...)
+		c.Dir = dir
+		c.Env = VerificationEnvironment()
+		if out, e := c.CombinedOutput(); e != nil {
+			t.Fatalf("Git setup: %v %s", e, out)
+		}
+	}
+	return dir
+}
+func assertNativeArtifactDigest(t *testing.T, ev VerificationEvidence, out []byte) {
+	t.Helper()
+	sum := sha256.Sum256(out)
+	if ev.ArtifactHash != "sha256:"+hex.EncodeToString(sum[:]) {
+		t.Fatal("raw evidence digest changed")
+	}
+}
+func TestNativeVerificationTypedExitAndSeparateStreams(t *testing.T) {
+	dir := nativeDiagnosticGit(t)
+	ev, out, e := RunAcceptanceVerificationContext(context.Background(), dir, "runner", "printf 'stdout-first\\nstdout-last\\n'; printf 'stderr-first\\nstderr-last ghp_example_secret_123456\\n' >&2; exit 17")
+	var diagnostic *commandresult.ExternalError
+	var exit *exec.ExitError
+	if !errors.As(e, &diagnostic) || !errors.As(e, &exit) {
+		t.Fatalf("native exit must retain typed diagnostic and process cause: %v", e)
+	}
+	d := diagnostic.Diagnostic
+	if ev.ExitCode != 17 || d.ExitCode == nil || *d.ExitCode != 17 || d.Executable != "sh" || d.Operation != "verification command" || d.CwdScope != "." || d.NextAction == "" {
+		t.Fatalf("native exit metadata lost: %+v %+v", ev, d)
+	}
+	if !strings.Contains(d.StdoutTail, "stdout-last") || strings.Contains(d.StdoutTail, "stderr") || !strings.Contains(d.StderrTail, "stderr-last") || strings.Contains(d.StderrTail, "stdout") || strings.Contains(e.Error(), "ghp_example_secret_123456") {
+		t.Fatalf("separate safe streams lost: %+v", d)
+	}
+	if !strings.Contains(string(out), "stdout-first") || !strings.Contains(string(out), "stderr-first") {
+		t.Fatal("merged raw evidence lost a stream")
+	}
+	assertNativeArtifactDigest(t, ev, out)
+}
+func TestNativeVerificationTypedSignal(t *testing.T) {
+	dir := nativeDiagnosticGit(t)
+	ev, out, e := RunAcceptanceVerificationContext(context.Background(), dir, "runner", "printf before-signal >&2; kill -TERM $$")
+	d, ok := commandresult.AsDiagnostic(e)
+	if !ok || d.Kind != "signal" || d.Signal == "" || d.Timeout || ev.ExitCode == 0 {
+		t.Fatalf("native signal diagnostic lost: %+v %v", d, e)
+	}
+	assertNativeArtifactDigest(t, ev, out)
+}
+func TestNativeVerificationTypedTimeoutAndInheritedPipe(t *testing.T) {
+	for _, command := range []string{"sleep 4", "sleep 4 & printf inherited-pipe"} {
+		t.Run(command, func(t *testing.T) {
+			dir := nativeDiagnosticGit(t)
+			deadline := 500 * time.Millisecond
+			if strings.Contains(command, "&") {
+				deadline = 3 * time.Second
+			} // Pipe draining must expire before the fixture context.
+			ctx, cancel := context.WithTimeout(context.Background(), deadline)
+			defer cancel()
+			start := time.Now()
+			ev, out, e := RunAcceptanceVerificationContext(ctx, dir, "runner", command)
+			d, ok := commandresult.AsDiagnostic(e)
+			if !ok || ev.ExitCode == 0 || time.Since(start) > 2*time.Second {
+				t.Fatalf("native bounded process diagnostic lost: %+v %v", d, e)
+			}
+			if command == "sleep 4" {
+				var policy *VerificationPolicyError
+				if !errors.As(e, &policy) || e.Error() != policy.Error() || !errors.Is(e, context.DeadlineExceeded) || !d.Timeout || d.Kind != "timeout" {
+					t.Fatalf("native timeout policy/cause lost: %+v %v", d, e)
+				}
+			} else if d.Timeout || !errors.Is(e, exec.ErrWaitDelay) {
+				t.Fatalf("inherited pipe WaitDelay must remain distinct from deadline: %+v %v", d, e)
+			}
+			assertNativeArtifactDigest(t, ev, out)
+		})
+	}
+}
+func TestNativeVerificationBoundedTailsAndSuccessIdentity(t *testing.T) {
+	dir := nativeDiagnosticGit(t)
+	ev, out, e := RunAcceptanceVerificationContext(context.Background(), dir, "runner", "head -c 100000 /dev/zero; printf '\\nstdout-end\\n'; head -c 100000 /dev/zero >&2; printf '\\nstderr-end\\n' >&2; exit 17")
+	d, ok := commandresult.AsDiagnostic(e)
+	if !ok || !strings.Contains(d.StdoutTail, "stdout-end") || !strings.Contains(d.StderrTail, "stderr-end") || len(d.StdoutTail) > 4110 || len(d.StderrTail) > 4110 {
+		t.Fatalf("native separate bounded tails lost: %+v %v", d, e)
+	}
+	if len(out) != maxVerificationArtifact || !strings.Contains(string(out), "[verification output truncated") {
+		t.Fatal("merged artifact bound changed")
+	}
+	assertNativeArtifactDigest(t, ev, out)
+	ev, out, e = RunAcceptanceVerificationContext(context.Background(), dir, "runner", "printf exact-success")
+	if e != nil || ev.ExitCode != 0 || string(out) != "exact-success" {
+		t.Fatalf("native success output changed: %+v %v", ev, e)
+	}
+	if e = ValidateFinalTreeVerification(ev, ev.CommitSHA, ev.TreeSHA); e != nil {
+		t.Fatal(e)
+	}
+	assertNativeArtifactDigest(t, ev, out)
+}
+
+func TestNativeVerificationCancellationAndMissingExecutable(t *testing.T) {
+	t.Run("cancelled-command", func(t *testing.T) {
+		dir := nativeDiagnosticGit(t)
+		marker := filepath.Join(t.TempDir(), "started")
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			deadline := time.Now().Add(3 * time.Second)
+			for time.Now().Before(deadline) {
+				if _, e := os.Stat(marker); e == nil {
+					cancel()
+					return
+				}
+				time.Sleep(5 * time.Millisecond)
+			}
+			cancel()
+		}()
+		ev, out, e := RunAcceptanceVerificationContext(ctx, dir, "runner", "printf started > '"+marker+"'; sleep 4")
+		<-done
+		d, ok := commandresult.AsDiagnostic(e)
+		if !ok || d.Timeout || !errors.Is(e, context.Canceled) || !IsVerificationPolicyError(e) || ev.ExitCode == 0 {
+			t.Fatalf("cancelled command diagnostic/policy lost: %+v %v", d, e)
+		}
+		assertNativeArtifactDigest(t, ev, out)
+	})
+	t.Run("missing-shell", func(t *testing.T) {
+		dir := nativeDiagnosticGit(t)
+		git, e := exec.LookPath("git")
+		if e != nil {
+			t.Fatal(e)
+		}
+		bin := t.TempDir()
+		if e = os.Symlink(git, filepath.Join(bin, "git")); e != nil {
+			t.Fatal(e)
+		}
+		t.Setenv("PATH", bin)
+		ev, out, e := RunAcceptanceVerificationContext(context.Background(), dir, "runner", "printf never")
+		d, ok := commandresult.AsDiagnostic(e)
+		if !ok || d.Kind != "missing_executable" || IsVerificationPolicyError(e) || ev.ExitCode == 0 {
+			t.Fatalf("actual missing shell diagnostic lost: %+v %v", d, e)
+		}
+		assertNativeArtifactDigest(t, ev, out)
+	})
+}
+func TestNativeVerificationPolicyRemainsOpaque(t *testing.T) {
+	dir := nativeDiagnosticGit(t)
+	ev, _, e := RunAcceptanceVerificationContext(context.Background(), dir, "runner", "printf baseline")
+	if e != nil {
+		t.Fatal(e)
+	}
+	marker := filepath.Join(dir, "dirty")
+	if e = os.WriteFile(marker, []byte("dirty"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	_, out, e := RunAcceptanceVerificationContext(context.Background(), dir, "runner", "printf must-not-run")
+	if !IsVerificationPolicyError(e) || len(out) != 0 {
+		t.Fatalf("dirty policy refusal changed: %v", e)
+	}
+	if _, ok := commandresult.AsDiagnostic(e); ok {
+		t.Fatal("preflight policy acquired operational diagnostic")
+	}
+	if e = os.Remove(marker); e != nil {
+		t.Fatal(e)
+	}
+	_, _, e = RunAcceptanceVerificationRevisionContext(context.Background(), dir, "runner", "printf must-not-run", "wrong", ev.TreeSHA)
+	if !IsVerificationPolicyError(e) {
+		t.Fatalf("stale policy refusal changed: %v", e)
+	}
+	if _, ok := commandresult.AsDiagnostic(e); ok {
+		t.Fatal("stale policy acquired operational diagnostic")
+	}
+	failed, out, e := RunAcceptanceVerificationContext(context.Background(), dir, "runner", "printf dirty > dirty; printf safe-error >&2; exit 17")
+	var policy *VerificationPolicyError
+	d, ok := commandresult.AsDiagnostic(e)
+	if !errors.As(e, &policy) || e.Error() != policy.Error() || !ok || d.ExitCode == nil || *d.ExitCode != 17 || failed.ExitCode == 0 || strings.Contains(e.Error(), "safe-error") {
+		t.Fatalf("final policy precedence or executed cause lost: %+v %v", d, e)
+	}
+	assertNativeArtifactDigest(t, failed, out)
+}
+
+func TestNativeVerificationTruncationCannotCutRedactionContext(t *testing.T) {
+	dir := nativeDiagnosticGit(t)
+	input := filepath.Join(t.TempDir(), "stream")
+	// Both a token and a quoted outside path cross the old raw-tail cut. The
+	// entire oversized diagnostic is withheld; raw artifact bytes stay evidence.
+	secret := "ghp_" + strings.Repeat("s", 120)
+	outside := "/private/" + strings.Repeat("directory/", 20) + "sensitive file"
+	raw := strings.Repeat("x", 100) + secret + " '" + outside + "' " + strings.Repeat("z", maxVerificationArtifact-150)
+	if e := os.WriteFile(input, []byte(raw), 0600); e != nil {
+		t.Fatal(e)
+	}
+	ev, out, e := RunAcceptanceVerificationContext(context.Background(), dir, "runner", "cat '"+input+"'; cat '"+input+"' >&2; exit 17")
+	d, ok := commandresult.AsDiagnostic(e)
+	if !ok || d.StdoutTail != nativeDiagnosticOmission || d.StderrTail != nativeDiagnosticOmission || strings.Contains(e.Error(), "ssss") || strings.Contains(e.Error(), "directory/") {
+		t.Fatalf("truncation exposed ambiguous raw fragments: %+v %v", d, e)
+	}
+	if len(out) != maxVerificationArtifact || !strings.Contains(string(out), secret) {
+		t.Fatal("raw merged evidence prefix was redacted or replaced")
+	}
+	assertNativeArtifactDigest(t, ev, out)
+}
+
+func TestNativeVerificationRetainsSafeActionableLineAfterLargeOutput(t *testing.T) {
+	dir := nativeDiagnosticGit(t)
+	command := `awk 'BEGIN { for(i=0;i<3000;i++) print "harmless filler line with enough bytes"; print "fatal: stdout actionable condition" }'; awk 'BEGIN { for(i=0;i<3000;i++) print "harmless filler line with enough bytes"; print "fatal: stderr actionable condition" }' >&2; exit 17`
+	ev, out, e := RunAcceptanceVerificationContext(context.Background(), dir, "runner", command)
+	d, ok := commandresult.AsDiagnostic(e)
+	if !ok || !strings.Contains(d.StdoutTail, "fatal: stdout actionable condition") || !strings.Contains(d.StderrTail, "fatal: stderr actionable condition") || !strings.Contains(e.Error(), "fatal: stderr actionable condition") {
+		t.Fatalf("large output lost later safe actionable diagnostic lines: %+v %v", d, e)
+	}
+	assertNativeArtifactDigest(t, ev, out)
+}
+
+func TestNativeVerificationMultilineKnownSecretIsSanitizedPerLine(t *testing.T) {
+	dir := nativeDiagnosticGit(t)
+	t.Setenv("SERVICE_PASSWORD", "first-sensitive-component-4921\nsecond-sensitive-component-9853")
+	ev, out, e := RunAcceptanceVerificationContext(context.Background(), dir, "runner", `printf '%s\n' "$SERVICE_PASSWORD"; printf 'fatal: safe condition\n' >&2; exit 17`)
+	d, ok := commandresult.AsDiagnostic(e)
+	if !ok || strings.Contains(d.StdoutTail, "sensitive-component") || strings.Contains(e.Error(), "sensitive-component") || !strings.Contains(d.StderrTail, "fatal: safe condition") {
+		t.Fatalf("per-line known secret leaked or safe action lost: %+v %v", d, e)
+	}
+	if !strings.Contains(string(out), "first-sensitive-component-4921") {
+		t.Fatal("raw evidence compatibility changed")
+	}
+	assertNativeArtifactDigest(t, ev, out)
 }

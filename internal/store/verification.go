@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -15,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mlnomadpy/dacli/internal/commandresult"
@@ -95,6 +97,22 @@ type verificationTree struct {
 	Commit string
 	Tree   string
 	Clean  bool
+}
+
+// A final-tree refusal stays the public policy error even when an executed
+// command also failed. Only its sanitized operational cause is retained.
+type verificationCommandPolicyError struct {
+	policy  *VerificationPolicyError
+	command error
+}
+
+func (e *verificationCommandPolicyError) Error() string   { return e.policy.Error() }
+func (e *verificationCommandPolicyError) Unwrap() []error { return []error{e.policy, e.command} }
+func verificationFinalPolicyError(policy *VerificationPolicyError, command error) error {
+	if _, ok := commandresult.AsDiagnostic(command); ok {
+		return &verificationCommandPolicyError{policy: policy, command: command}
+	}
+	return policy
 }
 
 // RunVerification is the legacy advisory entry point. It remains for source
@@ -181,18 +199,96 @@ func VerificationEnvironment() []string {
 	return append(env, "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_TERMINAL_PROMPT=0")
 }
 
-type verificationBuffer struct{ output []byte }
+// Native evidence retains its merged raw prefix. Diagnostic streams instead
+// sanitize bounded complete lines before keeping their safe trailing text.
+type nativeVerificationCapture struct {
+	mu             sync.Mutex
+	output         []byte
+	command        *exec.Cmd
+	workspace      string
+	stdout, stderr nativeDiagnosticStream
+}
+type nativeDiagnosticStream struct {
+	pending  []byte
+	safeTail string
+	overlong bool
+}
 
-func (b *verificationBuffer) Write(p []byte) (int, error) {
-	n := len(p)
-	remaining := maxVerificationArtifact + 1 - len(b.output)
-	if remaining > 0 {
-		if len(p) > remaining {
-			p = p[:remaining]
-		}
-		b.output = append(b.output, p...)
+const nativeDiagnosticOmission = "[diagnostic line omitted: bounded capture exceeded]"
+const nativeDiagnosticTailLimit = 4096
+
+func (s *nativeDiagnosticStream) flush(cmd *exec.Cmd, workspace string) {
+	var safe string
+	if s.overlong {
+		safe = nativeDiagnosticOmission
+	} else if len(s.pending) > 0 {
+		safe = commandresult.SanitizeCommandTail(cmd, string(s.pending), workspace)
 	}
+	if safe != "" {
+		s.safeTail += safe + "\n"
+		if len(s.safeTail) > nativeDiagnosticTailLimit {
+			s.safeTail = s.safeTail[len(s.safeTail)-nativeDiagnosticTailLimit:]
+		}
+	}
+	s.pending = nil
+	s.overlong = false
+}
+func (s *nativeDiagnosticStream) write(p []byte, cmd *exec.Cmd, workspace string) {
+	for len(p) > 0 {
+		end := bytes.IndexByte(p, '\n')
+		complete := end >= 0
+		if !complete {
+			end = len(p)
+		} else {
+			end++
+		}
+		part := p[:end]
+		p = p[end:]
+		if !s.overlong {
+			if len(s.pending)+len(part) > maxVerificationArtifact {
+				s.pending = nil
+				s.overlong = true
+			} else {
+				s.pending = append(s.pending, part...)
+			}
+		}
+		if complete {
+			s.flush(cmd, workspace)
+		}
+	}
+}
+
+type nativeVerificationStream struct {
+	capture *nativeVerificationCapture
+	stderr  bool
+}
+
+func (w nativeVerificationStream) Write(p []byte) (int, error) {
+	c := w.capture
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	n := len(p)
+	remaining := maxVerificationArtifact + 1 - len(c.output)
+	if remaining > 0 {
+		part := p
+		if len(part) > remaining {
+			part = part[:remaining]
+		}
+		c.output = append(c.output, part...)
+	}
+	stream := &c.stdout
+	if w.stderr {
+		stream = &c.stderr
+	}
+	stream.write(p, c.command, c.workspace)
 	return n, nil
+}
+func (c *nativeVerificationCapture) diagnosticStreams() ([]byte, []byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.stdout.flush(c.command, c.workspace)
+	c.stderr.flush(c.command, c.workspace)
+	return []byte(strings.TrimSpace(c.stdout.safeTail)), []byte(strings.TrimSpace(c.stderr.safeTail))
 }
 func runVerification(dir, verifier, command string, acceptanceGrade bool) (VerificationEvidence, []byte, error) {
 	return runVerificationWithContext(context.Background(), dir, verifier, command, acceptanceGrade, false, "", "")
@@ -238,6 +334,8 @@ func runVerificationWithContext(ctx context.Context, dir, verifier, command stri
 	c.Dir = dir
 	var out []byte
 	var err error
+	var capture nativeVerificationCapture
+	var processCause error
 	if !native {
 		out, err = commandresult.Run(c, commandresult.RunOptions{Operation: "verification command", WorkspaceRoot: dir})
 	} else {
@@ -245,12 +343,14 @@ func runVerificationWithContext(ctx context.Context, dir, verifier, command stri
 		c.Dir = dir
 		c.Env = VerificationEnvironment()
 		c.WaitDelay = 250 * time.Millisecond
-		var buffer verificationBuffer
-		c.Stdout = &buffer
-		c.Stderr = &buffer
+		capture.command = c
+		capture.workspace = dir
+		c.Stdout = nativeVerificationStream{capture: &capture}
+		c.Stderr = nativeVerificationStream{capture: &capture, stderr: true}
 		err = runNativeVerificationCommand(c)
-		out = buffer.output
-		if ctx.Err() != nil {
+		out = capture.output
+		processCause = err
+		if ctx.Err() != nil && !IsVerificationPolicyError(processCause) {
 			err = ctx.Err()
 		}
 	}
@@ -267,13 +367,21 @@ func runVerificationWithContext(ctx context.Context, dir, verifier, command stri
 			ev.ExitCode = ee.ExitCode()
 		}
 	}
+	if native && err != nil && !IsVerificationPolicyError(processCause) {
+		cause := processCause
+		if ctx.Err() != nil {
+			cause = errors.Join(cause, ctx.Err())
+		}
+		stdout, stderr := capture.diagnosticStreams()
+		err = commandresult.NewExternalError(c, commandresult.RunOptions{Operation: "verification command", WorkspaceRoot: dir}, stdout, stderr, cause, errors.Is(ctx.Err(), context.DeadlineExceeded))
+	}
 	if acceptanceGrade {
 		after, afterErr := readTree(dir)
 		if afterErr != nil {
-			return ev, out, &VerificationPolicyError{Reason: fmt.Sprintf("verification tree changed or became unreadable after execution: before commit %s tree %s clean=%t; after: %v", before.Commit, before.Tree, before.Clean, afterErr)}
+			return ev, out, verificationFinalPolicyError(&VerificationPolicyError{Reason: fmt.Sprintf("verification tree changed or became unreadable after execution: before commit %s tree %s clean=%t; after: %v", before.Commit, before.Tree, before.Clean, afterErr)}, err)
 		}
 		if after != before {
-			return ev, out, &VerificationPolicyError{Reason: fmt.Sprintf("verification tree changed during execution: before commit %s tree %s clean=%t; after commit %s tree %s clean=%t", before.Commit, before.Tree, before.Clean, after.Commit, after.Tree, after.Clean)}
+			return ev, out, verificationFinalPolicyError(&VerificationPolicyError{Reason: fmt.Sprintf("verification tree changed during execution: before commit %s tree %s clean=%t; after commit %s tree %s clean=%t", before.Commit, before.Tree, before.Clean, after.Commit, after.Tree, after.Clean)}, err)
 		}
 	}
 	return ev, out, err
