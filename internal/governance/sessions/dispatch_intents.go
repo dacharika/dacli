@@ -100,80 +100,12 @@ func dispatchBoundActor(s *state, id, project, action string, d DispatchReservat
 func (a *Authority) RequestDispatchIntent(token, controllerID string, req RequestDispatchIntent) (DispatchIntentResult, error) {
 	var result DispatchIntentResult
 	err := a.transaction(false, true, func(s *state) error {
-		if s.Version < 8 {
-			return ErrDenied
-		}
-		d, ok := s.Dispatches[req.DispatchID]
-		if !ok {
-			return ErrDenied
-		}
-		if _, e := dispatchActor(s, token, controllerID, d.ProjectID, "swarm.dispatch"); e != nil {
+		var err error
+		if e := genericControllerMutation(s, token, controllerID); e != nil {
 			return e
 		}
-		if !validID(req.OperationKey) || !validPromptDigest(req.PromptSpecDigest) || req.ExpectedFence != d.Reservation.Fence {
-			return ErrDenied
-		}
-		digest := identity("dispatch.request", controllerID, req)
-		if old, ok := s.DispatchIntentOperations[req.OperationKey]; ok {
-			if old.Digest != digest {
-				return ErrDenied
-			}
-			result.Intent = old.Intent
-			return nil
-		}
-		if _, ok := s.DispatchIntents[d.ID]; ok {
-			return ErrDenied
-		}
-		if req.BridgeSessionID == controllerID || req.WorkerSessionID == controllerID || req.WorkerSessionID == req.BridgeSessionID {
-			return ErrDenied
-		}
-		if !dispatchBoundActor(s, req.BridgeSessionID, d.ProjectID, "dispatch.correlate", d) || !dispatchBoundActor(s, req.WorkerSessionID, d.ProjectID, "lease.acquire", d) {
-			return ErrDenied
-		}
-		if a.dispatchCapability(s, d) != nil {
-			return ErrDenied
-		}
-		fresh, e := a.admitDispatch(s, token, controllerID, AdmitDispatchRequest{DispatchID: d.ID, ExpectedFence: req.ExpectedFence})
-		if e != nil {
-			return e
-		}
-		id, e := mint()
-		if e != nil {
-			return e
-		}
-		p := s.SwarmPolicies[d.ProjectID]
-		intent := DispatchIntent{SchemaVersion: 1, Sequence: 1, ID: id, OperationKey: req.OperationKey, DispatchID: d.ID, ControllerSessionID: controllerID, BridgeSessionID: req.BridgeSessionID, WorkerSessionID: req.WorkerSessionID, PromptSpecDigest: req.PromptSpecDigest, CapabilityDigest: p.CapabilityDigest, State: "dispatch_requested", Reservation: fresh, RequestedAt: time.Now().UTC()}
-		if _, e := dispatchActor(s, token, controllerID, d.ProjectID, "swarm.dispatch"); e != nil {
-			return e
-		}
-		if !dispatchBoundActor(s, req.BridgeSessionID, d.ProjectID, "dispatch.correlate", d) || !dispatchBoundActor(s, req.WorkerSessionID, d.ProjectID, "lease.acquire", d) {
-			return ErrDenied
-		}
-		if s.Version >= 11 && a.dispatchCapability(s, d) != nil {
-			return ErrDenied
-		}
-		if _, e := dispatchActor(s, token, controllerID, d.ProjectID, "swarm.dispatch"); e != nil {
-			return e
-		}
-		if !time.Now().Before(d.Reservation.ExpiresAt) || !dispatchBoundActor(s, req.BridgeSessionID, d.ProjectID, "dispatch.correlate", d) || !dispatchBoundActor(s, req.WorkerSessionID, d.ProjectID, "lease.acquire", d) {
-			return ErrDenied
-		}
-		if e := a.dispatchPreflight(s, d, req.WorkerSessionID); e != nil {
-			return e
-		}
-		if a.dispatchCapability(s, d) != nil {
-			return ErrDenied
-		}
-		if _, e := dispatchActor(s, token, controllerID, d.ProjectID, "swarm.dispatch"); e != nil {
-			return e
-		}
-		if !dispatchBoundActor(s, req.BridgeSessionID, d.ProjectID, "dispatch.correlate", d) || !dispatchBoundActor(s, req.WorkerSessionID, d.ProjectID, "lease.acquire", d) || !time.Now().Before(d.Reservation.ExpiresAt) || !preflightBoundCurrent(s, d) || !budgetDispatchCurrent(s, d) {
-			return ErrDenied
-		}
-		s.DispatchIntents[d.ID] = intent
-		s.DispatchIntentOperations[req.OperationKey] = DispatchIntentReceipt{Digest: digest, Intent: intent}
-		result = DispatchIntentResult{Intent: intent, HostActionAuthorized: true}
-		return nil
+		result, err = a.requestDispatchIntentState(s, token, controllerID, req)
+		return err
 	})
 	if err != nil {
 		return DispatchIntentResult{}, err
@@ -355,4 +287,89 @@ func validPromptDigest(d string) bool {
 	}
 	_, e := hex.DecodeString(d[7:])
 	return e == nil
+}
+
+// requestDispatchIntentState shares the public predicates without nesting authority transactions.
+func (a *Authority) requestDispatchIntentState(s *state, token, controllerID string, req RequestDispatchIntent) (DispatchIntentResult, error) {
+	var result DispatchIntentResult
+	err := func() error {
+		if s.Version < 8 {
+			return ErrDenied
+		}
+		d, ok := s.Dispatches[req.DispatchID]
+		if !ok {
+			return ErrDenied
+		}
+		if _, e := dispatchActor(s, token, controllerID, d.ProjectID, "swarm.dispatch"); e != nil {
+			return e
+		}
+		if !validID(req.OperationKey) || !validPromptDigest(req.PromptSpecDigest) || req.ExpectedFence != d.Reservation.Fence {
+			return ErrDenied
+		}
+		digest := identity("dispatch.request", controllerID, req)
+		if old, ok := s.DispatchIntentOperations[req.OperationKey]; ok {
+			if old.Digest != digest {
+				return ErrDenied
+			}
+			result.Intent = old.Intent
+			return nil
+		}
+		if _, ok := s.DispatchIntents[d.ID]; ok {
+			return ErrDenied
+		}
+		if req.BridgeSessionID == controllerID || req.WorkerSessionID == controllerID || req.WorkerSessionID == req.BridgeSessionID {
+			return ErrDenied
+		}
+		if !dispatchBoundActor(s, req.BridgeSessionID, d.ProjectID, "dispatch.correlate", d) || !dispatchBoundActor(s, req.WorkerSessionID, d.ProjectID, "lease.acquire", d) {
+			return ErrDenied
+		}
+		if a.dispatchCapability(s, d) != nil {
+			return ErrDenied
+		}
+		fresh, e := a.admitDispatch(s, token, controllerID, AdmitDispatchRequest{DispatchID: d.ID, ExpectedFence: req.ExpectedFence})
+		if e != nil {
+			return e
+		}
+		id, e := mint()
+		if e != nil {
+			return e
+		}
+		p := s.SwarmPolicies[d.ProjectID]
+		intent := DispatchIntent{SchemaVersion: 1, Sequence: 1, ID: id, OperationKey: req.OperationKey, DispatchID: d.ID, ControllerSessionID: controllerID, BridgeSessionID: req.BridgeSessionID, WorkerSessionID: req.WorkerSessionID, PromptSpecDigest: req.PromptSpecDigest, CapabilityDigest: p.CapabilityDigest, State: "dispatch_requested", Reservation: fresh, RequestedAt: time.Now().UTC()}
+		if _, e := dispatchActor(s, token, controllerID, d.ProjectID, "swarm.dispatch"); e != nil {
+			return e
+		}
+		if !dispatchBoundActor(s, req.BridgeSessionID, d.ProjectID, "dispatch.correlate", d) || !dispatchBoundActor(s, req.WorkerSessionID, d.ProjectID, "lease.acquire", d) {
+			return ErrDenied
+		}
+		if s.Version >= 11 && a.dispatchCapability(s, d) != nil {
+			return ErrDenied
+		}
+		if _, e := dispatchActor(s, token, controllerID, d.ProjectID, "swarm.dispatch"); e != nil {
+			return e
+		}
+		if !time.Now().Before(d.Reservation.ExpiresAt) || !dispatchBoundActor(s, req.BridgeSessionID, d.ProjectID, "dispatch.correlate", d) || !dispatchBoundActor(s, req.WorkerSessionID, d.ProjectID, "lease.acquire", d) {
+			return ErrDenied
+		}
+		if e := a.dispatchPreflight(s, d, req.WorkerSessionID); e != nil {
+			return e
+		}
+		if a.dispatchCapability(s, d) != nil {
+			return ErrDenied
+		}
+		if _, e := dispatchActor(s, token, controllerID, d.ProjectID, "swarm.dispatch"); e != nil {
+			return e
+		}
+		if !dispatchBoundActor(s, req.BridgeSessionID, d.ProjectID, "dispatch.correlate", d) || !dispatchBoundActor(s, req.WorkerSessionID, d.ProjectID, "lease.acquire", d) || !time.Now().Before(d.Reservation.ExpiresAt) || !preflightBoundCurrent(s, d) || !budgetDispatchCurrent(s, d) {
+			return ErrDenied
+		}
+		s.DispatchIntents[d.ID] = intent
+		s.DispatchIntentOperations[req.OperationKey] = DispatchIntentReceipt{Digest: digest, Intent: intent}
+		result = DispatchIntentResult{Intent: intent, HostActionAuthorized: true}
+		return nil
+	}()
+	if err != nil {
+		return DispatchIntentResult{}, err
+	}
+	return result, nil
 }

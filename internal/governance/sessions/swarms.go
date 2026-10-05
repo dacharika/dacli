@@ -202,6 +202,9 @@ func planDigest(p SwarmPlan) string {
 	return hash(string(b))
 }
 func (a *Authority) planSwarm(s *state, token, session, project, action string) (SwarmPlan, error) {
+	return a.planSwarmLimited(s, token, session, project, action, 0)
+}
+func (a *Authority) planSwarmLimited(s *state, token, session, project, action string, limit int, allowed ...[]string) (SwarmPlan, error) {
 	r, e := controller(s, token, session, project, action)
 	if e != nil {
 		return SwarmPlan{}, e
@@ -213,6 +216,9 @@ func (a *Authority) planSwarm(s *state, token, session, project, action string) 
 	capability, ok := a.admission.(SwarmCapabilityAdmission)
 	if !ok || capability.AdmitSwarmCapability(s.Binding.Workspace, project, policy.Harness, policy.CapabilityDigest) != nil {
 		return SwarmPlan{}, ErrDenied
+	}
+	if limit > 0 && limit < policy.Width {
+		policy.Width = limit
 	}
 	adapter, ok := a.admission.(SwarmAdmission)
 	if !ok {
@@ -244,6 +250,9 @@ func (a *Authority) planSwarm(s *state, token, session, project, action string) 
 	seen := map[string]bool{}
 	selected := 0
 	for _, c := range candidates {
+		if len(allowed) > 0 && !subset([]string{c.TaskID}, allowed[0]) {
+			continue
+		}
 		if !validID(c.TaskID) || seen[c.TaskID] || c.ProjectID != project {
 			return SwarmPlan{}, ErrDenied
 		}
@@ -473,114 +482,12 @@ func (a *Authority) PlanSwarm(token, session, project string) (SwarmPlan, error)
 func (a *Authority) ReserveWave(token, session string, req ReserveWaveRequest) (SwarmWave, error) {
 	var wave SwarmWave
 	e := a.transaction(false, true, func(s *state) error {
-		r, e := controller(s, token, session, req.Plan.ProjectID, "swarm.reserve")
-		if e != nil {
+		var err error
+		if e := genericControllerMutation(s, token, session); e != nil {
 			return e
 		}
-		if !validID(req.OperationKey) || req.Plan.SessionID != session || req.Plan.SchemaVersion != 1 || req.Plan.ID != planDigest(req.Plan) {
-			return ErrDenied
-		}
-		req.ExpiresAt = req.ExpiresAt.UTC()
-		digest := identity("swarm.reserve", session, req)
-		if old, ok := s.SwarmOperations[req.OperationKey]; ok {
-			if old.Digest != digest || old.Wave == nil {
-				return ErrDenied
-			}
-			wave = *old.Wave
-			return nil
-		}
-		if e := a.consumeCheckpoint(s, token, session, req, ""); e != nil {
-			return e
-		}
-		fresh, e := a.planSwarm(s, token, session, req.Plan.ProjectID, "swarm.reserve")
-		if e != nil {
-			return e
-		}
-		if fresh.ID != req.Plan.ID {
-			return preflightPlanError(fresh, req.Plan)
-		}
-		p := s.SwarmPolicies[req.Plan.ProjectID]
-		now := time.Now()
-		if !req.ExpiresAt.After(now) || req.ExpiresAt.After(now.Add(p.TTL)) || req.ExpiresAt.After(r.ExpiresAt) {
-			return ErrDenied
-		}
-		id, e := mint()
-		if e != nil {
-			return e
-		}
-		wave = SwarmWave{ID: id, PlanID: fresh.ID, Dispatches: []DispatchReservation{}}
-		gateSource, e := cloneAuthorityState(s)
-		if e != nil {
-			return e
-		}
-		for _, v := range fresh.Verdicts {
-			if !v.Selected {
-				continue
-			}
-			if s.Fence == math.MaxUint64 {
-				return ErrDenied
-			}
-			id, e := mint()
-			if e != nil {
-				return e
-			}
-			s.Fence++
-			d := DispatchReservation{ID: id, ControllerSessionID: session, ProjectID: p.ProjectID, PolicyRevision: p.Revision, ImplementationRole: v.ImplementationRole, ReviewRole: v.ReviewRole, Harness: p.Harness, BaseCommit: v.BaseCommit, BaseTree: v.BaseTree, Reservation: Lease{ID: id, SessionID: session, TaskID: v.TaskID, Repository: v.Repository, Checkout: v.Checkout, Resources: v.Resources, Fence: s.Fence, ExpiresAt: req.ExpiresAt}}
-			if v.Preflight != nil {
-				d.PreflightDigest = v.Preflight.ProofDigest
-				d.PreflightExpiresAt = v.Preflight.ExpiresAt
-			}
-			if e := allocateBudget(s, d, wave.ID, v.Budget); e != nil {
-				return e
-			}
-			s.Dispatches[id] = d
-			wave.Dispatches = append(wave.Dispatches, d)
-		}
-		if len(wave.Dispatches) == 0 {
-			return preflightPlanError(fresh, req.Plan)
-		}
-		capability, ok := a.admission.(SwarmCapabilityAdmission)
-		if !ok || capability.AdmitSwarmCapability(s.Binding.Workspace, p.ProjectID, p.Harness, p.CapabilityDigest) != nil {
-			return ErrDenied
-		}
-		if _, e := controller(s, token, session, req.Plan.ProjectID, "swarm.reserve"); e != nil || !req.ExpiresAt.After(time.Now()) {
-			return ErrDenied
-		}
-		for _, d := range wave.Dispatches {
-			if e := a.dispatchPreflight(s, d, ""); e != nil {
-				return e
-			}
-		}
-		if s.Version >= 11 && capability.AdmitSwarmCapability(s.Binding.Workspace, p.ProjectID, p.Harness, p.CapabilityDigest) != nil {
-			return ErrDenied
-		}
-		if _, e := controller(s, token, session, req.Plan.ProjectID, "swarm.reserve"); e != nil || !time.Now().Before(req.ExpiresAt) {
-			return ErrDenied
-		}
-		for _, d := range wave.Dispatches {
-			if !preflightBoundCurrent(s, d) {
-				return ErrDenied
-			}
-		}
-		if e := a.consumeCheckpoint(&gateSource, token, session, req, wave.ID); e != nil {
-			return e
-		}
-		if _, e := controller(s, token, session, req.Plan.ProjectID, "swarm.reserve"); e != nil || !time.Now().Before(req.ExpiresAt) {
-			return ErrDenied
-		}
-		for _, d := range wave.Dispatches {
-			if !preflightBoundCurrent(s, d) {
-				return ErrDenied
-			}
-		}
-		s.Checkpoints = gateSource.Checkpoints
-		for _, d := range wave.Dispatches {
-			if !budgetDispatchCurrent(s, d) {
-				return ErrDenied
-			}
-		}
-		s.SwarmOperations[req.OperationKey] = SwarmReceipt{Digest: digest, Wave: &wave}
-		return nil
+		wave, err = a.reserveWaveState(s, token, session, req)
+		return err
 	})
 	if e != nil {
 		return SwarmWave{}, e
@@ -699,7 +606,14 @@ func (a *Authority) admitDispatch(s *state, token, session string, req AdmitDisp
 // an exactly-once execution claim. A bridge must record intent before its call.
 func (a *Authority) AdmitDispatch(token, session string, req AdmitDispatchRequest) (DispatchReservation, error) {
 	var d DispatchReservation
-	e := a.transaction(false, false, func(s *state) error { var e error; d, e = a.admitDispatch(s, token, session, req); return e })
+	e := a.transaction(false, false, func(s *state) error {
+		if e := genericControllerMutation(s, token, session); e != nil {
+			return e
+		}
+		var e error
+		d, e = a.admitDispatch(s, token, session, req)
+		return e
+	})
 	return d, e
 }
 
@@ -988,4 +902,126 @@ func (a *Authority) AuthenticateOwner(owner string) error {
 		}
 		return nil
 	})
+}
+
+// reserveWaveState shares the public predicates without nesting authority transactions.
+func (a *Authority) reserveWaveState(s *state, token, session string, req ReserveWaveRequest) (SwarmWave, error) {
+	return a.reserveWaveStateLimited(s, token, session, req, 0)
+}
+func (a *Authority) reserveWaveStateLimited(s *state, token, session string, req ReserveWaveRequest, limit int, allowed ...[]string) (SwarmWave, error) {
+	var wave SwarmWave
+	err := func() error {
+		r, e := controller(s, token, session, req.Plan.ProjectID, "swarm.reserve")
+		if e != nil {
+			return e
+		}
+		if !validID(req.OperationKey) || req.Plan.SessionID != session || req.Plan.SchemaVersion != 1 || req.Plan.ID != planDigest(req.Plan) {
+			return ErrDenied
+		}
+		req.ExpiresAt = req.ExpiresAt.UTC()
+		digest := identity("swarm.reserve", session, req)
+		if old, ok := s.SwarmOperations[req.OperationKey]; ok {
+			if old.Digest != digest || old.Wave == nil {
+				return ErrDenied
+			}
+			wave = *old.Wave
+			return nil
+		}
+		if e := a.consumeCheckpoint(s, token, session, req, ""); e != nil {
+			return e
+		}
+		fresh, e := a.planSwarmLimited(s, token, session, req.Plan.ProjectID, "swarm.reserve", limit, allowed...)
+		if e != nil {
+			return e
+		}
+		if fresh.ID != req.Plan.ID {
+			return preflightPlanError(fresh, req.Plan)
+		}
+		p := s.SwarmPolicies[req.Plan.ProjectID]
+		now := time.Now()
+		if !req.ExpiresAt.After(now) || req.ExpiresAt.After(now.Add(p.TTL)) || req.ExpiresAt.After(r.ExpiresAt) {
+			return ErrDenied
+		}
+		id, e := mint()
+		if e != nil {
+			return e
+		}
+		wave = SwarmWave{ID: id, PlanID: fresh.ID, Dispatches: []DispatchReservation{}}
+		gateSource, e := cloneAuthorityState(s)
+		if e != nil {
+			return e
+		}
+		for _, v := range fresh.Verdicts {
+			if !v.Selected {
+				continue
+			}
+			if s.Fence == math.MaxUint64 {
+				return ErrDenied
+			}
+			id, e := mint()
+			if e != nil {
+				return e
+			}
+			s.Fence++
+			d := DispatchReservation{ID: id, ControllerSessionID: session, ProjectID: p.ProjectID, PolicyRevision: p.Revision, ImplementationRole: v.ImplementationRole, ReviewRole: v.ReviewRole, Harness: p.Harness, BaseCommit: v.BaseCommit, BaseTree: v.BaseTree, Reservation: Lease{ID: id, SessionID: session, TaskID: v.TaskID, Repository: v.Repository, Checkout: v.Checkout, Resources: v.Resources, Fence: s.Fence, ExpiresAt: req.ExpiresAt}}
+			if v.Preflight != nil {
+				d.PreflightDigest = v.Preflight.ProofDigest
+				d.PreflightExpiresAt = v.Preflight.ExpiresAt
+			}
+			if e := allocateBudget(s, d, wave.ID, v.Budget); e != nil {
+				return e
+			}
+			s.Dispatches[id] = d
+			wave.Dispatches = append(wave.Dispatches, d)
+		}
+		if len(wave.Dispatches) == 0 {
+			return preflightPlanError(fresh, req.Plan)
+		}
+		capability, ok := a.admission.(SwarmCapabilityAdmission)
+		if !ok || capability.AdmitSwarmCapability(s.Binding.Workspace, p.ProjectID, p.Harness, p.CapabilityDigest) != nil {
+			return ErrDenied
+		}
+		if _, e := controller(s, token, session, req.Plan.ProjectID, "swarm.reserve"); e != nil || !req.ExpiresAt.After(time.Now()) {
+			return ErrDenied
+		}
+		for _, d := range wave.Dispatches {
+			if e := a.dispatchPreflight(s, d, ""); e != nil {
+				return e
+			}
+		}
+		if s.Version >= 11 && capability.AdmitSwarmCapability(s.Binding.Workspace, p.ProjectID, p.Harness, p.CapabilityDigest) != nil {
+			return ErrDenied
+		}
+		if _, e := controller(s, token, session, req.Plan.ProjectID, "swarm.reserve"); e != nil || !time.Now().Before(req.ExpiresAt) {
+			return ErrDenied
+		}
+		for _, d := range wave.Dispatches {
+			if !preflightBoundCurrent(s, d) {
+				return ErrDenied
+			}
+		}
+		if e := a.consumeCheckpoint(&gateSource, token, session, req, wave.ID); e != nil {
+			return e
+		}
+		if _, e := controller(s, token, session, req.Plan.ProjectID, "swarm.reserve"); e != nil || !time.Now().Before(req.ExpiresAt) {
+			return ErrDenied
+		}
+		for _, d := range wave.Dispatches {
+			if !preflightBoundCurrent(s, d) {
+				return ErrDenied
+			}
+		}
+		s.Checkpoints = gateSource.Checkpoints
+		for _, d := range wave.Dispatches {
+			if !budgetDispatchCurrent(s, d) {
+				return ErrDenied
+			}
+		}
+		s.SwarmOperations[req.OperationKey] = SwarmReceipt{Digest: digest, Wave: &wave}
+		return nil
+	}()
+	if err != nil {
+		return SwarmWave{}, err
+	}
+	return wave, nil
 }

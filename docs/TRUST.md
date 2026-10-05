@@ -495,3 +495,15 @@ closing retirement and then record exact canonical action readback. No public
 receipt grants bearer permission. Unknown outcomes expose expected and observed
 digests separately; existing historical publication consumption remains historical.
 See [native policy](GOVERNANCE_NATIVE_POLICY.md).
+
+`native controller upgrade` explicitly migrates15→16; `native controller configure`
+records immutable owner policy, and `native controller enroll` creates an exact
+root-controller scope with private exclusive files. `native controller start`
+fixes invocation bounds and independent producer routes. `native controller step`
+atomically records bounded transitions; `native controller reconcile` records
+safe late observations without new effects. `native controller status` reads
+scoped historical knowledge and never supplies a host permit. Refusal receipts
+preserve their original exit3/exit1 classification on immutable replay. Pending
+host/command/integration knowledge is not completion, and only explicit owner
+recovery can release retained protection. See
+[native controller](GOVERNANCE_NATIVE_CONTROLLER.md).

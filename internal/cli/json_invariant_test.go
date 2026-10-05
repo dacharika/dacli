@@ -36,9 +36,9 @@ var jsonHonoringCommands = map[string]bool{
 	"native dispatch acknowledge": true,
 	"native dispatch status":      true,
 
-	"accept":                 true,
-	"accept apply":           true,
-	"native policy evaluate": true, "native policy approve": true, "native policy status": true, "accept apply-native": true, "native acceptance candidate": true,
+	"accept":                      true,
+	"accept apply":                true,
+	"native controller configure": true, "native controller start": true, "native controller step": true, "native controller reconcile": true, "native controller status": true, "native policy evaluate": true, "native policy approve": true, "native policy status": true, "accept apply-native": true, "native acceptance candidate": true,
 	"accept propose":          true,
 	"agents":                  true,
 	"capabilities":            true,

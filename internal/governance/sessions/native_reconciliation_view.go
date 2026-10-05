@@ -259,11 +259,11 @@ func (a *Authority) reconcileCheckpoint(s *state, p CheckpointPolicy, out Checkp
 			op, present := s.Operations[r.VerificationKey]
 			switch {
 			case !present:
-				add("verification_unknown", "unknown", r.TaskID, r.VerificationKey, "observe original verification operation; absence is not completion", false)
+				diagnosticForLease(r.Verification.LeaseID, r.TaskID, "verification_unknown", "unknown", r.VerificationKey, "observe original verification operation; absence is not completion", false)
 			case op.Pending:
 				diagnosticForLease(r.Verification.LeaseID, r.TaskID, "verification_pending", "pending", r.VerificationKey, "reserved outcome unknown; owner reconciliation, never reexecute", false)
 			case op.Evidence == nil:
-				add("verification_unknown", "unknown", r.TaskID, r.VerificationKey, "no authenticated result exists", false)
+				diagnosticForLease(r.Verification.LeaseID, r.TaskID, "verification_unknown", "unknown", r.VerificationKey, "no authenticated result exists", false)
 			case !checkpointEvidenceCurrent(s, *op.Evidence):
 				diagnosticForLease(op.Evidence.Revision.LeaseID, r.TaskID, "verification_ineligible", "known", op.Evidence.ID, "require actual configured runner evidence", false)
 			case op.Evidence.ExitCode != 0:
@@ -372,6 +372,9 @@ func (a *Authority) reconcileCheckpoint(s *state, p CheckpointPolicy, out Checkp
 	source := *s
 	source.Checkpoints = nil
 	source.CheckpointOperations = nil
+	source.ControllerHistory = nil
+	source.ControllerOperations = nil
+	source.ControllerInvocations = nil
 	for _, c := range snapshot.Candidates {
 		if checkpointTask(p, c.TaskID) {
 			progress = append(progress, identity("checkpoint.task-condition", "", []string{c.TaskID, c.Status, c.Reason}))
@@ -394,11 +397,12 @@ func (a *Authority) reconcileCheckpoint(s *state, p CheckpointPolicy, out Checkp
 	sort.Strings(progress)
 	out.ProgressDigest = identity("checkpoint.progress", "", progress)
 	out.ConditionDigest = identity("checkpoint.condition", "", struct {
-		Authority state
-		Canonical string
-		Trunk     string
-		Findings  []CheckpointFinding
-	}{source, identity("checkpoint.observed-plan", "", []string{obs.Digest, planID}), obs.Trunk, out.Findings})
+		Authority  state
+		Canonical  string
+		Trunk      string
+		Findings   []CheckpointFinding
+		Controller map[string]controllerAdmission
+	}{source, identity("checkpoint.observed-plan", "", []string{obs.Digest, planID}), obs.Trunk, out.Findings, controllerCondition(s)})
 	return out, nil
 }
 

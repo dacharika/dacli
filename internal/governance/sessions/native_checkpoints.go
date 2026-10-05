@@ -153,107 +153,12 @@ func (a *Authority) ReconcileCheckpoint(token, session string, r CheckpointReque
 func (a *Authority) writeCheckpoint(token, session string, r CheckpointRequest, reconcile bool) (CheckpointStatus, error) {
 	var out CheckpointStatus
 	e := a.transaction(false, true, func(s *state) error {
-		action := "checkpoint.record"
-		if reconcile {
-			action = "checkpoint.reconcile"
-		}
-		p, e := checkpointAuth(s, token, session, r.ProjectID, action)
-		if e != nil {
+		var err error
+		if e := genericControllerMutation(s, token, session); e != nil {
 			return e
 		}
-		if !validID(r.OperationKey) || !validID(r.CheckpointID) || !validID(r.InvocationID) || len(r.Refs) > 256 || !subset([]string{r.Phase}, []string{"pre-cycle", "dispatch", "verification", "review", "integration", "acceptance", "halt"}) {
-			return ErrDenied
-		}
-		digest := identity(action, session, r)
-		if old, ok := s.CheckpointOperations[r.OperationKey]; ok {
-			if old.Digest != digest {
-				return ErrDenied
-			}
-			out = old.Status
-			return nil
-		}
-		for id, h := range s.Checkpoints {
-			if id != r.CheckpointID && len(h) > 0 && h[0].ProjectID == r.ProjectID {
-				return ErrDenied
-			}
-		}
-		history := s.Checkpoints[r.CheckpointID]
-		if reconcile && r.Phase == "pre-cycle" {
-			for _, entry := range history {
-				if entry.Phase == "pre-cycle" && entry.InvocationID == r.InvocationID && entry.ConditionDigest != "" {
-					return ErrDenied
-				}
-			}
-		}
-		if uint64(len(history)) != r.ExpectedSequence {
-			return ErrDenied
-		}
-		out = CheckpointStatus{SchemaVersion: 1, ID: r.CheckpointID, ProjectID: r.ProjectID, InvocationID: r.InvocationID, Phase: r.Phase, PolicyRevision: p.Revision, Harness: p.Harness, Sequence: r.ExpectedSequence + 1, Refs: append([]CheckpointRefs(nil), r.Refs...), MaxCycles: p.MaxCycles, MaxNoProgress: p.MaxNoProgress, ObservedAt: time.Now().UTC(), Findings: []CheckpointFinding{}}
-		if len(history) > 0 {
-			old := history[len(history)-1]
-			if old.ProjectID != r.ProjectID || old.Harness != p.Harness {
-				return ErrDenied
-			}
-			out.Cycle = old.Cycle
-			out.NoProgress = old.NoProgress
-			out.ProgressDigest = old.ProgressDigest
-			// Previously observed producer identities cannot be dropped or replaced.
-			for _, ref := range old.Refs {
-				if !containsCheckpointRef(r.Refs, ref) {
-					return ErrDenied
-				}
-			}
-		}
-		for _, ref := range r.Refs {
-			if !checkpointTask(p, ref.TaskID) || a.validateCheckpointRef(s, p, ref) != nil {
-				return ErrDenied
-			}
-		}
-		for _, ref := range r.Refs {
-			if ref.VerificationKey != "" {
-				op, ok := s.Operations[ref.VerificationKey]
-				if ok && op.Pending && op.CheckpointVerification == nil {
-					g := s.Grants[ref.Verification.GrantID]
-					op.CheckpointVerification = &CheckpointVerificationBinding{ProjectID: p.ProjectID, TaskID: ref.TaskID, RunnerSession: ref.RunnerSession, DescriptorDigest: g.CommandDigest, Request: ref.Verification}
-					s.Operations[ref.VerificationKey] = op
-				}
-			}
-		}
-		if reconcile {
-			current, e := a.reconcileCheckpoint(s, p, out, token, session)
-			if e != nil {
-				return e
-			}
-			out = current
-			if len(history) > 0 {
-				old := history[len(history)-1]
-				if out.ProgressDigest == old.ProgressDigest && old.InvocationID != r.InvocationID && r.Phase == "pre-cycle" {
-					out.NoProgress++
-				} else if old.ProgressDigest != "" && out.ProgressDigest != old.ProgressDigest {
-					out.NoProgress = 0
-				}
-			}
-			a.checkpointBounds(&out, p, s.SwarmPolicies[p.ProjectID])
-		} else {
-			out.HaltClass = "reconciliation_required"
-			out.NextAction = "reconcile the recorded producer references before another wave"
-		}
-		// Reobserve immediately before persistence; legacy canonical files aren't locked.
-		if reconcile {
-			fresh, e := a.reconcileCheckpoint(s, p, out, token, session)
-			if e != nil || fresh.ConditionDigest != out.ConditionDigest {
-				return ErrDenied
-			}
-		}
-		if _, e := checkpointAuth(s, token, session, r.ProjectID, action); e != nil {
-			return e
-		}
-		if reconcile && out.WaveAllowed && !time.Now().Before(out.GateExpiresAt) {
-			return ErrDenied
-		}
-		s.Checkpoints[r.CheckpointID] = append(history, out)
-		s.CheckpointOperations[r.OperationKey] = CheckpointReceipt{Digest: digest, Status: out}
-		return nil
+		out, err = a.writeCheckpointState(s, token, session, r, reconcile)
+		return err
 	})
 	if e != nil {
 		return CheckpointStatus{}, e
@@ -382,4 +287,116 @@ func (a *Authority) consumeCheckpoint(s *state, token, session string, r Reserve
 		s.Checkpoints[old.ID] = append(h, old)
 	}
 	return nil
+}
+
+// writeCheckpointState shares the public predicates without nesting authority transactions.
+func (a *Authority) writeCheckpointState(s *state, token, session string, r CheckpointRequest, reconcile bool) (CheckpointStatus, error) {
+	var out CheckpointStatus
+	err := func() error {
+		action := "checkpoint.record"
+		if reconcile {
+			action = "checkpoint.reconcile"
+		}
+		p, e := checkpointAuth(s, token, session, r.ProjectID, action)
+		if e != nil {
+			return e
+		}
+		if !validID(r.OperationKey) || !validID(r.CheckpointID) || !validID(r.InvocationID) || len(r.Refs) > 256 || !subset([]string{r.Phase}, []string{"pre-cycle", "dispatch", "verification", "review", "integration", "acceptance", "halt"}) {
+			return ErrDenied
+		}
+		digest := identity(action, session, r)
+		if old, ok := s.CheckpointOperations[r.OperationKey]; ok {
+			if old.Digest != digest {
+				return ErrDenied
+			}
+			out = old.Status
+			return nil
+		}
+		for id, h := range s.Checkpoints {
+			if id != r.CheckpointID && len(h) > 0 && h[0].ProjectID == r.ProjectID {
+				return ErrDenied
+			}
+		}
+		history := s.Checkpoints[r.CheckpointID]
+		if reconcile && r.Phase == "pre-cycle" {
+			for _, entry := range history {
+				if entry.Phase == "pre-cycle" && entry.InvocationID == r.InvocationID && entry.ConditionDigest != "" {
+					return ErrDenied
+				}
+			}
+		}
+		if uint64(len(history)) != r.ExpectedSequence {
+			return ErrDenied
+		}
+		out = CheckpointStatus{SchemaVersion: 1, ID: r.CheckpointID, ProjectID: r.ProjectID, InvocationID: r.InvocationID, Phase: r.Phase, PolicyRevision: p.Revision, Harness: p.Harness, Sequence: r.ExpectedSequence + 1, Refs: append([]CheckpointRefs(nil), r.Refs...), MaxCycles: p.MaxCycles, MaxNoProgress: p.MaxNoProgress, ObservedAt: time.Now().UTC(), Findings: []CheckpointFinding{}}
+		if len(history) > 0 {
+			old := history[len(history)-1]
+			if old.ProjectID != r.ProjectID || old.Harness != p.Harness {
+				return ErrDenied
+			}
+			out.Cycle = old.Cycle
+			out.NoProgress = old.NoProgress
+			out.ProgressDigest = old.ProgressDigest
+			// Previously observed producer identities cannot be dropped or replaced.
+			for _, ref := range old.Refs {
+				if !containsCheckpointRef(r.Refs, ref) {
+					return ErrDenied
+				}
+			}
+		}
+		for _, ref := range r.Refs {
+			if !checkpointTask(p, ref.TaskID) || a.validateCheckpointRef(s, p, ref) != nil {
+				return ErrDenied
+			}
+		}
+		for _, ref := range r.Refs {
+			if ref.VerificationKey != "" {
+				op, ok := s.Operations[ref.VerificationKey]
+				if ok && op.Pending && op.CheckpointVerification == nil {
+					g := s.Grants[ref.Verification.GrantID]
+					op.CheckpointVerification = &CheckpointVerificationBinding{ProjectID: p.ProjectID, TaskID: ref.TaskID, RunnerSession: ref.RunnerSession, DescriptorDigest: g.CommandDigest, Request: ref.Verification}
+					s.Operations[ref.VerificationKey] = op
+				}
+			}
+		}
+		if reconcile {
+			current, e := a.reconcileCheckpoint(s, p, out, token, session)
+			if e != nil {
+				return e
+			}
+			out = current
+			if len(history) > 0 {
+				old := history[len(history)-1]
+				if out.ProgressDigest == old.ProgressDigest && old.InvocationID != r.InvocationID && r.Phase == "pre-cycle" {
+					out.NoProgress++
+				} else if old.ProgressDigest != "" && out.ProgressDigest != old.ProgressDigest {
+					out.NoProgress = 0
+				}
+			}
+			a.checkpointBounds(&out, p, s.SwarmPolicies[p.ProjectID])
+		} else {
+			out.HaltClass = "reconciliation_required"
+			out.NextAction = "reconcile the recorded producer references before another wave"
+		}
+		// Reobserve immediately before persistence; legacy canonical files aren't locked.
+		if reconcile {
+			fresh, e := a.reconcileCheckpoint(s, p, out, token, session)
+			if e != nil || fresh.ConditionDigest != out.ConditionDigest {
+				return ErrDenied
+			}
+		}
+		if _, e := checkpointAuth(s, token, session, r.ProjectID, action); e != nil {
+			return e
+		}
+		if reconcile && out.WaveAllowed && !time.Now().Before(out.GateExpiresAt) {
+			return ErrDenied
+		}
+		s.Checkpoints[r.CheckpointID] = append(history, out)
+		s.CheckpointOperations[r.OperationKey] = CheckpointReceipt{Digest: digest, Status: out}
+		return nil
+	}()
+	if err != nil {
+		return CheckpointStatus{}, err
+	}
+	return out, nil
 }

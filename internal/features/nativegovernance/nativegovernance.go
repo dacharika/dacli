@@ -20,6 +20,13 @@ import (
 )
 
 var Commands = []clikit.Command{
+	{Path: "native controller upgrade", Brief: "upgrade durable bounded native controller", Mutates: true, JSON: false, Usage: "dacli native controller upgrade --config <owner>", Run: func(c *clikit.Ctx, a []string) error { return controllerOwner(c, a, "upgrade") }},
+	{Path: "native controller configure", Brief: "configure durable bounded native controller", Mutates: true, JSON: true, Usage: "dacli native controller configure --config <owner> --request <private-file>", Run: func(c *clikit.Ctx, a []string) error { return controllerOwner(c, a, "configure") }},
+	{Path: "native controller start", Brief: "start durable bounded native controller", Mutates: true, JSON: true, Usage: "dacli native controller start --config <owner> --request <private-file>", Run: func(c *clikit.Ctx, a []string) error { return controllerOwner(c, a, "start") }},
+	{Path: "native controller step", Brief: "step durable bounded native controller", Mutates: true, JSON: true, Usage: "dacli native controller step --connection <private-file> --capability-file <private-file> --request <private-file>", Run: func(c *clikit.Ctx, a []string) error { return controllerCommand(c, a, "step") }},
+	{Path: "native controller reconcile", Brief: "reconcile durable bounded native controller", Mutates: true, JSON: true, Usage: "dacli native controller reconcile --connection <private-file> --capability-file <private-file> --request <private-file>", Run: func(c *clikit.Ctx, a []string) error { return controllerCommand(c, a, "reconcile") }},
+	{Path: "native controller status", Brief: "status durable bounded native controller", Mutates: false, JSON: true, Usage: "dacli native controller status --connection <private-file> --capability-file <private-file> --project <id> --invocation <id>", Run: func(c *clikit.Ctx, a []string) error { return controllerCommand(c, a, "status") }},
+	{Path: "native controller enroll", Brief: "enroll durable bounded native controller", Mutates: true, JSON: false, Usage: "dacli native controller enroll --config <owner> --project <id> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]", Run: controllerEnroll},
 	{Path: "native policy upgrade", Brief: "Explicit owner upgrades native policy", Mutates: true, Usage: "dacli native policy upgrade --config <owner>", Run: nativePolicyUpgrade},
 	{Path: "native policy configure", Brief: "Owner configures exact native action policy", Mutates: true, Usage: "dacli native policy configure --config <owner> --request <policy>", Run: nativePolicyConfigure},
 	{Path: "native policy evaluate", Brief: "Owner evaluates exact native acceptance without canonical effect", Mutates: true, JSON: true, Usage: "dacli native policy evaluate --config <owner> --review-policy <policy> --request <evaluation>", Run: nativePolicyEvaluate},
@@ -82,7 +89,7 @@ var Commands = []clikit.Command{
 // AuthenticatesExplicitly lists exactly the handlers exempt from the legacy grant gate.
 func AuthenticatesExplicitly(path string) bool {
 	switch path {
-	case "native policy upgrade", "native policy configure", "native policy evaluate", "native policy approve", "native policy status", "accept apply-native", "native acceptance upgrade", "native acceptance candidate":
+	case "native controller upgrade", "native controller configure", "native controller start", "native controller step", "native controller reconcile", "native controller status", "native controller enroll", "native policy upgrade", "native policy configure", "native policy evaluate", "native policy approve", "native policy status", "accept apply-native", "native acceptance upgrade", "native acceptance candidate":
 		return true
 	case "native budget upgrade", "native budget configure", "native budget quote", "native budget status", "native budget settle", "native budget controller add":
 		return true

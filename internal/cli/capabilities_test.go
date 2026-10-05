@@ -18,11 +18,12 @@ import (
 // registry projection below. A command/flag/tool addition or removal must be
 // reviewed as a compatibility-surface change and deliberately update it.
 // This projection includes owner migration and excludes legacy provider launchers.
+// Seven controller commands add explicit owner enrollment/start and scoped CAS operations.
 // The six checkpoint commands preserve owner/controller mutation boundaries;
 // configure, record, reconcile and status emit typed JSON.
 // Native acceptance adds owner-only upgrade/apply and reviewer candidate export;
 // candidate/apply emit typed JSON, with no legacy or MCP write fallback.
-const capabilityRegistryGolden = "93d26ea7a093aba3e92574fa6036dfde7993855b9a78eac8701f3c16dd57ca9c"
+const capabilityRegistryGolden = "3718f04fa26a6cc75e43a3131b876c1ceb819869a0f7ca4cbd5c9c625bc483a3"
 
 func TestCapabilityRegistryGolden(t *testing.T) {
 	m := capabilityManifest()
