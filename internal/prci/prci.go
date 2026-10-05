@@ -89,6 +89,11 @@ func Diagnose(in Input) Result {
 		return classifyAccess(*in.AccessFailure)
 	}
 
+	// A branch name or historical PR is not an observation of its current commit.
+	if in.CanonicalHead == "" || in.CanonicalHeadOID == "" {
+		return unknownEvidence("local_git", "canonical task head commit could not be observed", "")
+	}
+
 	matching := make([]PullRequest, 0)
 	for _, pr := range in.PullRequests {
 		if pr.Head == in.CanonicalHead {
@@ -191,6 +196,28 @@ func Diagnose(in Input) Result {
 			return withPR(r, current, superseded)
 		}
 	}
+	for _, w := range in.WorkflowRuns {
+		if pending(w.Status) {
+			r = result("ci_pending", "A workflow is still running or waiting", true,
+				"Wait for the existing workflow; inspect its waiting reason rather than starting a duplicate run.", ev("workflow_run", w.Name+" status="+w.Status, w.URL))
+			return withPR(r, current, superseded)
+		}
+	}
+	// Presence of evidence alone is not success. Preserve unknown upstream values
+	// rather than treating a new or incomplete GitHub enum as a passed gate.
+	if (state != "OPEN" && state != "MERGED") || (merge != "CLEAN" && merge != "HAS_HOOKS") || (current.ReviewDecision != "" && !strings.EqualFold(current.ReviewDecision, "APPROVED")) {
+		return withPR(unknownEvidence("pull_request", "unresolved PR state, merge state, or review decision", current.URL), current, superseded)
+	}
+	for _, c := range all {
+		if !terminalSuccess(c.Status, c.Conclusion) {
+			return withPR(unknownEvidence("check_run", c.Name+" status="+c.Status+" conclusion="+c.Conclusion, c.URL), current, superseded)
+		}
+	}
+	for _, w := range in.WorkflowRuns {
+		if !terminalSuccess(w.Status, w.Conclusion) {
+			return withPR(unknownEvidence("workflow_run", w.Name+" status="+w.Status+" conclusion="+w.Conclusion, w.URL), current, superseded)
+		}
+	}
 	if len(all) > 0 || len(in.WorkflowRuns) > 0 {
 		r = result("ready", "The canonical pull request has no diagnosed blocker", false,
 			"Continue with the configured review and landing policy.", ev("pull_request", "canonical PR evidence inspected", current.URL))
@@ -226,7 +253,9 @@ func withPR(r Result, pr *PullRequest, old []PullRequest) Result {
 }
 
 func queuedTooLong(status string, started *time.Time, now time.Time) bool {
-	return pending(status) && started != nil && now.Sub(*started) > RunnerQueueThreshold
+	// Waiting may require environment approval; in-progress work has a runner.
+	s := strings.ToLower(status)
+	return (s == "queued" || s == "pending" || s == "requested") && started != nil && now.Sub(*started) > RunnerQueueThreshold
 }
 func pending(s string) bool {
 	s = strings.ToLower(s)
@@ -296,4 +325,20 @@ func classifyAccess(f AccessFailure) Result {
 	default:
 		return result("unknown", "GitHub failed without enough evidence to classify the cause", true, "Preserve the raw GitHub response and inspect authentication, permissions, rate limits, and service status before retrying.", e)
 	}
+}
+
+func terminalSuccess(status, conclusion string) bool {
+	if !strings.EqualFold(status, "completed") {
+		return false
+	}
+	switch strings.ToLower(conclusion) {
+	case "success", "neutral", "skipped":
+		return true
+	default:
+		return false
+	}
+}
+func unknownEvidence(source, message, url string) Result {
+	return result("unknown", "Available evidence does not establish canonical PR readiness", true,
+		"Inspect the canonical local branch and exact GitHub PR/check/workflow response; resolve missing or unknown fields before continuing.", ev(source, message, url))
 }

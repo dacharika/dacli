@@ -145,3 +145,53 @@ func TestRunnerThresholdIsDocumentedAndStable(t *testing.T) {
 		t.Fatalf("threshold=%s", prci.RunnerQueueThreshold)
 	}
 }
+
+func TestExact540UnobservableCanonicalHeadMustNotUseHistoricalPR(t *testing.T) {
+	dir, _, _ := prIntegrateEnv(t)
+	head := "dacli/missing-local-canonical-head"
+	stubGH(t, func(_ string, args ...string) (string, error) {
+		joined := strings.Join(args, " ")
+		switch {
+		case strings.HasPrefix(joined, "repo view"):
+			return "o/r", nil
+		case strings.HasPrefix(joined, "pr list"):
+			return fmt.Sprintf(`[{"number":1,"state":"OPEN","headRefName":%q,"headRefOid":"historical-first","mergeStateStatus":"CLEAN"},{"number":2,"state":"OPEN","headRefName":%q,"headRefOid":"different-generation","mergeStateStatus":"CLEAN"}]`, head, head), nil
+		case strings.Contains(joined, "/check-runs"):
+			return `{"check_runs":[{"id":1,"name":"unit","status":"completed","conclusion":"success"}]}`, nil
+		case strings.HasPrefix(joined, "run list"):
+			return `[]`, nil
+		default:
+			return "", errors.New("unexpected fixture read")
+		}
+	})
+	in := collectPRDiagnosisFromGitHub(dir, head)
+	got := prci.Diagnose(in)
+	if got.Code != "unknown" || in.CanonicalHeadOID != "" {
+		t.Fatalf("unobservable canonical head adopted historical generation: code=%s oid=%s pr=%+v", got.Code, in.CanonicalHeadOID, got.PullRequest)
+	}
+}
+
+func TestWorkflowWithoutExactHeadIsNotCanonicalEvidence(t *testing.T) {
+	dir, _, tk := prIntegrateEnv(t)
+	head := BranchFor(tk)
+	oid := gitRef(t, dir, head)
+	stubGH(t, func(_ string, args ...string) (string, error) {
+		joined := strings.Join(args, " ")
+		switch {
+		case strings.HasPrefix(joined, "repo view"):
+			return "o/r", nil
+		case strings.HasPrefix(joined, "pr list"):
+			return fmt.Sprintf(`[{"number":1,"state":"OPEN","headRefName":%q,"headRefOid":%q,"mergeStateStatus":"CLEAN"}]`, head, oid), nil
+		case strings.Contains(joined, "/check-runs"):
+			return `{"check_runs":[]}`, nil
+		case strings.HasPrefix(joined, "run list"):
+			return `[{"name":"unbound workflow","status":"completed","conclusion":"success"}]`, nil
+		default:
+			return "", errors.New("unexpected fixture read")
+		}
+	})
+	in := collectPRDiagnosisFromGitHub(dir, head)
+	if got := prci.Diagnose(in); got.Code != "unknown" || len(in.WorkflowRuns) != 0 {
+		t.Fatalf("unbound workflow became canonical evidence: %+v input=%+v", got, in)
+	}
+}

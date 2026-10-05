@@ -181,14 +181,6 @@ func collectPRDiagnosisFromGitHub(root, head string) prci.Input {
 		in.PullRequests = append(in.PullRequests, prci.PullRequest{Number: p.Number, URL: p.URL, State: p.State, Head: p.HeadRefName, HeadOID: p.HeadRefOID, MergeState: p.MergeState, ReviewDecision: p.ReviewDecision})
 	}
 	if in.CanonicalHeadOID == "" {
-		for _, p := range in.PullRequests {
-			if p.Head == head && p.Number > 0 {
-				in.CanonicalHeadOID = p.HeadOID
-				break
-			}
-		}
-	}
-	if in.CanonicalHeadOID == "" {
 		return in
 	}
 	checksOut, err := runGH(root, "api", "repos/"+repo+"/commits/"+in.CanonicalHeadOID+"/check-runs")
@@ -232,7 +224,7 @@ func collectPRDiagnosisFromGitHub(root, head string) prci.Input {
 		return in
 	}
 	for _, r := range runs {
-		if r.HeadSHA != "" && r.HeadSHA != in.CanonicalHeadOID {
+		if r.HeadSHA != in.CanonicalHeadOID {
 			continue
 		}
 		name := r.Name

@@ -1,6 +1,7 @@
 package prci
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -78,9 +79,93 @@ func TestCanonicalGenerationUsesHeadOIDNotFirstHistoricalPR(t *testing.T) {
 		{Number: 11, State: "OPEN", Head: "dacli/858", HeadOID: "old", MergeState: "DIRTY"},
 		{Number: 12, State: "OPEN", Head: "somewhere-else", HeadOID: "current", MergeState: "DIRTY"},
 		{Number: 13, State: "OPEN", Head: "dacli/858", HeadOID: "current", MergeState: "CLEAN"},
-	}, Checks: []Check{{Name: "unit", Conclusion: "SUCCESS"}}}
+	}, Checks: []Check{{Name: "unit", Status: "completed", Conclusion: "SUCCESS"}}}
 	got := Diagnose(in)
 	if got.Code != "ready" || got.PullRequest == nil || got.PullRequest.Number != 13 || len(got.SupersededPRs) != 1 || got.SupersededPRs[0].Number != 11 {
 		t.Fatalf("canonical generation resolution=%#v", got)
+	}
+}
+
+func TestExact540WorkflowOnlyPendingMustNotBeReady(t *testing.T) {
+	now := time.Now()
+	recent := now.Add(-time.Minute)
+	in := Input{CanonicalHead: "task", CanonicalHeadOID: "current", Now: now, PullRequests: []PullRequest{{Number: 1, State: "OPEN", Head: "task", HeadOID: "current", MergeState: "CLEAN"}}, WorkflowRuns: []WorkflowRun{{Name: "unit", Status: "in_progress", CreatedAt: &recent}}}
+	got := Diagnose(in)
+	if got.Code != "ci_pending" || !got.Retryable {
+		t.Fatalf("workflow-only pending falsely classified: %+v", got)
+	}
+}
+
+func TestExact540RunningPastQueueThresholdIsNotRunnerUnavailable(t *testing.T) {
+	now := time.Now()
+	old := now.Add(-31 * time.Minute)
+	got := Diagnose(Input{CanonicalHead: "task", CanonicalHeadOID: "current", Now: now, PullRequests: []PullRequest{{Number: 1, State: "OPEN", Head: "task", HeadOID: "current", MergeState: "CLEAN"}}, Checks: []Check{{Name: "long running", Status: "in_progress", StartedAt: &old}}})
+	if got.Code != "ci_pending" || !got.Retryable {
+		t.Fatalf("running job mislabeled queued runner unavailable: %+v", got)
+	}
+}
+
+func TestUnknownEvidenceNeverReady(t *testing.T) {
+	base := Input{CanonicalHead: "task", CanonicalHeadOID: "current", PullRequests: []PullRequest{{Number: 1, State: "OPEN", Head: "task", HeadOID: "current", MergeState: "CLEAN"}}, Checks: []Check{{Name: "unit", Status: "completed", Conclusion: "success"}}}
+	for _, field := range []string{"pr-state", "merge-state", "review-decision", "check-status", "check-conclusion", "workflow-status", "workflow-conclusion", "missing-canonical-head"} {
+		t.Run(field, func(t *testing.T) {
+			in := base
+			in.PullRequests = append([]PullRequest(nil), base.PullRequests...)
+			in.Checks = append([]Check(nil), base.Checks...)
+			switch field {
+			case "pr-state":
+				in.PullRequests[0].State = "unexpected"
+			case "merge-state":
+				in.PullRequests[0].MergeState = ""
+			case "review-decision":
+				in.PullRequests[0].ReviewDecision = "unexpected"
+			case "check-status":
+				in.Checks[0].Status = ""
+			case "check-conclusion":
+				in.Checks[0].Conclusion = "unexpected"
+			case "workflow-status":
+				in.WorkflowRuns = []WorkflowRun{{Name: "workflow", Status: "unexpected", Conclusion: "success"}}
+			case "workflow-conclusion":
+				in.WorkflowRuns = []WorkflowRun{{Name: "workflow", Status: "completed"}}
+			case "missing-canonical-head":
+				in.CanonicalHeadOID = ""
+			}
+			got := Diagnose(in)
+			if got.Code != "unknown" || !got.Retryable || got.Next == "" || len(got.Evidence) == 0 {
+				t.Fatalf("unknown evidence became ready or lost actionable diagnosis (%s): %+v", field, got)
+			}
+		})
+	}
+}
+func TestQueueThresholdDistinguishesWaitingRunningAndQueue(t *testing.T) {
+	now := time.Date(2026, 10, 5, 12, 0, 0, 0, time.UTC)
+	old := now.Add(-31 * time.Minute)
+	for _, status := range []string{"queued", "pending", "requested", "waiting", "in_progress"} {
+		for _, workflow := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/workflow=%t", status, workflow), func(t *testing.T) {
+				in := Input{CanonicalHead: "task", CanonicalHeadOID: "current", Now: now, PullRequests: []PullRequest{{Number: 1, State: "OPEN", Head: "task", HeadOID: "current", MergeState: "CLEAN"}}}
+				if workflow {
+					in.WorkflowRuns = []WorkflowRun{{Name: "CI", Status: status, CreatedAt: &old}}
+				} else {
+					in.Checks = []Check{{Name: "CI", Status: status, StartedAt: &old}}
+				}
+				want := "runner_unavailable"
+				if status == "waiting" || status == "in_progress" {
+					want = "ci_pending"
+				}
+				got := Diagnose(in)
+				if got.Code != want || !got.Retryable {
+					t.Fatalf("queue-only threshold classification (%s): %+v", want, got)
+				}
+			})
+		}
+	}
+}
+func TestRecognizedTerminalChecksCanBeReady(t *testing.T) {
+	for _, conclusion := range []string{"success", "neutral", "skipped"} {
+		in := Input{CanonicalHead: "task", CanonicalHeadOID: "current", PullRequests: []PullRequest{{Number: 1, State: "OPEN", Head: "task", HeadOID: "current", MergeState: "CLEAN"}}, Checks: []Check{{Name: "unit", Status: "completed", Conclusion: conclusion}}, WorkflowRuns: []WorkflowRun{{Name: "workflow", Status: "completed", Conclusion: conclusion}}}
+		if got := Diagnose(in); got.Code != "ready" {
+			t.Fatalf("recognized terminal success refused: %+v", got)
+		}
 	}
 }
