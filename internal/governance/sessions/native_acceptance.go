@@ -127,13 +127,28 @@ func (a *Authority) acceptanceCurrent(s *state, r NativeAcceptanceInput, closing
 
 // BeginNativeAcceptance persists retirement before any canonical side effect.
 func (a *Authority) BeginNativeAcceptance(owner string, r NativeAcceptanceInput, prepare func(NativeAcceptanceRecord) (string, error)) (NativeAcceptanceRecord, error) {
+	return a.beginNativeAcceptance(owner, r, "", prepare)
+}
+func (a *Authority) BeginNativeAcceptanceWithPolicy(owner string, r NativeAcceptanceInput, decisionID string, prepare func(NativeAcceptanceRecord) (string, error)) (NativeAcceptanceRecord, error) {
+	return a.beginNativeAcceptance(owner, r, decisionID, prepare)
+}
+func (a *Authority) beginNativeAcceptance(owner string, r NativeAcceptanceInput, decisionID string, prepare func(NativeAcceptanceRecord) (string, error)) (NativeAcceptanceRecord, error) {
 	var out NativeAcceptanceRecord
 	e := a.transaction(false, true, func(s *state) error {
 		if e := nativeAcceptanceOwner(s, owner, r, a.binding); e != nil {
 			return e
 		}
+		if decisionID != "" && s.Version < 15 {
+			return ErrDenied
+		}
 		digest := identity("native-acceptance-operation", "", r)
 		if old, ok := s.NativeAcceptanceOperations[r.OperationKey]; ok {
+			if s.Version >= 15 {
+				d, ok := nativePolicyForOperation(s, r.OperationKey)
+				if (ok && d.ID != decisionID) || (!ok && decisionID != "") {
+					return ErrDenied
+				}
+			}
 			if old.InputDigest != digest {
 				return ErrDenied
 			}
@@ -148,7 +163,19 @@ func (a *Authority) BeginNativeAcceptance(owner string, r NativeAcceptanceInput,
 			return e
 		}
 		out = NativeAcceptanceRecord{OperationKey: r.OperationKey, InputDigest: digest, State: "closing", Candidate: c, CreatedAt: time.Now().UTC()}
-		out.CanonicalReceiptDigest = identity("native-acceptance-receipt", "", out)
+		var decision NativePolicyDecision
+		if s.Version >= 15 {
+			var ok bool
+			decision, ok = s.NativePolicyDecisions[decisionID]
+			if !ok || !reflect.DeepEqual(decision.Input, r) || nativePolicyCurrent(s, decision, time.Now()) != nil {
+				return ErrDenied
+			}
+			if _, used := s.NativePolicyConsumptions[decisionID]; used {
+				return ErrDenied
+			}
+			out = decision.Prepared
+		}
+		out.CanonicalReceiptDigest = identity("native-acceptance-receipt", "", NativeAcceptanceRecord{OperationKey: out.OperationKey, InputDigest: out.InputDigest, State: out.State, Candidate: out.Candidate, CreatedAt: out.CreatedAt})
 		if prepare == nil {
 			return ErrDenied
 		}
@@ -158,6 +185,13 @@ func (a *Authority) BeginNativeAcceptance(owner string, r NativeAcceptanceInput,
 		}
 		if _, e = a.acceptanceCurrent(s, r, ""); e != nil {
 			return e
+		}
+		if s.Version >= 15 {
+			if out.CanonicalOutcomeDigest != decision.Prepared.CanonicalOutcomeDigest || nativePolicyCurrent(s, decision, time.Now()) != nil {
+				return ErrDenied
+			}
+			s.NativePolicyConsumptions[decisionID] = NativePolicyConsumption{decisionID, r.OperationKey, decision.ActionDigest, out.CanonicalOutcomeDigest, time.Now().UTC()}
+			s.NativePolicyOutcomes[r.OperationKey] = NativePolicyOutcome{OperationKey: r.OperationKey, DecisionID: decisionID, State: "unknown", ExpectedOutcomeDigest: out.CanonicalOutcomeDigest}
 		}
 		s.TaskTerminals[r.TaskID] = out
 		s.NativeAcceptanceOperations[r.OperationKey] = out
@@ -219,12 +253,23 @@ func (a *Authority) ContinueNativeAcceptance(owner string, r NativeAcceptanceInp
 			if e != nil || !reflect.DeepEqual(current, p.Revision) {
 				return ErrDenied
 			}
+			if s.Version >= 15 {
+				d, ok := nativePolicyForOperation(s, r.OperationKey)
+				if !ok || !reflect.DeepEqual(d.Input, r) || d.Prepared.CanonicalOutcomeDigest != rec.CanonicalOutcomeDigest || nativePolicyCurrent(s, d, time.Now()) != nil {
+					return ErrDenied
+				}
+			}
 			if e = closeTask(rec); e != nil {
 				return e
 			}
 			closed, e = inspect(rec)
 			if e != nil || !closed {
 				return ErrReconcile
+			}
+		}
+		if s.Version >= 15 {
+			if d, ok := nativePolicyForOperation(s, r.OperationKey); ok {
+				s.NativePolicyOutcomes[r.OperationKey] = NativePolicyOutcome{OperationKey: r.OperationKey, DecisionID: d.ID, State: "closed", ExpectedOutcomeDigest: rec.CanonicalOutcomeDigest, ObservedOutcomeDigest: rec.CanonicalOutcomeDigest, ObservedAt: time.Now().UTC()}
 			}
 		}
 		rec.State = "closed"

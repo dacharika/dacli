@@ -39,10 +39,20 @@ func (o *nativeAcceptanceObserver) ObserveReview(workspaceID, project, task stri
 // transaction. Canonical and authority stores are not crash-atomic; exact readback
 // repairs only this operation's canonical success and never restores task writers.
 func (p *NativeAcceptanceOwner) Apply(input sessions.NativeAcceptanceInput, base string) (sessions.NativeAcceptanceResult, error) {
+	return p.ApplyWithPolicy(input, base, "")
+}
+func (p *NativeAcceptanceOwner) ApplyWithPolicy(input sessions.NativeAcceptanceInput, base, decisionID string) (sessions.NativeAcceptanceResult, error) {
 	a, owner, observer, e := p.authenticate()
 	if e != nil {
 		return sessions.NativeAcceptanceResult{}, e
 	}
+	if decisionID != "" {
+		status, e := a.ReadNativePolicyStatus(owner, decisionID)
+		if e != nil || !reflect.DeepEqual(status.Decision.Input, input) {
+			return sessions.NativeAcceptanceResult{}, sessions.ErrDenied
+		}
+	}
+
 	if input.ProjectID != p.policy.ProjectID || input.TaskID != p.policy.TaskID || input.WorkspaceID != p.policy.WorkspaceID {
 		return sessions.NativeAcceptanceResult{}, sessions.ErrDenied
 	}
@@ -68,7 +78,7 @@ func (p *NativeAcceptanceOwner) Apply(input sessions.NativeAcceptanceInput, base
 			prepared = body
 			return digest, e
 		}
-		rec, e := a.BeginNativeAcceptance(owner, input, prepare)
+		rec, e := a.BeginNativeAcceptanceWithPolicy(owner, input, decisionID, prepare)
 		if e != nil {
 			return e
 		}

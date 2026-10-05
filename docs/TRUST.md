@@ -480,3 +480,18 @@ Applied. Exact raw canonical DONE readback plus durable finalization is required
 tracked partial effects refuse with explicit owner-reconciliation policy exit3.
 No native acceptance route launches a process, borrows a runner/reviewer credential,
 releases a lease or falls back to legacy proposals.
+
+`native policy upgrade` explicitly migrates14→15 while preserving existing history.
+`native policy configure` records owner policy revisions; historical retries cannot
+replace the current revision or undo STOP. `native policy evaluate` records an
+immutable assessment without performing its requested action. `native policy approve`
+records an owner approval bound to one decision; it does not consume that decision.
+These owner-authenticated commands append history. Change policy with a new revision;
+do not edit or delete historical records to undo an assessment or approval.
+
+Native schema15 local policy decisions are immutable permission history. Only the
+owner-authenticated native acceptance consumer can bind consumption atomically to
+closing retirement and then record exact canonical action readback. No public
+receipt grants bearer permission. Unknown outcomes expose expected and observed
+digests separately; existing historical publication consumption remains historical.
+See [native policy](GOVERNANCE_NATIVE_POLICY.md).

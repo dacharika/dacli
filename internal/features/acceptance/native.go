@@ -9,14 +9,14 @@ import (
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
 )
 
-const nativeApplyUsage = "dacli accept apply-native --config <owner> --review-policy <policy> --request <input>"
+const nativeApplyUsage = "dacli accept apply-native --config <owner> --review-policy <policy> --request <input> [--decision <id>]"
 
 func cmdAcceptApplyNative(ctx *clikit.Ctx, args []string) error {
 	f, e := clikit.ParseFlags(args)
 	if e != nil {
 		return e
 	}
-	if e = f.Reject("config", "review-policy", "request"); e != nil {
+	if e = f.Reject("config", "review-policy", "request", "decision"); e != nil {
 		return e
 	}
 	if len(f.Pos) != 0 || f.Get("config") == "" || f.Get("review-policy") == "" || f.Get("request") == "" {
@@ -31,7 +31,7 @@ func cmdAcceptApplyNative(ctx *clikit.Ctx, args []string) error {
 	if e != nil || nativeconfig.Decode(raw, &input) != nil {
 		return clikit.Refusedf("native acceptance input unavailable or invalid")
 	}
-	out, e := owner.Apply(input, "")
+	out, e := owner.ApplyWithPolicy(input, "", f.Get("decision"))
 	if e != nil {
 		return nativeAcceptanceError(e)
 	}

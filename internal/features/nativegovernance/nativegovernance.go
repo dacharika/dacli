@@ -20,6 +20,11 @@ import (
 )
 
 var Commands = []clikit.Command{
+	{Path: "native policy upgrade", Brief: "Explicit owner upgrades native policy", Mutates: true, Usage: "dacli native policy upgrade --config <owner>", Run: nativePolicyUpgrade},
+	{Path: "native policy configure", Brief: "Owner configures exact native action policy", Mutates: true, Usage: "dacli native policy configure --config <owner> --request <policy>", Run: nativePolicyConfigure},
+	{Path: "native policy evaluate", Brief: "Owner evaluates exact native acceptance without canonical effect", Mutates: true, JSON: true, Usage: "dacli native policy evaluate --config <owner> --review-policy <policy> --request <evaluation>", Run: nativePolicyEvaluate},
+	{Path: "native policy approve", Brief: "Owner records exact decision approval", Mutates: true, JSON: true, Usage: "dacli native policy approve --config <owner> --request <approval>", Run: nativePolicyApprove},
+	{Path: "native policy status", Brief: "Owner observes historical decision and outcome", JSON: true, Usage: "dacli native policy status --config <owner> --decision <id>", Run: nativePolicyStatus},
 	{Path: "native acceptance upgrade", Brief: "Explicit owner upgrades durable canonical acceptance", Mutates: true, Usage: "dacli native acceptance upgrade --config <owner>", Run: nativeAcceptanceUpgrade},
 	{Path: "native acceptance candidate", Brief: "Independent authenticated reviewer exports exact eligible producers", JSON: true, Usage: "dacli native acceptance candidate --connection <reviewer> --review-config <profile> --review <id>", Run: nativeAcceptanceCandidate},
 	{Path: "native budget upgrade", Brief: "upgrade owner-estimated native budget policy", Mutates: true, JSON: false, Usage: "dacli native budget upgrade --config <private-file>", Run: func(c *clikit.Ctx, a []string) error { return budgetOwner(c, a, "upgrade") }},
@@ -77,7 +82,7 @@ var Commands = []clikit.Command{
 // AuthenticatesExplicitly lists exactly the handlers exempt from the legacy grant gate.
 func AuthenticatesExplicitly(path string) bool {
 	switch path {
-	case "accept apply-native", "native acceptance upgrade", "native acceptance candidate":
+	case "native policy upgrade", "native policy configure", "native policy evaluate", "native policy approve", "native policy status", "accept apply-native", "native acceptance upgrade", "native acceptance candidate":
 		return true
 	case "native budget upgrade", "native budget configure", "native budget quote", "native budget status", "native budget settle", "native budget controller add":
 		return true

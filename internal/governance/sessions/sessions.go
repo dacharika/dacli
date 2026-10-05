@@ -47,6 +47,12 @@ type record struct {
 	Hash string
 }
 type state struct {
+	NativePolicies             map[string]NativePolicy
+	NativePolicyHistory        map[string]NativePolicy
+	NativePolicyDecisions      map[string]NativePolicyDecision
+	NativePolicyApprovals      map[string]NativePolicyApproval
+	NativePolicyConsumptions   map[string]NativePolicyConsumption
+	NativePolicyOutcomes       map[string]NativePolicyOutcome
 	TaskTerminals              map[string]NativeAcceptanceRecord
 	NativeAcceptanceOperations map[string]NativeAcceptanceRecord
 
@@ -222,7 +228,7 @@ func (a *Authority) transaction(create bool, write bool, fn func(*state) error) 
 		}
 	} else {
 		s = state{}
-		if err != nil || json.Unmarshal(data, &s) != nil || (s.Version != a.version && !((a.version >= 6 && a.version <= 12) && s.Version >= a.version && s.Version <= 14)) || s.Binding != a.binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version >= 3 && (s.Leases == nil || s.Operations == nil)) || (s.Version >= 4 && (s.Revisions == nil || s.Grants == nil || s.Evidence == nil)) || (s.Version >= 5 && (s.ReviewGrants == nil || s.Reviews == nil)) || (s.Version >= 6 && (s.PublicationPolicies == nil || s.PublicationDecisions == nil || s.PublicationConsumed == nil)) {
+		if err != nil || json.Unmarshal(data, &s) != nil || (s.Version != a.version && !((a.version >= 6 && a.version <= 12) && s.Version >= a.version && s.Version <= 15)) || s.Binding != a.binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version >= 3 && (s.Leases == nil || s.Operations == nil)) || (s.Version >= 4 && (s.Revisions == nil || s.Grants == nil || s.Evidence == nil)) || (s.Version >= 5 && (s.ReviewGrants == nil || s.Reviews == nil)) || (s.Version >= 6 && (s.PublicationPolicies == nil || s.PublicationDecisions == nil || s.PublicationConsumed == nil)) {
 			return ErrStorage
 		}
 	}
@@ -264,6 +270,12 @@ func (a *Authority) transaction(create bool, write bool, fn func(*state) error) 
 		return ErrDenied
 	}
 
+	if s.Version < 15 && (s.NativePolicies != nil || s.NativePolicyHistory != nil || s.NativePolicyDecisions != nil || s.NativePolicyApprovals != nil || s.NativePolicyConsumptions != nil || s.NativePolicyOutcomes != nil) {
+		return ErrDenied
+	}
+	if s.Version >= 15 && (s.NativePolicies == nil || s.NativePolicyHistory == nil || s.NativePolicyDecisions == nil || s.NativePolicyApprovals == nil || s.NativePolicyConsumptions == nil || s.NativePolicyOutcomes == nil) {
+		return ErrDenied
+	}
 	if s.Version < 14 && (s.TaskTerminals != nil || s.NativeAcceptanceOperations != nil) {
 		return ErrDenied
 	}
