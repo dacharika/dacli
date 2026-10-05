@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mlnomadpy/dacli/internal/governance/sessions"
 	"github.com/mlnomadpy/dacli/internal/model"
 	"github.com/mlnomadpy/dacli/internal/store"
 	"github.com/mlnomadpy/dacli/internal/workspace"
@@ -30,6 +31,7 @@ const AlertFactor = 1.5
 // a workspace with no usage-bearing runs yields an empty series and a zero
 // ceiling, and the chart says so rather than fabricating a line.
 type burnView struct {
+	Native []sessions.DashboardSnapshot `json:"native,omitempty"`
 	// Unit names what Series/Ceiling/Rate are measured in — output tokens, the
 	// unit calibration prefers over the wall-clock proxy (store.CalibSample).
 	Unit string `json:"unit"`

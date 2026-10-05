@@ -328,6 +328,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
       '/api/burn',
       (payload) => ({
         unit: payload.unit,
+        native: payload.native,
         series: payload.series,
         hidden_points: payload.hidden_points,
         bands: payload.bands,

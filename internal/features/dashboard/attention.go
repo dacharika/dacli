@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mlnomadpy/dacli/internal/governance/sessions"
 	"github.com/mlnomadpy/dacli/internal/model"
 	"github.com/mlnomadpy/dacli/internal/store"
 	"github.com/mlnomadpy/dacli/internal/workspace"
@@ -15,11 +16,12 @@ import (
 const operatorAttentionSchema = "operator-attention/v1"
 
 type operatorAttentionResponse struct {
-	Schema    string                  `json:"schema"`
-	Generated string                  `json:"generated"`
-	Project   string                  `json:"project,omitempty"`
-	Alerts    []operatorAttentionItem `json:"alerts"`
-	Rule      string                  `json:"ranking_rule"`
+	Native    []sessions.DashboardSnapshot `json:"native,omitempty"`
+	Schema    string                       `json:"schema"`
+	Generated string                       `json:"generated"`
+	Project   string                       `json:"project,omitempty"`
+	Alerts    []operatorAttentionItem      `json:"alerts"`
+	Rule      string                       `json:"ranking_rule"`
 }
 
 type attentionAffected struct {

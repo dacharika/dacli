@@ -33,7 +33,7 @@ import (
 )
 
 var Commands = []clikit.Command{
-	{Path: "dashboard", Brief: "Serve a local web UI: projects, burndown, and the live agent swarm", Usage: "dacli dashboard [--port N]", Run: cmdDashboard},
+	{Path: "dashboard", Brief: "Serve a local web UI: projects, burndown, and the live agent swarm", Usage: "dacli dashboard [--port N] [--native-connection FILE]", Run: cmdDashboard},
 }
 
 // legacyIndexHTML is the original self-contained dashboard: one file that polls
@@ -78,7 +78,7 @@ func cmdDashboard(ctx *clikit.Ctx, args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := f.Reject("port"); err != nil {
+	if err := f.Reject("port", "native-connection"); err != nil {
 		return err
 	}
 	port := 0
@@ -98,7 +98,7 @@ func cmdDashboard(ctx *clikit.Ctx, args []string) error {
 	// open indefinitely (gosec G114). The deadlines are generous because a
 	// large transcript.log served over loopback should never approach them.
 	srv := &http.Server{
-		Handler:           newHandler(w),
+		Handler:           newHandlerNative(w, openNativeReader(f.Get("native-connection"), w)),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,
@@ -113,7 +113,8 @@ func cmdDashboard(ctx *clikit.Ctx, args []string) error {
 // each request — no cache — so a poll always reflects the live store and event
 // log (the same honesty rule buildState follows). Factored out so tests can
 // drive it through httptest without binding a real port.
-func newHandler(w *workspace.Workspace) http.Handler {
+func newHandler(w *workspace.Workspace) http.Handler { return newHandlerNative(w, nil) }
+func newHandlerNative(w *workspace.Workspace, native nativeDashboardReader) http.Handler {
 	mux := http.NewServeMux()
 	outcomes := newOutcomeCache()
 	mux.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) {
@@ -169,7 +170,7 @@ func newHandler(w *workspace.Workspace) http.Handler {
 	// envelope wraps the same buildBurn payload embedded in /api/state, so the
 	// standalone surface and the combined snapshot can never disagree.
 	mux.HandleFunc("/api/burn", apiGuard(func(rw http.ResponseWriter, r *http.Request) {
-		writeJSON(rw, func() (any, error) { return buildBurnResponse(w) })
+		writeJSON(rw, func() (any, error) { return buildNativeBurn(w, native) })
 	}))
 	// Outcome analytics compares adjacent bounded windows from one indexed scan.
 	// Missing historical timestamps, usage, or provider cost remain explicitly
@@ -259,7 +260,7 @@ func newHandler(w *workspace.Workspace) http.Handler {
 			http.Error(rw, "invalid ref parameter: a task ref is a single path segment", http.StatusBadRequest)
 			return
 		}
-		writeJSON(rw, func() (any, error) { return buildTaskDetail(w, ref) })
+		writeJSON(rw, func() (any, error) { return buildNativeTaskDetail(w, native, ref) })
 	}))
 	mux.HandleFunc("/api/delivery-timeline", apiGuard(func(rw http.ResponseWriter, r *http.Request) {
 		ref := r.URL.Query().Get("task")
@@ -281,7 +282,7 @@ func newHandler(w *workspace.Workspace) http.Handler {
 			http.Error(rw, "invalid project parameter", http.StatusBadRequest)
 			return
 		}
-		writeJSON(rw, func() (any, error) { return buildOperatorAttention(w, project, time.Now()) })
+		writeJSON(rw, func() (any, error) { return buildNativeAttention(w, native, project) })
 	}))
 	mux.HandleFunc("/api/events", apiGuard(func(rw http.ResponseWriter, r *http.Request) {
 		// An absent ?task= is the whole log — a legitimate query, not a bad param.

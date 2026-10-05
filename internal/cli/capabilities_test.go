@@ -23,7 +23,8 @@ import (
 // configure, record, reconcile and status emit typed JSON.
 // Native acceptance adds owner-only upgrade/apply and reviewer candidate export;
 // candidate/apply emit typed JSON, with no legacy or MCP write fallback.
-const capabilityRegistryGolden = "3718f04fa26a6cc75e43a3131b876c1ceb819869a0f7ca4cbd5c9c625bc483a3"
+// Dashboard adds the explicit optional private reader connection flag; no new mutation.
+const capabilityRegistryGolden = "31a8a4f162cd510f959faac685cc2cc7ea53e284314f97e29c1eac793d24edc4"
 
 func TestCapabilityRegistryGolden(t *testing.T) {
 	m := capabilityManifest()

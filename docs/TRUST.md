@@ -507,3 +507,15 @@ preserve their original exit3/exit1 classification on immutable replay. Pending
 host/command/integration knowledge is not completion, and only explicit owner
 recovery can release retained protection. See
 [native controller](GOVERNANCE_NATIVE_CONTROLLER.md).
+
+### Native dashboard reads
+
+`dashboard --native-connection` selects an explicit private reader profile.
+It does not enroll, migrate, execute producers, approve decisions, consume
+permits or release leases. Exact-task reads derive project identity from the
+reader's authorized task binding; project-wide reads also require project scope.
+The bounded shared projection exports public identity/reference DTOs, never raw
+authority, credentials, private connection paths, check commands or transcripts.
+Nullable provider usage and owner allocation estimates remain separate. See
+[native dashboard](GOVERNANCE_NATIVE_DASHBOARD.md) for unsupported, permission,
+limited and historical states.

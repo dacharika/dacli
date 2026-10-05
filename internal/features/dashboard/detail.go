@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/mlnomadpy/dacli/internal/eventlog"
+	"github.com/mlnomadpy/dacli/internal/governance/sessions"
 	"github.com/mlnomadpy/dacli/internal/model"
 	"github.com/mlnomadpy/dacli/internal/procmon"
 	"github.com/mlnomadpy/dacli/internal/publication"
@@ -117,6 +118,7 @@ type taskDetailResponse struct {
 }
 
 type taskDetailView struct {
+	Native *sessions.DashboardSnapshot `json:"native,omitempty"`
 	taskView
 	// Estimate is the three points behind taskView.Points; null when the task is
 	// unestimated. The spread is the risk statement a scalar hides, so it is
