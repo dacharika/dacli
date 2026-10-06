@@ -72,7 +72,7 @@ func evidenceSetupDelegated(t *testing.T, delegated bool) evidenceFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	check := CheckDescriptor{"test", "printf harmless", time.Second}
+	check := CheckDescriptor{ID: "test", Command: "printf harmless", Deadline: time.Second}
 	grant, err := a.GrantVerification(owner, runner.ID, "task-a", at.Observation.Repository, check, time.Now().Add(10*time.Minute))
 	if err != nil {
 		t.Fatal(err)

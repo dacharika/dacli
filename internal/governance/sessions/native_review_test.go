@@ -35,7 +35,7 @@ func nativeReviewSetup(t *testing.T) nativeReviewFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	observer := &testReviewObserver{ReviewObservation{OutputDigest([]byte("checklist")), "policy-1", []RequiredCheck{{f.check.ID, CheckDigest(f.check)}}}}
+	observer := &testReviewObserver{ReviewObservation{ChecklistDigest: OutputDigest([]byte("checklist")), PolicyRevision: "policy-1", Checks: []RequiredCheck{{f.check.ID, CheckDigest(f.check)}}}}
 	f.a.reviewObserver = observer
 	reviewer, token, err := f.a.Enroll(f.owner, Scope{[]string{"review.propose", "review.evaluate"}, []string{"task:task-a"}}, time.Now().Add(time.Hour))
 	if err != nil {

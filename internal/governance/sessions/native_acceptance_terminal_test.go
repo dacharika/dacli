@@ -232,13 +232,13 @@ func TestNativeAcceptanceControllerConsumersClosingAndClosed(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	observer := &testReviewObserver{ReviewObservation{OutputDigest([]byte("checklist")), "review-policy", []RequiredCheck{{"unit", CheckDigest(CheckDescriptor{"unit", "printf contract", time.Second})}}}}
+	observer := &testReviewObserver{ReviewObservation{ChecklistDigest: OutputDigest([]byte("checklist")), PolicyRevision: "review-policy", Checks: []RequiredCheck{{"unit", CheckDigest(CheckDescriptor{ID: "unit", Command: "printf contract", Deadline: time.Second})}}}}
 	f.a.reviewObserver = observer
 	runner, rt, e := f.a.Enroll(f.owner, Scope{[]string{"verification.run"}, []string{"task:task-a"}}, time.Now().Add(time.Hour))
 	if e != nil {
 		t.Fatal(e)
 	}
-	check := CheckDescriptor{"unit", "printf contract", time.Second}
+	check := CheckDescriptor{ID: "unit", Command: "printf contract", Deadline: time.Second}
 	grant, e := f.a.GrantVerification(f.owner, runner.ID, "task-a", f.at.Observation.Repository, check, time.Now().Add(10*time.Minute))
 	if e != nil {
 		t.Fatal(e)
