@@ -361,7 +361,20 @@ func controllerUnresolved(s *state, iv controllerInvocation) bool {
 	}
 	for _, ref := range iv.Status.Refs {
 		if op, ok := s.Operations[ref.VerificationKey]; ok && op.Pending {
-			return true
+			// Owner recovery preserves unknown verification operations. Only the
+			// exact recovered protection makes this old producer historical;
+			// ordinary release or a missing/mismatched lease does not (core633).
+			request := ref.Verification
+			binding := op.CheckpointVerification
+			if binding == nil || binding.ProjectID != iv.Status.ProjectID || binding.TaskID != ref.TaskID || binding.RunnerSession != ref.RunnerSession || binding.Request != request || op.Digest != identity("run:"+binding.DescriptorDigest, binding.RunnerSession, request) {
+				return true
+			}
+			lease, present := s.Leases[request.LeaseID]
+			recovery, retired := checkpointRetiredLease(s, request.LeaseID)
+			target := recovery.Target
+			if !present || !retired || !lease.Released || lease.ID != request.LeaseID || lease.Fence != request.ExpectedFence || lease.AttemptID != request.AttemptID || lease.SessionID != request.WorkerSession || lease.TaskID != ref.TaskID || target.ExpectedFence != lease.Fence || target.AttemptID != lease.AttemptID || target.SessionID != lease.SessionID || target.TaskID != lease.TaskID || target.Repository != lease.Repository || target.Checkout != lease.Checkout {
+				return true
+			}
 		}
 	}
 	return false
