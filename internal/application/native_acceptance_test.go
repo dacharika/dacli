@@ -34,9 +34,6 @@ type acceptanceFixture struct {
 
 func acceptanceSetup(t *testing.T) acceptanceFixture { return acceptanceSetupMode(t, false) }
 func acceptanceSetupMode(t *testing.T, tracked bool) acceptanceFixture {
-	return acceptanceSetupOptions(t, tracked, false)
-}
-func acceptanceSetupOptions(t *testing.T, tracked, replaceTree bool) acceptanceFixture {
 	t.Helper()
 	w, _ := readFixture(t)
 	nativeGit(t, w.Root, "init", "-b", "main")
@@ -96,17 +93,6 @@ func acceptanceSetupOptions(t *testing.T, tracked, replaceTree bool) acceptanceF
 	}
 	nativeGit(t, w.Root, "add", "src")
 	nativeGit(t, w.Root, "-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "finished")
-	if replaceTree {
-		landed := nativeAcceptanceGitOutput(t, w.Root, "rev-parse", "HEAD")
-		if e := os.WriteFile(filepath.Join(w.Root, "src"), []byte("replacement tree"), 0600); e != nil {
-			t.Fatal(e)
-		}
-		nativeGit(t, w.Root, "add", "src")
-		nativeGit(t, w.Root, "-c", "user.name=f", "-c", "user.email=f@example.invalid", "commit", "-m", "replacement object")
-		replacement := nativeAcceptanceGitOutput(t, w.Root, "rev-parse", "HEAD")
-		nativeGit(t, w.Root, "update-ref", "refs/heads/main", landed)
-		nativeGit(t, w.Root, "replace", landed, replacement)
-	}
 	rev, e := a.PublishAttemptRevision(wt, worker.ID, sessions.PublishRevisionRequest{OperationKey: "publish", AttemptID: at.ID, LeaseID: lease.ID, ExpectedFence: lease.Fence})
 	if e != nil {
 		t.Fatalf("setup/read line 92: %v", e)
@@ -413,7 +399,7 @@ func TestNativeAcceptanceActualPartialMoveAndHistoricalFinalization(t *testing.T
 func TestNativeAcceptanceConsumerRejectsNonGenuineLanding(t *testing.T) {
 	for _, kind := range []string{"ambient-override", "replacement-ancestry", "replacement-tree"} {
 		t.Run(kind, func(t *testing.T) {
-			f := acceptanceSetupOptions(t, false, kind == "replacement-tree")
+			f := acceptanceSetup(t)
 			before, e := os.ReadFile(f.task.Path)
 			if e != nil {
 				t.Fatal(e)
@@ -434,6 +420,18 @@ func TestNativeAcceptanceConsumerRejectsNonGenuineLanding(t *testing.T) {
 				} else {
 					nativeGit(t, f.w.Root, "replace", "--graft", target, f.input.Commit)
 				}
+			}
+			// Inject only after genuine verification and independent review exist.
+			if kind == "replacement-tree" {
+				landed := nativeAcceptanceGitOutput(t, f.w.Root, "rev-parse", "HEAD")
+				if e := os.WriteFile(filepath.Join(f.w.Root, "src"), []byte("replacement tree"), 0600); e != nil {
+					t.Fatal(e)
+				}
+				nativeGit(t, f.w.Root, "add", "src")
+				nativeGit(t, f.w.Root, "-c", "user.name=f", "-c", "user.email=f@example.invalid", "commit", "-m", "replacement object")
+				replacement := nativeAcceptanceGitOutput(t, f.w.Root, "rev-parse", "HEAD")
+				nativeGit(t, f.w.Root, "update-ref", "refs/heads/main", landed)
+				nativeGit(t, f.w.Root, "replace", landed, replacement)
 			}
 			out, e := f.access.Apply(f.input, "")
 			if e == nil || out.Applied {
