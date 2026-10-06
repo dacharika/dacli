@@ -29,6 +29,7 @@ type Runtime struct {
 	cfg             config.Config
 	hosted          *config.HostedRuntime
 	keys            projectKeys
+	inboxKeys       envelopeworker.KeySource
 }
 
 var hostedCatalog = []struct {
@@ -131,6 +132,9 @@ func Open(ctx context.Context, cfg config.Config, logger *slog.Logger) (*Runtime
 	if device := hosted.DeviceOAuth(); device != nil {
 		keys.serverKeys = device.ServerSigningKeys
 	}
+	// Inbox replay must resolve the same tenant/project device keys as sync
+	// admission; static delivery keys alone reject enrolled devices (core/628).
+	r.inboxKeys = keys
 	if e = enableDevice(r, repo, keys); e != nil {
 		_ = db.Close()
 		return nil, e
