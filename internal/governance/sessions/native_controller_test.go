@@ -530,6 +530,11 @@ func controllerClosedRouteFixture(t *testing.T, recoverHeld bool) (controllerFix
 
 func TestNativeControllerStartsWithExactClosedRoutesAndPreservesCheckpoint(t *testing.T) {
 	f, previous := controllerClosedRouteFixture(t, true)
+	// A and B overlap in the setup, so the first wave closes A and C.
+	// Assert this premise before using B to check live producer enforcement.
+	if len(previous.Actions) != 2 || previous.Actions[0].TaskID != "task-a" || previous.Actions[1].TaskID != "task-c" {
+		t.Fatal("closed-route fixture selected an unexpected wave", previous.Actions)
+	}
 	before, err := f.a.ObserveStorage(f.owner)
 	if err != nil {
 		t.Fatal(err)
@@ -585,7 +590,7 @@ func TestNativeControllerClosedRoutesRefuseWrongHistoryAndKeepOpenChecks(t *test
 					}
 				}
 			case "open-runner-revoked":
-				if err := f.a.Revoke(f.owner, next.Routes["task-c"].RunnerSession); err != nil {
+				if err := f.a.Revoke(f.owner, next.Routes["task-b"].RunnerSession); err != nil {
 					t.Fatal(err)
 				}
 			}
