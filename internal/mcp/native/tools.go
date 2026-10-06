@@ -159,8 +159,16 @@ func schema(t reflect.Type) any {
 		return map[string]any{"type": "boolean"}
 	case reflect.String:
 		return map[string]any{"type": "string"}
-	case reflect.Int, reflect.Int64, reflect.Uint64:
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		return map[string]any{"type": "integer"}
+	case reflect.Float32, reflect.Float64:
+		return map[string]any{"type": "number"}
+	case reflect.Map:
+		if t.Key().Kind() != reflect.String {
+			// No key conversion or permissive unknown shape on the native wire.
+			return map[string]any{"oneOf": []any{}}
+		}
+		return map[string]any{"type": []string{"object", "null"}, "additionalProperties": schema(t.Elem())}
 	case reflect.Pointer:
 		return map[string]any{"oneOf": []any{map[string]any{"type": "null"}, schema(t.Elem())}}
 	case reflect.Slice:
@@ -202,6 +210,9 @@ func catalog() []tool {
 	return out
 }
 func (s *Server) catalog() []tool {
+	if s.orchestration != nil {
+		return s.orchestrationCatalog()
+	}
 	out := catalog()
 	if s.review != nil {
 		out = nil
@@ -229,6 +240,9 @@ func (s *Server) call(name string, raw json.RawMessage) (any, error) {
 			return nil, ErrDenied
 		}
 	}
+	if s.orchestration != nil && !s.orchestrationToolAllowed(name) {
+		return nil, ErrDenied
+	}
 	template, ok := arguments[name]
 	if !ok {
 		return nil, ErrDenied
@@ -247,6 +261,11 @@ func (s *Server) call(name string, raw json.RawMessage) (any, error) {
 		ctx, e = application.NewNativeContext(w, a, token, principal.ID)
 		if e != nil {
 			return nil, ErrDenied
+		}
+	}
+	if s.orchestration != nil {
+		if data, e, handled := s.orchestrationCall(name, arg); handled {
+			return data, e
 		}
 	}
 	switch x := arg.(type) {

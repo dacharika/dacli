@@ -34,13 +34,13 @@ def selection(path):
         return result
     config = json.loads(raw, object_pairs_hook=unique)
     required = {'schema_version', 'binary', 'connection_file'}
-    optional = {'runner_config_file', 'review_config_file'}
+    optional = {'runner_config_file', 'review_config_file', 'orchestration_config_file'}
     if not isinstance(config, dict) or not required <= set(config) or set(config) - required - optional:
         raise ValueError('unknown config')
     if type(config['schema_version']) is not int or config['schema_version'] != 1:
         raise ValueError('unknown version')
-    if optional <= set(config):
-        raise ValueError('separate review and worker connections required')
+    if len(optional & set(config)) > 1:
+        raise ValueError('separate runner, reviewer and orchestration connections required')
     for key in ('binary', 'connection_file', *(key for key in optional if key in config)):
         value = config[key]
         if not isinstance(value, str) or not value or '\x00' in value or not Path(value).is_absolute():
@@ -63,6 +63,8 @@ def launch(connection):
             args.extend(['--runner-config', config['runner_config_file']])
         if 'review_config_file' in config:
             args.extend(['--review-config', config['review_config_file']])
+        if 'orchestration_config_file' in config:
+            args.extend(['--orchestration-config', config['orchestration_config_file']])
         os.execve(binary, args, env)
     except (OSError, ValueError, UnicodeError, RecursionError):
         return refuse('private native connection selection unavailable or invalid')

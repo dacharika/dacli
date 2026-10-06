@@ -19,7 +19,7 @@ import (
 	"github.com/mlnomadpy/dacli/internal/store"
 )
 
-var Commands = []clikit.Command{
+var Commands = append(append([]clikit.Command{
 	{Path: "native controller upgrade", Brief: "upgrade durable bounded native controller", Mutates: true, JSON: false, Usage: "dacli native controller upgrade --config <owner>", Run: func(c *clikit.Ctx, a []string) error { return controllerOwner(c, a, "upgrade") }},
 	{Path: "native controller configure", Brief: "configure durable bounded native controller", Mutates: true, JSON: true, Usage: "dacli native controller configure --config <owner> --request <private-file>", Run: func(c *clikit.Ctx, a []string) error { return controllerOwner(c, a, "configure") }},
 	{Path: "native controller start", Brief: "start durable bounded native controller", Mutates: true, JSON: true, Usage: "dacli native controller start --config <owner> --request <private-file>", Run: func(c *clikit.Ctx, a []string) error { return controllerOwner(c, a, "start") }},
@@ -84,13 +84,16 @@ var Commands = []clikit.Command{
 	{Path: "native verify", Brief: "Run an owner-configured named check for a fenced native revision", Mutates: true, JSON: true, Usage: "dacli native verify --connection <private-file> --runner-config <private-file> --request <private-file> --json", Run: verify},
 	{Path: "native upgrade", Brief: "Owner-upgrade native authority from schema 5 to 6 without replacing credentials", Mutates: true, Usage: "dacli native upgrade --config <private-file>", Run: upgrade},
 	{Path: "native revoke", Brief: "Owner-revoke an exact native session using a private explicit owner configuration", Mutates: true, Usage: "dacli native revoke --config <private-file> --session <session-id>", Run: revoke},
-	{Path: "native serve", Brief: "Serve scoped native governance MCP using a private explicit session connection", Usage: "dacli native serve --connection <private-file> [--runner-config <private-file> | --review-config <private-file>]", Run: serve},
+	{Path: "native serve", Brief: "Serve scoped native governance MCP using a private explicit session connection", Usage: "dacli native serve --connection <private-file> [--runner-config <private-file> | --review-config <private-file> | --orchestration-config <private-file>]", Run: serve},
 	{Path: "native bootstrap", Brief: "Initialize an absent native authority and privately save its owner credential", Mutates: true, Usage: "dacli native bootstrap --config <private-file>", Run: bootstrap},
 	{Path: "native enroll", Brief: "Owner-enroll a scoped native session for an existing canonical task", Mutates: true, Usage: "dacli native enroll --config <private-file> --task <ref> --connection <new-private-file> --credential <new-private-file> [--path <relative-path>]... [--checkout <absolute-checkout>]... [--expires <duration>] [--verification]", Run: enroll},
-}
+}, ModelRoutingCommands()...), IntegrationCommands()...)
 
 // AuthenticatesExplicitly lists exactly the handlers exempt from the legacy grant gate.
 func AuthenticatesExplicitly(path string) bool {
+	if ModelRoutingAuthenticatesExplicitly(path) || IntegrationAuthenticatesExplicitly(path) {
+		return true
+	}
 	switch path {
 	case "native storage observe", "native storage experiment", "native storage retention":
 		return true
@@ -131,17 +134,22 @@ func denied() error {
 	return clikit.Refusedf("native authority unavailable or refused; verify private configuration and credentials")
 }
 func serve(ctx *clikit.Ctx, args []string) error {
-	f, e := flags(args, "connection", "runner-config", "review-config")
+	f, e := flags(args, "connection", "runner-config", "review-config", "orchestration-config")
 	if e != nil {
 		return e
 	}
 	if f.Get("connection") == "" {
 		return clikit.Usagef("--connection is required")
 	}
-	if f.Get("runner-config") != "" && f.Get("review-config") != "" {
-		return clikit.Usagef("--runner-config and --review-config are mutually exclusive")
+	if (f.Get("runner-config") != "" && f.Get("review-config") != "") || (f.Get("orchestration-config") != "" && (f.Get("runner-config") != "" || f.Get("review-config") != "")) {
+		return clikit.Usagef("--runner-config, --review-config and --orchestration-config are mutually exclusive")
 	}
-	s, e := native.OpenWithProfiles(f.Get("connection"), f.Get("runner-config"), f.Get("review-config"))
+	var s *native.Server
+	if f.Get("orchestration-config") != "" {
+		s, e = native.OpenWithOrchestration(f.Get("connection"), f.Get("orchestration-config"))
+	} else {
+		s, e = native.OpenWithProfiles(f.Get("connection"), f.Get("runner-config"), f.Get("review-config"))
+	}
 	if e != nil {
 		return denied()
 	}
