@@ -19,7 +19,7 @@ import (
 	"github.com/mlnomadpy/dacli/internal/store"
 )
 
-var Commands = append(append(append([]clikit.Command{
+var Commands = append(append(append(append([]clikit.Command{
 	{Path: "native controller upgrade", Brief: "upgrade durable bounded native controller", Mutates: true, JSON: false, Usage: "dacli native controller upgrade --config <owner>", Run: func(c *clikit.Ctx, a []string) error { return controllerOwner(c, a, "upgrade") }},
 	{Path: "native controller configure", Brief: "configure durable bounded native controller", Mutates: true, JSON: true, Usage: "dacli native controller configure --config <owner> --request <private-file>", Run: func(c *clikit.Ctx, a []string) error { return controllerOwner(c, a, "configure") }},
 	{Path: "native controller start", Brief: "start durable bounded native controller", Mutates: true, JSON: true, Usage: "dacli native controller start --config <owner> --request <private-file>", Run: func(c *clikit.Ctx, a []string) error { return controllerOwner(c, a, "start") }},
@@ -87,11 +87,11 @@ var Commands = append(append(append([]clikit.Command{
 	{Path: "native serve", Brief: "Serve scoped native governance MCP using a private explicit session connection", Usage: "dacli native serve --connection <private-file> [--runner-config <private-file> | --review-config <private-file> | --orchestration-config <private-file>]", Run: serve},
 	{Path: "native bootstrap", Brief: "Initialize an absent native authority and privately save its owner credential", Mutates: true, Usage: "dacli native bootstrap --config <private-file>", Run: bootstrap},
 	{Path: "native enroll", Brief: "Owner-enroll a scoped native session for an existing canonical task", Mutates: true, Usage: "dacli native enroll --config <private-file> --task <ref> --connection <new-private-file> --credential <new-private-file> [--path <relative-path>]... [--checkout <absolute-checkout>]... [--expires <duration>] [--verification]", Run: enroll},
-}, ModelRoutingCommands()...), IntegrationCommands()...), VerificationRoutingCommands()...)
+}, ModelRoutingCommands()...), IntegrationCommands()...), VerificationRoutingCommands()...), ExternalCommands()...)
 
 // AuthenticatesExplicitly lists exactly the handlers exempt from the legacy grant gate.
 func AuthenticatesExplicitly(path string) bool {
-	if ModelRoutingAuthenticatesExplicitly(path) || IntegrationAuthenticatesExplicitly(path) || VerificationRoutingAuthenticatesExplicitly(path) {
+	if ExternalAuthenticatesExplicitly(path) || ModelRoutingAuthenticatesExplicitly(path) || IntegrationAuthenticatesExplicitly(path) || VerificationRoutingAuthenticatesExplicitly(path) {
 		return true
 	}
 	switch path {

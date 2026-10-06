@@ -319,6 +319,14 @@ func (a *Authority) reconcileCheckpoint(s *state, p CheckpointPolicy, out Checkp
 					add("pending_local_integration", "unknown", r.TaskID, integration.OperationKey, "owner inspects/reconciles exact durable intent; never relaunch uncertain Git effect", false)
 				} else {
 					progress = append(progress, integration.ReceiptDigest)
+					externalReference := integration.OperationKey
+					if fact, key := nativeExternalCheckpointFact(s, r.TaskID, integration.Input.Candidate); key != "" {
+						out.Facts = append(out.Facts, fact)
+						externalReference = key
+					}
+					if class, next, ready := nativeExternalGate(s, r.TaskID, integration.Input.Candidate); !ready {
+						add(class, "unknown", r.TaskID, externalReference, next, false)
+					}
 				}
 			}
 		}
