@@ -15,12 +15,14 @@ import (
 // NativeReviewPolicy is private owner configuration, never review request data.
 // Checklist truth is freshly read from canonical tasks, not copied into this file.
 type NativeReviewPolicy struct {
-	SchemaVersion int                      `json:"schema_version"`
-	WorkspaceID   string                   `json:"workspace_id"`
-	ProjectID     string                   `json:"project_id"`
-	TaskID        string                   `json:"task_id"`
-	Revision      string                   `json:"revision"`
-	Checks        []sessions.RequiredCheck `json:"checks"`
+	RunnerProfile       string                   `json:"runner_profile,omitempty"`
+	RunnerProfileDigest string                   `json:"runner_profile_digest,omitempty"`
+	SchemaVersion       int                      `json:"schema_version"`
+	WorkspaceID         string                   `json:"workspace_id"`
+	ProjectID           string                   `json:"project_id"`
+	TaskID              string                   `json:"task_id"`
+	Revision            string                   `json:"revision"`
+	Checks              []sessions.RequiredCheck `json:"checks"`
 }
 
 // ReviewPolicy supports owner preflight of a validated configuration snapshot.
@@ -29,7 +31,11 @@ func (p NativeReviewPolicy) ReviewPolicy(workspace, project, task string) (strin
 	if validateNativeReviewPolicy(p) != nil || p.WorkspaceID != workspace || p.ProjectID != project || p.TaskID != task {
 		return "", nil, sessions.ErrDenied
 	}
-	return p.Revision, append([]sessions.RequiredCheck(nil), p.Checks...), nil
+	revision, e := nativeReviewRoutingRevision(p)
+	if e != nil {
+		return "", nil, e
+	}
+	return revision, append([]sessions.RequiredCheck(nil), p.Checks...), nil
 }
 
 type NativeReviewerProfile struct {
@@ -60,7 +66,10 @@ type NativeReviewRequest struct {
 }
 
 func validateNativeReviewPolicy(p NativeReviewPolicy) error {
-	if p.SchemaVersion != 1 || !VerificationID(p.WorkspaceID) || !VerificationID(p.ProjectID) || !VerificationID(p.TaskID) || !VerificationID(p.Revision) || len(p.Checks) == 0 || len(p.Checks) > 32 {
+	if (p.SchemaVersion != 1 && p.SchemaVersion != 2) || !VerificationID(p.WorkspaceID) || !VerificationID(p.ProjectID) || !VerificationID(p.TaskID) || !VerificationID(p.Revision) || len(p.Checks) == 0 || len(p.Checks) > 32 {
+		return sessions.ErrDenied
+	}
+	if p.SchemaVersion == 1 && (p.RunnerProfile != "" || p.RunnerProfileDigest != "") || p.SchemaVersion == 2 && (!filepath.IsAbs(p.RunnerProfile) || len(p.RunnerProfileDigest) != 64 || strings.Trim(p.RunnerProfileDigest, "0123456789abcdef") != "") {
 		return sessions.ErrDenied
 	}
 	seen := map[string]bool{}
@@ -101,7 +110,7 @@ func (p privateNativeReviewPolicy) ReviewPolicy(workspace, project, task string)
 	if verificationPrivateJSON(p.path, &current) != nil || validateNativeReviewPolicy(current) != nil || current.WorkspaceID != workspace || current.ProjectID != project || current.TaskID != task {
 		return "", nil, sessions.ErrDenied
 	}
-	return current.Revision, append([]sessions.RequiredCheck(nil), current.Checks...), nil
+	return current.ReviewPolicy(workspace, project, task)
 }
 
 // OpenNativeReviewAuthority installs a fresh canonical observer and private policy

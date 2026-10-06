@@ -246,3 +246,113 @@ func verify(ctx *clikit.Ctx, args []string) error {
 		Evidence sessions.Evidence `json:"evidence"`
 	}{"native-verification/v1", evidence})
 }
+
+// VerificationRoutingCommands contributes explicit native replacement entrypoints
+// for retired inference/start; inspection cannot issue an execution permit.
+func VerificationRoutingCommands() []clikit.Command {
+	return []clikit.Command{
+		{Path: "native verifier review-policy", Brief: "owner pins complete routed verification policy for independent review", Mutates: true, Usage: "dacli native verifier review-policy --config <owner> --task <ref> --runner-config <profile> --revision <id> --out <new-private-policy>", Run: verifierReviewPolicy},
+		{Path: "native verifier inspect", Brief: "inspect exact owner-routed checks without execution", JSON: true, Usage: "dacli native verifier inspect --connection <worker> --runner-config <runner> --request <exact-revision> --json", Run: verifierInspect},
+	}
+}
+func VerificationRoutingAuthenticatesExplicitly(path string) bool {
+	return path == "native verifier review-policy" || path == "native verifier inspect"
+}
+func verifierReviewPolicy(ctx *clikit.Ctx, args []string) error {
+	f, e := flags(args, "config", "task", "runner-config", "revision", "out")
+	if e != nil {
+		return e
+	}
+	for _, key := range []string{"config", "task", "runner-config", "revision", "out"} {
+		if f.Get(key) == "" {
+			return clikit.Usagef("--%s required", key)
+		}
+	}
+	c, e := config(f.Get("config"))
+	if e != nil {
+		return e
+	}
+	w, e := native.ResolveWorkspace(c.Workspace, "")
+	if e != nil {
+		return denied()
+	}
+	owner, e := native.ReadCredential(c.OwnerCredentialFile)
+	if e != nil {
+		return denied()
+	}
+	authority, e := sessions.Open(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID})
+	if e != nil {
+		return denied()
+	}
+	task, e := store.FindTask(w, f.Get("task"))
+	if e != nil {
+		return denied()
+	}
+	bound, e := authority.OwnerTaskBinding(owner, task.ID)
+	if e != nil || bound.ProjectID != task.Project {
+		return denied()
+	}
+	var runner runnerProfile
+	if privateJSON(f.Get("runner-config"), &runner) != nil || runner.Repository != bound.Repository || runner.Authority != c.Authority || runner.InstallationID != c.InstallationID {
+		return denied()
+	}
+	policy, e := application.NativeRoutedReviewPolicyFromProfile(w.ID, task.Project, task.ID, f.Get("revision"), f.Get("runner-config"))
+	if e != nil {
+		return denied()
+	}
+	file, e := reserve(f.Get("out"))
+	if e != nil {
+		return e
+	}
+	defer file.Close()
+	raw, e := json.Marshal(policy)
+	if e != nil {
+		return denied()
+	}
+	if e = writePrivate(file, raw); e != nil {
+		return e
+	}
+	fmt.Fprintln(ctx.Stdout, "Private routed review policy pinned; no check executed or acceptance authorized.")
+	return nil
+}
+func verifierInspect(ctx *clikit.Ctx, args []string) error {
+	f, e := flags(args, "connection", "runner-config", "request", "json")
+	if e != nil {
+		return e
+	}
+	for _, key := range []string{"connection", "runner-config", "request"} {
+		if f.Get(key) == "" {
+			return clikit.Usagef("--%s required", key)
+		}
+	}
+	var request verificationRequest
+	if privateJSON(f.Get("request"), &request) != nil || request.SchemaVersion != 1 {
+		return denied()
+	}
+	profile, e := application.OpenNativeVerificationProfile(f.Get("connection"), f.Get("runner-config"))
+	if e != nil {
+		return denied()
+	}
+	access, e := profile.Authenticate()
+	if e != nil {
+		return denied()
+	}
+	req := application.NativeVerificationRequest{OperationKey: request.OperationKey, WorkerSession: access.Worker.ID, AttemptID: request.AttemptID, LeaseID: request.LeaseID, RevisionID: request.RevisionID, CheckID: request.CheckID, ExpectedFence: request.ExpectedFence}
+	bounded, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	plan, e := access.InspectRouting(bounded, req)
+	if e != nil {
+		return denied()
+	}
+	result := struct {
+		Schema              string `json:"schema"`
+		Plan                any    `json:"plan"`
+		ExecutionAuthorized bool   `json:"execution_authorized"`
+	}{"native-verification-routing/v1", plan, false}
+	ctx.Result = result
+	if ctx.JSON {
+		return clikit.EmitJSON(ctx, result)
+	}
+	fmt.Fprintf(ctx.Stdout, "Exact native routing plan %s: %d required checks; execution not authorized by inspection.\n", plan.Digest, len(plan.RequiredGateIDs))
+	return nil
+}

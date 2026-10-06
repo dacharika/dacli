@@ -15,6 +15,7 @@ type ReviewObserver interface {
 }
 type RequiredCheck struct{ ID, CommandDigest string }
 type ReviewObservation struct {
+	RequiredSet                     *RequiredVerificationSet `json:",omitempty"`
 	ChecklistDigest, PolicyRevision string
 	Checks                          []RequiredCheck
 }
@@ -312,11 +313,37 @@ func (a *Authority) reviewCurrentExcept(s *state, session string, req ReviewRequ
 		return AttemptRevision{}, ReviewObservation{}, ReviewRevisionStale
 	}
 	obs, err := a.observeReview(s.Tasks[at.Request.TaskID])
-	if err != nil || !reflect.DeepEqual(obs, g.Observation) {
+	forGrant := obs
+	forGrant.RequiredSet = nil
+	if err != nil || !reflect.DeepEqual(forGrant, g.Observation) {
 		return AttemptRevision{}, ReviewObservation{}, ReviewPolicyChanged
 	}
 	if err = observeRevision(at, rev); err != nil {
 		return AttemptRevision{}, ReviewObservation{}, ReviewRevisionStale
+	}
+	if observer, ok := a.reviewObserver.(RequiredVerificationObserver); ok {
+		required, e := observer.ObserveRequiredVerification(s.Binding.Workspace, at.ProjectID, at.Request.TaskID, rev)
+		if e != nil {
+			return AttemptRevision{}, ReviewObservation{}, ReviewPolicyChanged
+		}
+		if required != nil {
+			if required.RevisionID != rev.ID || required.RevisionCommit != rev.Observation.Commit || required.RevisionTree != rev.Observation.Tree || required.PlanDigest == "" || len(required.Checks) == 0 {
+				return AttemptRevision{}, ReviewObservation{}, ReviewPolicyChanged
+			}
+			for _, selected := range required.Checks {
+				matched := false
+				for _, allowed := range obs.Checks {
+					if selected == allowed {
+						matched = true
+					}
+				}
+				if !matched {
+					return AttemptRevision{}, ReviewObservation{}, ReviewPolicyChanged
+				}
+			}
+			obs.RequiredSet = required
+			obs.Checks = append([]RequiredCheck(nil), required.Checks...)
+		}
 	}
 	if !reviewEvidence(s, at, rev, req.EvidenceIDs, obs.Checks) {
 		return AttemptRevision{}, ReviewObservation{}, ReviewEvidenceInvalid
