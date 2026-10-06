@@ -184,6 +184,59 @@ func RunAcceptanceVerificationRevisionContext(ctx context.Context, dir, verifier
 	return runVerificationWithContext(ctx, dir, verifier, command, true, true, commit, tree)
 }
 
+// RunAcceptanceVerificationArgvRevisionContext runs literal owner argv in a
+// contained cwd. Evidence and before/after observations always bind the entire
+// checkout, independently of the command working directory.
+func RunAcceptanceVerificationArgvRevisionContext(ctx context.Context, dir, verifier string, argv []string, cwd, commit, tree string) (VerificationEvidence, []byte, error) {
+	if ctx == nil || commit == "" || tree == "" || len(argv) == 0 || len(argv) > 128 || strings.TrimSpace(argv[0]) == "" {
+		return VerificationEvidence{ExitCode: 1}, nil, &VerificationPolicyError{Reason: "structured verification descriptor required"}
+	}
+	total := 0
+	for _, arg := range argv {
+		total += len(arg)
+		if strings.ContainsAny(arg, "\x00\r\n") {
+			return VerificationEvidence{ExitCode: 1}, nil, &VerificationPolicyError{Reason: "invalid verification argument"}
+		}
+	}
+	if total > 16384 {
+		return VerificationEvidence{ExitCode: 1}, nil, &VerificationPolicyError{Reason: "verification argument limit exceeded"}
+	}
+	if _, err := verificationExecutionDirectory(dir, cwd); err != nil {
+		return VerificationEvidence{ExitCode: 1}, nil, err
+	}
+	return runVerificationExecution(ctx, dir, verifier, "", true, true, commit, tree, append([]string(nil), argv...), cwd)
+}
+func verificationExecutionDirectory(root, relative string) (string, error) {
+	denied := func() (string, error) {
+		return "", &VerificationPolicyError{Reason: "verification cwd must be a real directory inside the checkout"}
+	}
+	if relative == "" || len(relative) > 4096 || filepath.IsAbs(relative) || filepath.Clean(relative) != relative || relative == ".." || strings.HasPrefix(relative, "../") || strings.ContainsAny(relative, "\\\x00\r\n") {
+		return denied()
+	}
+	absolute, e := filepath.Abs(root)
+	if e != nil {
+		return denied()
+	}
+	physical, e := filepath.EvalSymlinks(absolute)
+	if e != nil || physical != absolute {
+		return denied()
+	}
+	target := filepath.Join(absolute, relative)
+	actual, e := filepath.EvalSymlinks(target)
+	if e != nil || actual != target {
+		return denied()
+	}
+	info, e := os.Lstat(target)
+	if e != nil || !info.IsDir() {
+		return denied()
+	}
+	rel, e := filepath.Rel(absolute, target)
+	if e != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return denied()
+	}
+	return target, nil
+}
+
 // VerificationEnvironment excludes authority/session secrets and Git overrides.
 // This is cooperative hygiene, not isolation from a hostile local OS user.
 func VerificationEnvironment() []string {
@@ -294,6 +347,9 @@ func runVerification(dir, verifier, command string, acceptanceGrade bool) (Verif
 	return runVerificationWithContext(context.Background(), dir, verifier, command, acceptanceGrade, false, "", "")
 }
 func runVerificationWithContext(ctx context.Context, dir, verifier, command string, acceptanceGrade, native bool, expectedCommit, expectedTree string) (VerificationEvidence, []byte, error) {
+	return runVerificationExecution(ctx, dir, verifier, command, acceptanceGrade, native, expectedCommit, expectedTree, nil, "")
+}
+func runVerificationExecution(ctx context.Context, dir, verifier, command string, acceptanceGrade, native bool, expectedCommit, expectedTree string, argv []string, cwd string) (VerificationEvidence, []byte, error) {
 	absDir, _ := filepath.Abs(dir)
 	// core/597: Git observation may fail before execution. Default to failure
 	// until a real command completes, so an unstarted check cannot appear green.
@@ -302,6 +358,9 @@ func runVerificationWithContext(ctx context.Context, dir, verifier, command stri
 		Verifier: verifier, ExitCode: 1,
 		RuntimeVersions: map[string]string{"go": runtime.Version(), "os": runtime.GOOS, "arch": runtime.GOARCH},
 		ToolVersions:    map[string]string{},
+	}
+	if argv != nil {
+		ev.Argv = append([]string(nil), argv...)
 	}
 	readTree := readVerificationTree
 	if !native {
@@ -339,8 +398,17 @@ func runVerificationWithContext(ctx context.Context, dir, verifier, command stri
 	if !native {
 		out, err = commandresult.Run(c, commandresult.RunOptions{Operation: "verification command", WorkspaceRoot: dir})
 	} else {
-		c = exec.CommandContext(ctx, "sh", "-c", command)
-		c.Dir = dir
+		if argv != nil {
+			executionDir, e := verificationExecutionDirectory(dir, cwd)
+			if e != nil {
+				return ev, nil, e
+			}
+			c = exec.CommandContext(ctx, argv[0], argv[1:]...)
+			c.Dir = executionDir
+		} else {
+			c = exec.CommandContext(ctx, "sh", "-c", command)
+			c.Dir = dir
+		}
 		c.Env = VerificationEnvironment()
 		c.WaitDelay = 250 * time.Millisecond
 		capture.command = c
@@ -803,7 +871,7 @@ func (b *verificationGitBuffer) Write(p []byte) (int, error) {
 }
 
 func runVerificationGit(ctx context.Context, dir string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", append([]string{"--no-optional-locks", "-c", "core.fsmonitor=false"}, args...)...)
+	cmd := exec.CommandContext(ctx, "git", append([]string{"--no-replace-objects", "--no-optional-locks", "-c", "core.fsmonitor=false"}, args...)...)
 	cmd.Dir = dir
 	cmd.Env = VerificationEnvironment()
 	cmd.WaitDelay = 250 * time.Millisecond

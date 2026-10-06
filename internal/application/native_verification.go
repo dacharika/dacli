@@ -2,8 +2,8 @@ package application
 
 import (
 	"context"
+	"reflect"
 	"sync/atomic"
-	"time"
 
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
 	"github.com/mlnomadpy/dacli/internal/store"
@@ -17,6 +17,7 @@ type NativeVerificationRunner struct {
 	token, session string
 	checks         map[string]NativeCheck
 	repository     string
+	routing        *nativeVerificationRouting
 }
 
 // String prevents formatted executor values from revealing private credentials.
@@ -35,20 +36,24 @@ type NativeVerificationRequest struct {
 }
 
 func NewNativeVerificationRunner(authority *sessions.Authority, token, session string, checks []NativeCheck) (*NativeVerificationRunner, error) {
+	return newNativeVerificationRunner(authority, token, session, checks, nil)
+}
+func newNativeVerificationRunner(authority *sessions.Authority, token, session string, checks []NativeCheck, routing *nativeVerificationRouting) (*NativeVerificationRunner, error) {
 	if authority == nil || len(checks) == 0 {
 		return nil, sessions.ErrDenied
 	}
 	if _, err := authority.Authenticate(token, session); err != nil {
 		return nil, err
 	}
-	r := &NativeVerificationRunner{authority: authority, token: token, session: session, checks: map[string]NativeCheck{}}
+	r := &NativeVerificationRunner{authority: authority, token: token, session: session, checks: map[string]NativeCheck{}, routing: routing}
 	for _, c := range checks {
-		if c.Descriptor.ID == "" || c.Descriptor.Command == "" || c.Descriptor.Deadline <= 0 || c.Descriptor.Deadline > 10*time.Minute || c.GrantID == "" {
+		if !sessions.ValidCheckDescriptor(c.Descriptor) || c.GrantID == "" || (c.Descriptor.Version == 2 && (routing == nil || !routing.matches(c.Descriptor))) {
 			return nil, sessions.ErrDenied
 		}
 		if _, ok := r.checks[c.Descriptor.ID]; ok {
 			return nil, sessions.ErrDenied
 		}
+		c.Descriptor.Argv = append([]string(nil), c.Descriptor.Argv...)
 		r.checks[c.Descriptor.ID] = c
 	}
 	return r, nil
@@ -57,7 +62,7 @@ func (r *NativeVerificationRunner) Run(ctx context.Context, workerToken string, 
 	if ctx == nil {
 		return sessions.Evidence{}, sessions.ErrDenied
 	}
-	prepared, receipt, e := r.Prepare(workerToken, req)
+	prepared, receipt, e := r.prepareContext(ctx, workerToken, req)
 	if e != nil {
 		return sessions.Evidence{}, e
 	}
@@ -69,7 +74,10 @@ func (r *NativeVerificationRunner) Run(ctx context.Context, workerToken string, 
 
 // Prepare reserves exactly one durable operation before asynchronous execution.
 func (r *NativeVerificationRunner) Prepare(workerToken string, req NativeVerificationRequest) (*nativePreparedVerification, *sessions.Evidence, error) {
-	if r == nil || !ValidNativeVerificationRequest(req) {
+	return r.prepareContext(context.Background(), workerToken, req)
+}
+func (r *NativeVerificationRunner) prepareContext(ctx context.Context, workerToken string, req NativeVerificationRequest) (*nativePreparedVerification, *sessions.Evidence, error) {
+	if r == nil || ctx == nil || ctx.Err() != nil || !ValidNativeVerificationRequest(req) {
 		return nil, nil, sessions.ErrDenied
 	}
 	c, ok := r.checks[req.CheckID]
@@ -78,6 +86,24 @@ func (r *NativeVerificationRunner) Prepare(workerToken string, req NativeVerific
 	}
 	request := sessions.VerificationRequest{OperationKey: req.OperationKey, WorkerSession: req.WorkerSession, AttemptID: req.AttemptID, LeaseID: req.LeaseID, RevisionID: req.RevisionID, CheckID: req.CheckID, GrantID: c.GrantID, ExpectedFence: req.ExpectedFence}
 	digest := sessions.CheckDigest(c.Descriptor)
+	if r.routing != nil {
+		lookup, e := r.authority.LookupVerification(workerToken, r.token, r.session, request, digest)
+		if e != nil {
+			return nil, nil, e
+		}
+		if lookup.State == sessions.VerificationAbsent {
+			current, e := r.authority.ObserveVerificationRevision(workerToken, r.token, r.session, request, digest)
+			if e != nil {
+				return nil, nil, e
+			}
+			if r.repository != "" && current.Observation.Repository != r.repository {
+				return nil, nil, sessions.ErrDenied
+			}
+			if e = r.routing.selected(ctx, current, req.CheckID); e != nil {
+				return nil, nil, e
+			}
+		}
+	}
 	rev, receipt, e := r.authority.BeginVerification(workerToken, r.token, r.session, request, digest)
 	if e != nil {
 		return nil, nil, e
@@ -112,13 +138,26 @@ func (p *nativePreparedVerification) Execute(ctx context.Context) (sessions.Evid
 		return sessions.Evidence{}, sessions.ErrDenied
 	}
 	r, c, rev, request, digest, workerToken := p.runner, p.check, p.revision, p.request, p.digest, p.workerToken
+	// Asynchronous preparation is not a lasting launch permission. Reauthenticate
+	// the exact worker, lease, runner grant and revision before the executor.
+	current, e := r.authority.ObserveVerificationRevision(workerToken, r.token, r.session, request, digest)
+	if e != nil || current.ID != rev.ID || current.Observation != rev.Observation {
+		return sessions.Evidence{}, sessions.ErrDenied
+	}
 	bounded, cancel := context.WithTimeout(ctx, c.Descriptor.Deadline)
 	defer cancel()
-	ev, output, runErr := store.RunAcceptanceVerificationRevisionContext(bounded, rev.Observation.Locator, r.session, c.Descriptor.Command, rev.Observation.Commit, rev.Observation.Tree)
+	var ev store.VerificationEvidence
+	var output []byte
+	var runErr error
+	if c.Descriptor.Version == 2 {
+		ev, output, runErr = store.RunAcceptanceVerificationArgvRevisionContext(bounded, rev.Observation.Locator, r.session, c.Descriptor.Argv, c.Descriptor.Cwd, rev.Observation.Commit, rev.Observation.Tree)
+	} else {
+		ev, output, runErr = store.RunAcceptanceVerificationRevisionContext(bounded, rev.Observation.Locator, r.session, c.Descriptor.Command, rev.Observation.Commit, rev.Observation.Tree)
+	}
 	if store.IsVerificationPolicyError(runErr) || bounded.Err() != nil {
 		return sessions.Evidence{}, sessions.ErrDenied
 	}
-	if ev.Command != c.Descriptor.Command || ev.Verifier != r.session || ev.ArtifactHash != sessions.OutputDigest(output) {
+	if ev.Command != c.Descriptor.Command || (c.Descriptor.Version == 2 && !reflect.DeepEqual(ev.Argv, c.Descriptor.Argv)) || ev.Verifier != r.session || ev.ArtifactHash != sessions.OutputDigest(output) {
 		return sessions.Evidence{}, sessions.ErrDenied
 	}
 	if ev.ExitCode == 0 {

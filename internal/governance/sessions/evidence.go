@@ -3,7 +3,11 @@ package sessions
 import (
 	"errors"
 	"math"
+	"path"
+	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/mlnomadpy/dacli/internal/governance/checkout"
 )
@@ -25,11 +29,58 @@ type AttemptRevision struct {
 
 // CheckDescriptor binds both command bytes and deadline, selected by the owner.
 type CheckDescriptor struct {
-	ID, Command string
-	Deadline    time.Duration
+	ID, Command        string
+	Deadline           time.Duration
+	Version            int      `json:",omitempty"`
+	Argv               []string `json:",omitempty"`
+	Cwd                string   `json:",omitempty"`
+	Environment        string   `json:",omitempty"`
+	RoutingDigest      string   `json:",omitempty"`
+	RoutingBytesDigest string   `json:",omitempty"`
+	BaseCommit         string   `json:",omitempty"`
 }
 
-func CheckDigest(c CheckDescriptor) string { return identity("check", "", c) }
+// Legacy identities retain exactly the historical field order and JSON shape.
+func CheckDigest(c CheckDescriptor) string {
+	if c.Version == 0 || c.Version == 1 {
+		return identity("check", "", struct {
+			ID, Command string
+			Deadline    time.Duration
+		}{c.ID, c.Command, c.Deadline})
+	}
+	return identity("check", "", c)
+}
+func ValidCheckDescriptor(c CheckDescriptor) bool {
+	if !validID(c.ID) || c.Deadline <= 0 || c.Deadline > 10*time.Minute {
+		return false
+	}
+	if c.Version == 0 || c.Version == 1 {
+		return strings.TrimSpace(c.Command) != "" && len(c.Argv) == 0 && c.Cwd == "" && c.Environment == "" && c.RoutingDigest == "" && c.RoutingBytesDigest == "" && c.BaseCommit == ""
+	}
+	if c.Version != 2 || c.Command != "" || len(c.Argv) == 0 || len(c.Argv) > 128 || strings.TrimSpace(c.Argv[0]) == "" || c.Environment != "verification-sanitized-v1" || c.Cwd == "" || path.Clean(c.Cwd) != c.Cwd || strings.HasPrefix(c.Cwd, "/") || c.Cwd == ".." || strings.HasPrefix(c.Cwd, "../") || strings.ContainsAny(c.Cwd, "\\\x00\r\n") || !validVerificationText(c.Cwd) {
+		return false
+	}
+	n := 0
+	for _, arg := range c.Argv {
+		n += len(arg)
+		if !validVerificationText(arg) {
+			return false
+		}
+	}
+	return n <= 16384 && c.RoutingDigest != "" && c.RoutingBytesDigest != "" && c.BaseCommit != ""
+}
+
+func validVerificationText(s string) bool {
+	if !utf8.ValidString(s) {
+		return false
+	}
+	for _, r := range s {
+		if unicode.IsControl(r) {
+			return false
+		}
+	}
+	return true
+}
 
 type VerificationGrant struct {
 	ID, RunnerSession, TaskID, Repository, CheckID, CommandDigest string
@@ -182,7 +233,7 @@ func (a *Authority) GrantVerification(owner, runner, task, repository string, ch
 		}
 		r, ok := s.Sessions[runner]
 		b, bok := s.Tasks[task]
-		if !ok || !bok || r.Parent != "" || r.Revoked || !time.Now().Before(r.ExpiresAt) || !subset([]string{"verification.run"}, r.Scope.Actions) || !subset([]string{"task:" + task}, r.Scope.Resources) || b.Repository != repository || !validID(check.ID) || check.Command == "" || check.Deadline <= 0 || check.Deadline > 10*time.Minute || !expires.After(time.Now()) || expires.After(r.ExpiresAt) {
+		if !ok || !bok || r.Parent != "" || r.Revoked || !time.Now().Before(r.ExpiresAt) || !subset([]string{"verification.run"}, r.Scope.Actions) || !subset([]string{"task:" + task}, r.Scope.Resources) || b.Repository != repository || !ValidCheckDescriptor(check) || !expires.After(time.Now()) || expires.After(r.ExpiresAt) {
 			return ErrDenied
 		}
 		id, err := mint()
@@ -333,6 +384,40 @@ func (a *Authority) LookupVerification(workerToken, runnerToken, runnerSession s
 	})
 	if err != nil {
 		return VerificationLookup{}, err
+	}
+	return result, nil
+}
+
+// ObserveVerificationRevision supplies a current bound revision for pure routing
+// before any durable execution reservation. Begin revalidates it after routing.
+func (a *Authority) ObserveVerificationRevision(workerToken, runnerToken, runnerSession string, req VerificationRequest, descriptor string) (AttemptRevision, error) {
+	var result AttemptRevision
+	err := a.transaction(false, false, func(s *state) error {
+		at, err := activeAttempt(s, workerToken, req.WorkerSession, req.AttemptID, req.LeaseID, req.ExpectedFence, "verification.request")
+		if err != nil {
+			return err
+		}
+		if _, err = runnerAuth(s, runnerToken, runnerSession, req, at, descriptor); err != nil {
+			return err
+		}
+		rev, err := currentRevision(s, at, req.RevisionID, req.LeaseID, req.ExpectedFence)
+		if err != nil {
+			return err
+		}
+		if err = observeRevision(at, rev); err != nil {
+			return err
+		}
+		if _, err = activeAttempt(s, workerToken, req.WorkerSession, req.AttemptID, req.LeaseID, req.ExpectedFence, "verification.request"); err != nil {
+			return err
+		}
+		if _, err = runnerAuth(s, runnerToken, runnerSession, req, at, descriptor); err != nil {
+			return err
+		}
+		result = rev
+		return nil
+	})
+	if err != nil {
+		return AttemptRevision{}, err
 	}
 	return result, nil
 }

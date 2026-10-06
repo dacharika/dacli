@@ -25,13 +25,18 @@ type configuredCheck = application.ConfiguredCheck
 type checksConfig struct {
 	SchemaVersion int                `json:"schema_version"`
 	Checks        []checkDeclaration `json:"checks"`
+	RoutingPolicy json.RawMessage    `json:"routing_policy,omitempty"`
+	BaseCommit    string             `json:"base_commit,omitempty"`
 }
 
 // Separate declarations forbid a caller from supplying an existing grant ID.
 type checkDeclaration struct {
-	ID       string `json:"id"`
-	Command  string `json:"command"`
-	Deadline string `json:"deadline"`
+	ID          string   `json:"id"`
+	Command     string   `json:"command,omitempty"`
+	Argv        []string `json:"argv,omitempty"`
+	Cwd         string   `json:"cwd,omitempty"`
+	Environment string   `json:"environment,omitempty"`
+	Deadline    string   `json:"deadline"`
 }
 type runnerProfile = application.NativeRunnerProfile
 type verificationRequest struct {
@@ -88,14 +93,14 @@ func verifierAdd(ctx *clikit.Ctx, args []string) error {
 		return e
 	}
 	var declarations checksConfig
-	if e = privateJSON(f.Get("checks-file"), &declarations); e != nil || declarations.SchemaVersion != 1 {
+	if e = privateJSON(f.Get("checks-file"), &declarations); e != nil || (declarations.SchemaVersion != 1 && declarations.SchemaVersion != 2) {
 		return denied()
 	}
 	checks := make([]configuredCheck, 0, len(declarations.Checks))
 	for _, d := range declarations.Checks {
-		checks = append(checks, configuredCheck{ID: d.ID, Command: d.Command, Deadline: d.Deadline})
+		checks = append(checks, configuredCheck{ID: d.ID, Command: d.Command, Deadline: d.Deadline, Argv: append([]string(nil), d.Argv...), Cwd: d.Cwd, Environment: d.Environment})
 	}
-	trusted, e := descriptors(checks, false)
+	trusted, e := application.NativeProfileCheckDescriptors(runnerProfile{SchemaVersion: declarations.SchemaVersion, Checks: checks, RoutingPolicy: declarations.RoutingPolicy, BaseCommit: declarations.BaseCommit}, false)
 	if e != nil {
 		return e
 	}
@@ -126,7 +131,7 @@ func verifierAdd(ctx *clikit.Ctx, args []string) error {
 	}
 	// Budget the complete profile before issuing authority. Conservative maximum
 	// ID lengths cover all granted fields; setup cannot create an unreadable file.
-	budgetProfile := runnerProfile{SchemaVersion: 1, Workspace: w.Root, WorkspaceID: w.ID, Authority: c.Authority, InstallationID: c.InstallationID, TaskID: task.ID, Repository: observation.Repository, RunnerSessionID: strings.Repeat("x", 256), CredentialFile: f.Get("credential"), Checks: append([]configuredCheck(nil), checks...)}
+	budgetProfile := runnerProfile{SchemaVersion: declarations.SchemaVersion, RoutingPolicy: append(json.RawMessage(nil), declarations.RoutingPolicy...), BaseCommit: declarations.BaseCommit, Workspace: w.Root, WorkspaceID: w.ID, Authority: c.Authority, InstallationID: c.InstallationID, TaskID: task.ID, Repository: observation.Repository, RunnerSessionID: strings.Repeat("x", 256), CredentialFile: f.Get("credential"), Checks: append([]configuredCheck(nil), checks...)}
 	for i := range budgetProfile.Checks {
 		budgetProfile.Checks[i].GrantID = strings.Repeat("x", 256)
 	}
@@ -164,7 +169,7 @@ func verifierAdd(ctx *clikit.Ctx, args []string) error {
 	if e = writePrivate(credential, []byte(token+"\n")); e != nil {
 		return e
 	}
-	profile := runnerProfile{SchemaVersion: 1, Workspace: w.Root, WorkspaceID: w.ID, Authority: c.Authority, InstallationID: c.InstallationID, TaskID: task.ID, Repository: observation.Repository, RunnerSessionID: runner.ID, CredentialFile: f.Get("credential"), Checks: checks}
+	profile := runnerProfile{SchemaVersion: declarations.SchemaVersion, RoutingPolicy: append(json.RawMessage(nil), declarations.RoutingPolicy...), BaseCommit: declarations.BaseCommit, Workspace: w.Root, WorkspaceID: w.ID, Authority: c.Authority, InstallationID: c.InstallationID, TaskID: task.ID, Repository: observation.Repository, RunnerSessionID: runner.ID, CredentialFile: f.Get("credential"), Checks: checks}
 	if e = saveRunnerProfile(profileFile, profile); e != nil {
 		return e
 	}

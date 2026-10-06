@@ -13,10 +13,13 @@ import (
 )
 
 type ConfiguredCheck struct {
-	ID       string `json:"id"`
-	Command  string `json:"command"`
-	Deadline string `json:"deadline"`
-	GrantID  string `json:"grant_id,omitempty"`
+	ID          string   `json:"id"`
+	Command     string   `json:"command,omitempty"`
+	Argv        []string `json:"argv,omitempty"`
+	Cwd         string   `json:"cwd,omitempty"`
+	Environment string   `json:"environment,omitempty"`
+	Deadline    string   `json:"deadline"`
+	GrantID     string   `json:"grant_id,omitempty"`
 }
 type NativeRunnerProfile struct {
 	SchemaVersion   int               `json:"schema_version"`
@@ -29,6 +32,8 @@ type NativeRunnerProfile struct {
 	RunnerSessionID string            `json:"runner_session_id"`
 	CredentialFile  string            `json:"credential_file"`
 	Checks          []ConfiguredCheck `json:"checks"`
+	RoutingPolicy   []byte            `json:"routing_policy,omitempty"`
+	BaseCommit      string            `json:"base_commit,omitempty"`
 }
 
 func VerificationID(s string) bool {
@@ -42,6 +47,14 @@ func verificationPrivateJSON(path string, value any) error {
 	return nil
 }
 func NativeCheckDescriptors(checks []ConfiguredCheck, grants bool) ([]NativeCheck, error) {
+	return NativeProfileCheckDescriptors(NativeRunnerProfile{SchemaVersion: 1, Checks: checks}, grants)
+}
+func NativeProfileCheckDescriptors(profile NativeRunnerProfile, grants bool) ([]NativeCheck, error) {
+	checks := profile.Checks
+	routing, e := nativeVerificationRoutingProfile(profile)
+	if e != nil {
+		return nil, e
+	}
 	if len(checks) == 0 || len(checks) > 32 {
 		return nil, sessions.ErrDenied
 	}
@@ -49,11 +62,29 @@ func NativeCheckDescriptors(checks []ConfiguredCheck, grants bool) ([]NativeChec
 	result := make([]NativeCheck, 0, len(checks))
 	for _, c := range checks {
 		deadline, e := time.ParseDuration(c.Deadline)
-		if e != nil || deadline <= 0 || deadline > 10*time.Minute || !VerificationID(c.ID) || strings.TrimSpace(c.Command) == "" || seen[c.ID] || (grants && !VerificationID(c.GrantID)) {
+		if e != nil || deadline <= 0 || deadline > 10*time.Minute || !VerificationID(c.ID) || seen[c.ID] || (grants && !VerificationID(c.GrantID)) {
 			return nil, sessions.ErrDenied
 		}
 		seen[c.ID] = true
-		result = append(result, NativeCheck{Descriptor: sessions.CheckDescriptor{ID: c.ID, Command: c.Command, Deadline: deadline}, GrantID: c.GrantID})
+		descriptor := sessions.CheckDescriptor{ID: c.ID, Command: c.Command, Deadline: deadline}
+		if profile.SchemaVersion == 2 {
+			descriptor.Version = 2
+			descriptor.Argv = append([]string(nil), c.Argv...)
+			descriptor.Cwd = c.Cwd
+			descriptor.Environment = c.Environment
+			descriptor.RoutingDigest = routing.digest
+			descriptor.RoutingBytesDigest = routing.bytesDigest
+			descriptor.BaseCommit = profile.BaseCommit
+			if !routing.matches(descriptor) {
+				return nil, sessions.ErrDenied
+			}
+		} else if len(c.Argv) != 0 || c.Cwd != "" || c.Environment != "" {
+			return nil, sessions.ErrDenied
+		}
+		if !sessions.ValidCheckDescriptor(descriptor) {
+			return nil, sessions.ErrDenied
+		}
+		result = append(result, NativeCheck{Descriptor: descriptor, GrantID: c.GrantID})
 	}
 	return result, nil
 }
@@ -98,7 +129,7 @@ func (selected *NativeVerificationProfile) Authenticate() (*NativeVerificationAc
 	if verificationPrivateJSON(selected.connectionPath, &c) != nil || verificationPrivateJSON(selected.runnerPath, &p) != nil || c != selected.connection || !reflect.DeepEqual(p, selected.profile) {
 		return nil, sessions.ErrDenied
 	}
-	if c.SchemaVersion != 1 || p.SchemaVersion != 1 || c.WorkspaceID == "" || c.InstallationID == "" || !VerificationID(c.SessionID) || c.WorkspaceID != p.WorkspaceID || c.InstallationID != p.InstallationID || !VerificationID(p.RunnerSessionID) || !VerificationID(p.TaskID) || !filepath.IsAbs(p.Repository) {
+	if c.SchemaVersion != 1 || (p.SchemaVersion != 1 && p.SchemaVersion != 2) || c.WorkspaceID == "" || c.InstallationID == "" || !VerificationID(c.SessionID) || c.WorkspaceID != p.WorkspaceID || c.InstallationID != p.InstallationID || !VerificationID(p.RunnerSessionID) || !VerificationID(p.TaskID) || !filepath.IsAbs(p.Repository) {
 		return nil, sessions.ErrDenied
 	}
 	// Compare physical authority paths as well as installation/workspace binding;
@@ -122,7 +153,7 @@ func (selected *NativeVerificationProfile) Authenticate() (*NativeVerificationAc
 	if e != nil || runnerWorkspace.Root != w.Root {
 		return nil, sessions.ErrDenied
 	}
-	trusted, e := NativeCheckDescriptors(p.Checks, true)
+	trusted, e := NativeProfileCheckDescriptors(p, true)
 	if e != nil {
 		return nil, e
 	}
@@ -157,7 +188,11 @@ func (selected *NativeVerificationProfile) Authenticate() (*NativeVerificationAc
 	if e != nil || repository.Repository != p.Repository {
 		return nil, sessions.ErrDenied
 	}
-	runner, e := NewNativeVerificationRunner(a, runnerToken, p.RunnerSessionID, trusted)
+	routing, e := nativeVerificationRoutingProfile(p)
+	if e != nil {
+		return nil, e
+	}
+	runner, e := newNativeVerificationRunner(a, runnerToken, p.RunnerSessionID, trusted, routing)
 	if e != nil {
 		return nil, sessions.ErrDenied
 	}
