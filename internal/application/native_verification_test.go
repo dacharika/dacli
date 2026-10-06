@@ -44,6 +44,19 @@ func nativeGit(t *testing.T, dir string, args ...string) {
 }
 func nativeSetup(t *testing.T, command string) nativeFixture {
 	t.Helper()
+	return nativeSetupRepository(t, command, false)
+}
+
+// Profile authentication compares the canonical workspace's real common Git
+// directory with the attempt repository. Exercise that binding with a linked
+// checkout rather than the standalone executor fixture (core632).
+func nativeSetupLinkedWorkspace(t *testing.T, command string) nativeFixture {
+	t.Helper()
+	return nativeSetupRepository(t, command, true)
+}
+
+func nativeSetupRepository(t *testing.T, command string, linked bool) nativeFixture {
+	t.Helper()
 	w, _ := readFixture(t)
 	if _, err := store.CreateProject(w, "root", "Project", "p", "goal", ""); err != nil {
 		t.Fatal(err)
@@ -66,12 +79,26 @@ func nativeSetup(t *testing.T, command string) nativeFixture {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
-	nativeGit(t, dir, "init")
-	if err = os.WriteFile(filepath.Join(dir, "tracked"), []byte("base"), 0600); err != nil {
+	base := dir
+	if linked {
+		base = w.Root
+	}
+	nativeGit(t, base, "init")
+	if linked {
+		// Canonical task state is shared workspace data, not check input. A
+		// real Git exclusion keeps both checkouts clean without copying .dacli.
+		if err = os.WriteFile(filepath.Join(base, ".git", "info", "exclude"), []byte(".dacli/\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err = os.WriteFile(filepath.Join(base, "tracked"), []byte("base"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	nativeGit(t, dir, "add", "tracked")
-	nativeGit(t, dir, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "-m", "base")
+	nativeGit(t, base, "add", "tracked")
+	nativeGit(t, base, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "-m", "base")
+	if linked {
+		nativeGit(t, base, "worktree", "add", "-b", "native-verification-fixture", dir)
+	}
 	obs, err := checkout.Observe(dir)
 	if err != nil {
 		t.Fatal(err)

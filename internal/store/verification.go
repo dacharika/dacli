@@ -27,9 +27,6 @@ import (
 const verificationSection = "Verification Evidence"
 const maxVerificationArtifact = 64 << 10
 
-// VerificationEvidence is the machine-readable provenance of one command
-// verification. Legacy is populated only for pre-schema rendered Log lines;
-// their unavailable provenance fields deliberately remain zero-valued.
 // NativeVerificationTermination is an executor-local observation, not check
 // evidence. It certifies only the owned cooperative process boundary (core627).
 // An empty value means termination is unknown; unsupported cleanup cannot certify it.
@@ -37,6 +34,9 @@ type NativeVerificationTermination struct {
 	State string // not_started or owned_group_cleanup
 }
 
+// VerificationEvidence is the machine-readable provenance of one command
+// verification. Legacy is populated only for pre-schema rendered Log lines;
+// their unavailable provenance fields deliberately remain zero-valued.
 type VerificationEvidence struct {
 	NativeTermination NativeVerificationTermination  `json:"-"`
 	Command           string                         `json:"command"`
