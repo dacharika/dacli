@@ -115,6 +115,9 @@ func TestNativeVerificationOwnsChildCleanup(t *testing.T) {
 			if time.Since(started) > 4*time.Second {
 				t.Fatal("cleanup exceeded bound")
 			}
+			if got.evidence.NativeTermination.State != "owned_group_cleanup" {
+				t.Fatal("executor did not confirm owned-group termination", got.evidence.NativeTermination)
+			}
 			if mode == "normal" {
 				if got.err != nil || got.evidence.ExitCode != 0 || string(got.output) != "done" {
 					t.Fatalf("normal result changed: %v %#v %q", got.err, got.evidence, got.output)
@@ -133,5 +136,15 @@ func TestNativeVerificationOwnsChildCleanup(t *testing.T) {
 				t.Fatal("verification shell remained alive after return")
 			}
 		})
+	}
+}
+
+func TestNativeVerificationCancelledBeforeProcessStartIsKnown(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	cmd := exec.CommandContext(ctx, "sh", "-c", "exit 0")
+	termination, err := runNativeVerificationCommand(cmd)
+	if err == nil || cmd.Process != nil || termination.State != "not_started" {
+		t.Fatalf("pre-start cancellation knowledge = %+v, process=%v error=%v", termination, cmd.Process, err)
 	}
 }

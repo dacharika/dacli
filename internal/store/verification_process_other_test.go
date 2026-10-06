@@ -10,7 +10,7 @@ import (
 
 func TestNativeVerificationUnsupportedProcessCleanupRefusesBeforeStart(t *testing.T) {
 	cmd := exec.CommandContext(context.Background(), "unused-command")
-	if err := runNativeVerificationCommand(cmd); !IsVerificationPolicyError(err) || cmd.Process != nil {
+	if terminal, err := runNativeVerificationCommand(cmd); !IsVerificationPolicyError(err) || cmd.Process != nil || terminal.State != "" {
 		t.Fatal("unsupported cleanup must refuse without starting a command", err)
 	}
 }

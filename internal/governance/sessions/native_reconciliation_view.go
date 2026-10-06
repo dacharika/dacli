@@ -223,8 +223,8 @@ func (a *Authority) reconcileCheckpoint(s *state, p CheckpointPolicy, out Checkp
 	sort.Strings(operationIDs)
 	for _, id := range operationIDs {
 		op := s.Operations[id]
-		if op.Pending {
-			b := op.CheckpointVerification
+		b := op.CheckpointVerification
+		if op.Pending || b != nil && verificationInterruption(op, b.RunnerSession, b.Request) != nil {
 			if b == nil {
 				if !hasRef("verification", id) {
 					add("verification_binding_unknown", "unknown", "", p.ProjectID, "owner must bind the original legacy pending verification digest to its exact scoped request; never reexecute", false)
@@ -263,6 +263,10 @@ func (a *Authority) reconcileCheckpoint(s *state, p CheckpointPolicy, out Checkp
 				diagnosticForLease(r.Verification.LeaseID, r.TaskID, "verification_unknown", "unknown", r.VerificationKey, "observe original verification operation; absence is not completion", false)
 			case op.Pending:
 				diagnosticForLease(r.Verification.LeaseID, r.TaskID, "verification_pending", "pending", r.VerificationKey, "reserved outcome unknown; owner reconciliation, never reexecute", false)
+			case verificationInterruption(op, r.RunnerSession, r.Verification) != nil:
+				interrupted := verificationInterruption(op, r.RunnerSession, r.Verification)
+				diagnosticForLease(r.Verification.LeaseID, r.TaskID, "verification_interrupted", "known", r.VerificationKey, "known runner interruption; owner recovery required, never reexecute original operation", false)
+				progress = append(progress, interrupted.ResultDigest)
 			case op.Evidence == nil:
 				diagnosticForLease(r.Verification.LeaseID, r.TaskID, "verification_unknown", "unknown", r.VerificationKey, "no authenticated result exists", false)
 			case !checkpointEvidenceCurrent(s, *op.Evidence):

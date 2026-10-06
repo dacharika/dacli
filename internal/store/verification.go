@@ -30,23 +30,31 @@ const maxVerificationArtifact = 64 << 10
 // VerificationEvidence is the machine-readable provenance of one command
 // verification. Legacy is populated only for pre-schema rendered Log lines;
 // their unavailable provenance fields deliberately remain zero-valued.
+// NativeVerificationTermination is an executor-local observation, not check
+// evidence. It certifies only the owned cooperative process boundary (core627).
+// An empty value means termination is unknown; unsupported cleanup cannot certify it.
+type NativeVerificationTermination struct {
+	State string // not_started or owned_group_cleanup
+}
+
 type VerificationEvidence struct {
-	Command          string                         `json:"command"`
-	Argv             []string                       `json:"argv,omitempty"`
-	WorkingDirectory string                         `json:"working_directory,omitempty"`
-	ExitCode         int                            `json:"exit_code"`
-	DurationMS       int64                          `json:"duration_ms"`
-	ArtifactHash     string                         `json:"artifact_hash"`
-	Verifier         string                         `json:"verifier"`
-	Branch           string                         `json:"branch"`
-	CommitSHA        string                         `json:"commit_sha"`
-	TreeSHA          string                         `json:"tree_sha,omitempty"`
-	Clean            bool                           `json:"clean,omitempty"`
-	RuntimeVersions  map[string]string              `json:"runtime_versions,omitempty"`
-	ToolVersions     map[string]string              `json:"tool_versions,omitempty"`
-	External         []ExternalVerificationEvidence `json:"external,omitempty"`
-	ExternalPolicy   *GitHubRequiredCheckPolicy     `json:"external_policy,omitempty"`
-	Legacy           string                         `json:"legacy,omitempty"`
+	NativeTermination NativeVerificationTermination  `json:"-"`
+	Command           string                         `json:"command"`
+	Argv              []string                       `json:"argv,omitempty"`
+	WorkingDirectory  string                         `json:"working_directory,omitempty"`
+	ExitCode          int                            `json:"exit_code"`
+	DurationMS        int64                          `json:"duration_ms"`
+	ArtifactHash      string                         `json:"artifact_hash"`
+	Verifier          string                         `json:"verifier"`
+	Branch            string                         `json:"branch"`
+	CommitSHA         string                         `json:"commit_sha"`
+	TreeSHA           string                         `json:"tree_sha,omitempty"`
+	Clean             bool                           `json:"clean,omitempty"`
+	RuntimeVersions   map[string]string              `json:"runtime_versions,omitempty"`
+	ToolVersions      map[string]string              `json:"tool_versions,omitempty"`
+	External          []ExternalVerificationEvidence `json:"external,omitempty"`
+	ExternalPolicy    *GitHubRequiredCheckPolicy     `json:"external_policy,omitempty"`
+	Legacy            string                         `json:"legacy,omitempty"`
 }
 
 // ExternalVerificationEvidence is a typed attachment to evidence observed by
@@ -415,7 +423,7 @@ func runVerificationExecution(ctx context.Context, dir, verifier, command string
 		capture.workspace = dir
 		c.Stdout = nativeVerificationStream{capture: &capture}
 		c.Stderr = nativeVerificationStream{capture: &capture, stderr: true}
-		err = runNativeVerificationCommand(c)
+		ev.NativeTermination, err = runNativeVerificationCommand(c)
 		out = capture.output
 		processCause = err
 		if ctx.Err() != nil && !IsVerificationPolicyError(processCause) {
@@ -877,7 +885,7 @@ func runVerificationGit(ctx context.Context, dir string, args ...string) (string
 	cmd.WaitDelay = 250 * time.Millisecond
 	var output verificationGitBuffer
 	cmd.Stdout = &output
-	if err := runNativeVerificationCommand(cmd); err != nil {
+	if _, err := runNativeVerificationCommand(cmd); err != nil {
 		return "", err
 	}
 	return output.String(), ctx.Err()

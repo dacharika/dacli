@@ -332,18 +332,93 @@ func validDigest(s string) bool {
 }
 func OutputDigest(output []byte) string { return "sha256:" + hash(string(output)) }
 
-// VerificationOperationState describes durable evidence, not process liveness.
+// VerificationOperationState describes durable result knowledge, not process liveness.
 type VerificationOperationState string
 
 const (
-	VerificationAbsent    VerificationOperationState = "absent"
-	VerificationPending   VerificationOperationState = "pending"
-	VerificationCompleted VerificationOperationState = "completed"
+	VerificationAbsent      VerificationOperationState = "absent"
+	VerificationPending     VerificationOperationState = "pending"
+	VerificationCompleted   VerificationOperationState = "completed"
+	VerificationInterrupted VerificationOperationState = "interrupted"
 )
 
 type VerificationLookup struct {
-	State    VerificationOperationState
-	Evidence *Evidence
+	Interruption *VerificationInterruption
+	State        VerificationOperationState
+	Evidence     *Evidence
+}
+
+// VerificationInterruption is a non-evidence receipt reconstructed from an
+// authenticated same-runner result digest. It has no invented completion time
+// or successful exit code; assurance covers only the cooperative executor.
+type VerificationInterruption struct {
+	RunnerSession, Reason, ResultDigest, Assurance string
+	Request                                        VerificationRequest
+}
+
+func interruptionReason(reason string) bool {
+	switch reason {
+	case "cancelled_before_start", "deadline_before_start", "cancelled_owned_group_cleanup", "deadline_owned_group_cleanup":
+		return true
+	}
+	return false
+}
+
+func verificationInterruption(op operation, runner string, req VerificationRequest) *VerificationInterruption {
+	if op.Pending || op.Evidence != nil {
+		return nil
+	}
+	for _, reason := range []string{"cancelled_before_start", "deadline_before_start", "cancelled_owned_group_cleanup", "deadline_owned_group_cleanup"} {
+		if op.ResultDigest == identity("interruption:"+reason, runner, req) {
+			return &VerificationInterruption{RunnerSession: runner, Reason: reason, ResultDigest: op.ResultDigest, Assurance: "cooperative-native-executor", Request: req}
+		}
+	}
+	return nil
+}
+
+// InterruptVerification commits a known executor interruption for the original
+// reserved operation (core627). Cancellation requested, process disappearance,
+// or a restarted server cannot supply this knowledge. No evidence is created.
+func (a *Authority) InterruptVerification(workerToken, runnerToken, runnerSession string, req VerificationRequest, descriptor, reason string) (VerificationInterruption, error) {
+	var result VerificationInterruption
+	err := a.transaction(false, true, func(s *state) error {
+		_, at, err := leaseAuth(s, workerToken, req.WorkerSession, req.AttemptID, "verification.request", time.Now())
+		if err != nil {
+			return err
+		}
+		if !validID(req.OperationKey) || !interruptionReason(reason) {
+			return ErrDenied
+		}
+		if _, err = runnerAuth(s, runnerToken, runnerSession, req, at, descriptor); err != nil {
+			return err
+		}
+		op, ok := s.Operations[req.OperationKey]
+		if !ok || op.Digest != identity("run:"+descriptor, runnerSession, req) || op.Evidence != nil {
+			return ErrDenied
+		}
+		if prior := verificationInterruption(op, runnerSession, req); prior != nil {
+			if prior.Reason != reason {
+				return ErrDenied
+			}
+			result = *prior
+			return nil
+		}
+		if !op.Pending || op.ResultDigest != "" {
+			return ErrDenied
+		}
+		if _, err = activeAttempt(s, workerToken, req.WorkerSession, req.AttemptID, req.LeaseID, req.ExpectedFence, "verification.request"); err != nil {
+			return err
+		}
+		op.Pending = false
+		op.ResultDigest = identity("interruption:"+reason, runnerSession, req)
+		s.Operations[req.OperationKey] = op
+		result = *verificationInterruption(op, runnerSession, req)
+		return nil
+	})
+	if err != nil {
+		return VerificationInterruption{}, err
+	}
+	return result, nil
 }
 
 // LookupVerification reads an exact operation without reserving or executing it.
@@ -374,6 +449,10 @@ func (a *Authority) LookupVerification(workerToken, runnerToken, runnerSession s
 		if op.Evidence != nil {
 			copy := *op.Evidence
 			result = VerificationLookup{State: VerificationCompleted, Evidence: &copy}
+			return nil
+		}
+		if interrupted := verificationInterruption(op, runnerSession, req); interrupted != nil {
+			result = VerificationLookup{State: VerificationInterrupted, Interruption: interrupted}
 			return nil
 		}
 		if !op.Pending {

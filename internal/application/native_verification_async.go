@@ -9,9 +9,10 @@ import (
 
 // VerificationStatus reports durable knowledge, never inferred process progress.
 type VerificationStatus struct {
-	OperationKey string             `json:"operation_key"`
-	State        string             `json:"state"`
-	Evidence     *sessions.Evidence `json:"evidence"`
+	OperationKey string                             `json:"operation_key"`
+	State        string                             `json:"state"`
+	Evidence     *sessions.Evidence                 `json:"evidence"`
+	Interruption *sessions.VerificationInterruption `json:"interruption,omitempty"`
 }
 type verificationJob struct {
 	request NativeVerificationRequest
@@ -44,10 +45,12 @@ func lookupStatus(r NativeVerificationRequest, lookup sessions.VerificationLooku
 	switch lookup.State {
 	case sessions.VerificationCompleted:
 		state = "completed"
+	case sessions.VerificationInterrupted:
+		state = "interrupted"
 	case sessions.VerificationPending:
 		state = "reconciliation_required"
 	}
-	return VerificationStatus{r.OperationKey, state, lookup.Evidence}
+	return VerificationStatus{OperationKey: r.OperationKey, State: state, Evidence: lookup.Evidence, Interruption: lookup.Interruption}
 }
 func (m *NativeVerificationJobs) access(r NativeVerificationRequest) (*NativeVerificationAccess, NativeVerificationRequest, sessions.VerificationLookup, error) {
 	a, e := m.selection.Authenticate()
@@ -63,7 +66,7 @@ func (m *NativeVerificationJobs) Request(r NativeVerificationRequest) (Verificat
 	if e != nil {
 		return VerificationStatus{}, e
 	}
-	if lookup.State == sessions.VerificationCompleted {
+	if lookup.State == sessions.VerificationCompleted || lookup.State == sessions.VerificationInterrupted {
 		return lookupStatus(r, lookup), nil
 	}
 	key := jobKey(r)
@@ -73,7 +76,7 @@ func (m *NativeVerificationJobs) Request(r NativeVerificationRequest) (Verificat
 			m.mu.Unlock()
 			return VerificationStatus{}, sessions.ErrDenied
 		}
-		status := VerificationStatus{r.OperationKey, job.state, nil}
+		status := VerificationStatus{OperationKey: r.OperationKey, State: job.state}
 		m.mu.Unlock()
 		return status, nil
 	}
@@ -99,7 +102,7 @@ func (m *NativeVerificationJobs) Request(r NativeVerificationRequest) (Verificat
 		m.mu.Unlock()
 		m.wg.Done()
 		if receipt != nil {
-			return VerificationStatus{r.OperationKey, "completed", receipt}, nil
+			return VerificationStatus{OperationKey: r.OperationKey, State: "completed", Evidence: receipt}, nil
 		}
 		return VerificationStatus{}, e
 	}
@@ -107,7 +110,7 @@ func (m *NativeVerificationJobs) Request(r NativeVerificationRequest) (Verificat
 	if ctx.Err() == nil {
 		job.state = "reserved"
 	}
-	status := VerificationStatus{r.OperationKey, job.state, nil}
+	status := VerificationStatus{OperationKey: r.OperationKey, State: job.state}
 	m.mu.Unlock()
 	go func() {
 		defer m.wg.Done()
@@ -130,8 +133,9 @@ func (m *NativeVerificationJobs) inspect(r NativeVerificationRequest, cancel boo
 	if e != nil {
 		return VerificationStatus{}, e
 	}
-	// Completed receipts are definitive even while an execution goroutine exits.
-	if lookup.State == sessions.VerificationCompleted {
+	// Durable result and interruption receipts are definitive even while an
+	// execution goroutine exits.
+	if lookup.State == sessions.VerificationCompleted || lookup.State == sessions.VerificationInterrupted {
 		return lookupStatus(r, lookup), nil
 	}
 	m.mu.Lock()
@@ -144,7 +148,7 @@ func (m *NativeVerificationJobs) inspect(r NativeVerificationRequest, cancel boo
 			job.cancel()
 			job.state = "cancellation_requested"
 		}
-		return VerificationStatus{r.OperationKey, job.state, nil}, nil
+		return VerificationStatus{OperationKey: r.OperationKey, State: job.state}, nil
 	}
 	return lookupStatus(r, lookup), nil
 }

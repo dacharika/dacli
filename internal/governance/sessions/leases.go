@@ -69,8 +69,10 @@ type operation struct {
 	Review                 *Review          `json:",omitempty"`
 	Revision               *AttemptRevision `json:",omitempty"`
 	Evidence               *Evidence        `json:",omitempty"`
-	ResultDigest           string           `json:",omitempty"`
-	Pending                bool             `json:",omitempty"`
+	// ResultDigest binds a completed result or exact enumerated non-evidence
+	// interruption. Pending=false still prevents older writers from rerunning it.
+	ResultDigest string `json:",omitempty"`
+	Pending      bool   `json:",omitempty"`
 }
 
 // UpgradeLeases explicitly migrates v2 without dropping sessions or attempts.
