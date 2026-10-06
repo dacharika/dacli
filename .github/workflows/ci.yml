@@ -66,6 +66,11 @@ jobs:
         run: go vet ./...
       - name: CI workflow contract
         run: go test ./.github/workflows
+      # Backend-only conformance. No coding host/model/hook certification.
+      - name: shared native governance transport contract
+        run: python3 -m unittest discover -s contracts/governance/v1 -p test_conformance.py -v
+      - name: real native governance provisioning and recovery contracts
+        run: go test ./internal/features/nativegovernance -run 'TestNative(SwarmOwnerProvisioning|DispatchOwnerProvisioning|LifecycleOwnerCLI|RecoveryOwnerCLI)|TestNamedVerificationExecutesTrustedCheckAndReplays|TestAsyncVerificationCancelShutdownAndRestartPending'
       - name: deterministic release-readiness scenarios
         run: go test -v ./internal/scenarios
       - name: control-plane service contracts
