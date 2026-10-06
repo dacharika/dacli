@@ -36,8 +36,9 @@ func TestHostedPostgresComposition(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
-	const ownerDSN = "postgres://qualification_owner@localhost/qualification?host=/var/run/postgresql&sslmode=disable"
-	const appDSN = "postgres://qualification_app@localhost/qualification?host=/var/run/postgresql&sslmode=disable"
+	// A single explicit socket host avoids duplicate URL/query host settings.
+	const ownerDSN = "postgres://qualification_owner@/qualification?host=/var/run/postgresql&sslmode=disable"
+	const appDSN = "postgres://qualification_app@/qualification?host=/var/run/postgresql&sslmode=disable"
 	owner, err := sql.Open("postgres", ownerDSN)
 	if err != nil {
 		t.Fatal(err)
