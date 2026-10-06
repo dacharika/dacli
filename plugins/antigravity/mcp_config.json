@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "dacli": {
+      "command": "python3",
+      "args": ["@DACLI_PACKAGE_ROOT@/scripts/serve.py", "@DACLI_SELECTION_FILE@"]
+    }
+  }
+}

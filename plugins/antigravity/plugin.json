@@ -1,0 +1,5 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "name": "dacli-governance",
+  "description": "Scoped native task, revision, verification and independent review governance. Owner-provisioned identity; no provider CLI launcher."
+}
