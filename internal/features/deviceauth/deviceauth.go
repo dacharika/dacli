@@ -59,11 +59,12 @@ func login(ctx *clikit.Ctx, args []string) error {
 	if parseErr != nil {
 		return parseErr
 	}
-	if len(f.Pos) != 0 || f.Get("provider") == "" || f.Get("tenant") == "" || f.Get("name") == "" {
-		return clikit.Usagef("auth login requires --provider, --tenant and --name with no positional arguments")
-	}
 	if e := f.Reject("provider", "tenant", "name"); e != nil {
 		return e
+	}
+
+	if len(f.Pos) != 0 || f.Get("provider") == "" || f.Get("tenant") == "" || f.Get("name") == "" {
+		return clikit.Usagef("auth login requires --provider, --tenant and --name with no positional arguments")
 	}
 	bounded, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
@@ -85,11 +86,12 @@ func selected(args []string) (*deviceidentity.Client, error) {
 	if parseErr != nil {
 		return nil, parseErr
 	}
-	if len(f.Pos) != 0 || f.Get("provider") == "" || f.Get("tenant") == "" || f.Get("device") == "" {
-		return nil, clikit.Usagef("auth device operation requires --provider, --tenant and --device with no positional arguments")
-	}
 	if e := f.Reject("provider", "tenant", "device"); e != nil {
 		return nil, e
+	}
+
+	if len(f.Pos) != 0 || f.Get("provider") == "" || f.Get("tenant") == "" || f.Get("device") == "" {
+		return nil, clikit.Usagef("auth device operation requires --provider, --tenant and --device with no positional arguments")
 	}
 	c, e := deviceidentity.Open(f.Get("provider"), f.Get("tenant"), f.Get("device"))
 	return c, typed(e)

@@ -35,7 +35,7 @@ Current feature inventory:
 - `collab`, `insight`, `teamops`, `shortcuts`, `queues`
 - `history`, `reviewing`, `stagegate`, `ghmirror`, `skillforge`, `vcs`
 - `selfreport`, `acceptance`, `ship`, `catalog`, `dashboard`
-- `reconciliation`, `cleanup`, `journal`, `slices`, `releasetrain`, `nativegovernance`
+- `reconciliation`, `cleanup`, `journal`, `slices`, `releasetrain`, `nativegovernance`, `deviceauth`
 
 `history` reads retained runs, transcripts and handoff records. Recovery remains
 owner controlled; historical process records are retained to prevent unsafe
@@ -47,6 +47,7 @@ checks remain separate from agent orchestration.
 |---|---|
 | CLI aggregation, dispatch and legacy MCP adapter | `internal/cli/cli.go` |
 | Native MCP's narrow tool catalog | `internal/mcp/native` |
+| Device OAuth and OS credential storage | `internal/features/deviceauth`, `internal/deviceidentity`, `internal/credentialstore` |
 | Private owner provisioning and exact migration | `internal/features/nativegovernance` |
 | Session, attempt, lease, evidence and review authority | `internal/governance/sessions` |
 | Canonical task and event state | `internal/store`, `internal/eventlog` |
