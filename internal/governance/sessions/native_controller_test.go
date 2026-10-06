@@ -530,6 +530,11 @@ func controllerClosedRouteFixture(t *testing.T, recoverHeld bool) (controllerFix
 
 func TestNativeControllerStartsWithExactClosedRoutesAndPreservesCheckpoint(t *testing.T) {
 	f, previous := controllerClosedRouteFixture(t, true)
+	// A and B overlap in the setup, so the first wave closes A and C.
+	// Assert this premise before using B to check live producer enforcement.
+	if len(previous.Actions) != 2 || previous.Actions[0].TaskID != "task-a" || previous.Actions[1].TaskID != "task-c" {
+		t.Fatal("closed-route fixture selected an unexpected wave", previous.Actions)
+	}
 	before, err := f.a.ObserveStorage(f.owner)
 	if err != nil {
 		t.Fatal(err)
@@ -555,7 +560,7 @@ func TestNativeControllerStartsWithExactClosedRoutesAndPreservesCheckpoint(t *te
 }
 
 func TestNativeControllerClosedRoutesRefuseWrongHistoryAndKeepOpenChecks(t *testing.T) {
-	for _, change := range []string{"canonical-open", "worker", "runner", "reviewer", "bridge", "verification-grant", "review-grant", "missing-terminal", "acceptance-digest", "integration-receipt", "policy-outcome", "open-runner-revoked", "held-protection"} {
+	for _, change := range []string{"canonical-open", "worker", "runner", "reviewer", "bridge", "verification-grant", "review-grant", "missing-terminal", "acceptance-digest", "canonical-receipt", "missing-canonical-receipt", "prefixed-canonical-receipt", "integration-receipt", "policy-outcome", "open-runner-revoked", "held-protection"} {
 		t.Run(change, func(t *testing.T) {
 			f, _ := controllerClosedRouteFixture(t, change != "held-protection")
 			next := f.start
@@ -585,7 +590,7 @@ func TestNativeControllerClosedRoutesRefuseWrongHistoryAndKeepOpenChecks(t *test
 					}
 				}
 			case "open-runner-revoked":
-				if err := f.a.Revoke(f.owner, next.Routes["task-c"].RunnerSession); err != nil {
+				if err := f.a.Revoke(f.owner, next.Routes["task-b"].RunnerSession); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -598,6 +603,19 @@ func TestNativeControllerClosedRoutesRefuseWrongHistoryAndKeepOpenChecks(t *test
 					record := s.TaskTerminals["task-a"]
 					record.InputDigest = "other"
 					s.TaskTerminals["task-a"] = record
+				case "canonical-receipt", "missing-canonical-receipt", "prefixed-canonical-receipt":
+					record := s.TaskTerminals["task-a"]
+					switch change {
+					case "canonical-receipt":
+						record.CanonicalReceiptDigest = identity("wrong-canonical-receipt", "", record)
+					case "missing-canonical-receipt":
+						record.CanonicalReceiptDigest = ""
+					case "prefixed-canonical-receipt":
+						record.CanonicalReceiptDigest = "sha256:" + record.CanonicalReceiptDigest
+					}
+					// Keep the terminal and operation equal so refusal measures the receipt guard.
+					s.TaskTerminals["task-a"] = record
+					s.NativeAcceptanceOperations[record.OperationKey] = record
 				case "integration-receipt":
 					record := s.NativeIntegrationOperations["closed-integrate-task-a"]
 					record.ReceiptDigest = "other"
