@@ -139,7 +139,7 @@ func setupVerification(t *testing.T, command string, grantRequest bool) verifica
 	if command == "" {
 		command = "printf ran >> '" + f.marker + "'; printf private-output"
 	}
-	verificationJSON(t, f.checksFile, checksConfig{1, []checkDeclaration{{"unit", command, "4s"}}})
+	verificationJSON(t, f.checksFile, checksConfig{SchemaVersion: 1, Checks: []checkDeclaration{{ID: "unit", Command: command, Deadline: "4s"}}})
 	if out, e := verificationRun(t, w, verifierAdd, "--config", f.config, "--task", task.ID, "--checks-file", f.checksFile, "--out", f.runnerProfile, "--credential", f.runnerCredential); e != nil {
 		t.Fatalf("add %v %s", e, out)
 	}
@@ -347,13 +347,13 @@ func TestNamedVerifierSetupRefusalsPreserveAuthorityAndFiles(t *testing.T) {
 					t.Fatal(e)
 				}
 			case "malformed-second-check":
-				verificationJSON(t, f.checksFile, checksConfig{1, []checkDeclaration{{"unit", "true", "4s"}, {"second", "true", "0s"}}})
+				verificationJSON(t, f.checksFile, checksConfig{SchemaVersion: 1, Checks: []checkDeclaration{{ID: "unit", Command: "true", Deadline: "4s"}, {ID: "second", Command: "true", Deadline: "0s"}}})
 			case "duplicate-check":
-				verificationJSON(t, f.checksFile, checksConfig{1, []checkDeclaration{{"unit", "true", "4s"}, {"unit", "true", "4s"}}})
+				verificationJSON(t, f.checksFile, checksConfig{SchemaVersion: 1, Checks: []checkDeclaration{{ID: "unit", Command: "true", Deadline: "4s"}, {ID: "unit", Command: "true", Deadline: "4s"}}})
 			case "unknown-check-field":
 				verificationJSON(t, f.checksFile, map[string]any{"schema_version": 1, "checks": []any{map[string]any{"id": "unit", "command": "true", "deadline": "4s", "grant_id": "caller"}}})
 			case "oversized-profile":
-				verificationJSON(t, f.checksFile, checksConfig{1, []checkDeclaration{{"unit", "#" + strings.Repeat("x", 64400), "4s"}}})
+				verificationJSON(t, f.checksFile, checksConfig{SchemaVersion: 1, Checks: []checkDeclaration{{ID: "unit", Command: "#" + strings.Repeat("x", 64400), Deadline: "4s"}}})
 			case "occupied-profile":
 				if e = os.WriteFile(profile, []byte("existing profile"), 0600); e != nil {
 					t.Fatal(e)
