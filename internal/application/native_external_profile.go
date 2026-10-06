@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-// The GitHub credential lives only in a separately selected private owner
+// NativeExternalProfile holds the GitHub credential selection in a private owner
 // profile. Worker connections cannot configure or execute external authority.
 type NativeExternalProfile struct {
 	SchemaVersion  int                           `json:"schema_version"`

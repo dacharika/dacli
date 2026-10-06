@@ -7,7 +7,7 @@ import (
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
 )
 
-// RegisterModelRoutingCommands contributes owner-only policy commands. The
+// ModelRoutingCommands contributes owner-only policy commands. The
 // catalog owner wires this contribution; no public bearer configuration exists.
 func ModelRoutingCommands() []clikit.Command {
 	return []clikit.Command{

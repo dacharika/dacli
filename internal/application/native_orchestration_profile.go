@@ -228,7 +228,7 @@ func (p *NativeOrchestrationProfile) LifecycleStatus(id string) (sessions.Lifecy
 	return p.lifecycle.Status(id)
 }
 
-// HostStatus describes the cooperative adapter boundary, never an effect permit.
+// NativeOrchestrationHostStatus describes the cooperative adapter boundary, never an effect permit.
 type NativeOrchestrationHostStatus struct {
 	Harness              string `json:"harness"`
 	DispatchChannel      string `json:"dispatch_channel"`

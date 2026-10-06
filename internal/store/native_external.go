@@ -382,7 +382,7 @@ func WithNativeExternalTarget(ctx context.Context, t NativeExternalTarget, fn fu
 	return fn()
 }
 
-// Only this explicit owner effect path writes externally. Replay/reconcile never
+// ApplyNativeExternalEffect is the explicit owner path for external writes. Replay/reconcile never
 // calls it; each effect is preceded by exact remote and pure authority checks.
 func ApplyNativeExternalEffect(ctx context.Context, t NativeExternalTarget, action string, final func() error) (NativeExternalFacts, error) {
 	before, e := ObserveNativeExternal(ctx, t)

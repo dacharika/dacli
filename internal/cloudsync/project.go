@@ -47,7 +47,8 @@ func LoadProjectConnection(root string) (ProjectConnection, error) {
 	return out, nil
 }
 
-// Caller serializes connect/sync/disconnect with the shared workspace file lock.
+// SaveProjectConnection persists a binding; the caller serializes connect/sync/disconnect
+// with the shared workspace file lock.
 func SaveProjectConnection(root string, next ProjectConnection) error {
 	if next.SchemaVersion != 1 || next.Generation == 0 || next.LocalProject == "" {
 		return ErrInvalidPayload

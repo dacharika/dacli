@@ -56,13 +56,6 @@ func privateJSON(path string, value any) error {
 	}
 	return nil
 }
-func descriptors(checks []configuredCheck, grants bool) ([]application.NativeCheck, error) {
-	trusted, e := application.NativeCheckDescriptors(checks, grants)
-	if e != nil {
-		return nil, denied()
-	}
-	return trusted, nil
-}
 func verificationLifetime(f *clikit.Flags) (time.Duration, error) {
 	lifetime := time.Hour
 	if f.Get("expires") != "" {
@@ -304,13 +297,17 @@ func verifierReviewPolicy(ctx *clikit.Ctx, args []string) error {
 	if e != nil {
 		return e
 	}
-	defer file.Close()
+	// Retain cleanup on errors; check the successful close before reporting success.
+	defer func() { _ = file.Close() }()
 	raw, e := json.Marshal(policy)
 	if e != nil {
 		return denied()
 	}
 	if e = writePrivate(file, raw); e != nil {
 		return e
+	}
+	if e = file.Close(); e != nil {
+		return denied()
 	}
 	fmt.Fprintln(ctx.Stdout, "Private routed review policy pinned; no check executed or acceptance authorized.")
 	return nil

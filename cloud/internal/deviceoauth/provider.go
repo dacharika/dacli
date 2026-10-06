@@ -75,7 +75,8 @@ func (p *HTTPProvider) request(ctx context.Context, endpoint string, values url.
 	if e != nil {
 		return OAuthError("temporarily_unavailable")
 	}
-	defer response.Body.Close()
+	// The read below determines response validity; closing the consumed body is cleanup.
+	defer func() { _ = response.Body.Close() }()
 	raw, e := io.ReadAll(io.LimitReader(response.Body, 65537))
 	if e != nil || len(raw) > 65536 {
 		return OAuthError("temporarily_unavailable")

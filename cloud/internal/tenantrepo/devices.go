@@ -49,12 +49,16 @@ func (r *Repository) ProjectDeviceKeys(ctx context.Context, scope tenant.Scope, 
 		pub     []byte
 	}
 	var candidates []candidate
-	e := r.withTenant(ctx, scope, true, func(tx *sql.Tx) error {
+	e := r.withTenant(ctx, scope, true, func(tx *sql.Tx) (resultErr error) {
 		rows, e := tx.QueryContext(ctx, `SELECT account_id,public_key FROM controlplane_devices WHERE tenant_id=$1 AND state=$2 ORDER BY device_id LIMIT 1001`, scope.Organization, tenant.LifecycleActive)
 		if e != nil {
 			return e
 		}
-		defer rows.Close()
+		defer func() {
+			if closeErr := rows.Close(); resultErr == nil {
+				resultErr = closeErr
+			}
+		}()
 		for rows.Next() {
 			var c candidate
 			if e = rows.Scan(&c.account, &c.pub); e != nil {

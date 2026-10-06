@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// Inbox work is projected into immutable metadata proposals only. No local
+// InboxJob projects inbox work into immutable metadata proposals only. No local
 // task, policy, approval or process authority is changed by a hosted worker.
 type InboxJob struct {
 	Project     tenant.ProjectID   `json:"project_id"`

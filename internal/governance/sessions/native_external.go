@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// External authority is separately owner-selected and optional. Generation,
+// NativeExternalPolicy selects optional external authority separately for the owner. Generation,
 // source, target and required checks are immutable within a policy revision.
 // Private repository/profile selections are never exported through status.
 type NativeExternalPolicy struct {

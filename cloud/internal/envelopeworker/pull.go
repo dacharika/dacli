@@ -24,7 +24,7 @@ type PullPage struct {
 // monotonic sequence so concurrent inserts cannot disappear behind a timestamp.
 func (r *Repository) Pull(ctx context.Context, scope tenant.Scope, project tenant.ProjectID, after, snapshot uint64, keys []string) (PullPage, error) {
 	page := PullPage{After: after, Snapshot: snapshot, Envelopes: []cloudsync.Envelope{}}
-	e := r.withTenant(ctx, scope, true, func(tx *sql.Tx) error {
+	e := r.withTenant(ctx, scope, true, func(tx *sql.Tx) (resultErr error) {
 		if snapshot == 0 {
 			if e := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(delivery_sequence),0) FROM controlplane_envelope_outbox WHERE tenant_id=$1 AND project_id=$2`, scope.Organization, project).Scan(&page.Snapshot); e != nil {
 				return e
@@ -37,7 +37,11 @@ func (r *Repository) Pull(ctx context.Context, scope tenant.Scope, project tenan
 		if e != nil {
 			return e
 		}
-		defer rows.Close()
+		defer func() {
+			if closeErr := rows.Close(); resultErr == nil {
+				resultErr = closeErr
+			}
+		}()
 		total := 0
 		for rows.Next() {
 			var seq uint64
