@@ -96,7 +96,7 @@ func TestHostedPostgresComposition(t *testing.T) {
 	if err = runtime.Cycle(ctx); err != nil {
 		t.Fatal(err)
 	}
-	pgCompositionProposal(t, ctx, app, envelope)
+	pgCompositionProposal(t, ctx, app, envelope, a.device)
 	replay := pgCompositionExchange(t, runtime, a, []cloudsync.Envelope{envelope})
 	pgCompositionAck(t, replay, cloudsync.OutcomeDuplicate, envelope)
 	if err = runtime.Cycle(ctx); err != nil {
@@ -323,28 +323,71 @@ func pgCompositionCount(t *testing.T, ctx context.Context, db *sql.DB, org, tabl
 	}
 	return count
 }
-func pgCompositionProposal(t *testing.T, ctx context.Context, db *sql.DB, envelope cloudsync.Envelope) {
+
+// JSONB may reorder nested payload keys. Compare complete semantic identity
+// first, then hash the persisted typed representation used by CompleteInbox
+// (core/638). UseNumber keeps integer identity exact instead of float rounding.
+func pgCompositionJSON(t *testing.T, raw []byte) []byte {
+	t.Helper()
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		t.Fatal(err)
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		t.Fatal("expected one complete JSON document", err)
+	}
+	canonical, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return canonical
+}
+
+func pgCompositionProposal(t *testing.T, ctx context.Context, db *sql.DB, envelope cloudsync.Envelope, device tenant.DeviceID) {
 	t.Helper()
 	tx := pgCompositionTenantTx(t, ctx, db, envelope.TenantID)
 	defer func() { _ = tx.Rollback() }()
 	var state, jobState string
-	var digest, payload []byte
-	err := tx.QueryRowContext(ctx, `SELECT p.state,p.envelope_digest,p.payload,j.state FROM controlplane_envelope_proposals p JOIN controlplane_envelope_inbox_jobs j USING(tenant_id,project_id,event_id) WHERE p.event_id=$1`, envelope.EventID).Scan(&state, &digest, &payload, &jobState)
+	var digest, payload, persistedRaw, publicKey []byte
+	err := tx.QueryRowContext(ctx, `SELECT p.state,p.envelope_digest,p.payload,j.state,i.envelope,d.public_key
+ FROM controlplane_envelope_proposals p
+ JOIN controlplane_envelope_inbox_jobs j USING(tenant_id,project_id,event_id)
+ JOIN controlplane_envelope_inbox_payloads i USING(tenant_id,project_id,event_id)
+ JOIN controlplane_devices d ON d.tenant_id=p.tenant_id AND d.device_id=$3
+ WHERE p.event_id=$1 AND p.project_id=$2`, envelope.EventID, envelope.ProjectID, device).Scan(&state, &digest, &payload, &jobState, &persistedRaw, &publicKey)
 	if err != nil {
 		t.Fatalf("enrolled-device worker did not produce proposal: %v", err)
 	}
-	raw, err := json.Marshal(envelope)
+	originalRaw, err := json.Marshal(envelope)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := sha256.Sum256(raw)
-	var stored, wanted any
-	if json.Unmarshal(payload, &stored) != nil || json.Unmarshal(envelope.Payload, &wanted) != nil {
-		t.Fatal("proposal payload unavailable")
+	if !bytes.Equal(pgCompositionJSON(t, persistedRaw), pgCompositionJSON(t, originalRaw)) {
+		t.Fatal("persisted whole envelope differs semantically from original signed envelope")
 	}
-	storedRaw, _ := json.Marshal(stored)
-	wantedRaw, _ := json.Marshal(wanted)
-	if state != "proposed" || jobState != "processed" || !bytes.Equal(digest, want[:]) || !bytes.Equal(storedRaw, wantedRaw) {
+	var persisted cloudsync.Envelope
+	if err = json.Unmarshal(persistedRaw, &persisted); err != nil {
+		t.Fatal(err)
+	}
+	if len(publicKey) != ed25519.PublicKeySize || !cloudsync.Verify(persisted, map[string]ed25519.PublicKey{envelope.Integrity.KeyID: ed25519.PublicKey(publicKey)}) {
+		t.Fatal("persisted envelope signature does not match enrolled device public key")
+	}
+	// ClaimInbox decodes JSONB into Envelope; CompleteInbox hashes its marshaled
+	// typed representation, including the persisted RawMessage payload key order.
+	workerRaw, err := json.Marshal(persisted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := sha256.Sum256(workerRaw)
+	if !bytes.Equal(digest, want[:]) {
+		t.Fatal("proposal digest differs from verified persisted typed envelope")
+	}
+	if !bytes.Equal(pgCompositionJSON(t, payload), pgCompositionJSON(t, envelope.Payload)) {
+		t.Fatal("proposal payload differs semantically from original signed payload")
+	}
+	if state != "proposed" || jobState != "processed" {
 		t.Fatalf("proposal differs from original immutable envelope: proposal=%s job=%s", state, jobState)
 	}
 }
