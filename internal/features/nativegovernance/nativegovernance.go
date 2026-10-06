@@ -19,7 +19,7 @@ import (
 	"github.com/mlnomadpy/dacli/internal/store"
 )
 
-var Commands = append(append([]clikit.Command{
+var Commands = append(append(append([]clikit.Command{
 	{Path: "native controller upgrade", Brief: "upgrade durable bounded native controller", Mutates: true, JSON: false, Usage: "dacli native controller upgrade --config <owner>", Run: func(c *clikit.Ctx, a []string) error { return controllerOwner(c, a, "upgrade") }},
 	{Path: "native controller configure", Brief: "configure durable bounded native controller", Mutates: true, JSON: true, Usage: "dacli native controller configure --config <owner> --request <private-file>", Run: func(c *clikit.Ctx, a []string) error { return controllerOwner(c, a, "configure") }},
 	{Path: "native controller start", Brief: "start durable bounded native controller", Mutates: true, JSON: true, Usage: "dacli native controller start --config <owner> --request <private-file>", Run: func(c *clikit.Ctx, a []string) error { return controllerOwner(c, a, "start") }},
