@@ -92,11 +92,14 @@ func (w *Workspace) Attribution() (domain, prefix string) {
 
 // Find walks up from start looking for a .dacli directory, the same way git
 // finds .git. This is what lets a subagent run dacli from any subdirectory.
+// External linked worktrees without a local .dacli fall back to their shared
+// main workspace after the normal nearest-workspace search (core625).
 func Find(start string) (*Workspace, error) {
 	dir, err := filepath.Abs(start)
 	if err != nil {
 		return nil, err
 	}
+	shared := ""
 	for {
 		if fi, err := os.Stat(filepath.Join(dir, Dir)); err == nil && fi.IsDir() {
 			// If dir is a linked worktree dacli created, the real workspace lives
@@ -116,8 +119,21 @@ func Find(start string) (*Workspace, error) {
 			}
 			return open(dir)
 		}
+		// Ignored workspace records are absent from an external linked checkout.
+		// Discover its main root at the gitdir pointer, but keep a nearer ordinary
+		// workspace authoritative and never create a second .dacli (core625).
+		if shared == "" {
+			if fi, err := os.Stat(filepath.Join(dir, ".git")); err == nil && fi.Mode().IsRegular() {
+				shared = mainWorktreeRoot(dir)
+			}
+		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
+			if shared != "" {
+				if fi, err := os.Stat(filepath.Join(shared, Dir)); err == nil && fi.IsDir() {
+					return open(shared)
+				}
+			}
 			return nil, ErrNotFound
 		}
 		dir = parent
@@ -125,8 +141,8 @@ func Find(start string) (*Workspace, error) {
 }
 
 // mainWorktreeRoot returns the shared root a linked-worktree .dacli at dir
-// belongs to, or "" when dir is not a worktree dacli created (the main
-// worktree, or no match).
+// belongs to, or "" when dir is not a linked worktree (the main worktree,
+// a submodule, or no match).
 //
 // PATH detection is primary and git-free: dacli always creates a worktree at
 // <root>/.dacli/worktrees/<name> (WorktreePath), so a .dacli found there has a
@@ -138,31 +154,31 @@ func Find(start string) (*Workspace, error) {
 //
 // The git query is a FALLBACK for a worktree created by hand OUTSIDE
 // .dacli/worktrees/, where the path carries no marker. It reads git's common
-// dir — shared across all worktrees — whose parent is the main root; for the
-// main worktree that parent is dir itself, so callers get "".
+// dir — shared across all worktrees — whose parent is the main root. A linked
+// worktree has a distinct per-worktree gitdir; a submodule pointer alone does
+// not imply a shared workspace in the parent of its common dir (core625).
 func mainWorktreeRoot(dir string) string {
 	if root := rootFromWorktreePath(dir); root != "" {
 		return root
 	}
-	// A `.git` DIRECTORY means this is the main worktree (or a plain clone):
-	// git only writes a `.git` FILE — the gitdir: pointer — for a linked
-	// worktree or a submodule. So the answer is already "" and the subprocess
-	// below can only confirm it.
-	//
-	// This matters because it is the common case: every invocation from the
-	// main checkout used to pay a git fork+exec (~10ms of a 27ms `dacli
-	// status`) to learn it was not a worktree, and agents invoke dacli
-	// constantly. A stat is ~0. Anything that is NOT a directory — a gitdir
-	// file, or no .git at all — still falls through to the real query.
-	if fi, err := os.Stat(filepath.Join(dir, ".git")); err == nil && fi.IsDir() {
+	// Only a gitdir file can identify an external linked worktree. Plain clones
+	// and non-repository paths need no subprocess during ordinary discovery.
+	if fi, err := os.Stat(filepath.Join(dir, ".git")); err != nil || !fi.Mode().IsRegular() {
 		return ""
 	}
-	out, err := gitx.Run(dir, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	out, err := gitx.Run(dir, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir")
 	if err != nil {
 		return ""
 	}
-	common := strings.TrimSpace(out)
-	if common == "" {
+	dirs := strings.Split(strings.TrimSpace(out), "\n")
+	if len(dirs) != 2 {
+		return ""
+	}
+	gitdir, common := filepath.Clean(strings.TrimSpace(dirs[0])), filepath.Clean(strings.TrimSpace(dirs[1]))
+	// Submodules also have .git files, but their gitdir equals the common dir.
+	// Only standard main checkouts with their own .git directory identify the
+	// parent as a shared workspace; linked submodules must not route into modules.
+	if !filepath.IsAbs(gitdir) || !filepath.IsAbs(common) || gitdir == common || filepath.Base(common) != ".git" {
 		return ""
 	}
 	return filepath.Dir(common)
