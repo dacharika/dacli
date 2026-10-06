@@ -11,6 +11,7 @@ import (
 
 	"github.com/mlnomadpy/dacli/internal/governance/nativeconfig"
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
+	"github.com/mlnomadpy/dacli/internal/store"
 )
 
 func TestOrchestrationPrivateProfileFreshIdentityAndRole(t *testing.T) {
@@ -99,5 +100,109 @@ func TestOrchestrationPrivateProfileFreshIdentityAndRole(t *testing.T) {
 	}
 	if _, e = profile.Authenticate(); e == nil {
 		t.Fatal("revoked bridge retained authority")
+	}
+}
+
+func TestOrchestrationTaskScopedWorker(t *testing.T) {
+	w, _ := readFixture(t)
+	for _, project := range []string{"p", "foreign"} {
+		if _, e := store.CreateProject(w, "root", project, project, "goal", ""); e != nil {
+			t.Fatal(e)
+		}
+	}
+	task, e := store.CreateTask(w, "root", "p", "Worker", store.TaskOpts{})
+	if e != nil {
+		t.Fatal(e)
+	}
+	foreign, e := store.CreateTask(w, "root", "foreign", "Foreign", store.TaskOpts{})
+	if e != nil {
+		t.Fatal(e)
+	}
+	private := t.TempDir()
+	authorityPath := filepath.Join(private, "authority.json")
+	authority, e := sessions.Open(authorityPath, sessions.Binding{Workspace: w.ID, Installation: "installation"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	owner, e := authority.Bootstrap()
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = authority.UpgradeSwarms(owner); e != nil {
+		t.Fatal(e)
+	}
+	save := func(path string, value any) []byte {
+		t.Helper()
+		data, e := json.Marshal(value)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if e = os.WriteFile(path, data, 0600); e != nil {
+			t.Fatal(e)
+		}
+		return data
+	}
+	for _, tc := range []struct {
+		name, task, project, actor string
+		actions                    []string
+		want                       bool
+	}{
+		{"exact task", task.ID, "p", "", []string{"read", "attempt.register", "lease.acquire", "lease.renew", "lease.release", "attempt.publish", "evidence.submit", "verification.request"}, true},
+		{"foreign project", task.ID, "foreign", "", []string{"read", "lease.acquire"}, false},
+		{"foreign task", foreign.ID, "p", "", []string{"read", "lease.acquire"}, false},
+		{"missing task", "missing", "p", "", []string{"read", "lease.acquire"}, false},
+		{"foreign actor", task.ID, "p", "other", []string{"read", "lease.acquire"}, false},
+		{"read only actor", task.ID, "p", "", []string{"read"}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			actor, token, e := authority.Enroll(owner, sessions.Scope{Actions: tc.actions, Resources: []string{"workspace:" + w.ID, "task:" + tc.task, "path:src", "checkout:" + w.Root}}, time.Now().Add(time.Hour))
+			if e != nil {
+				t.Fatal(e)
+			}
+			dir := t.TempDir()
+			credential := filepath.Join(dir, "token")
+			if e = os.WriteFile(credential, []byte(token), 0600); e != nil {
+				t.Fatal(e)
+			}
+			connection := filepath.Join(dir, "connection.json")
+			save(connection, nativeconfig.Connection{SchemaVersion: 1, Workspace: w.Root, WorkspaceID: w.ID, Authority: authorityPath, InstallationID: "installation", SessionID: actor.ID, CredentialFile: credential})
+			capability := filepath.Join(dir, "capability.json")
+			data := save(capability, ManualSwarmCapability{SchemaVersion: 2, WorkspaceID: w.ID, ProjectID: tc.project, Harness: "codex", Source: "owner-manual-native-handoff", Codex: &CodexDispatchCapability{SchemaVersion: 1, NativeHostAttestation: "owner-observed-native-collaboration", ChildProfileChannel: "owner-manual-separate-process"}})
+			digest := sha256.Sum256(data)
+			id := actor.ID
+			if tc.actor != "" {
+				id = tc.actor
+			}
+			config := filepath.Join(dir, "orchestration.json")
+			save(config, NativeOrchestrationConfig{SchemaVersion: 1, WorkspaceID: w.ID, ProjectID: tc.project, SessionID: id, Role: "worker", CapabilityFile: capability, CapabilitySHA256: hex.EncodeToString(digest[:])})
+			profile, e := OpenNativeOrchestrationProfile(connection, config)
+			if !tc.want {
+				if e == nil {
+					t.Fatal("out-of-scope worker profile admitted")
+				}
+				return
+			}
+			if e != nil {
+				t.Fatal("task-scoped native enrollment refused", e)
+			}
+			if _, e = profile.Authenticate(); e != nil {
+				t.Fatal(e)
+			}
+			if _, e = authority.Authorize(token, actor.ID, w.ID, "lease.acquire", "project:p"); e == nil {
+				t.Fatal("worker gained project authority")
+			}
+			if _, e = profile.Acknowledge(sessions.AcknowledgeDispatchIntent{DispatchID: "foreign-dispatch"}); e == nil {
+				t.Fatal("unbound dispatch acknowledged")
+			}
+			if _, e = profile.Start("start", "invocation", "checkpoint"); e == nil {
+				t.Fatal("worker became controller")
+			}
+			if e = authority.Revoke(owner, actor.ID); e != nil {
+				t.Fatal(e)
+			}
+			if _, e = profile.Authenticate(); e == nil {
+				t.Fatal("revoked task-scoped worker admitted")
+			}
+		})
 	}
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/mlnomadpy/dacli/internal/governance/nativeconfig"
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
+	"github.com/mlnomadpy/dacli/internal/store"
 )
 
 // NativeOrchestrationConfig is owner-selected wiring, not enrollment. It contains
@@ -82,6 +83,35 @@ func (p *NativeOrchestrationProfile) authenticate() (*sessions.Authority, string
 	}
 	connection := p.swarm.connection
 	if connection.WorkspaceID != c.WorkspaceID || connection.SessionID != c.SessionID {
+		return nil, "", sessions.ErrDenied
+	}
+	if c.Role == "worker" {
+		// Owner native enrollment is task-scoped (core624); a project grant
+		// would widen worker authority merely to initialize transport wiring.
+		if _, e = a.Authorize(t, c.SessionID, c.WorkspaceID, "read", "workspace:"+c.WorkspaceID); e != nil {
+			return nil, "", sessions.ErrDenied
+		}
+		w, e := nativeconfig.ResolveWorkspace(connection.Workspace, c.WorkspaceID)
+		if e != nil {
+			return nil, "", sessions.ErrDenied
+		}
+		canonical, e := store.ReadCheckpointCanonical(w)
+		if e != nil {
+			return nil, "", sessions.ErrDenied
+		}
+		for _, task := range canonical.Tasks {
+			if task.Project != c.ProjectID {
+				continue
+			}
+			if _, e = a.Authorize(t, c.SessionID, c.WorkspaceID, "read", "task:"+task.ID); e != nil {
+				continue
+			}
+			if _, e = a.Authorize(t, c.SessionID, c.WorkspaceID, "lease.acquire", "task:"+task.ID); e == nil {
+				// Acknowledgement still checks the exact dispatch project,
+				// assigned actor, task, checkout and fresh handshake below.
+				return a, t, nil
+			}
+		}
 		return nil, "", sessions.ErrDenied
 	}
 	actions := map[string][]string{"controller": {"read", "controller.start", "controller.stop", "controller.read", "controller.step", "controller.reconcile", "swarm.plan", "dispatch.cancel"}, "bridge": {"read", "dispatch.correlate", "dispatch.observe"}, "worker": {"read", "lease.acquire"}}[c.Role]
