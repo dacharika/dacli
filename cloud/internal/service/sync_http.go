@@ -148,6 +148,11 @@ func (h *syncHTTP) exchange(w http.ResponseWriter, r *http.Request) {
 		}
 		outcome, e := h.inbox.Receive(r.Context(), envelopeworker.Request{Credential: r.Header.Get("Authorization"), Envelope: envelope})
 		if e != nil {
+			// Invalid signatures and policy denials are final, not outages (core/635).
+			if errors.Is(e, envelopeworker.ErrDenied) {
+				h.deny(w, r)
+				return
+			}
 			var limit envelopeworker.RateLimitError
 			if errors.As(e, &limit) {
 				seconds := int64((limit.RetryAfter + time.Second - 1) / time.Second)
