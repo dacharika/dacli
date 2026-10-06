@@ -134,6 +134,10 @@ func (a *Authority) advanceController(token, session string, r ControllerStepReq
 		if transitionErr == nil && !observeOnly && !candidate.Status.Terminal && (controllerCurrent(s, candidate, time.Now()) != nil || !controllerFreshActions(s, candidate)) {
 			return ErrDenied
 		}
+		// Transitions may reserve or release writers after the admission count was
+		// observed. Persist and report occupancy from the state being committed,
+		// including the original state when a trial transition is refused (core623).
+		candidate.Status.RetainedConcurrency = controllerOccupancy(s, candidate.Status.ProjectID)
 		out = candidate.Status
 		s.ControllerInvocations[out.ID] = candidate
 		s.ControllerHistory[out.ID] = append(s.ControllerHistory[out.ID], out)
