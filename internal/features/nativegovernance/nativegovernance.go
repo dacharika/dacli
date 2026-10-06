@@ -20,6 +20,7 @@ import (
 )
 
 var Commands = append(append(append(append([]clikit.Command{
+	{Path: "native controller refresh-review", Brief: "Owner refresh exact independent review grant after checklist progress", Mutates: true, JSON: true, Usage: "dacli native controller refresh-review --config <owner> --review-config <private-profile> --request <private-file> --out <new-private-profile> --json", Run: controllerRefreshReview},
 	{Path: "native controller upgrade", Brief: "upgrade durable bounded native controller", Mutates: true, JSON: false, Usage: "dacli native controller upgrade --config <owner>", Run: func(c *clikit.Ctx, a []string) error { return controllerOwner(c, a, "upgrade") }},
 	{Path: "native controller configure", Brief: "configure durable bounded native controller", Mutates: true, JSON: true, Usage: "dacli native controller configure --config <owner> --request <private-file>", Run: func(c *clikit.Ctx, a []string) error { return controllerOwner(c, a, "configure") }},
 	{Path: "native controller start", Brief: "start durable bounded native controller", Mutates: true, JSON: true, Usage: "dacli native controller start --config <owner> --request <private-file>", Run: func(c *clikit.Ctx, a []string) error { return controllerOwner(c, a, "start") }},
