@@ -102,7 +102,7 @@ func verifierAdd(ctx *clikit.Ctx, args []string) error {
 	}
 	trusted, e := application.NativeProfileCheckDescriptors(runnerProfile{SchemaVersion: declarations.SchemaVersion, Checks: checks, RoutingPolicy: declarations.RoutingPolicy, BaseCommit: declarations.BaseCommit}, false)
 	if e != nil {
-		return e
+		return denied()
 	}
 	w, e := native.ResolveWorkspace(c.Workspace, "")
 	if e != nil {
