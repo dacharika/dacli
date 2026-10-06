@@ -112,7 +112,48 @@ func Open(root string, config Config) (*Client, error) {
 	} else {
 		return nil, err
 	}
+	// Immutable rows are durable before sequence state. Recover that producer
+	// prefix after a crash between row fsync and state replacement; never reuse
+	// a persisted sequence for a different event (core563).
+	rows, err := c.outbox()
+	if err != nil {
+		return nil, err
+	}
+	var last uint64
+	keys := map[string]ed25519.PublicKey{}
+	for id, key := range config.TrustedKeys {
+		keys[id] = key
+	}
+	keys[config.SigningKeyID] = config.SigningKey.Public().(ed25519.PublicKey)
+	for _, row := range rows {
+		if row.ProducerSequence != last+1 || row.ProducerSequence > 9007199254740991 || row.TenantID != config.TenantID || row.ProjectID != config.ProjectID || row.SchemaVersion != 1 || !Verify(row, keys) || validatePayload(row.EventType, row.Payload) != nil {
+			return nil, fmt.Errorf("invalid immutable producer prefix")
+		}
+		last = row.ProducerSequence
+	}
+	if c.state.AcknowledgedSequence > last || c.state.NextSequence > last+1 {
+		return nil, fmt.Errorf("producer state does not match immutable outbox")
+	}
+	if c.state.NextSequence != last+1 {
+		c.state.NextSequence = last + 1
+		if err := c.save(); err != nil {
+			return nil, err
+		}
+	}
 	return c, nil
+}
+
+// PendingChecked preserves filesystem/decoding errors instead of reporting an
+// empty queue. The project CLI holds a cross-process lock around mutations.
+func (c *Client) PendingChecked() ([]Envelope, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.pending()
+}
+func (c *Client) AcknowledgedSequence() uint64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.state.AcknowledgedSequence
 }
 
 func (c *Client) Enqueue(eventType, idempotencyKey string, payload any) (Envelope, error) {
@@ -127,6 +168,9 @@ func (c *Client) Enqueue(eventType, idempotencyKey string, payload any) (Envelop
 	}
 	if idempotencyKey == "" || len(idempotencyKey) > 256 {
 		return Envelope{}, errors.New("idempotency key must contain 1..256 characters")
+	}
+	if c.state.NextSequence > 9007199254740991 {
+		return Envelope{}, errors.New("producer sequence exhausted")
 	}
 	// A stable idempotency key always resolves to the original immutable row.
 	if old, ok, err := c.findIdempotency(idempotencyKey); err != nil {

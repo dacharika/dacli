@@ -24,6 +24,10 @@ import (
 )
 
 var Commands = []clikit.Command{
+	{Path: "project connect", Brief: "Bind a local project to verified remote metadata sync", JSON: true, Mutates: true, Usage: "dacli project connect <slug> --provider <url> --tenant <id> --device <id> --remote-project <id> --environment <id> --repository <id>", Run: cmdProjectConnect},
+	{Path: "project disconnect", Brief: "Preserve a local connection tombstone without disabling local work", JSON: true, Mutates: true, Usage: "dacli project disconnect <slug>", Run: cmdProjectDisconnect},
+	{Path: "project sync", Brief: "Queue allowlisted signed metadata and receive proposal-only records", JSON: true, Mutates: true, Usage: "dacli project sync <slug>", Run: cmdProjectSync},
+	{Path: "project status", Brief: "Inspect cloud connection health, cursor and pending backlog", JSON: true, Usage: "dacli project status <slug>", Run: cmdProjectStatus},
 	{Path: "project add", Brief: "Create a project", Mutates: true, Usage: "dacli project add <title> [--slug s] [--goal g] [--stage definition|elicitation|approach|design] [--landing-mode local|pr] [--landing-base BRANCH]", Run: cmdProjectAdd},
 	{Path: "project list", Brief: "List projects", Usage: "dacli project list", Run: cmdProjectList},
 	{Path: "project show", Brief: "Show a project and configure its effective landing policy when landing flags are supplied", JSON: true, Mutates: true, Usage: "dacli project show <slug> [--landing-mode local|pr] [--landing-base BRANCH]", Run: cmdProjectShow},
