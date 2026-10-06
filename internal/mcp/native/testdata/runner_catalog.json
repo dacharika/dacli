@@ -2335,6 +2335,78 @@
                       }
                     ]
                   },
+                  "interruption": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "Assurance": {
+                            "type": "string"
+                          },
+                          "Reason": {
+                            "type": "string"
+                          },
+                          "Request": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "AttemptID": {
+                                "type": "string"
+                              },
+                              "CheckID": {
+                                "type": "string"
+                              },
+                              "ExpectedFence": {
+                                "type": "integer"
+                              },
+                              "GrantID": {
+                                "type": "string"
+                              },
+                              "LeaseID": {
+                                "type": "string"
+                              },
+                              "OperationKey": {
+                                "type": "string"
+                              },
+                              "RevisionID": {
+                                "type": "string"
+                              },
+                              "WorkerSession": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "OperationKey",
+                              "WorkerSession",
+                              "AttemptID",
+                              "LeaseID",
+                              "RevisionID",
+                              "CheckID",
+                              "GrantID",
+                              "ExpectedFence"
+                            ],
+                            "type": "object"
+                          },
+                          "ResultDigest": {
+                            "type": "string"
+                          },
+                          "RunnerSession": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "RunnerSession",
+                          "Reason",
+                          "ResultDigest",
+                          "Assurance",
+                          "Request"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
                   "operation_key": {
                     "type": "string"
                   },
@@ -2604,6 +2676,78 @@
                       }
                     ]
                   },
+                  "interruption": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "Assurance": {
+                            "type": "string"
+                          },
+                          "Reason": {
+                            "type": "string"
+                          },
+                          "Request": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "AttemptID": {
+                                "type": "string"
+                              },
+                              "CheckID": {
+                                "type": "string"
+                              },
+                              "ExpectedFence": {
+                                "type": "integer"
+                              },
+                              "GrantID": {
+                                "type": "string"
+                              },
+                              "LeaseID": {
+                                "type": "string"
+                              },
+                              "OperationKey": {
+                                "type": "string"
+                              },
+                              "RevisionID": {
+                                "type": "string"
+                              },
+                              "WorkerSession": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "OperationKey",
+                              "WorkerSession",
+                              "AttemptID",
+                              "LeaseID",
+                              "RevisionID",
+                              "CheckID",
+                              "GrantID",
+                              "ExpectedFence"
+                            ],
+                            "type": "object"
+                          },
+                          "ResultDigest": {
+                            "type": "string"
+                          },
+                          "RunnerSession": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "RunnerSession",
+                          "Reason",
+                          "ResultDigest",
+                          "Assurance",
+                          "Request"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
                   "operation_key": {
                     "type": "string"
                   },
@@ -2868,6 +3012,78 @@
                           "OutputDigest",
                           "ExitCode",
                           "RecordedAt"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
+                  "interruption": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "Assurance": {
+                            "type": "string"
+                          },
+                          "Reason": {
+                            "type": "string"
+                          },
+                          "Request": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "AttemptID": {
+                                "type": "string"
+                              },
+                              "CheckID": {
+                                "type": "string"
+                              },
+                              "ExpectedFence": {
+                                "type": "integer"
+                              },
+                              "GrantID": {
+                                "type": "string"
+                              },
+                              "LeaseID": {
+                                "type": "string"
+                              },
+                              "OperationKey": {
+                                "type": "string"
+                              },
+                              "RevisionID": {
+                                "type": "string"
+                              },
+                              "WorkerSession": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "OperationKey",
+                              "WorkerSession",
+                              "AttemptID",
+                              "LeaseID",
+                              "RevisionID",
+                              "CheckID",
+                              "GrantID",
+                              "ExpectedFence"
+                            ],
+                            "type": "object"
+                          },
+                          "ResultDigest": {
+                            "type": "string"
+                          },
+                          "RunnerSession": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "RunnerSession",
+                          "Reason",
+                          "ResultDigest",
+                          "Assurance",
+                          "Request"
                         ],
                         "type": "object"
                       }

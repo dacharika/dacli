@@ -83,8 +83,16 @@ With the configured runner, discover `request_verification`,
 owner-configured check and an exact fenced revision; it supplies no command,
 credential, grant or replacement directory. Preserve its operation identity for
 status, cancellation and recovery. Status queries remain responsive during
-execution. Cancellation requests do not create successful evidence; pending
-durable records require reconciliation if execution cannot commit an outcome.
+execution. Keep that selected server connection open until a terminal outcome;
+closing it requests cancellation. Known `interrupted` status has null evidence
+and an authenticated optional `interruption` record naming the original request,
+runner, reason, deterministic result digest and cooperative executor assurance.
+That record reports cancellation before start or owned group cleanup (the direct
+child was reaped and group SIGKILL succeeded or the group was absent); it does not
+certify escaped descendants or successful verification. Preserve the operation
+key and lease protection for owner recovery. A crash or restart with an unknown
+outcome remains `reconciliation_required`, with null evidence and no interruption
+record. Neither kind of interruption authorizes rerunning the original key.
 The old legacy MCP CLI remains a separate explicit repository interface; this
 package never selects it.
 

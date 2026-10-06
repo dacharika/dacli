@@ -363,16 +363,29 @@ def smoke(codex, dacli, schema5_dacli=None):
             call('identity'); call('task_get', task='fixture/001')
             assert time.monotonic()-observed < 10, 'unrelated calls blocked behind check'
             cancel_result = call('cancel_verification', request=cancelling)
-            assert cancel_result['state'] in ('cancellation_requested','reconciliation_required')
+            assert cancel_result['state'] in ('cancellation_requested','interrupted')
             deadline = time.monotonic()+15
             while True:
                 cancelled = call('get_verification_status', request=cancelling)
-                if cancelled['state'] == 'reconciliation_required':
+                if cancelled['state'] == 'interrupted':
                     break
                 assert time.monotonic() < deadline, 'cancellation did not finish'
                 assert cancelled['state'] == 'cancellation_requested'
                 time.sleep(0.02)
             assert cancelled['evidence'] is None
+            interruption = cancelled['interruption']
+            runner_profile = json.loads(runner.read_text())
+            cancel_grant = next(c['grant_id'] for c in runner_profile['checks'] if c['id']=='public-cancel')
+            exact_cancel = {'OperationKey':cancelling['operation_key'],'WorkerSession':worker_id,
+                'AttemptID':attempt['ID'],'LeaseID':lease['ID'],'RevisionID':revision['ID'],
+                'CheckID':'public-cancel','GrantID':cancel_grant,'ExpectedFence':lease['Fence']}
+            assert interruption['Request'] == exact_cancel
+            assert interruption['RunnerSession'] == runner_profile['runner_session_id']
+            assert interruption['Reason'] == 'cancelled_owned_group_cleanup'
+            assert interruption['Assurance'] == 'cooperative-native-executor'
+            assert len(interruption['ResultDigest']) == 64 and all(c in '0123456789abcdef' for c in interruption['ResultDigest'])
+            interrupted_replay = call('request_verification', request=cancelling)
+            assert interrupted_replay == cancelled
             call('release_lease', request={'OperationKey':'public-async-release','AttemptID':attempt['ID'],
                 'LeaseID':lease['ID'],'ExpectedFence':lease['Fence']})
         finally:
@@ -399,7 +412,7 @@ def smoke(codex, dacli, schema5_dacli=None):
             review_server.close()
         selection.write_text(json.dumps({'schema_version':1,'binary':dacli,
             'connection_file':str(async_profile),'runner_config_file':str(runner)}))
-        # Restart observes the durable incomplete reservation, never reruns it.
+        # Restart recovers the durable known interruption without rerunning it.
         server = Host(codex, workspace, env)
         try:
             status = server.call('mcpServerStatus/list', {})['data']
@@ -407,7 +420,7 @@ def smoke(codex, dacli, schema5_dacli=None):
                                                  'approvalPolicy':'never','sandbox':'read-only'})
             tid = thread['thread']['id']
             recovered = call('get_verification_status', request=cancelling)
-            assert recovered['state'] == 'reconciliation_required' and recovered['evidence'] is None
+            assert recovered == cancelled
             recovered_complete = call('get_verification_status', request=request)
             assert recovered_complete['state'] == 'completed' and recovered_complete['evidence']['ID'] == trusted['ID']
         finally:
@@ -435,7 +448,8 @@ def smoke(codex, dacli, schema5_dacli=None):
             'configured_async_exact_replay':True,
             'configured_async_unrelated_reads_responsive':True,
             'configured_async_cancel_has_no_evidence':True,
-            'configured_async_restart_preserves_unknown_and_completed':True,
+            'configured_async_cancel_has_exact_interruption':True,
+            'configured_async_restart_preserves_interrupted_and_completed':True,
             'configured_review_tool_names':review_names,
             'configured_review_separate_credentials':True,
             'configured_review_exact_trusted_evidence_eligible':True,
