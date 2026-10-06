@@ -28,8 +28,14 @@ Codex CLI or use `dacli spawn` to establish identity.
    revision/lease/fence. Preserve the full operation identity. Use
    `get_verification_status` to observe progress and the final receipt; submission
    alone is not successful verification. Use `cancel_verification` to request
-   cancellation, then inspect status. An unknown or pending durable operation
-   requires owner reconciliation; never change its key to reexecute uncertain
+   cancellation, then inspect status. Keep the selected server connection alive
+   until it records a terminal outcome: closing it requests cancellation. A known
+   `interrupted` outcome has null evidence and an authenticated non-evidence
+   `interruption` record binding the exact original request and runner. Its
+   cooperative cleanup assurance is not successful verification or proof that
+   escaped descendants stopped. Preserve its key and protection for owner recovery.
+   An unknown restart remains pending (`reconciliation_required`) without an
+   interruption record; never infer cleanup or change its key to reexecute uncertain
    work. These tools accept no command, credential, grant or directory overrides.
 6. Keep the worker lease current while a separately provisioned reviewer checks
    the revision. Release with `release_lease` after review or when abandoning the
