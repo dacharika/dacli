@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/mlnomadpy/dacli/cloud/internal/composition"
 	"github.com/mlnomadpy/dacli/cloud/internal/config"
 	"github.com/mlnomadpy/dacli/cloud/internal/domain"
 	"github.com/mlnomadpy/dacli/cloud/internal/worker"
@@ -46,12 +47,12 @@ func runArgs(args []string, load configLoader) error {
 	logger.Info("starting control-plane worker", "component", domain.ComponentWorker, "contract_version", domain.ContractVersion, "config", cfg.SafeSummary())
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	worker.Run(ctx, cfg.WorkerInterval, cfg.RequestTimeout, worker.JobFunc(func(context.Context) error {
-		// The durable envelope package is provider-neutral. A deployment injects
-		// its PostgreSQL driver, tenant scheduler, verifier, key source, and
-		// sender; this reference command proves only the bounded lifecycle.
-		return nil
-	}), func(err error) {
+	runtime, err := composition.Open(ctx, cfg, logger)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = runtime.Close() }()
+	worker.Run(ctx, cfg.WorkerInterval, cfg.RequestTimeout, worker.JobFunc(runtime.Cycle), func(err error) {
 		logger.Error("control-plane worker cycle failed", "code", "worker_cycle_failed")
 	})
 	return nil

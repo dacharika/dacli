@@ -14,12 +14,15 @@ import (
 )
 
 const (
-	SchemaVersion         = 9
+	SchemaVersion         = 10
 	payloadRetention      = 90 * 24 * time.Hour
 	maxRetentionBatchSize = 1000
 )
 
-type Repository struct{ db *sql.DB }
+type Repository struct {
+	db                   *sql.DB
+	deliveryAttemptLimit int
+}
 
 func Open(ctx context.Context, db *sql.DB) (*Repository, error) {
 	if db == nil {
@@ -208,22 +211,36 @@ func equalJSON(left, right []byte) bool {
 	return leftErr == nil && rightErr == nil && bytes.Equal(leftCanonical, rightCanonical)
 }
 
+// WithDeliveryAttemptLimit binds an operator-selected retry ceiling to this
+// worker repository view, without mutating shared HTTP repository policy.
+func (r *Repository) WithDeliveryAttemptLimit(max int) (*Repository, error) {
+	if r == nil || r.db == nil || max < 1 || max > 100 {
+		return nil, errors.New("invalid delivery attempt limit")
+	}
+	return &Repository{db: r.db, deliveryAttemptLimit: max}, nil
+}
+
 func (r *Repository) ClaimDue(ctx context.Context, scope tenant.Scope, now, leaseUntil time.Time, limit int) ([]Delivery, error) {
 	if limit < 1 || limit > maxDeliveryBatch || now.IsZero() || !leaseUntil.After(now) {
 		return nil, errors.New("invalid outbox claim")
 	}
 	var result []Delivery
 	err := r.withTenant(ctx, scope, false, func(tx *sql.Tx) error {
+		if r.deliveryAttemptLimit > 0 {
+			if _, e := tx.ExecContext(ctx, `UPDATE controlplane_envelope_outbox SET state='dead-letter',last_error_code='delivery_retry_exhausted',lease_until_unix_milli=0 WHERE tenant_id=$1 AND attempts>=$2 AND (state='pending' OR (state='delivering' AND lease_until_unix_milli<=$3))`, scope.Organization, r.deliveryAttemptLimit, now.UnixMilli()); e != nil {
+				return e
+			}
+		}
 		rows, err := tx.QueryContext(ctx, `WITH due AS (
     SELECT tenant_id, project_id, outbox_id FROM controlplane_envelope_outbox
-    WHERE tenant_id = $1 AND ((state = 'pending' AND next_attempt_unix_milli <= $2)
+    WHERE tenant_id = $1 AND ($5=0 OR attempts<$5) AND ((state = 'pending' AND next_attempt_unix_milli <= $2)
        OR (state = 'delivering' AND lease_until_unix_milli <= $2))
     ORDER BY next_attempt_unix_milli, outbox_id
     FOR UPDATE SKIP LOCKED LIMIT $3
 )
-UPDATE controlplane_envelope_outbox AS o SET state = 'delivering', lease_until_unix_milli = $4
+UPDATE controlplane_envelope_outbox AS o SET state = 'delivering', attempts = o.attempts + 1, lease_until_unix_milli = $4
 FROM due WHERE o.tenant_id = due.tenant_id AND o.project_id = due.project_id AND o.outbox_id = due.outbox_id
-RETURNING o.tenant_id, o.project_id, o.outbox_id, o.envelope, o.attempts`, scope.Organization, now.UnixMilli(), limit, leaseUntil.UnixMilli())
+RETURNING o.tenant_id, o.project_id, o.outbox_id, o.envelope, o.attempts - 1`, scope.Organization, now.UnixMilli(), limit, leaseUntil.UnixMilli(), r.deliveryAttemptLimit)
 		if err != nil {
 			return fmt.Errorf("claim due outbox rows: %w", err)
 		}
@@ -252,20 +269,20 @@ RETURNING o.tenant_id, o.project_id, o.outbox_id, o.envelope, o.attempts`, scope
 
 func (r *Repository) MarkDelivered(ctx context.Context, scope tenant.Scope, row Delivery, at time.Time) error {
 	return r.transition(ctx, scope, row, `UPDATE controlplane_envelope_outbox
-SET state = 'delivered', attempts = attempts + 1, delivered_unix_milli = $4, lease_until_unix_milli = 0, last_error_code = $5
-WHERE tenant_id = $1 AND project_id = $2 AND outbox_id = $3 AND state = 'delivering' AND attempts = $6`, at.UnixMilli(), "")
+SET state = 'delivered', attempts = attempts, delivered_unix_milli = $4, lease_until_unix_milli = 0, last_error_code = $5
+WHERE tenant_id = $1 AND project_id = $2 AND outbox_id = $3 AND state = 'delivering' AND attempts = $6 + 1 AND lease_until_unix_milli > (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::BIGINT`, at.UnixMilli(), "")
 }
 
 func (r *Repository) Reschedule(ctx context.Context, scope tenant.Scope, row Delivery, at time.Time, code string) error {
 	return r.transition(ctx, scope, row, `UPDATE controlplane_envelope_outbox
-SET state = 'pending', attempts = attempts + 1, next_attempt_unix_milli = $4, lease_until_unix_milli = 0, last_error_code = $5
-WHERE tenant_id = $1 AND project_id = $2 AND outbox_id = $3 AND state = 'delivering' AND attempts = $6`, at.UnixMilli(), code)
+SET state = 'pending', attempts = attempts, next_attempt_unix_milli = $4, lease_until_unix_milli = 0, last_error_code = $5
+WHERE tenant_id = $1 AND project_id = $2 AND outbox_id = $3 AND state = 'delivering' AND attempts = $6 + 1 AND lease_until_unix_milli > (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::BIGINT`, at.UnixMilli(), code)
 }
 
 func (r *Repository) MarkDeadLetter(ctx context.Context, scope tenant.Scope, row Delivery, at time.Time, code string) error {
 	return r.transition(ctx, scope, row, `UPDATE controlplane_envelope_outbox
-SET state = 'dead-letter', attempts = attempts + 1, next_attempt_unix_milli = $4, lease_until_unix_milli = 0, last_error_code = $5
-WHERE tenant_id = $1 AND project_id = $2 AND outbox_id = $3 AND state = 'delivering' AND attempts = $6`, at.UnixMilli(), code)
+SET state = 'dead-letter', attempts = attempts, next_attempt_unix_milli = $4, lease_until_unix_milli = 0, last_error_code = $5
+WHERE tenant_id = $1 AND project_id = $2 AND outbox_id = $3 AND state = 'delivering' AND attempts = $6 + 1 AND lease_until_unix_milli > (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::BIGINT`, at.UnixMilli(), code)
 }
 
 func (r *Repository) transition(ctx context.Context, scope tenant.Scope, row Delivery, query string, at int64, code string) error {

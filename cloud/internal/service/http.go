@@ -33,6 +33,7 @@ type ReadinessFunc func(context.Context) error
 func (f ReadinessFunc) Ready(ctx context.Context) error { return f(ctx) }
 
 type API struct {
+	envelopes       *envelopeHTTP
 	config          config.Config
 	readiness       Readiness
 	logger          *slog.Logger
@@ -103,6 +104,10 @@ func (a *API) Handler() http.Handler {
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"status": "ready", "contract_version": domain.ContractVersion})
 	})
+	if a.envelopes != nil {
+		mux.HandleFunc("/v1/sync/envelopes", a.envelopes.receive)
+		mux.HandleFunc("/v1/sync/jobs", a.envelopes.jobs)
+	}
 	if a.tenant != nil {
 		mux.HandleFunc("/v1/projects", a.tenant.projects)
 		mux.HandleFunc("/v1/projects/", a.tenant.project)

@@ -3,9 +3,12 @@ package config
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/mlnomadpy/dacli/cloud/internal/tenant"
 	"io"
 	"net"
 	"net/url"
@@ -20,6 +23,7 @@ const maxConfigBytes = 64 << 10
 
 // File is the non-secret configuration persisted by operators.
 type File struct {
+	Hosted           *HostedFile   `json:"hosted,omitempty"`
 	Mode             string        `json:"mode"`
 	ListenAddress    string        `json:"listen_address"`
 	PublicBaseURL    string        `json:"public_base_url"`
@@ -55,6 +59,7 @@ type RateLimits struct {
 
 // Config is the validated runtime configuration. Secrets remain private.
 type Config struct {
+	hosted          *HostedRuntime
 	Mode            string
 	ListenAddress   string
 	PublicBaseURL   *url.URL
@@ -184,7 +189,11 @@ func validate(f File, lookup LookupEnv) (Config, error) {
 			return Config{}, errors.New("production database credential is missing, too short, or a known default")
 		}
 	}
-	return Config{
+	hosted, err := validateHosted(f.Hosted, f.Mode, lookup)
+	if err != nil {
+		return Config{}, err
+	}
+	return Config{hosted: hosted,
 		Mode: f.Mode, ListenAddress: f.ListenAddress, PublicBaseURL: base,
 		RequestTimeout: requestTimeout, ShutdownTimeout: shutdownTimeout,
 		MaxRequestBytes: f.MaxRequestBytes, WorkerInterval: workerInterval,
@@ -285,3 +294,105 @@ func (c Config) SafeSummary() map[string]any {
 func safeLimit(value ratelimit.Policy) map[string]any {
 	return map[string]any{"capacity": value.Capacity, "refill_interval": value.RefillInterval.String(), "max_keys": value.MaxKeys, "idle_ttl": value.IdleTTL.String()}
 }
+
+// Hosted composition is opt-in in configuration but mandatory for these
+// production entrypoints. The legacy config parser remains compatible.
+type HostedFile struct {
+	PolicyRevision uint64             `json:"policy_revision"`
+	Tenants        []HostedTenantFile `json:"tenants"`
+}
+type HostedTenantFile struct {
+	TenantID       string          `json:"tenant_id"`
+	DestinationURL string          `json:"destination_url,omitempty"`
+	CredentialEnv  string          `json:"credential_env,omitempty"`
+	TrustedKeys    []HostedKeyFile `json:"trusted_keys"`
+}
+type HostedKeyFile struct {
+	ProjectID string `json:"project_id"`
+	KeyID     string `json:"key_id"`
+	PublicKey string `json:"public_key"`
+}
+type HostedTenant struct {
+	Tenant      tenant.OrganizationID
+	Destination string
+	Keys        map[tenant.ProjectID]map[string]ed25519.PublicKey
+}
+type HostedRuntime struct {
+	PolicyRevision uint64
+	tenants        []HostedTenant
+	credentials    map[tenant.OrganizationID]string
+}
+
+func validateHosted(f *HostedFile, mode string, lookup LookupEnv) (*HostedRuntime, error) {
+	if f == nil {
+		return nil, nil
+	}
+	if f.PolicyRevision == 0 || len(f.Tenants) == 0 || len(f.Tenants) > 100 {
+		return nil, errors.New("hosted requires a policy revision and 1..100 explicit tenants")
+	}
+	out := &HostedRuntime{PolicyRevision: f.PolicyRevision, credentials: map[tenant.OrganizationID]string{}}
+	seen := map[tenant.OrganizationID]bool{}
+	for _, v := range f.Tenants {
+		id, e := tenant.NewOrganizationID(v.TenantID)
+		if e != nil || seen[id] {
+			return nil, errors.New("hosted tenant invalid or repeated")
+		}
+		seen[id] = true
+		t := HostedTenant{Tenant: id, Keys: map[tenant.ProjectID]map[string]ed25519.PublicKey{}}
+		if len(v.TrustedKeys) == 0 || len(v.TrustedKeys) > 1000 {
+			return nil, errors.New("hosted tenant requires bounded explicit project signing keys")
+		}
+		for _, k := range v.TrustedKeys {
+			project, e := tenant.NewProjectID(k.ProjectID)
+			key, e2 := base64.StdEncoding.DecodeString(k.PublicKey)
+			if e != nil || e2 != nil || len(key) != ed25519.PublicKeySize || k.KeyID == "" || len(k.KeyID) > 128 {
+				return nil, errors.New("hosted signing key invalid")
+			}
+			if t.Keys[project] == nil {
+				t.Keys[project] = map[string]ed25519.PublicKey{}
+			}
+			if _, ok := t.Keys[project][k.KeyID]; ok {
+				return nil, errors.New("hosted signing key repeated")
+			}
+			t.Keys[project][k.KeyID] = ed25519.PublicKey(append([]byte(nil), key...))
+		}
+		if v.DestinationURL != "" {
+			u, e := url.Parse(v.DestinationURL)
+			if e != nil || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Scheme != "https" && (mode != "development" || u.Scheme != "http" || (u.Hostname() != "localhost" && u.Hostname() != "127.0.0.1" && u.Hostname() != "::1"))) {
+				return nil, errors.New("hosted delivery requires an explicit credential-free HTTPS destination (loopback HTTP only in development)")
+			}
+			credential, e := secretFromEnv("hosted delivery credential", v.CredentialEnv, lookup)
+			if e != nil || len(credential) > 4096 || strings.ContainsAny(credential, "\r\n") {
+				return nil, errors.New("hosted delivery credential unavailable or invalid")
+			}
+			t.Destination = u.String()
+			out.credentials[id] = credential
+		} else if v.CredentialEnv != "" {
+			return nil, errors.New("delivery credential requires an explicit destination")
+		}
+		out.tenants = append(out.tenants, t)
+	}
+	return out, nil
+}
+func (c Config) HostedRuntime() (*HostedRuntime, error) {
+	if c.hosted == nil {
+		return nil, errors.New("hosted composition requires explicit hosted configuration")
+	}
+	copy := &HostedRuntime{PolicyRevision: c.hosted.PolicyRevision, credentials: map[tenant.OrganizationID]string{}}
+	for _, t := range c.hosted.tenants {
+		v := HostedTenant{Tenant: t.Tenant, Destination: t.Destination, Keys: map[tenant.ProjectID]map[string]ed25519.PublicKey{}}
+		for project, keys := range t.Keys {
+			v.Keys[project] = map[string]ed25519.PublicKey{}
+			for id, key := range keys {
+				v.Keys[project][id] = append(ed25519.PublicKey(nil), key...)
+			}
+		}
+		copy.tenants = append(copy.tenants, v)
+		copy.credentials[t.Tenant] = c.hosted.credentials[t.Tenant]
+	}
+	return copy, nil
+}
+func (h *HostedRuntime) Tenants() []HostedTenant                           { return append([]HostedTenant(nil), h.tenants...) }
+func (h *HostedRuntime) DeliveryCredential(t tenant.OrganizationID) string { return h.credentials[t] }
+func (h HostedRuntime) String() string                                     { return "HostedRuntime" }
+func (h HostedRuntime) GoString() string                                   { return "HostedRuntime" }

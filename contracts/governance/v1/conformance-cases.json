@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "roles": [
+    "worker",
+    "competing_worker",
+    "revoked_worker",
+    "runner",
+    "reviewer",
+    "forged_reviewer",
+    "controller",
+    "bridge",
+    "missing_identity"
+  ],
+  "cases": {
+    "missing-identity": {
+      "mode": "backend",
+      "exit_codes": [
+        0,
+        3
+      ],
+      "required_fields": [
+        "/error/exit_code",
+        "/error/code"
+      ],
+      "unsupported": "explicit owner-provisioned producer inputs not supplied"
+    },
+    "revoked-identity": {
+      "mode": "backend",
+      "exit_codes": [
+        0,
+        3
+      ],
+      "required_fields": [
+        "/error/exit_code",
+        "/error/code"
+      ],
+      "unsupported": "explicit owner-provisioned producer inputs not supplied"
+    },
+    "overlapping-lease": {
+      "mode": "backend",
+      "exit_codes": [
+        0,
+        3
+      ],
+      "required_fields": [
+        "/error/exit_code",
+        "/error/code"
+      ],
+      "unsupported": "explicit owner-provisioned producer inputs not supplied"
+    },
+    "forged-reviewer": {
+      "mode": "backend",
+      "exit_codes": [
+        0,
+        3
+      ],
+      "required_fields": [
+        "/error/exit_code",
+        "/error/code"
+      ],
+      "unsupported": "explicit owner-provisioned producer inputs not supplied"
+    },
+    "stale-evidence": {
+      "mode": "backend",
+      "exit_codes": [
+        0,
+        3
+      ],
+      "required_fields": [
+        "/error/exit_code",
+        "/error/code"
+      ],
+      "unsupported": "explicit owner-provisioned producer inputs not supplied"
+    },
+    "exact-replay": {
+      "mode": "backend",
+      "exit_codes": [
+        0,
+        3
+      ],
+      "required_fields": [
+        "/data"
+      ],
+      "unsupported": "explicit owner-provisioned producer inputs not supplied"
+    },
+    "broker-restart": {
+      "mode": "backend",
+      "exit_codes": [
+        0,
+        3
+      ],
+      "required_fields": [
+        "/data"
+      ],
+      "unsupported": "explicit owner-provisioned producer inputs not supplied"
+    },
+    "duplicate-events": {
+      "mode": "backend",
+      "exit_codes": [
+        0,
+        3
+      ],
+      "required_fields": [
+        "/data"
+      ],
+      "unsupported": "explicit owner-provisioned producer inputs not supplied"
+    },
+    "reordered-events": {
+      "mode": "backend",
+      "exit_codes": [
+        0,
+        3
+      ],
+      "required_fields": [
+        "/error/exit_code",
+        "/error/code"
+      ],
+      "unsupported": "explicit owner-provisioned producer inputs not supplied"
+    },
+    "unacknowledged-cancellation": {
+      "mode": "backend",
+      "exit_codes": [
+        0,
+        3
+      ],
+      "required_fields": [
+        "/data"
+      ],
+      "unsupported": "explicit owner-provisioned producer inputs not supplied"
+    },
+    "disabled-hooks": {
+      "mode": "live-only",
+      "exit_codes": [],
+      "required_fields": [],
+      "unsupported": "hook callback entry/enforcement requires separate actual host-version observation; stdio does not enter hooks"
+    },
+    "malformed-hooks": {
+      "mode": "live-only",
+      "exit_codes": [],
+      "required_fields": [],
+      "unsupported": "hook callback entry/enforcement requires separate actual host-version observation; stdio does not enter hooks"
+    }
+  }
+}
