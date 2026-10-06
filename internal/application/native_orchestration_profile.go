@@ -245,3 +245,16 @@ func (p *NativeOrchestrationProfile) HostStatus() (NativeOrchestrationHostStatus
 	}
 	return NativeOrchestrationHostStatus{Harness: "codex", DispatchChannel: "owner-manual-separate-process", AutomaticDispatch: "unsupported", PrivateChildDelivery: "owner-provisioned", CancellationChannel: "owner-manual-native-host", AutomaticTermination: "unverified", EffectAuthorized: false}, nil
 }
+
+// Routing reads a historical dispatch/correction selection for the configured
+// controller and project. A future-turn route is not a host execution permit or
+// a change to the current writer's identity/model.
+func (p *NativeOrchestrationProfile) Routing(project, id string) (sessions.NativeModelRoutingSelection, error) {
+	if p.config.Role != "controller" || project != p.config.ProjectID {
+		return sessions.NativeModelRoutingSelection{}, sessions.ErrDenied
+	}
+	if _, _, e := p.authenticate(); e != nil {
+		return sessions.NativeModelRoutingSelection{}, e
+	}
+	return p.swarm.Routing(project, id)
+}

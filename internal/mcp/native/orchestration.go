@@ -11,6 +11,12 @@ type swarmPlanArgs struct {
 	version
 	Project string `json:"project"`
 }
+type dispatchRoutingArgs struct {
+	version
+	Project    string `json:"project"`
+	DispatchID string `json:"dispatch_id"`
+}
+
 type loopStartRequest struct {
 	OperationKey string `json:"operation_key"`
 	InvocationID string `json:"invocation_id"`
@@ -57,7 +63,7 @@ type lifecycleAcknowledgeArgs struct {
 // These catalogs express the selected connection's role, never caller labels.
 // Shared services still authenticate the exact actor, task, operation and fence.
 var orchestrationRoles = map[string][]string{
-	"controller": {"plan_swarm", "start_loop", "get_loop_status", "step_loop", "reconcile_loop", "stop_loop", "cancel_dispatch", "get_dispatch_status", "get_dispatch_lifecycle"},
+	"controller": {"get_dispatch_routing", "plan_swarm", "start_loop", "get_loop_status", "step_loop", "reconcile_loop", "stop_loop", "cancel_dispatch", "get_dispatch_status", "get_dispatch_lifecycle"},
 	"bridge":     {"correlate_dispatch", "observe_dispatch", "acknowledge_cancellation", "get_dispatch_status", "get_dispatch_lifecycle"},
 	"worker":     {"acknowledge_dispatch", "get_dispatch_status", "get_dispatch_lifecycle"},
 }
@@ -65,12 +71,12 @@ var orchestrationReads = []string{"identity", "workspace_status", "task_list", "
 
 func init() {
 	for n, v := range map[string]any{
-		"get_orchestration_host_status": version{}, "plan_swarm": swarmPlanArgs{}, "start_loop": loopStartArgs{}, "get_loop_status": loopStatusArgs{}, "step_loop": loopAdvanceArgs{}, "reconcile_loop": loopAdvanceArgs{}, "stop_loop": loopAdvanceArgs{}, "cancel_dispatch": lifecycleCancelArgs{}, "get_dispatch_status": dispatchStatusArgs{}, "get_dispatch_lifecycle": dispatchStatusArgs{}, "correlate_dispatch": dispatchCorrelateArgs{}, "observe_dispatch": lifecycleObserveArgs{}, "acknowledge_dispatch": dispatchAcknowledgeArgs{}, "acknowledge_cancellation": lifecycleAcknowledgeArgs{},
+		"get_dispatch_routing": dispatchRoutingArgs{}, "get_orchestration_host_status": version{}, "plan_swarm": swarmPlanArgs{}, "start_loop": loopStartArgs{}, "get_loop_status": loopStatusArgs{}, "step_loop": loopAdvanceArgs{}, "reconcile_loop": loopAdvanceArgs{}, "stop_loop": loopAdvanceArgs{}, "cancel_dispatch": lifecycleCancelArgs{}, "get_dispatch_status": dispatchStatusArgs{}, "get_dispatch_lifecycle": dispatchStatusArgs{}, "correlate_dispatch": dispatchCorrelateArgs{}, "observe_dispatch": lifecycleObserveArgs{}, "acknowledge_dispatch": dispatchAcknowledgeArgs{}, "acknowledge_cancellation": lifecycleAcknowledgeArgs{},
 	} {
 		arguments[n] = v
 	}
 	for n, v := range map[string]any{
-		"get_orchestration_host_status": application.NativeOrchestrationHostStatus{}, "plan_swarm": sessions.SwarmPlan{}, "start_loop": sessions.ControllerStatus{}, "get_loop_status": sessions.ControllerStatus{}, "step_loop": sessions.ControllerStatus{}, "reconcile_loop": sessions.ControllerStatus{}, "stop_loop": sessions.ControllerStatus{}, "cancel_dispatch": sessions.LifecycleCancellationResult{}, "get_dispatch_status": sessions.DispatchIntent{}, "get_dispatch_lifecycle": sessions.LifecycleStatus{}, "correlate_dispatch": sessions.DispatchIntent{}, "observe_dispatch": sessions.LifecycleObservation{}, "acknowledge_dispatch": sessions.DispatchIntent{}, "acknowledge_cancellation": sessions.LifecycleCancellation{},
+		"get_dispatch_routing": sessions.NativeModelRoutingSelection{}, "get_orchestration_host_status": application.NativeOrchestrationHostStatus{}, "plan_swarm": sessions.SwarmPlan{}, "start_loop": sessions.ControllerStatus{}, "get_loop_status": sessions.ControllerStatus{}, "step_loop": sessions.ControllerStatus{}, "reconcile_loop": sessions.ControllerStatus{}, "stop_loop": sessions.ControllerStatus{}, "cancel_dispatch": sessions.LifecycleCancellationResult{}, "get_dispatch_status": sessions.DispatchIntent{}, "get_dispatch_lifecycle": sessions.LifecycleStatus{}, "correlate_dispatch": sessions.DispatchIntent{}, "observe_dispatch": sessions.LifecycleObservation{}, "acknowledge_dispatch": sessions.DispatchIntent{}, "acknowledge_cancellation": sessions.LifecycleCancellation{},
 	} {
 		outputs[n] = v
 	}
@@ -103,6 +109,9 @@ func (s *Server) orchestrationCall(name string, arg any) (any, error, bool) {
 		return d, e, true
 	}
 	switch x := arg.(type) {
+	case *dispatchRoutingArgs:
+		d, e := p.Routing(x.Project, x.DispatchID)
+		return d, e, true
 	case *swarmPlanArgs:
 		d, e := p.Plan(x.Project)
 		return d, e, true

@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "dacli-governance",
-  "version": "0.4.0",
-  "description": "Scoped native governance with named verification and independent review.",
+  "version": "0.5.0",
+  "description": "Scoped native swarms and bounded loops with model routing, required verification and independent review.",
   "author": {
     "name": "Taha Bouhsine"
   },
@@ -16,9 +16,9 @@
   "extensions": {
     "com.openai": {
       "interface": {
-        "displayName": "dacli Governance Preview",
-        "shortDescription": "Coordinate governed work",
-        "longDescription": "Owner-enrolled tools for tasks, checkout attempts, leases and revision evidence, with optional named verification or separately provisioned review proposals. Cooperative local preview; shared MCP connections share one session identity.",
+        "displayName": "dacli Governance",
+        "shortDescription": "Govern native agent swarms",
+        "longDescription": "Owner-enrolled native tools for scoped swarm planning, bounded controller loops, dispatch lifecycle, next-turn model routing explanations, full required-check verification and independent review. Owner integration remains explicit. Cooperative host delivery; shared MCP connections share one session identity.",
         "developerName": "Taha Bouhsine",
         "category": "Productivity",
         "capabilities": [
