@@ -16,6 +16,7 @@ import (
 	"github.com/mlnomadpy/dacli/cloud/internal/tenantresource"
 	"log/slog"
 	"net/url"
+	"path"
 	"time"
 )
 
@@ -57,8 +58,10 @@ func Open(ctx context.Context, cfg config.Config, logger *slog.Logger) (*Runtime
 	if e != nil {
 		return nil, e
 	}
+	// Socket URLs omit the authority host so lib/pq cannot sort duplicate host
+	// settings and override the explicit socket with localhost (core/637).
 	u, e := url.Parse(cfg.DatabaseURL())
-	if e != nil || (u.Scheme != "postgres" && u.Scheme != "postgresql") || u.Hostname() == "" {
+	if e != nil || (u.Scheme != "postgres" && u.Scheme != "postgresql") || (u.Hostname() == "" && !path.IsAbs(u.Query().Get("host"))) {
 		return nil, errors.New("hosted runtime requires a PostgreSQL URL")
 	}
 	q := u.Query()
