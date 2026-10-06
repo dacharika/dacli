@@ -550,12 +550,25 @@ func TestNativeControllerStartsWithExactClosedRoutesAndPreservesCheckpoint(t *te
 		if err := json.Unmarshal(before.PrivateBytes, &original); err != nil {
 			return err
 		}
+		history := original.Checkpoints[previous.CheckpointID]
+		if len(history) == 0 || len(history[len(history)-1].Refs) == 0 || !reflect.DeepEqual(out.Refs, history[len(history)-1].Refs) || out.CheckpointSequence != history[len(history)-1].Sequence {
+			t.Fatal("continuation dropped original checkpoint producer references", out)
+		}
 		if !reflect.DeepEqual(s.Checkpoints, original.Checkpoints) || !reflect.DeepEqual(s.ControllerInvocations[previous.ID], original.ControllerInvocations[previous.ID]) || !reflect.DeepEqual(s.ControllerPolicies["project"].TaskIDs, []string{"task-a", "task-b", "task-c"}) || !reflect.DeepEqual(s.NativeAcceptanceOperations, original.NativeAcceptanceOperations) || !reflect.DeepEqual(s.Leases, original.Leases) || !reflect.DeepEqual(s.Grants, original.Grants) || !reflect.DeepEqual(s.ReviewGrants, original.ReviewGrants) {
 			t.Fatal("closed route startup rewrote protection, scope, receipts, grants, or checkpoint counters")
 		}
 		return nil
 	}); err != nil {
 		t.Fatal(err)
+	}
+	advanced, err := f.a.StepController(f.token, f.s.ID, ControllerStepRequest{OperationKey: "closed-next-step", ProjectID: "project", InvocationID: out.ID, ExpectedSequence: out.Sequence})
+	if err != nil || advanced.Sequence != out.Sequence+1 {
+		t.Fatal("continuation could not persist original references on first step", advanced, err)
+	}
+	for _, ref := range out.Refs {
+		if !containsCheckpointRef(advanced.Refs, ref) {
+			t.Fatal("continuation step lost a historical producer identity", ref)
+		}
 	}
 }
 
