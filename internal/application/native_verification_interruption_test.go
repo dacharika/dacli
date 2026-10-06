@@ -46,7 +46,7 @@ func nativeInterruptionProfile(t *testing.T, f nativeFixture) *NativeVerificatio
 
 func TestNativeVerificationKnownPreStartCancellationSurvivesJobRestart(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "must-not-start")
-	f := nativeSetup(t, "printf ran > '"+marker+"'")
+	f := nativeSetupLinkedWorkspace(t, "printf ran > '"+marker+"'")
 	prepared, receipt, err := f.executor.Prepare(f.workerToken, f.request)
 	if err != nil || receipt != nil || prepared == nil {
 		t.Fatal("prepare failed", err)
@@ -77,7 +77,7 @@ func TestNativeVerificationKnownPreStartCancellationSurvivesJobRestart(t *testin
 }
 
 func TestNativeVerificationUnknownReservationRemainsProtectedAcrossRestart(t *testing.T) {
-	f := nativeSetup(t, "printf must-not-run")
+	f := nativeSetupLinkedWorkspace(t, "printf must-not-run")
 	if prepared, receipt, err := f.executor.Prepare(f.workerToken, f.request); err != nil || prepared == nil || receipt != nil {
 		t.Fatal("prepare failed", err)
 	}
@@ -109,7 +109,7 @@ func TestNativeVerificationRunningCancellationRecordsOnlyObservedOwnedCleanup(t 
 		t.Skip("owned process cleanup unavailable")
 	}
 	marker := filepath.Join(t.TempDir(), "started")
-	f := nativeSetup(t, "printf started > '"+marker+"'; sleep 30")
+	f := nativeSetupLinkedWorkspace(t, "printf started > '"+marker+"'; sleep 30")
 	prepared, receipt, err := f.executor.Prepare(f.workerToken, f.request)
 	if err != nil || prepared == nil || receipt != nil {
 		t.Fatal("prepare failed", err)
