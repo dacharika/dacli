@@ -88,4 +88,4 @@ stage bootstrap docker exec --interactive "$container_name" psql -h /var/run/pos
 stage create-directory docker exec "$container_name" mkdir /qualification
 stage copy-test docker cp "$work_dir/composition.test" "$container_name:/qualification/composition.test"
 stage copy-migrations docker cp "$source_root/cloud/migrations" "$container_name:/qualification/migrations"
-stage qualify docker exec --env DACLI_QUALIFY_HOSTED_POSTGRES=1 "$container_name" /qualification/composition.test -test.run '^TestHostedPostgresComposition$' -test.v -test.timeout 60s
+stage qualify docker exec --env PGHOST=/var/run/postgresql --env DACLI_QUALIFY_HOSTED_POSTGRES=1 "$container_name" /qualification/composition.test -test.run '^TestHostedPostgresComposition$' -test.v -test.timeout 60s
