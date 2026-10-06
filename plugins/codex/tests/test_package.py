@@ -16,12 +16,16 @@ SPEC.loader.exec_module(PACKAGE)
 
 
 class PackageTests(unittest.TestCase):
-    def test_native_receipt_matches_current_package_and_migration_smoke(self):
+    def test_historical_04_receipt_preserves_actual_migration_observations(self):
         receipt = json.loads((ROOT / 'receipts/native-install-0.159.2.json').read_text())
-        expected = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
-                    for name in PACKAGE.FILES if not name.startswith('receipts/')}
-        self.assertEqual(receipt['plugin_source_sha256'], expected)
-        self.assertEqual(receipt['smoke_script_sha256'], hashlib.sha256((ROOT / 'scripts/smoke.py').read_bytes()).hexdigest())
+        # This exact receipt binds the historical 0.4 package/artifacts. It cannot
+        # certify newly changed source or silently acquire new current hashes.
+        self.assertEqual(hashlib.sha256((ROOT / 'receipts/native-install-0.159.2.json').read_bytes()).hexdigest(),
+                         'e924226d08ac0f66901b661fa1534cd8db42fe708478a00ab1114c9c5078efcb')
+        self.assertEqual(set(receipt['plugin_source_sha256']), set(PACKAGE.SOURCE_FILES))
+        self.assertEqual(PACKAGE.HISTORICAL_RECEIPTS, ('receipts/native-install-0.159.2.json',))
+        for digest in (*receipt['plugin_source_sha256'].values(), receipt['smoke_script_sha256']):
+            self.assertRegex(digest, r'^[0-9a-f]{64}$')
         self.assertTrue(receipt['genuine_schema5_profile_migrated_to_6'])
         self.assertTrue(receipt['migration_preserved_existing_profile_and_credentials'])
         for key in ('pre_migration_new_server_exit', 'forged_owner_upgrade_exit',
@@ -47,6 +51,15 @@ class PackageTests(unittest.TestCase):
                     'configured_review_preserves_task_status',
                     'configured_review_live_reviewer_revocation_refused'):
             self.assertTrue(receipt[key])
+
+    def test_current_orchestration_version_has_no_fabricated_installation_receipt(self):
+        portable = json.loads((ROOT / 'plugin.json').read_text())
+        legacy = json.loads((ROOT / '.codex-plugin/plugin.json').read_text())
+        self.assertEqual(portable['version'], '0.5.0')
+        self.assertEqual(legacy['version'], portable['version'])
+        self.assertIn('bounded', portable['description'])
+        self.assertLessEqual(len(portable['extensions']['com.openai']['interface']['shortDescription']), 30)
+        self.assertNotIn('receipts/orchestration-install-0.159.2.json', PACKAGE.FILES)
 
     def test_manifests_and_transport_match(self):
         portable = json.loads((ROOT / 'plugin.json').read_text())

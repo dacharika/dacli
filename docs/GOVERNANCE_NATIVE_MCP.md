@@ -333,3 +333,39 @@ integration producer supplies the required bound outcome. Unknown apply effects
 require inspection/reconciliation, not a replacement operation key. Routing
 selection grants only the next permitted child turn, preserving independent
 worker identity, retained-writer protection and correction accounting.
+
+## Version 0.5.0 package and routing read
+
+The controller-only `get_dispatch_routing` accepts `schema_version: 1`,
+`project` and `dispatch_id`. It delegates to the shared authenticated routing
+read for that pinned project. The ID may be a persisted dispatch ID or a
+correction action operation key. The safe selected role/model, difficulty,
+explanation, owner policy and binding describe a historical next-turn decision;
+no host permit, running-model change, writer substitution or new grant is
+inferred. Bridge and worker catalogs do not expose this tool.
+
+The complete required-check set stays bound to its actual producers, command
+digests, exact revision, lease and fence. Individual named runner operations
+retain exact durable identities. Review and integration must consume the entire
+selected required successful set; missing/pending/failed checks or a successful subset
+cannot stand in for it. Final reviewed fixtures follow the actual assembled
+full-check DTOs rather than guessed field names.
+
+Both tracked plugin manifests preserve `dacli-governance` and version 0.5.0.
+The allowlisted package labels the retained 0.4.0 installation receipt historical
+and preserves its bytes. No new installation receipt is invented. Current schema
+fixtures, combined checks and actual supported host reload/packaging observations
+remain pending in this source handoff, separate from implementation metadata.
+
+The full-check consumer contract is additive: `ControllerTaskRoute.Checks` pins
+owner-approved `CheckID`/`GrantID` pairs; the scalar `CheckID` and
+`VerificationGrantID` preserve historical singleton compatibility.
+`ControllerAction.Verifications` carries every selected required named request
+for the fresh revision plan. Its scalar `Verification` is a compatibility view,
+not sufficient completion when the array contains more requests.
+`ControllerAction.EvidenceIDs` supplies the complete successful selected producer
+set to the reviewer; scalar `EvidenceID` likewise cannot substitute for that set.
+Runner calls remain individual named operations with immutable recovery keys.
+The complete approved policy and the fresh required revision plan are distinct:
+only their exact bound selected set may satisfy completion. These final DTO
+fixtures await the actual assembled consumer source and are not manually guessed.

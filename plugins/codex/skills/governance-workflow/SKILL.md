@@ -1,6 +1,6 @@
 ---
 name: governance-workflow
-description: Use owner-enrolled native dacli sessions for scoped work, named verification or separately provisioned independent review through Codex.
+description: Govern native agent swarms and bounded loops with owner-enrolled scope, required verification, independent review and next-turn model routing through Codex.
 ---
 
 Use the host's native coding and collaboration tools. Do not launch a nested
@@ -51,7 +51,7 @@ Use `tools/list` for exact required fields, including `schema_version: 1` and
 mutation `request` records. Policy refusals are final for unchanged requests.
 Report uncertainty and recovery needs instead of substituting a CLI escape.
 
-This 0.4.0 package exposes cooperative native session governance. All agents
+This 0.5.0 package exposes cooperative native session governance. All agents
 sharing one MCP process share its enrolled identity; host labels, `_meta` and
 thread/subagent IDs do not authenticate separate children or independent
 reviewers. Independent sessions need separately provisioned credentials and
@@ -102,3 +102,16 @@ chat completion claim for its exact source/target/revision-bound outcome. When a
 controller reports `pending_local_integration`, retain the durable identity and
 wait for the authorized owner producer. Unknown apply effects require inspect
 and reconcile; changing keys cannot make an uncertain effect safe.
+
+A controller can call `get_dispatch_routing` with the pinned project and exact
+dispatch ID or correction action operation key. Treat its selected role/model,
+difficulty and explanation as a historical read for the next turn. It is never
+an execution permit, actor replacement or mid-turn switch. Other profile roles
+cannot borrow this tool. Use only freshly permitted native host instructions.
+
+For required verification, preserve the full selected required-check set from the owner policy and every
+check/grant/producer/revision/lease/fence identity. Submit and observe each named
+check through the separately provisioned runner. Do not treat one successful
+check, a self-report, or an unknown/pending check as full-set completion. Reviewer
+and owner integration actions require the complete selected required successful set
+for the same exact revision and their own independent authenticated connections.

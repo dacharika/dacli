@@ -1,4 +1,4 @@
-# dacli Codex plugin — local preview 0.4.0
+# dacli Codex plugin — local preview 0.5.0
 
 Owner-enrolled native session tools connect Codex to canonical tasks, external
 Git checkout attempts, fenced leases and revision-bound self-reports. An owner
@@ -59,7 +59,7 @@ provision a separate runner using `native verifier add` as documented in
 `"runner_config_file": "/private/owner/runner.json"` selection field. The
 bootstrap passes that reference as `native serve --runner-config`; it does not
 read runner credentials, mint grants or accept check commands. Without this
-field the default ten-tool catalog is unchanged. Invalid configured runners
+field the default eleven-tool catalog is unchanged. Invalid configured runners
 refuse startup rather than silently dropping verification or choosing another
 authority. Restart the MCP process after changing selection or configuration.
 
@@ -105,7 +105,7 @@ Keep the worker lease current while review is being performed.
 
 In a **separate reviewer process**, select the reviewer connection with the
 optional `review_config_file` pointing to its private review profile. This
-selection advertises four read tools plus `propose_review` and `evaluate_review`.
+selection advertises five read tools plus `propose_review` and `evaluate_review`.
 It excludes attempt, lease, evidence and verification mutations. The bootstrap
 forwards the profile path without reading credentials or policy. A selection
 containing both `runner_config_file` and `review_config_file` refuses: worker
@@ -173,20 +173,21 @@ credential or dacli agent spawn is requested. It exercises installed tool/skill
 discovery, native identity and task reads, attempt/lease/revision/self-report,
 then live refusal after the owner revokes. It exports only bounded observations,
 never tokens, local paths, task contents or raw host responses. The receipt at
-`receipts/native-install-0.159.2.json` records the successful native run, including exact live authorization refusal
+`receipts/native-install-0.159.2.json` preserves the historical 0.4.0 native run, including exact live authorization refusal
 after owner revocation. The optional `--schema5-dacli` path must point to a genuine
 old binary: it creates the old profile, verifies new-server refusal before
 migration, runs the explicit owner upgrade, confirms profile/credential retention
 and old-writer refusal, then exercises the same credentials through Codex.
-The current native receipt includes this migration proof.
+That historical 0.4.0 receipt includes this migration proof.
 It also checks a separately provisioned reviewer through the actual Codex client:
 trusted evidence, exact replay, fresh policy changes, worker lease release,
 request changes, caller-override refusal and live reviewer revocation. No model
 turn or stronger independent reasoning guarantee is inferred from those checks.
 Historical `receipts/install-0.159.2.json` describes version 0.1.0 only.
 
-The deterministic allowlisted archive excludes historical probes/receipts,
-tests, caches, scripts used only for testing and all private state. Build outside
+The deterministic allowlisted archive includes that unchanged historical 0.4.0
+receipt as a historical observation; it excludes other probes/receipts, tests,
+caches, scripts used only for testing and all private state. Build outside
 the package directory. Historical host probes remain separate observations;
 feature advertisements do not certify enforcement.
 
@@ -297,3 +298,25 @@ verification; source checks alone cannot certify a changed landing target.
 Unknown effects require inspection and reconciliation under the original
 identity, and `pending_local_integration` remains pending until that producer's
 actual outcome is available.
+
+## Next-turn routing and required checks
+
+Controller profiles expose read-only `get_dispatch_routing` with `project` and
+`dispatch_id`. The latter identifies either the persisted dispatch or its
+correction action operation key. The result is the shared selected role/model,
+difficulty, explanation, owner policy revision and binding. A correction describes
+a future native child turn; it does not change the original action's actor,
+lease or running model and does not authorize a launch. Unknown or out-of-scope
+records refuse. Bridge and worker profiles cannot call this controller tool.
+
+Use the controller's complete selected required-check set from the owner policy. Each check must retain
+its exact check/grant, producer, revision, lease and fence binding; one successful
+check cannot stand for the remaining selected required checks. Named runner requests and
+status/recovery use their original durable operation identities. Review and
+owner integration require the full selected required successful set for that exact
+revision. Failed, missing, pending or historical checks are not substitutes.
+
+Version 0.5.0 is the assembled source update. Its combined service checks,
+current catalog/schema generation and actual host packaging/reload proof remain
+pending in this implementation handoff. The bundled historical 0.4.0 receipt is
+unchanged and makes no 0.5.0 installation or verification claim.

@@ -4,9 +4,12 @@ from pathlib import Path
 import sys
 import zipfile
 
-FILES = ('plugin.json', 'mcp.json', '.mcp.json', '.codex-plugin/plugin.json',
-         'LICENSE', 'README.md', 'skills/governance-workflow/SKILL.md', 'scripts/serve.py',
-         'receipts/native-install-0.159.2.json')
+SOURCE_FILES = ('plugin.json', 'mcp.json', '.mcp.json', '.codex-plugin/plugin.json',
+         'LICENSE', 'README.md', 'skills/governance-workflow/SKILL.md', 'scripts/serve.py')
+
+# Kept byte-for-byte as historical observations, not evidence for this release.
+HISTORICAL_RECEIPTS = ('receipts/native-install-0.159.2.json',)
+FILES = SOURCE_FILES + HISTORICAL_RECEIPTS
 
 
 def build(output, root=None):
