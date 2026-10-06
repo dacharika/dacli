@@ -208,3 +208,22 @@ func TestSyncIngestionLimitReturns429BeforePersistenceOrPull(t *testing.T) {
 		})
 	}
 }
+
+// Exercise a real inbox policy refusal after authentication and binding resolution.
+// Its audit is retained, but no acknowledgement, pull or acceptance may follow.
+func TestSyncInboxPolicyDenialIsNotRetryable(t *testing.T) {
+	api, d := syncLimitFixture(t, 10, 10)
+	envelope := cloudsync.Envelope{TenantID: "tenant-a", ProjectID: "project-a"}
+	envelope.Integrity.KeyID = "device-key"
+	response := syncLimitRequest(t, api, http.MethodPost, "/v1/sync/exchange", "192.0.2.1:1", []cloudsync.Envelope{envelope})
+	var out errorResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if response.Code != http.StatusForbidden || out.Code != "sync_denied" || out.Retryable || response.Header().Get("Retry-After") != "" || strings.Contains(response.Body.String(), "acknowledged") {
+		t.Fatalf("policy denial became retryable or acknowledged: %d %s", response.Code, response.Body.String())
+	}
+	if d.verifies != 2 || d.resolves != 1 || d.deviceKeys != 1 || d.writes != 1 || d.keys != 0 || d.confirms != 0 || d.pulls != 0 {
+		t.Fatalf("policy denial bypassed inbox or proceeded beyond its audit: %+v", d)
+	}
+}

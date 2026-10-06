@@ -119,11 +119,7 @@ func TestHostedPostgresComposition(t *testing.T) {
 		t.Fatal(err)
 	}
 	foreignResponse := pgCompositionExchange(t, runtime, a, []cloudsync.Envelope{foreign})
-	// Existing exchange maps inbox ErrDenied to this retryable transport refusal;
-	// no acknowledgment or immutable identity may be created for the bad signature.
-	if foreignResponse.Code != http.StatusServiceUnavailable || !strings.Contains(foreignResponse.Body.String(), `"code":"sync_unavailable"`) {
-		t.Fatalf("foreign signing key was not refused: %d %s", foreignResponse.Code, foreignResponse.Body.String())
-	}
+	pgCompositionDenied(t, foreignResponse)
 	if count := pgCompositionCount(t, ctx, app, "tenant-b", "controlplane_envelope_inbox_jobs"); count != 0 {
 		t.Fatal("foreign signature crossed tenant boundary")
 	}
