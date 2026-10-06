@@ -116,7 +116,7 @@ func (a *Authority) controllerIntegrationProgress(s *state, iv *controllerInvoca
 	terminal, present := s.TaskTerminals[action.TaskID]
 	outcome, observed := s.NativePolicyOutcomes[acceptanceKey]
 	decision, consumed := nativePolicyForOperation(s, acceptanceKey)
-	if !acceptanceRecordMatchesInput(acceptance, input) || !present || !reflect.DeepEqual(terminal, acceptance) || acceptance.ClosedAt.IsZero() || !validDigest(acceptance.CanonicalReceiptDigest) || !validDigest(acceptance.CanonicalOutcomeDigest) || !observed || outcome.OperationKey != acceptanceKey || outcome.State != "closed" || outcome.ExpectedOutcomeDigest != acceptance.CanonicalOutcomeDigest || outcome.ObservedOutcomeDigest != acceptance.CanonicalOutcomeDigest || outcome.ObservedAt.IsZero() || !consumed || outcome.DecisionID != decision.ID || !reflect.DeepEqual(decision.Input, input) || decision.Prepared.CanonicalOutcomeDigest != acceptance.CanonicalOutcomeDigest {
+	if !acceptanceRecordMatchesInput(acceptance, input) || !present || !reflect.DeepEqual(terminal, acceptance) || acceptance.ClosedAt.IsZero() || !validControllerCanonicalReceipt(acceptance) || !validDigest(acceptance.CanonicalOutcomeDigest) || !observed || outcome.OperationKey != acceptanceKey || outcome.State != "closed" || outcome.ExpectedOutcomeDigest != acceptance.CanonicalOutcomeDigest || outcome.ObservedOutcomeDigest != acceptance.CanonicalOutcomeDigest || outcome.ObservedAt.IsZero() || !consumed || outcome.DecisionID != decision.ID || !reflect.DeepEqual(decision.Input, input) || decision.Prepared.CanonicalOutcomeDigest != acceptance.CanonicalOutcomeDigest {
 		return true, ErrDenied
 	}
 	observer, available := a.admission.(SwarmAdmission)
@@ -190,7 +190,7 @@ func controllerIntegrationActionHistorical(s *state, iv controllerInvocation, ac
 	acceptance, ok := s.NativeAcceptanceOperations[input.OperationKey]
 	terminal, present := s.TaskTerminals[input.TaskID]
 	decision, consumed := nativePolicyForOperation(s, input.OperationKey)
-	if !ok || !present || !acceptanceRecordMatchesInput(acceptance, input) || !reflect.DeepEqual(terminal, acceptance) || !validDigest(acceptance.CanonicalReceiptDigest) || !validDigest(acceptance.CanonicalOutcomeDigest) || !consumed || !reflect.DeepEqual(decision.Input, input) || decision.Prepared.CanonicalOutcomeDigest != acceptance.CanonicalOutcomeDigest {
+	if !ok || !present || !acceptanceRecordMatchesInput(acceptance, input) || !reflect.DeepEqual(terminal, acceptance) || !validControllerCanonicalReceipt(acceptance) || !validDigest(acceptance.CanonicalOutcomeDigest) || !consumed || !reflect.DeepEqual(decision.Input, input) || decision.Prepared.CanonicalOutcomeDigest != acceptance.CanonicalOutcomeDigest {
 		return false
 	}
 	if action.Kind == "canonical_acceptance" && acceptance.State == "closing" {
@@ -201,4 +201,22 @@ func controllerIntegrationActionHistorical(s *state, iv controllerInvocation, ac
 	}
 	outcome, observed := s.NativePolicyOutcomes[input.OperationKey]
 	return observed && outcome.OperationKey == input.OperationKey && outcome.DecisionID == decision.ID && outcome.State == "closed" && outcome.ExpectedOutcomeDigest == acceptance.CanonicalOutcomeDigest && outcome.ObservedOutcomeDigest == acceptance.CanonicalOutcomeDigest && !outcome.ObservedAt.IsZero()
+}
+
+// Canonical receipts use identity's bare hash, while command outcome digests use
+// the sha256: wire format. Recompute the original closing receipt so historical
+// reconciliation checks its contents instead of applying the wrong format gate
+// (core642). ClosedAt and the final state are recorded after that receipt exists.
+func validControllerCanonicalReceipt(record NativeAcceptanceRecord) bool {
+	if record.CreatedAt.IsZero() || record.CanonicalReceiptDigest == "" {
+		return false
+	}
+	closing := NativeAcceptanceRecord{
+		OperationKey: record.OperationKey,
+		InputDigest:  record.InputDigest,
+		State:        "closing",
+		Candidate:    record.Candidate,
+		CreatedAt:    record.CreatedAt,
+	}
+	return record.CanonicalReceiptDigest == identity("native-acceptance-receipt", "", closing)
 }

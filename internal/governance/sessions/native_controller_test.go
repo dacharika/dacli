@@ -560,7 +560,7 @@ func TestNativeControllerStartsWithExactClosedRoutesAndPreservesCheckpoint(t *te
 }
 
 func TestNativeControllerClosedRoutesRefuseWrongHistoryAndKeepOpenChecks(t *testing.T) {
-	for _, change := range []string{"canonical-open", "worker", "runner", "reviewer", "bridge", "verification-grant", "review-grant", "missing-terminal", "acceptance-digest", "integration-receipt", "policy-outcome", "open-runner-revoked", "held-protection"} {
+	for _, change := range []string{"canonical-open", "worker", "runner", "reviewer", "bridge", "verification-grant", "review-grant", "missing-terminal", "acceptance-digest", "canonical-receipt", "missing-canonical-receipt", "prefixed-canonical-receipt", "integration-receipt", "policy-outcome", "open-runner-revoked", "held-protection"} {
 		t.Run(change, func(t *testing.T) {
 			f, _ := controllerClosedRouteFixture(t, change != "held-protection")
 			next := f.start
@@ -603,6 +603,19 @@ func TestNativeControllerClosedRoutesRefuseWrongHistoryAndKeepOpenChecks(t *test
 					record := s.TaskTerminals["task-a"]
 					record.InputDigest = "other"
 					s.TaskTerminals["task-a"] = record
+				case "canonical-receipt", "missing-canonical-receipt", "prefixed-canonical-receipt":
+					record := s.TaskTerminals["task-a"]
+					switch change {
+					case "canonical-receipt":
+						record.CanonicalReceiptDigest = identity("wrong-canonical-receipt", "", record)
+					case "missing-canonical-receipt":
+						record.CanonicalReceiptDigest = ""
+					case "prefixed-canonical-receipt":
+						record.CanonicalReceiptDigest = "sha256:" + record.CanonicalReceiptDigest
+					}
+					// Keep the terminal and operation equal so refusal measures the receipt guard.
+					s.TaskTerminals["task-a"] = record
+					s.NativeAcceptanceOperations[record.OperationKey] = record
 				case "integration-receipt":
 					record := s.NativeIntegrationOperations["closed-integrate-task-a"]
 					record.ReceiptDigest = "other"
