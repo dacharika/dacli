@@ -72,7 +72,7 @@ func TestNativeStorageHoldsCoverBudgetPolicyAndAcceptanceUnknown(t *testing.T) {
 }
 
 func TestNativeStoragePolicyClosedOutcomeRequiresExactProducerBinding(t *testing.T) {
-	for _, change := range []string{"exact", "unknown", "wrong-outcome", "wrong-decision", "wrong-operation", "missing-acceptance"} {
+	for _, change := range []string{"exact", "unknown", "wrong-outcome", "wrong-decision", "wrong-operation", "missing-acceptance", "wrong-acceptance-key", "wrong-acceptance-input-digest"} {
 		t.Run(change, func(t *testing.T) {
 			f := controllerSetup(t)
 			if e := f.a.transaction(false, true, func(s *state) error {
@@ -93,7 +93,16 @@ func TestNativeStoragePolicyClosedOutcomeRequiresExactProducerBinding(t *testing
 				}
 				s.NativePolicyOutcomes["accept-exact"] = out
 				if change != "missing-acceptance" {
-					s.NativeAcceptanceOperations["accept-exact"] = NativeAcceptanceRecord{OperationKey: "accept-exact", State: "closed", CanonicalOutcomeDigest: digest, Candidate: NativeAcceptanceCandidate{Input: input}}
+					candidate := input
+					candidate.OperationKey = "" // Real acceptance stores the unkeyed candidate (core639).
+					acceptance := NativeAcceptanceRecord{OperationKey: "accept-exact", InputDigest: identity("native-acceptance-operation", "", input), State: "closed", CanonicalOutcomeDigest: digest, Candidate: NativeAcceptanceCandidate{Input: candidate}}
+					if change == "wrong-acceptance-key" {
+						acceptance.OperationKey = "other"
+					}
+					if change == "wrong-acceptance-input-digest" {
+						acceptance.InputDigest = "wrong"
+					}
+					s.NativeAcceptanceOperations["accept-exact"] = acceptance
 				}
 				return nil
 			}); e != nil {
@@ -111,6 +120,45 @@ func TestNativeStoragePolicyClosedOutcomeRequiresExactProducerBinding(t *testing
 			}
 			if held != (change != "exact") {
 				t.Fatalf("policy retention resolution disagrees with exact producer outcome: %s held=%v", change, held)
+			}
+		})
+	}
+}
+
+func TestNativeAcceptanceRecordMatchesExactOperationWithoutMutatingCandidate(t *testing.T) {
+	for _, change := range []string{"exact-unkeyed", "exact-keyed", "record-key", "input-key", "candidate-key", "input-digest", "missing-digest", "candidate-revision", "candidate-fence", "candidate-policy"} {
+		t.Run(change, func(t *testing.T) {
+			input := NativeAcceptanceInput{SchemaVersion: 1, WorkspaceID: "workspace", InstallationID: "installation", OperationKey: "accept-exact", ProjectID: "project", TaskID: "task", ReviewID: "review", AttemptID: "attempt", LeaseID: "lease", RevisionID: "revision", ExpectedFence: 7, PolicyRevision: "policy"}
+			candidate := input
+			candidate.OperationKey = ""
+			record := NativeAcceptanceRecord{OperationKey: input.OperationKey, InputDigest: identity("native-acceptance-operation", "", input), Candidate: NativeAcceptanceCandidate{Input: candidate}}
+			switch change {
+			case "exact-keyed":
+				record.Candidate.Input.OperationKey = input.OperationKey
+			case "record-key":
+				record.OperationKey = "other"
+			case "input-key":
+				input.OperationKey = "other"
+			case "candidate-key":
+				record.Candidate.Input.OperationKey = "other"
+			case "input-digest":
+				record.InputDigest = identity("native-acceptance-operation", "", NativeAcceptanceInput{OperationKey: input.OperationKey})
+			case "missing-digest":
+				record.InputDigest = ""
+			case "candidate-revision":
+				record.Candidate.Input.RevisionID = "other"
+			case "candidate-fence":
+				record.Candidate.Input.ExpectedFence++
+			case "candidate-policy":
+				record.Candidate.Input.PolicyRevision = "other"
+			}
+			before := record
+			want := change == "exact-unkeyed" || change == "exact-keyed"
+			if got := acceptanceRecordMatchesInput(record, input); got != want {
+				t.Fatalf("exact acceptance record binding %s = %v, want %v", change, got, want)
+			}
+			if record.Candidate.Input != before.Candidate.Input || record.OperationKey != before.OperationKey || record.InputDigest != before.InputDigest {
+				t.Fatal("receipt comparison rewrote stored candidate or operation binding")
 			}
 		})
 	}

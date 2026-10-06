@@ -2,6 +2,21 @@ package sessions
 
 import "reflect"
 
+// Native acceptance candidates are deliberately operation-independent. Bind the
+// record's exact operation and digest before keying a copy for comparison; never
+// rewrite the stored candidate or treat a different key as equivalent (core639).
+func acceptanceRecordMatchesInput(record NativeAcceptanceRecord, input NativeAcceptanceInput) bool {
+	if !validID(input.OperationKey) || record.OperationKey != input.OperationKey || record.InputDigest != identity("native-acceptance-operation", "", input) {
+		return false
+	}
+	candidate := record.Candidate.Input
+	if candidate.OperationKey != "" && candidate.OperationKey != input.OperationKey {
+		return false
+	}
+	candidate.OperationKey = input.OperationKey
+	return reflect.DeepEqual(candidate, input)
+}
+
 // controllerIntegrationProgress consumes recorded owner effects only. It never
 // invokes Git, closes a task, releases resources or restores a retired worker.
 // Current producer checks apply before owner effects; exact closed history can
@@ -83,7 +98,7 @@ func (a *Authority) controllerIntegrationProgress(s *state, iv *controllerInvoca
 	controllerRef(st, CheckpointRefs{TaskID: action.TaskID, DispatchID: action.DispatchID, ReviewID: input.ReviewID, IntegrationOperationID: operation, AcceptanceOperationID: acceptanceKey})
 	acceptance, closed := s.NativeAcceptanceOperations[acceptanceKey]
 	if !closed || acceptance.State != "closed" {
-		if closed && !reflect.DeepEqual(acceptance.Candidate.Input, input) {
+		if closed && !acceptanceRecordMatchesInput(acceptance, input) {
 			return true, ErrDenied
 		}
 		next := action
@@ -101,7 +116,7 @@ func (a *Authority) controllerIntegrationProgress(s *state, iv *controllerInvoca
 	terminal, present := s.TaskTerminals[action.TaskID]
 	outcome, observed := s.NativePolicyOutcomes[acceptanceKey]
 	decision, consumed := nativePolicyForOperation(s, acceptanceKey)
-	if !reflect.DeepEqual(acceptance.Candidate.Input, input) || !present || !reflect.DeepEqual(terminal, acceptance) || acceptance.ClosedAt.IsZero() || !validDigest(acceptance.CanonicalReceiptDigest) || !validDigest(acceptance.CanonicalOutcomeDigest) || !observed || outcome.OperationKey != acceptanceKey || outcome.State != "closed" || outcome.ExpectedOutcomeDigest != acceptance.CanonicalOutcomeDigest || outcome.ObservedOutcomeDigest != acceptance.CanonicalOutcomeDigest || outcome.ObservedAt.IsZero() || !consumed || outcome.DecisionID != decision.ID || !reflect.DeepEqual(decision.Input, input) || decision.Prepared.CanonicalOutcomeDigest != acceptance.CanonicalOutcomeDigest {
+	if !acceptanceRecordMatchesInput(acceptance, input) || !present || !reflect.DeepEqual(terminal, acceptance) || acceptance.ClosedAt.IsZero() || !validDigest(acceptance.CanonicalReceiptDigest) || !validDigest(acceptance.CanonicalOutcomeDigest) || !observed || outcome.OperationKey != acceptanceKey || outcome.State != "closed" || outcome.ExpectedOutcomeDigest != acceptance.CanonicalOutcomeDigest || outcome.ObservedOutcomeDigest != acceptance.CanonicalOutcomeDigest || outcome.ObservedAt.IsZero() || !consumed || outcome.DecisionID != decision.ID || !reflect.DeepEqual(decision.Input, input) || decision.Prepared.CanonicalOutcomeDigest != acceptance.CanonicalOutcomeDigest {
 		return true, ErrDenied
 	}
 	observer, available := a.admission.(SwarmAdmission)
@@ -175,7 +190,7 @@ func controllerIntegrationActionHistorical(s *state, iv controllerInvocation, ac
 	acceptance, ok := s.NativeAcceptanceOperations[input.OperationKey]
 	terminal, present := s.TaskTerminals[input.TaskID]
 	decision, consumed := nativePolicyForOperation(s, input.OperationKey)
-	if !ok || !present || !reflect.DeepEqual(acceptance.Candidate.Input, input) || !reflect.DeepEqual(terminal, acceptance) || !validDigest(acceptance.CanonicalReceiptDigest) || !validDigest(acceptance.CanonicalOutcomeDigest) || !consumed || !reflect.DeepEqual(decision.Input, input) || decision.Prepared.CanonicalOutcomeDigest != acceptance.CanonicalOutcomeDigest {
+	if !ok || !present || !acceptanceRecordMatchesInput(acceptance, input) || !reflect.DeepEqual(terminal, acceptance) || !validDigest(acceptance.CanonicalReceiptDigest) || !validDigest(acceptance.CanonicalOutcomeDigest) || !consumed || !reflect.DeepEqual(decision.Input, input) || decision.Prepared.CanonicalOutcomeDigest != acceptance.CanonicalOutcomeDigest {
 		return false
 	}
 	if action.Kind == "canonical_acceptance" && acceptance.State == "closing" {
