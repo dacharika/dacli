@@ -191,6 +191,7 @@ func (a *Authority) startController(owner, token, session string, r ControllerSt
 			}
 			candidates[c.TaskID] = c
 		}
+		closedRoutes := map[string]bool{}
 		for _, task := range p.TaskIDs {
 			route, present := r.Routes[task]
 			placement := s.SwarmPolicies[p.ProjectID].Placements[task]
@@ -199,7 +200,17 @@ func (a *Authority) startController(owner, token, session string, r ControllerSt
 			}
 			binding, bound := s.Tasks[task]
 			candidate, present := candidates[task]
-			if !bound || !present || binding.ProjectID != p.ProjectID || !binding.AdmissionEnabled || workerTaskWithdrawn(s, route.WorkerSession, task) {
+			if !bound || !present || binding.ProjectID != p.ProjectID || !binding.AdmissionEnabled {
+				return ErrDenied
+			}
+			if candidate.Status == "done" {
+				if !controllerClosedTaskRoute(s, r.CheckpointID, p.ProjectID, task, route, placement.Checkout) {
+					return ErrDenied
+				}
+				closedRoutes[task] = true
+				continue
+			}
+			if workerTaskWithdrawn(s, route.WorkerSession, task) {
 				return ErrDenied
 			}
 			resources, e := canonicalResources(placement.Checkout, task, candidate.Resources)
@@ -288,7 +299,31 @@ func (a *Authority) startController(owner, token, session string, r ControllerSt
 		if !controllerLive(s, actor.ID) || !time.Now().Before(p.ExpiresAt) {
 			return ErrDenied
 		}
-		for _, route := range r.Routes {
+		// Reobserve canonical DONE after any open task's slow preflight observer.
+		// Closed routes are historical bookkeeping, never renewed producer grants.
+		if len(closedRoutes) > 0 {
+			fresh, e := observer.ObserveSwarm(s.Binding.Workspace, p.ProjectID)
+			if e != nil {
+				return e
+			}
+			seen := map[string]bool{}
+			for _, candidate := range fresh.Candidates {
+				if !closedRoutes[candidate.TaskID] {
+					continue
+				}
+				if seen[candidate.TaskID] || candidate.ProjectID != p.ProjectID || candidate.Status != "done" || !controllerClosedTaskRoute(s, r.CheckpointID, p.ProjectID, candidate.TaskID, r.Routes[candidate.TaskID], s.SwarmPolicies[p.ProjectID].Placements[candidate.TaskID].Checkout) {
+					return ErrDenied
+				}
+				seen[candidate.TaskID] = true
+			}
+			if len(seen) != len(closedRoutes) {
+				return ErrDenied
+			}
+		}
+		for task, route := range r.Routes {
+			if closedRoutes[task] {
+				continue
+			}
 			if !controllerLive(s, route.BridgeSession) || !controllerLive(s, route.WorkerSession) || !controllerLive(s, route.RunnerSession) || !controllerLive(s, route.ReviewerSession) || !time.Now().Before(s.Grants[route.VerificationGrantID].ExpiresAt) || !time.Now().Before(s.ReviewGrants[route.ReviewGrantID].ExpiresAt) {
 				return ErrDenied
 			}
@@ -344,6 +379,88 @@ func controllerRoot(s *state, id string) string {
 	return root
 }
 func controllerLive(s *state, id string) bool { return controllerRoot(s, id) != "" }
+
+// A canonical DONE task may retain its original route as historical bookkeeping
+// after native acceptance withdrew its producers (core641). Only an exact prior
+// same-checkpoint dispatch, independent producer history and closed owner receipts
+// qualify. This neither releases protection nor modifies any invocation bounds.
+func controllerClosedTaskRoute(s *state, checkpoint, project, task string, route ControllerTaskRoute, checkout string) bool {
+	terminal, ok := s.TaskTerminals[task]
+	if !ok || terminal.State != "closed" || terminal.ClosedAt.IsZero() {
+		return false
+	}
+	input := terminal.Candidate.Input
+	input.OperationKey = terminal.OperationKey
+	if input.ProjectID != project || input.TaskID != task || !acceptanceRecordMatchesInput(terminal, input) || terminal.Candidate.WorkerSessionID != route.WorkerSession || terminal.Candidate.ReviewerSessionID != route.ReviewerSession {
+		return false
+	}
+	family, err := historicalWorkerFamily(s, route.WorkerSession)
+	if err != nil || family != terminal.Candidate.WorkerFamilyID {
+		return false
+	}
+	at, err := reviewAttempt(s, input.AttemptID)
+	review, present := s.Reviews[input.ReviewID]
+	binding, bound := s.Tasks[task]
+	if err != nil || !present || !bound || binding.Repository != input.Repository || at.SessionID != route.WorkerSession || at.Request.TaskID != task || at.ProjectID != project || at.Observation.Locator != checkout || at.Observation.Repository != input.Repository || review.IssuerSession != route.ReviewerSession || review.Request.GrantID != route.ReviewGrantID || review.Request.Outcome != "approve" || review.Request.AttemptID != input.AttemptID || review.Request.LeaseID != input.LeaseID || review.Request.RevisionID != input.RevisionID || review.Request.ExpectedFence != input.ExpectedFence || review.Revision.ID != input.RevisionID || review.Revision.AttemptID != input.AttemptID || review.Revision.SessionID != route.WorkerSession || review.Revision.LeaseID != input.LeaseID || review.Revision.Fence != input.ExpectedFence || review.Revision.Observation.Commit != input.Commit || review.Revision.Observation.Tree != input.Tree || review.Revision.Observation.Repository != input.Repository || review.Observation.ChecklistDigest != input.ChecklistDigest || review.Observation.PolicyRevision != input.PolicyRevision {
+		return false
+	}
+	rg, granted := s.ReviewGrants[route.ReviewGrantID]
+	if !granted || rg.TaskID != task || rg.Repository != input.Repository || rg.ReviewerSession != route.ReviewerSession || rg.WorkerRoot != terminal.Candidate.WorkerFamilyID {
+		return false
+	}
+	checks := route.Checks
+	if len(checks) == 0 {
+		checks = []ControllerCheckRoute{{CheckID: route.CheckID, GrantID: route.VerificationGrantID}}
+	}
+	if len(checks) != len(review.Request.EvidenceIDs) || len(checks) != len(terminal.Candidate.Evidence) {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, id := range review.Request.EvidenceIDs {
+		ev, exists := s.Evidence[id]
+		g, granted := s.Grants[ev.GrantID]
+		if !exists || !granted || ev.Provenance != "trusted-local-runner" || ev.ExitCode != 0 || ev.IssuerSession != route.RunnerSession || !reflect.DeepEqual(ev.Revision, review.Revision) || g.RunnerSession != route.RunnerSession || g.TaskID != task || g.Repository != input.Repository || g.CheckID != ev.CheckID || g.CommandDigest != ev.CommandDigest || seen[ev.CheckID] {
+			return false
+		}
+		matched := false
+		for _, check := range checks {
+			if check.CheckID == ev.CheckID && check.GrantID == ev.GrantID {
+				matched = true
+			}
+		}
+		candidateMatched := false
+		for _, evidence := range terminal.Candidate.Evidence {
+			if evidence.ID == id && evidence.RunnerSessionID == ev.IssuerSession && evidence.CheckID == ev.CheckID && evidence.CommandDigest == ev.CommandDigest && evidence.OutputDigest == ev.OutputDigest {
+				candidateMatched = true
+			}
+		}
+		if !matched || !candidateMatched {
+			return false
+		}
+		seen[ev.CheckID] = true
+	}
+	for _, previous := range s.ControllerInvocations {
+		if previous.Status.ProjectID != project || previous.Status.CheckpointID != checkpoint || !reflect.DeepEqual(previous.Routes[task], route) {
+			continue
+		}
+		for _, action := range previous.Status.Actions {
+			if action.TaskID != task || action.AttemptID != input.AttemptID || action.LeaseID != input.LeaseID || action.RevisionID != input.RevisionID || action.Fence != input.ExpectedFence || action.ReviewID != input.ReviewID {
+				continue
+			}
+			dispatch, exists := s.Dispatches[action.DispatchID]
+			if !exists || dispatch.ProjectID != project || dispatch.Reservation.TaskID != task || dispatch.Reservation.Fence != action.ReservationFence || dispatch.Reservation.Checkout != checkout || dispatch.Reservation.Repository != input.Repository || !dispatch.Converted || dispatch.WorkerSessionID != route.WorkerSession || dispatch.AttemptID != input.AttemptID {
+				continue
+			}
+			// The old action may have halted before recording accepted bookkeeping;
+			// the exact closed terminal supplies that historical operation identity.
+			action.Kind, action.OperationKey = "accepted", terminal.OperationKey
+			if controllerIntegrationActionHistorical(s, previous, action) {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 func controllerUnresolved(s *state, iv controllerInvocation) bool {
 	for _, action := range iv.Status.Actions {

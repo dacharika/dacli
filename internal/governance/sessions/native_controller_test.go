@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -395,5 +396,232 @@ func TestNativeControllerPublicIntentBoundaryKeepsAtomicStep(t *testing.T) {
 	st = controllerStep(t, f, st, "bounded-intent")
 	if !st.HostActionAuthorized {
 		t.Fatal("atomic Step lost its original host permit")
+	}
+}
+
+// Produce schema18 receipts through the real authenticated kernel APIs. The
+// integration and canonical callbacks are controlled fixture observations; this
+// fixture does not claim a real Git target fast-forward or external task store.
+func controllerClosedRouteFixture(t *testing.T, recoverHeld bool) (controllerFixture, ControllerStatus) {
+	t.Helper()
+	f, previous := controllerCompletedWaveFrom(t, pluginControllerSetup(t))
+	for _, upgrade := range []func(string) error{f.a.UpgradeNativeModelRouting, f.a.UpgradeNativeIntegration} {
+		if err := upgrade(f.owner); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for index, action := range previous.Actions {
+		task, route := action.TaskID, f.start.Routes[action.TaskID]
+		var at Attempt
+		var grant VerificationGrant
+		if err := f.a.transaction(false, false, func(s *state) error {
+			var err error
+			at, err = reviewAttempt(s, action.AttemptID)
+			grant = s.Grants[route.VerificationGrantID]
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		policy := NativePolicy{SchemaVersion: 1, ProjectID: "project", TaskID: task, Revision: "closed-route-policy", Allow: true, ExpiresAt: time.Now().Add(15 * time.Minute)}
+		if err := f.a.ConfigureNativePolicy(f.owner, policy); err != nil {
+			t.Fatal(err)
+		}
+		integrationPolicy, err := f.a.ConfigureNativeIntegration(f.owner, NativeIntegrationPolicy{SchemaVersion: 1, ProjectID: "project", TaskID: task, Revision: "closed-route-target", Repository: at.Observation.Repository, TargetCheckout: at.Observation.Locator, TargetRef: "refs/heads/fixture-target", ExpectedCommit: at.Observation.Commit, ExpectedTree: at.Observation.Tree, NativePolicyRevision: policy.Revision, Allow: true, ExpiresAt: policy.ExpiresAt})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = os.WriteFile(filepath.Join(at.Observation.Locator, "closed-route-source"), []byte(task), 0600); err != nil {
+			t.Fatal(err)
+		}
+		gitTest(t, at.Observation.Locator, "add", "closed-route-source")
+		gitTest(t, at.Observation.Locator, "-c", "user.name=test", "-c", "user.email=test@example.invalid", "commit", "-m", "closed task source")
+		revision, err := f.a.PublishAttemptRevision(f.observer.tokens[task], route.WorkerSession, PublishRevisionRequest{OperationKey: "closed-publish-" + task, AttemptID: at.ID, LeaseID: action.LeaseID, ExpectedFence: action.Fence, ExpectedRevision: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		request := action.Verification
+		request.RevisionID, request.OperationKey = revision.ID, "closed-check-"+task
+		if _, _, err = f.a.BeginVerification(f.observer.tokens[task], f.runnerTokens[route.RunnerSession], route.RunnerSession, request, grant.CommandDigest); err != nil {
+			t.Fatal(err)
+		}
+		evidence, err := f.a.CompleteVerification(f.observer.tokens[task], f.runnerTokens[route.RunnerSession], route.RunnerSession, request, VerificationResult{Commit: revision.Observation.Commit, Tree: revision.Observation.Tree, Directory: revision.Observation.Locator, CommandDigest: grant.CommandDigest, OutputDigest: OutputDigest([]byte("fixture passed")), Output: []byte("fixture passed"), ExitCode: 0, Clean: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.a.reviewObserver = checkpointReviewObservation{f.observer.observations[task].ReviewObservation}
+		review, err := f.a.ProposeReview(f.reviewerTokens[route.ReviewerSession], route.ReviewerSession, ReviewRequest{OperationKey: "closed-review-" + task, GrantID: route.ReviewGrantID, AttemptID: at.ID, LeaseID: action.LeaseID, RevisionID: revision.ID, ExpectedFence: action.Fence, Outcome: "approve", Rationale: "exact fixture revision", EvidenceIDs: []string{evidence.ID}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		candidate, err := f.a.ReadNativeAcceptanceCandidate(f.reviewerTokens[route.ReviewerSession], route.ReviewerSession, review.ID)
+		if err != nil || candidate.Input.OperationKey != "" {
+			t.Fatal("real acceptance candidate was not unkeyed", err)
+		}
+		input := candidate.Input
+		input.OperationKey = "closed-accept-" + task
+		integrationInput := NativeIntegrationInput{OperationKey: "closed-integrate-" + task, PolicyRevision: integrationPolicy.Revision, Candidate: input}
+		integrated := false
+		inspect := func(NativeIntegrationRecord) (NativeIntegrationObservation, error) {
+			if integrated {
+				return NativeIntegrationObservation{Commit: input.Commit, Tree: input.Tree, Clean: true, ObservedAt: time.Now().UTC()}, nil
+			}
+			return NativeIntegrationObservation{Commit: integrationPolicy.ExpectedCommit, Tree: integrationPolicy.ExpectedTree, Clean: true, ObservedAt: time.Now().UTC()}, nil
+		}
+		if _, err = f.a.ApplyNativeIntegration(f.owner, integrationInput, inspect, func(_ NativeIntegrationRecord, guard func() error) (NativeIntegrationObservation, error) {
+			if err := guard(); err != nil {
+				return NativeIntegrationObservation{}, err
+			}
+			integrated = true
+			return inspect(NativeIntegrationRecord{})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		decision, err := f.a.EvaluateNativePolicy(f.owner, NativePolicyEvaluationRequest{OperationKey: "closed-decision-" + task, Input: input, ExpiresAt: policy.ExpiresAt}, nativePolicyBody)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = f.a.BeginNativeAcceptanceWithPolicy(f.owner, input, decision.ID, nativePolicyBody); err != nil {
+			t.Fatal(err)
+		}
+		closed := false
+		if _, err = f.a.ContinueNativeAcceptance(f.owner, input, func(NativeAcceptanceRecord) (bool, error) { return closed, nil }, func(NativeAcceptanceRecord) error { closed = true; return nil }); err != nil {
+			t.Fatal(err)
+		}
+		for i := range f.observer.snapshot.Candidates {
+			if f.observer.snapshot.Candidates[i].TaskID == task {
+				f.observer.snapshot.Candidates[i].Status = "done"
+			}
+		}
+		action.Kind, action.ReviewID, action.RevisionID, action.OperationKey = "integration_checkpoint", review.ID, revision.ID, integrationInput.OperationKey
+		previous.Actions[index] = action
+		previous.Refs = append(previous.Refs, CheckpointRefs{TaskID: task, DispatchID: action.DispatchID, ReviewID: review.ID, IntegrationOperationID: integrationInput.OperationKey, AcceptanceOperationID: input.OperationKey})
+		if recoverHeld {
+			target, err := f.a.OwnerRecoveryTarget(f.owner, "lease", action.LeaseID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = f.a.Recover(f.owner, RecoveryRequest{OperationKey: "closed-recover-" + task, Target: target, Mode: "owner-reconciliation", Rationale: "explicit fixture protection recovery", Uncertainty: "accepted writer remains cooperative", ReleaseRisk: "owner accepts fixture release risk"}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err = f.a.RevokeVerification(f.owner, route.VerificationGrantID); err != nil {
+			t.Fatal(err)
+		}
+		if err = f.a.RevokeReview(f.owner, route.ReviewGrantID); err != nil {
+			t.Fatal(err)
+		}
+		for _, actor := range []string{route.BridgeSession, route.RunnerSession, route.ReviewerSession} {
+			if err = f.a.Revoke(f.owner, actor); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	previous.Terminal, previous.Phase, previous.HaltClass = true, "halt", "policy_refused"
+	if err := f.a.transaction(false, true, func(s *state) error {
+		invocation := s.ControllerInvocations[previous.ID]
+		invocation.Status = previous
+		s.ControllerInvocations[previous.ID] = invocation
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return f, previous
+}
+
+func TestNativeControllerStartsWithExactClosedRoutesAndPreservesCheckpoint(t *testing.T) {
+	f, previous := controllerClosedRouteFixture(t, true)
+	before, err := f.a.ObserveStorage(f.owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := f.start
+	next.InvocationID, next.OperationKey = "closed-continuation", "closed-start"
+	out, err := f.a.StartScopedController(f.token, f.s.ID, next)
+	if err != nil || out.CheckpointID != previous.CheckpointID || out.HostActionAuthorized {
+		t.Fatal("exact historical DONE routes blocked startup", out, err)
+	}
+	if err = f.a.transaction(false, false, func(s *state) error {
+		var original state
+		if err := json.Unmarshal(before.PrivateBytes, &original); err != nil {
+			return err
+		}
+		if !reflect.DeepEqual(s.Checkpoints, original.Checkpoints) || !reflect.DeepEqual(s.ControllerInvocations[previous.ID], original.ControllerInvocations[previous.ID]) || !reflect.DeepEqual(s.ControllerPolicies["project"].TaskIDs, []string{"task-a", "task-b", "task-c"}) || !reflect.DeepEqual(s.NativeAcceptanceOperations, original.NativeAcceptanceOperations) || !reflect.DeepEqual(s.Leases, original.Leases) || !reflect.DeepEqual(s.Grants, original.Grants) || !reflect.DeepEqual(s.ReviewGrants, original.ReviewGrants) {
+			t.Fatal("closed route startup rewrote protection, scope, receipts, grants, or checkpoint counters")
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNativeControllerClosedRoutesRefuseWrongHistoryAndKeepOpenChecks(t *testing.T) {
+	for _, change := range []string{"canonical-open", "worker", "runner", "reviewer", "bridge", "verification-grant", "review-grant", "missing-terminal", "acceptance-digest", "integration-receipt", "policy-outcome", "open-runner-revoked", "held-protection"} {
+		t.Run(change, func(t *testing.T) {
+			f, _ := controllerClosedRouteFixture(t, change != "held-protection")
+			next := f.start
+			next.InvocationID, next.OperationKey = "refused-continuation", "refused-start"
+			next.Routes = map[string]ControllerTaskRoute{}
+			for task, route := range f.start.Routes {
+				next.Routes[task] = route
+			}
+			route := next.Routes["task-a"]
+			switch change {
+			case "worker":
+				route.WorkerSession = next.Routes["task-c"].WorkerSession
+			case "runner":
+				route.RunnerSession = next.Routes["task-c"].RunnerSession
+			case "reviewer":
+				route.ReviewerSession = next.Routes["task-c"].ReviewerSession
+			case "bridge":
+				route.BridgeSession = next.Routes["task-c"].BridgeSession
+			case "verification-grant":
+				route.VerificationGrantID = next.Routes["task-c"].VerificationGrantID
+			case "review-grant":
+				route.ReviewGrantID = next.Routes["task-c"].ReviewGrantID
+			case "canonical-open":
+				for index := range f.observer.snapshot.Candidates {
+					if f.observer.snapshot.Candidates[index].TaskID == "task-a" {
+						f.observer.snapshot.Candidates[index].Status = "open"
+					}
+				}
+			case "open-runner-revoked":
+				if err := f.a.Revoke(f.owner, next.Routes["task-c"].RunnerSession); err != nil {
+					t.Fatal(err)
+				}
+			}
+			next.Routes["task-a"] = route
+			if err := f.a.transaction(false, true, func(s *state) error {
+				switch change {
+				case "missing-terminal":
+					delete(s.TaskTerminals, "task-a")
+				case "acceptance-digest":
+					record := s.TaskTerminals["task-a"]
+					record.InputDigest = "other"
+					s.TaskTerminals["task-a"] = record
+				case "integration-receipt":
+					record := s.NativeIntegrationOperations["closed-integrate-task-a"]
+					record.ReceiptDigest = "other"
+					s.NativeIntegrationOperations[record.OperationKey] = record
+				case "policy-outcome":
+					outcome := s.NativePolicyOutcomes["closed-accept-task-a"]
+					outcome.State = "unknown"
+					s.NativePolicyOutcomes[outcome.OperationKey] = outcome
+				}
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			before, err := os.ReadFile(f.a.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = f.a.StartScopedController(f.token, f.s.ID, next); !errors.Is(err, ErrDenied) {
+				t.Fatal("closed-task or open-task guard bypassed", change, err)
+			}
+			after, err := os.ReadFile(f.a.path)
+			if err != nil || !reflect.DeepEqual(before, after) {
+				t.Fatal("refused startup changed authority", change, err)
+			}
+		})
 	}
 }
