@@ -525,6 +525,18 @@ func controllerClosedRouteFixture(t *testing.T, recoverHeld bool) (controllerFix
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// Persist the real producer identities through the authenticated checkpoint
+	// API. A fixture with only invocation refs cannot measure restart carry-forward.
+	var sequence uint64
+	if err := f.a.transaction(false, false, func(s *state) error {
+		sequence = uint64(len(s.Checkpoints[previous.CheckpointID]))
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.a.RecordCheckpoint(f.token, f.s.ID, CheckpointRequest{OperationKey: "closed-producer-history", CheckpointID: previous.CheckpointID, ProjectID: "project", InvocationID: previous.ID, Phase: "halt", ExpectedSequence: sequence, Refs: previous.Refs}); err != nil {
+		t.Fatal("persist closed-route producer references", err)
+	}
 	return f, previous
 }
 
