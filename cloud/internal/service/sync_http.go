@@ -8,10 +8,13 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/mlnomadpy/dacli/cloud/internal/envelopeworker"
+	"github.com/mlnomadpy/dacli/cloud/internal/ratelimit"
 	"github.com/mlnomadpy/dacli/cloud/internal/tenant"
 	"github.com/mlnomadpy/dacli/internal/cloudsync"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type SyncBindingResolver interface {
@@ -51,9 +54,15 @@ func (h *syncHTTP) binding(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
+	if !h.api.allow(w, r, h.api.identityLimit, ratelimit.NetworkKey(h.api.limitSecret, r.RemoteAddr)) {
+		return
+	}
 	identity, e := h.auth.Verify(r.Context(), r.Header.Get("Authorization"))
 	if e != nil {
 		h.deny(w, r)
+		return
+	}
+	if !h.api.allow(w, r, h.api.tenantReadLimit, ratelimit.IdentityKey(h.api.limitSecret, identity, "sync-binding")) {
 		return
 	}
 	q := r.URL.Query()
@@ -99,6 +108,9 @@ func (h *syncHTTP) exchange(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
+	if !h.api.allow(w, r, h.api.identityLimit, ratelimit.NetworkKey(h.api.limitSecret, r.RemoteAddr)) {
+		return
+	}
 	var input cloudsync.ExchangeRequest
 	if decodeClosed(r.Body, &input) != nil || input.SchemaVersion != 1 || len(input.Envelopes) > 100 {
 		h.deny(w, r)
@@ -107,6 +119,10 @@ func (h *syncHTTP) exchange(w http.ResponseWriter, r *http.Request) {
 	identity, e := h.auth.Verify(r.Context(), r.Header.Get("Authorization"))
 	if e != nil {
 		h.deny(w, r)
+		return
+	}
+	// Empty exchanges still resolve bindings and pull the signed outbox (core/629).
+	if !h.api.allow(w, r, h.api.tenantReadLimit, ratelimit.IdentityKey(h.api.limitSecret, identity, "sync-exchange")) {
 		return
 	}
 	binding, e := h.bindings.Resolve(r.Context(), identity, input.Route)
@@ -132,6 +148,14 @@ func (h *syncHTTP) exchange(w http.ResponseWriter, r *http.Request) {
 		}
 		outcome, e := h.inbox.Receive(r.Context(), envelopeworker.Request{Credential: r.Header.Get("Authorization"), Envelope: envelope})
 		if e != nil {
+			var limit envelopeworker.RateLimitError
+			if errors.As(e, &limit) {
+				seconds := int64((limit.RetryAfter + time.Second - 1) / time.Second)
+				seconds = max(1, min(3600, seconds))
+				w.Header().Set("Retry-After", strconv.FormatInt(seconds, 10))
+				h.api.writeError(w, r, http.StatusTooManyRequests, "rate_limited", "request rate limit exceeded", true)
+				return
+			}
 			h.api.writeError(w, r, http.StatusServiceUnavailable, "sync_unavailable", "signed inbox processing unavailable", true)
 			return
 		}
