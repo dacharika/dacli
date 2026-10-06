@@ -22,6 +22,19 @@ func foundationFixtures() map[string]any {
 	return map[string]any{"worker_catalog.json": map[string]any{"tools": worker}, "runner_catalog.json": map[string]any{"tools": runner}, "reviewer_catalog.json": map[string]any{"tools": reviewer}, "input_schemas.json": inputs, "output_schemas.json": outputsByName}
 }
 func TestNativeFoundationSchemasMatchFixedWireFixtures(t *testing.T) {
+	// Explicit reviewer-only contract generation precedes every behavioral
+	// assertion. Default execution continues to enforce all fixed schemas.
+	if os.Getenv("DACLI_WRITE_REVIEWER_CATALOG") == "1" {
+		raw, err := json.MarshalIndent(foundationFixtures()["reviewer_catalog.json"], "", "  ")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join("testdata", "reviewer_catalog.json"), append(raw, '\n'), 0644); err != nil {
+			t.Fatal(err)
+		}
+		t.Log("reviewer contract generated; behavioral verification not executed")
+		return
+	}
 	for filename, current := range foundationFixtures() {
 		raw, e := os.ReadFile(filepath.Join("testdata", filename))
 		if e != nil {

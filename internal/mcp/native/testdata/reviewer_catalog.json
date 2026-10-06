@@ -1016,6 +1016,82 @@
                       },
                       "PolicyRevision": {
                         "type": "string"
+                      },
+                      "RequiredSet": {
+                        "oneOf": [
+                          {
+                            "type": "null"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "BaseCommit": {
+                                "type": "string"
+                              },
+                              "Checks": {
+                                "items": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "CommandDigest": {
+                                      "type": "string"
+                                    },
+                                    "ID": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "ID",
+                                    "CommandDigest"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": [
+                                  "array",
+                                  "null"
+                                ]
+                              },
+                              "GrantIDs": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": [
+                                  "array",
+                                  "null"
+                                ]
+                              },
+                              "PlanDigest": {
+                                "type": "string"
+                              },
+                              "PolicyBytesDigest": {
+                                "type": "string"
+                              },
+                              "PolicyDigest": {
+                                "type": "string"
+                              },
+                              "RevisionCommit": {
+                                "type": "string"
+                              },
+                              "RevisionID": {
+                                "type": "string"
+                              },
+                              "RevisionTree": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "PolicyDigest",
+                              "PolicyBytesDigest",
+                              "BaseCommit",
+                              "RevisionID",
+                              "RevisionCommit",
+                              "RevisionTree",
+                              "PlanDigest",
+                              "Checks",
+                              "GrantIDs"
+                            ],
+                            "type": "object"
+                          }
+                        ]
                       }
                     },
                     "required": [
