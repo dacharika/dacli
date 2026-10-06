@@ -32,6 +32,35 @@ func TestPluginScopedControllerStartStopAndReplay(t *testing.T) {
 		t.Fatal("start replay authorized fresh work", e)
 	}
 	active := controllerStep(t, f, start, "plugin-step")
+	if active.Waves != 1 || len(active.Actions) != 2 || active.RetainedConcurrency != 2 {
+		t.Fatalf("reservation step did not report committed occupancy: waves=%d actions=%d retained=%d", active.Waves, len(active.Actions), active.RetainedConcurrency)
+	}
+	// Read through a new authority so a correct response cannot hide stale durable
+	// invocation, history, or idempotent-operation records (core623).
+	reopened, e := Open(f.a.path, f.a.binding)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = reopened.transaction(false, false, func(s *state) error {
+		if len(s.Dispatches) != 2 || controllerOccupancy(s, active.ProjectID) != 2 {
+			t.Fatal("reservation step did not commit exactly two retained reservations")
+		}
+		history := s.ControllerHistory[active.ID]
+		if s.ControllerInvocations[active.ID].Status.RetainedConcurrency != 2 || history[len(history)-1].RetainedConcurrency != 2 || s.ControllerOperations["plugin-step"].Status.RetainedConcurrency != 2 {
+			t.Fatal("reservation step persisted stale occupancy")
+		}
+		return nil
+	}); e != nil {
+		t.Fatal(e)
+	}
+	persisted, e := reopened.ControllerStatus(f.token, f.s.ID, active.ProjectID, active.ID)
+	if e != nil || persisted.RetainedConcurrency != 2 {
+		t.Fatal("reopened status lost committed occupancy", persisted.RetainedConcurrency, e)
+	}
+	replay, e = reopened.StepController(f.token, f.s.ID, ControllerStepRequest{OperationKey: "plugin-step", ProjectID: active.ProjectID, InvocationID: active.ID, ExpectedSequence: start.Sequence})
+	if e != nil || !replay.Historical || replay.HostActionAuthorized || replay.RetainedConcurrency != 2 || replay.Sequence != active.Sequence {
+		t.Fatal("reservation replay lost committed occupancy", replay.RetainedConcurrency, e)
+	}
 	stopRequest := ControllerStepRequest{OperationKey: "plugin-stop", ProjectID: active.ProjectID, InvocationID: active.ID, ExpectedSequence: active.Sequence}
 	stopped, e := f.a.StopController(f.token, f.s.ID, stopRequest)
 	if e != nil || !stopped.Terminal || stopped.HaltClass != "stopped" || stopped.HostActionAuthorized || !reflect.DeepEqual(stopped.Actions, active.Actions) || stopped.RetainedConcurrency != active.RetainedConcurrency {
