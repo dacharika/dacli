@@ -23,10 +23,11 @@ func ResolveWorkspace(path, id string) (*workspace.Workspace, error) {
 }
 
 type Server struct {
-	path         string
-	connection   Connection
-	verification *application.NativeVerificationJobs
-	review       *application.NativeReviewProfile
+	path          string
+	connection    Connection
+	verification  *application.NativeVerificationJobs
+	review        *application.NativeReviewProfile
+	orchestration *application.NativeOrchestrationProfile
 }
 
 func Open(path string) (*Server, error) {
@@ -73,6 +74,11 @@ func (s *Server) authenticate() (*workspace.Workspace, *sessions.Authority, stri
 	if e != nil {
 		return deny()
 	}
+	if s.orchestration != nil {
+		if _, e := s.orchestration.Authenticate(); e != nil {
+			return deny()
+		}
+	}
 	if s.review != nil {
 		if _, e := s.review.Authenticate(); e != nil {
 			return deny()
@@ -118,4 +124,18 @@ func (s *Server) Close() error {
 		return s.verification.Close()
 	}
 	return nil
+}
+
+// OpenWithOrchestration selects a distinct owner-pinned controller, bridge or
+// worker handshake profile. It does not enroll or configure authority.
+func OpenWithOrchestration(path, profile string) (*Server, error) {
+	s, e := Open(path)
+	if e != nil {
+		return nil, e
+	}
+	s.orchestration, e = application.OpenNativeOrchestrationProfile(path, profile)
+	if e != nil {
+		return nil, ErrDenied
+	}
+	return s, nil
 }

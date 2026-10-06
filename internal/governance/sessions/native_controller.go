@@ -124,18 +124,41 @@ func controllerScope(s *state, token, session, project, action string, tasks []s
 	return nil
 }
 func (a *Authority) StartController(owner string, r ControllerStartRequest) (ControllerStatus, error) {
+	return a.startController(owner, "", "", r)
+}
+
+// StartScopedController starts only the authenticated, independently enrolled
+// controller. Its adapter supplies owner-pinned routes, never owner credentials.
+func (a *Authority) StartScopedController(token, session string, r ControllerStartRequest) (ControllerStatus, error) {
+	if session == "" || r.ControllerSessionID != session {
+		return ControllerStatus{}, ErrDenied
+	}
+	return a.startController("", token, session, r)
+}
+func (a *Authority) startController(owner, token, session string, r ControllerStartRequest) (ControllerStatus, error) {
 	var out ControllerStatus
 	err := a.transaction(false, true, func(s *state) error {
-		if s.Version < 16 || len(owner) != 64 || hash(owner) != s.OwnerHash || !validID(r.OperationKey) || !validID(r.InvocationID) || !validID(r.CheckpointID) {
+		if s.Version < 16 || !validID(r.OperationKey) || !validID(r.InvocationID) || !validID(r.CheckpointID) {
 			return ErrDenied
 		}
-		digest := identity("controller.start", "", r)
+		if session == "" {
+			if len(owner) != 64 || hash(owner) != s.OwnerHash {
+				return ErrDenied
+			}
+		} else {
+			p, ok := s.ControllerPolicies[r.ProjectID]
+			if !ok || controllerScope(s, token, session, r.ProjectID, "controller.start", p.TaskIDs) != nil {
+				return ErrDenied
+			}
+		}
+		digest := identity("controller.start", session, r)
 		if old, ok := s.ControllerOperations[r.OperationKey]; ok {
 			if old.Digest != digest {
 				return ErrDenied
 			}
 			out = old.Status
 			out.Historical = true
+			out.HostActionAuthorized = false
 			return nil
 		}
 		p, ok := s.ControllerPolicies[r.ProjectID]
@@ -226,6 +249,9 @@ func (a *Authority) StartController(owner string, r ControllerStartRequest) (Con
 				return ErrDenied
 			}
 		}
+		if session != "" && controllerScope(s, token, session, r.ProjectID, "controller.start", p.TaskIDs) != nil {
+			return ErrDenied
+		}
 		now := time.Now().UTC()
 		deadline := now.Add(p.MaxElapsed)
 		if deadline.After(p.ExpiresAt) {
@@ -314,7 +340,7 @@ func (a *Authority) ControllerEnrollmentScope(owner, project string) (Scope, err
 		if e != nil {
 			return e
 		}
-		scope = Scope{Actions: []string{"read", "controller.read", "controller.step", "controller.reconcile", "swarm.plan", "swarm.reserve", "swarm.dispatch", "checkpoint.read", "checkpoint.record", "checkpoint.reconcile", "budget.read", "budget.quote"}, Resources: []string{"workspace:" + s.Binding.Workspace, "project:" + project}}
+		scope = Scope{Actions: []string{"read", "controller.start", "controller.stop", "dispatch.cancel", "controller.read", "controller.step", "controller.reconcile", "swarm.plan", "swarm.reserve", "swarm.dispatch", "checkpoint.read", "checkpoint.record", "checkpoint.reconcile", "budget.read", "budget.quote"}, Resources: []string{"workspace:" + s.Binding.Workspace, "project:" + project}}
 		seen := map[string]bool{}
 		for _, c := range snap.Candidates {
 			if !subset([]string{c.TaskID}, p.TaskIDs) {
@@ -376,4 +402,46 @@ func genericControllerMutation(s *state, token, session string) error {
 		return ErrDenied
 	}
 	return nil
+}
+
+// StopController halts future invocation effects. Existing actions and occupied
+// resources remain protected; this is not a host termination acknowledgement.
+func (a *Authority) StopController(token, session string, r ControllerStepRequest) (ControllerStatus, error) {
+	var out ControllerStatus
+	e := a.transaction(false, true, func(s *state) error {
+		iv, ok := s.ControllerInvocations[r.InvocationID]
+		if s.Version < 16 || !ok || iv.Status.ProjectID != r.ProjectID || iv.Status.ControllerSessionID != session || !validID(r.OperationKey) {
+			return ErrDenied
+		}
+		if e := controllerScope(s, token, session, r.ProjectID, "controller.stop", iv.Policy.TaskIDs); e != nil {
+			return e
+		}
+		digest := identity("controller.stop", session, r)
+		if old, ok := s.ControllerOperations[r.OperationKey]; ok {
+			if old.Digest != digest {
+				return ErrDenied
+			}
+			out = old.Status
+			out.Historical = true
+			out.HostActionAuthorized = false
+			return nil
+		}
+		if iv.Status.Sequence != r.ExpectedSequence {
+			return ErrDenied
+		}
+		controllerHalt(&iv, "stopped", "controller stopped; retain dispatches until authenticated host completion or owner reconciliation", false, true)
+		iv.Status.Sequence++
+		iv.Status.Historical = false
+		iv.Status.ObservedAt = time.Now().UTC()
+		iv.Status.RetainedConcurrency = controllerOccupancy(s, r.ProjectID)
+		out = iv.Status
+		s.ControllerInvocations[out.ID] = iv
+		s.ControllerHistory[out.ID] = append(s.ControllerHistory[out.ID], out)
+		s.ControllerOperations[r.OperationKey] = controllerReceipt{Digest: digest, Status: out}
+		return nil
+	})
+	if e != nil {
+		return ControllerStatus{}, e
+	}
+	return out, nil
 }

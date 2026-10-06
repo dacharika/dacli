@@ -149,6 +149,21 @@ class BootstrapTests(unittest.TestCase):
             self.write_config(dict(self.config, runner_config_file='/private/runner.json', **{key:'override'}))
             self.assert_refused()
 
+    def test_owner_selected_orchestration_profile_is_forwarded_without_reading_it(self):
+        profile = self.base / 'absent-private-orchestration.json'
+        self.write_config(dict(self.config, orchestration_config_file=str(profile)))
+        result = self.run_server()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)['argv'], ['native', 'serve', '--connection', str(self.profile),
+                                                            '--orchestration-config', str(profile)])
+        self.assertFalse(profile.exists(), 'bootstrap accessed child profiles')
+        for key in ('runner_config_file', 'review_config_file'):
+            self.write_config(dict(self.config, orchestration_config_file=str(profile), **{key:'/private/other.json'}))
+            self.assert_refused()
+        for key in ('command', 'credential_file', 'routes', 'grant_id', 'model'):
+            self.write_config(dict(self.config, orchestration_config_file=str(profile), **{key:'override'}))
+            self.assert_refused()
+
     def test_owner_selected_review_path_is_forwarded_without_reading_it(self):
         review = self.base / 'absent-private-review.json'
         self.write_config(dict(self.config, review_config_file=str(review)))

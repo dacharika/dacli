@@ -59,3 +59,46 @@ MCP processes. No hooks or containment guarantees are supplied. Direct host
 filesystem/shell actions can bypass cooperative gates. Self-reports, successful
 lease calls and plugin installation do not constitute acceptance or deployment
 authorization.
+
+For owner-provisioned orchestration, select a separate controller, bridge or
+worker-handshake profile through `orchestration_config_file`. First call
+`identity`, canonical reads and `get_orchestration_host_status`; then inspect the
+role's `tools/list`. A profile or child label never grants authority. Requests
+cannot override credentials, routes, grants, commands or models.
+
+Use `plan_swarm`, `start_loop` and one bounded `step_loop` at a time. Preserve the
+operation key, invocation, checkpoint and expected sequence. Only a fresh
+`HostActionAuthorized` receipt permits its specific native host instruction.
+Status/replay are historical facts. Use the host's actual native collaboration
+tool for an authorized child action, with owner-provisioned independent private
+connections; do not wrap or spawn coding CLIs. The bridge correlates the actual
+child through `correlate_dispatch`. The child uses its own connection to register
+its attempt and `acknowledge_dispatch`; shared sessions cannot impersonate it.
+Runner and reviewer connections continue their independent named-check and
+review workflows. `reconcile_loop` observes durable facts before advancing.
+`pending_local_integration` requires the separate integration producer and never
+means the whole loop succeeded.
+
+`stop_loop` prevents future controller effects while retaining uncertain work.
+`cancel_dispatch` requests cancellation. The bridge separately records
+`acknowledge_cancellation` and `observe_dispatch`; inspect
+`get_dispatch_lifecycle` for request, acknowledgement, terminal observation and
+freshness. Lost heartbeat or disconnected host means unknown, not cancellation
+or termination. Keep original uncertain-operation identities and protection;
+recover through owner reconciliation rather than relaunching with another key.
+Automatic dispatch/termination and unattended private child profile delivery
+are not supplied. Other harness capability formats remain explicitly unsupported.
+
+Use the owner-selected routing explanation in swarm/dispatch results when
+choosing a permitted native child turn. Do not supply your own model override or
+switch a running child's model. A harder-model correction requires the shared
+bounded controller decision tied to its actual producer outcome; retained or
+uncertain writers still block replacements. Historical records do not become
+new host permits or provider availability/spend guarantees.
+
+Local integration remains an owner operation through the native integration
+adapter. Do not substitute raw Git operations, a source-tree green check or a
+chat completion claim for its exact source/target/revision-bound outcome. When a
+controller reports `pending_local_integration`, retain the durable identity and
+wait for the authorized owner producer. Unknown apply effects require inspect
+and reconcile; changing keys cannot make an uncertain effect safe.

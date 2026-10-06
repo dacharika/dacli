@@ -268,3 +268,68 @@ and seven reviewer tools. The explicit legacy MCP transport remains separate;
 its CLI compatibility never becomes a native agent shell gateway. Named check
 progress remains bounded polling, and typed cancellation remains distinct from
 request notifications and host termination.
+
+## Owner-selected native orchestration
+
+`native serve --connection <private> --orchestration-config <private>` selects a
+separate controller, bridge or worker-handshake role. Runner, reviewer and
+orchestration selections are mutually exclusive. The plugin's private selection
+forwards `orchestration_config_file`; neither MCP requests nor host labels can
+change it. Configuration and pinned capability bytes are read again on every
+request, and the exact enrolled identity/action/project scope is authenticated.
+The profile contains no commands or credentials. Owner enrollment, policy,
+grants, placements and capability setup remain separate administrative actions;
+opening the server never upgrades the real authority.
+
+Controller operations plan, start, step, read status, reconcile, stop and request
+dispatch cancellation through the same application/admission/controller services
+as other adapters. Scoped start binds the caller's session and owner-pinned
+policy/routes before the shared controller transaction; it never loads an owner
+credential. Start accepts only operation/invocation/checkpoint identities. Step,
+reconcile and stop bind expected sequence. Dispatch correlation, worker
+acknowledgement, lifecycle observation and cancellation acknowledgement use the
+existing exact dispatch/intent/reservation/lease fence checks and original
+independently enrolled actors. Strict role catalogs refuse nonadvertised tools.
+
+A bridge may correlate and observe; a worker handshake connection may acknowledge
+its own dispatch. These separately configured catalogs do not replace the default
+worker, named runner or reviewer catalog. All responses preserve structured/text
+JSON parity. The new host status observation explicitly reports cooperative
+manual Codex delivery, unsupported automatic dispatch and unverified automatic
+termination, with `effect_authorized: false`. Unsupported harness capability
+formats refuse. The interface remains portable without inventing host support.
+
+Stop is a durable terminal controller halt, not an assertion that host processes
+terminated. It retains pending actions and occupied resources. Cancellation
+request, authenticated host acknowledgement and host terminal observation remain
+separate lifecycle facts. Stale/missing nonterminal observation remains unknown;
+replay and status grant no host action. Recovery preserves uncertain bindings and
+requires owner reconciliation. Existing controller bounds and clean/fenced
+producer checks remain in force. The local integration producer is separate;
+`pending_local_integration` cannot be relabeled completed. No parent loop or
+integration completion is inferred from adding these tools.
+
+Owner-configured difficulty routing selects an approved role/model for a new
+native child turn. A selection and its explanation belong to the shared swarm
+verdict/dispatch record and therefore to the MCP result. A caller supplies no
+model override, provider credentials or private route profile. Routing must
+respect eligible strategy, fresh preflight, declared host capability and budget
+accounting. Historical fixed-role dispatches retain their original selection;
+reading them never upgrades their provenance. Harder-model correction is a
+bounded controller transition tied to the task, invocation, prior dispatch and
+actual producer outcome. It must not replace a retained uncertain writer or
+claim that a running model was switched. Host/provider model availability and
+billing enforcement require separate observations and are not inferred here.
+
+The native owner command registry delegates model-routing upgrade/configure and
+local-integration operations to their shared adapters. These are administrative
+commands with explicit owner configuration; they are not unrestricted MCP tools.
+A local-integration permit must bind the configured source and target checkout,
+committed revision, observations, operation identity and actual governed
+verification. Inspect/apply/reconcile refer to those durable identities; neither
+an integration claim nor a passed source check proves the landing target changed.
+The controller continues to wait on `pending_local_integration` until the actual
+integration producer supplies the required bound outcome. Unknown apply effects
+require inspection/reconciliation, not a replacement operation key. Routing
+selection grants only the next permitted child turn, preserving independent
+worker identity, retained-writer protection and correction accounting.

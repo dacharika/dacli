@@ -219,3 +219,81 @@ its own credentialed stdio process. Its direct diagnostic tool calls entered no
 hook callbacks in all seven cases. Timeout/malformed callback enforcement remains
 unexercised and core583 criterion3 remains open; this beta boundary does not rely
 on hooks or relax reviewer independence.
+
+## Native swarms and bounded loops
+
+An owner may select a separate orchestration connection with
+`orchestration_config_file` in the private plugin selection. It is mutually
+exclusive with runner and reviewer selections. The bootstrap forwards only the
+absolute profile path; it never reads child credentials, enrolls agents, upgrades
+authority or launches coding CLIs. Default worker, runner and reviewer catalogs
+remain unchanged.
+
+The private orchestration profile has version 1 and pins `workspace_id`,
+`project_id`, `session_id`, `role` (`controller`, `bridge` or `worker`),
+`capability_file` and its raw `capability_sha256`. A controller additionally pins
+`policy_revision` and `routes`, using the shared `ControllerTaskRoute` records.
+Routes name independently enrolled bridge, worker, runner and reviewer sessions,
+existing verification/review grants, check IDs and prompt digests. These are
+configuration references, not credentials or new grants. The configured native
+policies and actor scopes must already exist. No production migration happens
+when a plugin profile opens.
+
+The controller catalog adds `plan_swarm`, `start_loop`, `get_loop_status`,
+`step_loop`, `reconcile_loop`, `stop_loop` and `cancel_dispatch`. Every role also
+gets `get_dispatch_status`, `get_dispatch_lifecycle` and
+`get_orchestration_host_status`. Bridge connections get `correlate_dispatch`,
+`observe_dispatch` and `acknowledge_cancellation`; a worker handshake connection
+gets `acknowledge_dispatch`. Inspect `tools/list` for strict field names. Start
+accepts only an operation key, invocation ID and checkpoint ID. Advances require
+an exact invocation, project, expected sequence and durable operation key.
+Requests accept no shell commands, private profile paths, credentials, routes,
+model selections or grant overrides.
+
+A bounded cycle is: plan, start, step, perform only freshly permitted native host
+instructions, correlate the real child, have that child register its own attempt
+and acknowledge dispatch using its own independently configured connection,
+then reconcile. Worker revision publication, named runner verification and
+independent reviewer proposals retain their separate connection workflows. A
+step receipt authorizes a host action only when `HostActionAuthorized` is true;
+status reads and replayed receipts never authorize another launch. Keep the
+original operation identity after a disconnect, inspect status and reconcile;
+do not change a key to repeat an uncertain dispatch. Controller limits govern
+waves, concurrency, corrections, no progress, retries and elapsed time. The
+controller does not perform a coding turn itself.
+
+`stop_loop` halts future invocation effects and retains existing dispatches and
+resources. `cancel_dispatch` records a cancellation request and withdraws future
+worker authority. Host acknowledgement and host completion remain separate
+observations. Missing or stale heartbeat means unknown/disconnected, never
+successful cancellation or termination. An independent bridge records actual
+host observations and cancellation acknowledgement against the exact binding.
+Unknown writers require owner reconciliation; do not release their protection
+based on a chat label or missing heartbeat.
+
+The current host channel is owner-attested Codex collaboration with manual
+separate-process profile delivery. Automatic host dispatch is unsupported and
+automatic termination remains unverified. Other host capability formats refuse
+explicitly; this portable MCP interface does not certify their support.
+`get_orchestration_host_status` reports this boundary with
+`effect_authorized: false`. Local integration remains a separate producer:
+`pending_local_integration` is a truthful wait state, not completed end-to-end
+loop delivery. Packaging reads/refusals can be reproduced with
+`python3 scripts/smoke.py --orchestration-selection /absolute/private-selection.json --orchestration-role controller`;
+this probe starts no model turn and makes no successful dispatch claim.
+
+Difficulty-based routing, when configured by the owner, is returned as a shared
+swarm/dispatch selection and explanation. It chooses an approved model/role for
+a new native child turn; no caller model override or mid-turn switch is exposed.
+Harder corrections remain tied to observed producer outcomes and controller
+limits. Historical fixed-role records remain historical, and uncertain writers
+retain their protection. Host model availability and provider spend enforcement
+are separate facts.
+
+Owner model-routing configuration and local integration use their explicit
+native command adapters. They are not authority-granting plugin tools. The
+integration outcome must bind the actual configured source/target revision and
+verification; source checks alone cannot certify a changed landing target.
+Unknown effects require inspection and reconciliation under the original
+identity, and `pending_local_integration` remains pending until that producer's
+actual outcome is available.

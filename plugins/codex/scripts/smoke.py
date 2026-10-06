@@ -9,6 +9,7 @@ import queue
 import shlex
 import signal
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -455,10 +456,90 @@ def smoke(codex, dacli, schema5_dacli=None):
             'shared_mcp_connection_shares_session_identity':True,'assurance':'cooperative-session', **migration}
 
 
+ORCHESTRATION_TOOLS = {
+    'controller': {'plan_swarm', 'start_loop', 'get_loop_status', 'step_loop', 'reconcile_loop',
+                   'stop_loop', 'cancel_dispatch', 'get_dispatch_status', 'get_dispatch_lifecycle'},
+    'bridge': {'correlate_dispatch', 'observe_dispatch', 'acknowledge_cancellation',
+               'get_dispatch_status', 'get_dispatch_lifecycle'},
+    'worker': {'acknowledge_dispatch', 'get_dispatch_status', 'get_dispatch_lifecycle'},
+}
+ORCHESTRATION_READS = {'identity', 'workspace_status', 'task_list', 'task_get',
+                       'get_policy_status', 'get_orchestration_host_status'}
+
+
+def orchestration_smoke(selection, role):
+    """Measure a separately provisioned real stdio profile, without enrollment.
+
+    This read/refusal probe does not imply a successful dispatch or full loop.
+    Owner fixtures separately exercise actual lifecycle producers.
+    """
+    if role not in ORCHESTRATION_TOOLS:
+        raise ValueError('unsupported orchestration role')
+    script = Path(__file__).with_name('serve.py')
+    proc = subprocess.Popen([sys.executable, str(script), str(selection)], stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    messages = queue.Queue()
+    def read_lines():
+        for line in proc.stdout:
+            messages.put(line)
+        messages.put(None)
+    threading.Thread(target=read_lines, daemon=True).start()
+    def call(ident, method, params):
+        proc.stdin.write(json.dumps({'jsonrpc':'2.0', 'id':ident, 'method':method, 'params':params}) + '\n')
+        proc.stdin.flush()
+        line = messages.get(timeout=30)
+        if line is None:
+            raise RuntimeError('native orchestration process disconnected')
+        response = json.loads(line)
+        if 'result' not in response:
+            raise RuntimeError('native orchestration transport refused')
+        return response['result']
+    def tool(ident, name, arguments):
+        response = call(ident, 'tools/call', {'name':name, 'arguments':arguments})
+        structured = response['structuredContent']
+        fallback = json.loads(response['content'][0]['text'])
+        if structured != fallback:
+            raise RuntimeError('native orchestration structured/text mismatch')
+        return structured
+    try:
+        call(1, 'initialize', {'protocolVersion':'2024-11-05', 'capabilities':{},
+                              'clientInfo':{'name':'dacli-orchestration-package', 'version':'1'}})
+        proc.stdin.write(json.dumps({'jsonrpc':'2.0', 'method':'notifications/initialized'})+'\n');proc.stdin.flush()
+        names = {t['name'] for t in call(2, 'tools/list', {})['tools']}
+        if names != ORCHESTRATION_READS | ORCHESTRATION_TOOLS[role]:
+            raise RuntimeError('native orchestration role catalog mismatch')
+        identity = tool(3, 'identity', {'schema_version':1})
+        host = tool(4, 'get_orchestration_host_status', {'schema_version':1})
+        refused = tool(5, 'get_dispatch_status', {'schema_version':1, 'dispatch_id':'unknown-package-fixture'})
+        if not identity['ok'] or not host['ok'] or host['data']['effect_authorized'] or refused['ok'] or refused['error']['exit_code'] != 3:
+            raise RuntimeError('native orchestration role/host/refusal contract mismatch')
+    finally:
+        proc.stdin.close()
+        try:
+            code = proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill();proc.wait()
+            raise RuntimeError('native orchestration process did not close')
+    if code != 0:
+        raise RuntimeError('native orchestration process failed')
+    return {'role':role, 'tool_names':sorted(names), 'structured_text_parity':True,
+            'fresh_identity_observed':True, 'unknown_dispatch_exit':3, 'host_status':host['data'],
+            'model_turn_requested':False, 'native_dispatch_exercised':False,
+            'assurance':'ordinary-packaging-observation', 'process_exit':code}
+
+
 if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--codex', required=True); p.add_argument('--dacli', required=True)
+    p.add_argument('--codex'); p.add_argument('--dacli')
+    p.add_argument('--orchestration-selection'); p.add_argument('--orchestration-role', choices=sorted(ORCHESTRATION_TOOLS))
     p.add_argument('--schema5-dacli', help='genuine schema-5 binary for explicit owner migration smoke')
     a = p.parse_args()
+    if a.orchestration_selection:
+        if not a.orchestration_role:
+            p.error('--orchestration-role is required with selection')
+        print(json.dumps(orchestration_smoke(Path(a.orchestration_selection).resolve(), a.orchestration_role), indent=2))
+        sys.exit(0)
+    if not a.codex or not a.dacli:
+        p.error('--codex and --dacli are required for installation smoke')
     print(json.dumps(smoke(str(Path(a.codex).resolve()), str(Path(a.dacli).resolve()),
         str(Path(a.schema5_dacli).resolve()) if a.schema5_dacli else None), indent=2))
