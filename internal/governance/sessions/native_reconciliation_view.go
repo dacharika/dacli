@@ -2,6 +2,7 @@ package sessions
 
 import (
 	"errors"
+	"reflect"
 	"sort"
 	"time"
 )
@@ -307,10 +308,38 @@ func (a *Authority) reconcileCheckpoint(s *state, p CheckpointPolicy, out Checkp
 			}
 		}
 		if r.IntegrationOperationID != "" {
-			add("pending_local_integration", "unknown", r.TaskID, r.IntegrationOperationID, "core592 must supply authenticated local integration producer outcome; contract reference is not execution", false)
+			integration, exists := s.NativeIntegrationOperations[r.IntegrationOperationID]
+			if !exists {
+				add("pending_local_integration", "unknown", r.TaskID, r.IntegrationOperationID, "owner pins local target epoch before verification/review, then applies exact owner integration; retain protection", false)
+			} else if integration.Input.Candidate.ProjectID != p.ProjectID || integration.Input.Candidate.TaskID != r.TaskID || (r.ReviewID != "" && integration.Input.Candidate.ReviewID != r.ReviewID) {
+				add("integration_binding_mismatch", "unknown", r.TaskID, r.IntegrationOperationID, "owner reconciles exact task/review integration identity", false)
+			} else {
+				out.Facts = append(out.Facts, CheckpointFact{Kind: "integration", TaskID: r.TaskID, ID: integration.OperationKey, State: integration.State, Knowledge: "known", LeaseID: integration.Input.Candidate.LeaseID, Fence: integration.Input.Candidate.ExpectedFence})
+				if integration.State != "integrated" || !validNativeIntegrationOutcome(integration) {
+					add("pending_local_integration", "unknown", r.TaskID, integration.OperationKey, "owner inspects/reconciles exact durable intent; never relaunch uncertain Git effect", false)
+				} else {
+					progress = append(progress, integration.ReceiptDigest)
+				}
+			}
 		}
 		if r.AcceptanceOperationID != "" {
-			add("pending_canonical_acceptance", "unknown", r.TaskID, r.AcceptanceOperationID, "core594 must supply authenticated canonical acceptance outcome", false)
+			acceptance, exists := s.NativeAcceptanceOperations[r.AcceptanceOperationID]
+			input := acceptance.Candidate.Input
+			if !exists {
+				add("pending_canonical_acceptance", "unknown", r.TaskID, r.AcceptanceOperationID, "separately scoped owner evaluates/consumes578 policy and applies579 exact canonical outcome; retain protection", false)
+			} else if input.ProjectID != p.ProjectID || input.TaskID != r.TaskID || (r.ReviewID != "" && input.ReviewID != r.ReviewID) {
+				add("acceptance_binding_mismatch", "unknown", r.TaskID, r.AcceptanceOperationID, "owner reconciles exact canonical producer identity", false)
+			} else {
+				out.Facts = append(out.Facts, CheckpointFact{Kind: "acceptance", TaskID: r.TaskID, ID: acceptance.OperationKey, State: acceptance.State, Knowledge: "known", LeaseID: input.LeaseID, Fence: input.ExpectedFence})
+				terminal, retired := s.TaskTerminals[r.TaskID]
+				outcome, observed := s.NativePolicyOutcomes[r.AcceptanceOperationID]
+				candidate, present := candidates[r.TaskID]
+				if acceptance.State != "closed" || acceptance.ClosedAt.IsZero() || !retired || !reflect.DeepEqual(terminal, acceptance) || !observed || outcome.State != "closed" || outcome.ExpectedOutcomeDigest != acceptance.CanonicalOutcomeDigest || outcome.ObservedOutcomeDigest != acceptance.CanonicalOutcomeDigest || outcome.ObservedAt.IsZero() || !present || candidate.Status != "done" {
+					add("pending_canonical_acceptance", "unknown", r.TaskID, r.AcceptanceOperationID, "owner freshly reconciles exact579 closing marker/body and578 observed outcome; never fabricate task success", false)
+				} else {
+					progress = append(progress, acceptance.CanonicalReceiptDigest)
+				}
+			}
 		}
 	}
 	planID := ""
