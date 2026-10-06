@@ -86,7 +86,7 @@ func (r *Runtime) Cycle(ctx context.Context) error {
 			return ctx.Err()
 		}
 		scope, _ := tenant.NewScope(t.Tenant)
-		if e = r.repository.ProcessInbox(ctx, scope, r.keys, 5); e != nil {
+		if e = r.repository.ProcessInbox(ctx, scope, r.inboxKeys, 5); e != nil {
 			failures = append(failures, errors.New("inbox cycle failed"))
 		}
 		if t.Destination == "" {
