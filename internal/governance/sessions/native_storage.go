@@ -118,7 +118,7 @@ func (a *Authority) ObserveStorage(owner string) (StorageSnapshot, error) {
 			outcome, observed := s.NativePolicyOutcomes[consumption.OperationKey]
 			decision, decided := s.NativePolicyDecisions[consumption.DecisionID]
 			acceptance, accepted := s.NativeAcceptanceOperations[consumption.OperationKey]
-			resolved := observed && decided && accepted && outcome.OperationKey == consumption.OperationKey && decision.Input.OperationKey == consumption.OperationKey && outcome.DecisionID == consumption.DecisionID && outcome.State == "closed" && consumption.CanonicalOutcomeDigest != "" && outcome.ExpectedOutcomeDigest == consumption.CanonicalOutcomeDigest && outcome.ObservedOutcomeDigest == consumption.CanonicalOutcomeDigest && acceptance.State == "closed" && acceptance.OperationKey == consumption.OperationKey && acceptance.CanonicalOutcomeDigest == consumption.CanonicalOutcomeDigest && reflect.DeepEqual(acceptance.Candidate.Input, decision.Input)
+			resolved := observed && decided && accepted && outcome.OperationKey == consumption.OperationKey && decision.Input.OperationKey == consumption.OperationKey && outcome.DecisionID == consumption.DecisionID && outcome.State == "closed" && consumption.CanonicalOutcomeDigest != "" && outcome.ExpectedOutcomeDigest == consumption.CanonicalOutcomeDigest && outcome.ObservedOutcomeDigest == consumption.CanonicalOutcomeDigest && acceptance.State == "closed" && acceptance.OperationKey == consumption.OperationKey && acceptance.CanonicalOutcomeDigest == consumption.CanonicalOutcomeDigest && acceptanceRecordMatchesInput(acceptance, decision.Input)
 			if !resolved {
 				task := ""
 				if decided {
