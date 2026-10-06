@@ -17,6 +17,16 @@ import (
 func orchestrationFixture(t *testing.T, role string) fixture {
 	t.Helper()
 	f := setup(t)
+	// The default worker fixture bootstraps schema6. Swarm profiles require
+	// the explicit owner schema7 transition, even for read/catalog generation.
+	if e := f.a.UpgradeSwarms(f.owner); e != nil {
+		t.Fatal(e)
+	}
+	var e error
+	f.a, e = sessions.OpenSwarm(f.c.Authority, sessions.Binding{Workspace: f.c.WorkspaceID, Installation: f.c.InstallationID}, nil)
+	if e != nil {
+		t.Fatal(e)
+	}
 	actions := map[string][]string{"controller": {"read", "controller.start", "controller.stop", "controller.read", "controller.step", "controller.reconcile", "swarm.plan", "dispatch.cancel"}, "bridge": {"read", "dispatch.correlate", "dispatch.observe"}, "worker": {"read", "lease.acquire"}}[role]
 	actor, token, e := f.a.Enroll(f.owner, sessions.Scope{Actions: actions, Resources: []string{"workspace:" + f.c.WorkspaceID, "project:p", "task:" + f.task.ID, "path:src"}}, time.Now().Add(time.Hour))
 	if e != nil {

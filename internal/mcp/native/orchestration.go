@@ -65,7 +65,7 @@ type lifecycleAcknowledgeArgs struct {
 var orchestrationRoles = map[string][]string{
 	"controller": {"get_dispatch_routing", "plan_swarm", "start_loop", "get_loop_status", "step_loop", "reconcile_loop", "stop_loop", "cancel_dispatch", "get_dispatch_status", "get_dispatch_lifecycle"},
 	"bridge":     {"correlate_dispatch", "observe_dispatch", "acknowledge_cancellation", "get_dispatch_status", "get_dispatch_lifecycle"},
-	"worker":     {"acknowledge_dispatch", "get_dispatch_status", "get_dispatch_lifecycle"},
+	"worker":     {"register_attempt", "acquire_lease", "renew_lease", "release_lease", "publish_revision", "submit_evidence", "acknowledge_dispatch", "get_dispatch_status", "get_dispatch_lifecycle"},
 }
 var orchestrationReads = []string{"identity", "workspace_status", "task_list", "task_get", "get_policy_status", "get_orchestration_host_status"}
 
