@@ -24,6 +24,11 @@ func TestOrchestrationPrivateProfileFreshIdentityAndRole(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	// The disposable profile uses the swarm reader, so its owner must upgrade
+	// the bootstrapped schema6 authority before opening that profile.
+	if e = authority.UpgradeSwarms(owner); e != nil {
+		t.Fatal(e)
+	}
 	actor, token, e := authority.Enroll(owner, sessions.Scope{Actions: []string{"read", "dispatch.correlate", "dispatch.observe"}, Resources: []string{"workspace:" + w.ID, "project:p", "task:task"}}, time.Now().Add(time.Hour))
 	if e != nil {
 		t.Fatal(e)
