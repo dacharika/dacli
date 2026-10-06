@@ -1,7 +1,7 @@
 # Bounded tenant API boundary
 
-**Status: implemented as an injectable Phase 1 boundary; hosted deployment and
-native device login are not shipped.**
+**Status: tenant boundary and device/sync adapters are assembled in source;
+live provider, full verification and hosted deployment are unverified.**
 
 The control-plane HTTP service can enable tenant routes only when it is given
 three explicit dependencies: an identity verifier, a tenant backend, and at
@@ -14,7 +14,10 @@ The temporary Phase 1 verifier accepts a short-lived, HMAC-authenticated bearer
 identity containing an opaque tenant, account, optional device, exact
 membership version, current policy revision, and expiry. Domain separation
 prevents an identity signature from being reused as a page-cursor signature.
-Native device-session authentication replaces this adapter in #984.
+The source now also supplies a device-session verifier selected by the hosted
+composition. It reloads current device/session/membership state and uses only
+server-verified identity for authority. The injectable HMAC adapter remains an
+explicit development boundary, not a client login or bearer-minting interface.
 
 Handlers use only the verified identity to construct `tenant.Scope`, actor, and
 device. A body, query, route, or queued work item may select a resource inside
@@ -101,3 +104,66 @@ The worker dispatcher follows the same rule. Its verifier produces the
 identity and scope, while an untrusted claimed tenant remains data only. Invalid
 identity never reaches the processor, and the raw worker credential is excluded
 from JSON.
+
+## Device and signed-sync adapters
+
+The device and sync routes are enabled only with explicit operator-selected
+`hosted.device_oauth` dependencies and `hosted.sync_bindings`. Provider issuer,
+device/token/identity endpoints, client ID, requested scope, approved
+subject→tenant/account mappings and server public signing keys are non-secret
+configuration. `client_secret_env` names the external secret; resolved secret
+values are not emitted in safe configuration. Operators must apply migration11
+explicitly; runtime startup neither migrates nor provisions membership/trust.
+The application database role needs explicit auth-flow table privileges and
+USAGE on the new delivery ordinal sequence. Its serialized allocation trigger
+does not grant those permissions to a role.
+
+| Method and path | Source contract |
+| --- | --- |
+| `POST /v1/auth/device` | Closed provider flow request and device public-key enrollment selection |
+| `POST /v1/auth/token` | Device-code polling or exact refresh request; private bearer result |
+| `GET /v1/auth/whoami` | Revalidated current session/device/membership and safe identity metadata |
+| `POST /v1/auth/revoke` | Exact authenticated device-session revocation |
+| `GET /v1/sync/binding` | Exact query workspace/tenant/project/environment/repository/device comparisons against approved server binding |
+| `POST /v1/sync/exchange` | Closed schema1 route/version, at most 100 signed envelopes and bounded automatic signed proposal pull |
+
+The binding response is `ProjectBindingResponse` from
+`internal/cloudsync/http.go`: schema1, exact route, binding version, canonical
+repository URL/default branch, supported schema range and trusted public keys.
+Binding trusted keys contain only static project server keys matching configured
+`DeviceOAuth.ServerSigningKeys`. Dynamically enrolled device keys verify envelope
+signers only within their live project assignments; they never become client
+server-trust anchors. Enrollment maps a provider-verified issuer/subject to an
+explicit owner-approved account and its current membership, not caller identity.
+Caller route IDs select only resources within verified device authority. A
+binding is refused when project/environment/current membership/device access is
+missing or changed; no caller creates trusted bindings or overwrites existing
+local bindings. Local connect rejects ambiguous repositories and sync rechecks
+the current repository before effects.
+
+`ExchangeRequest` carries the exact route and binding version, immutable signed
+envelopes, the local metadata cursor and a separate opaque `delivery_cursor`.
+`ExchangeResponse` carries `acknowledged` entries with exact `event_id`,
+`idempotency_key`, `sequence` and `outcome`, signed `inbound` envelopes and the
+next opaque delivery cursor. Clients acknowledge only the contiguous prefix of
+exact accepted/duplicate confirmations; an HTTP 200 is not an inferred ack-all.
+Inbound signatures, tenant/project routes and closed payload schemas are checked
+before proposal persistence. Delivery cursor advancement follows successful
+local receive/ack persistence, making a failed restart safe to replay.
+
+Device OAuth throttling uses OAuth-specific `slow_down` responses; transient
+provider failures use `temporarily_unavailable`. The generic tenant API keeps its
+existing control-plane JSON contract for rate-limit HTTP 429 responses.
+
+The delivery cursor is HMAC-bound to the current route/device/account, binding
+version and stable page bounds. It is distinct from the unsigned local metadata
+cursor, which grants no server pagination authority. Migration11 serializes
+producer delivery ordinal allocation until commit and prevents ordinal changes;
+pull stays tenant/project scoped and rejects modified or cross-route cursors.
+No received envelope applies a local canonical task, grants policy, launches an
+agent or supplies acceptance/merge/deployment authority.
+
+The assembled production source compiles. These are implemented source contracts,
+not measured live-provider or hosted results. This integration wave ran no
+behavioral verification; deployment,
+provider consent and actual authenticated client/server flow proof remain pending.

@@ -559,6 +559,58 @@ These commands authenticate the owner explicitly; no worker MCP route grants
 external publication, merge, deployment, tag or release authority. Owner policy
 changes preserve historical bindings rather than rewriting old receipts.
 
+### Device identity and connected projects
+
+`auth login` selects an explicit provider and tenant, starts its device-code flow,
+and stores access/refresh credentials and the device Ed25519 private key in the
+native OS credential store. `auth logout` requests revocation of the exact device
+and attempts to remove its exact local credential even if remote revocation is
+offline or unknown. Local removal and remote revocation are reported separately;
+unknown revocation is not successful provider logout.
+`auth whoami` refreshes and revalidates device identity and can update local
+credential/expiry metadata; it is deliberately a mutating command.
+
+These three exact local auth handlers authenticate through the selected provider
+and OS store instead of the ambient legacy grant. The dispatcher exemption is
+limited to `auth login`, `auth logout` and `auth whoami`; help is a read and legacy
+MCP execution of the handlers is refused. It does not exempt connected project
+commands, grant a worker native authority, or mint a bearer from local task state.
+The macOS cgo Keychain adapter calls Security.framework directly. Other operating
+systems and macOS builds without cgo explicitly refuse unsupported credential
+storage without a plaintext/file fallback. Only non-secret selection, identity,
+expiry and public-key metadata persists in the local device profile; CLI output
+omits access/refresh credentials and private signing material.
+
+`project connect` requires the local owner and an explicit authenticated device.
+It verifies an unambiguous local Git repository against the server-selected
+workspace/tenant/project/environment/repository/device binding, schema range and
+public signing keys. Existing bindings cannot be replaced by caller configuration;
+a verified migration is a separate operation, not an implicit reconnect.
+`project sync` signs closed v1 metadata DTOs into the immutable local outbox,
+queues offline using only the OS-backed local signer, then reauthenticates before
+network effects. Only exact event/idempotency/sequence/outcome confirmations
+advance the contiguous acknowledgment cursor. Signed inbound records stay in the
+proposal inbox; they cannot apply tasks or policy, accept work or start agents.
+Titles, acceptance prose, source, prompts, transcripts, environment values and
+credentials are absent from the local task-status projection.
+
+`project disconnect` preserves an auditable connection tombstone, queues a signed
+disconnect when its local signer is available and retains transport history for
+later reconciliation. It never disables core local commands. Reconnect permits
+only the same verified binding; offline transition history is replayed before the
+new connection generation. `project status` reads connection health, producer and
+inbound cursors, backlog, last success/failure and the next recovery action.
+These project mutators retain their local owner/grant checks; an OS device token
+is not permission to mutate canonical tasks. Undo connection with disconnect,
+not history deletion. Restore connectivity through the same verified binding;
+never remove outbox rows or change operation identities to hide unknown effects.
+
+Hosted routes require explicit operator configuration and migration11. Neither
+CLI installation nor login automatically migrates a database, provisions tenant
+membership, trusts a signing key or deploys the hosted service. These source
+implementations remain unverified against a live provider and deployment; their
+presence is not acceptance evidence.
+
 ### Native dashboard reads
 
 `dashboard --native-connection` selects an explicit private reader profile.

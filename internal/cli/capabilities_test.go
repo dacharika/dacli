@@ -25,7 +25,9 @@ import (
 // candidate/apply emit typed JSON, with no legacy or MCP write fallback.
 // Dashboard adds the explicit optional private reader connection flag; no new mutation.
 // Three native storage commands add owner-only observation, isolated projection and retention dry-run.
-const capabilityRegistryGolden = "dfd20e80721ce3b2745f82b65588a5b8d72b0c0dbe3c7ef6dd778c94d66fbef3"
+// Seven device-auth/project-sync commands add six mutations and seven typed JSON outputs.
+// Digest generated from the assembled CLI artifact; behavioral verification remains pending.
+const capabilityRegistryGolden = "113fda9b48d657bfa73d6fff667e47297aec0ca10bf8118652ee3d73897ae3c5"
 
 func TestCapabilityRegistryGolden(t *testing.T) {
 	m := capabilityManifest()
