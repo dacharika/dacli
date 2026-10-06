@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mlnomadpy/dacli/internal/application"
+	"github.com/mlnomadpy/dacli/internal/governance/sessions"
 	"github.com/mlnomadpy/dacli/internal/mcp/native"
 	"io"
 	"os"
@@ -26,6 +27,21 @@ func asyncRequest(f verificationFixture) application.NativeVerificationRequest {
 	r := f.request
 	return application.NativeVerificationRequest{OperationKey: r.OperationKey, AttemptID: r.AttemptID, LeaseID: r.LeaseID, RevisionID: r.RevisionID, CheckID: r.CheckID, ExpectedFence: r.ExpectedFence}
 }
+
+// Cleaned cancellation is a durable non-evidence receipt, bound to the original
+// runner and request. A restart must never turn it into success or rerun it.
+func requireAsyncCleanedInterruption(t *testing.T, f verificationFixture, status application.VerificationStatus, err error) {
+	t.Helper()
+	if err != nil || status.OperationKey != f.request.OperationKey || status.State != "interrupted" || status.Evidence != nil || status.Interruption == nil {
+		t.Fatal("cleaned cancellation lost its durable non-evidence receipt", status, err)
+	}
+	receipt := status.Interruption
+	want := sessions.VerificationRequest{OperationKey: f.request.OperationKey, WorkerSession: f.worker.SessionID, AttemptID: f.request.AttemptID, LeaseID: f.request.LeaseID, RevisionID: f.request.RevisionID, CheckID: f.request.CheckID, GrantID: f.runner.Checks[0].GrantID, ExpectedFence: f.request.ExpectedFence}
+	if receipt.Reason != "cancelled_owned_group_cleanup" || receipt.RunnerSession != f.runner.RunnerSessionID || receipt.Request != want || receipt.ResultDigest == "" || receipt.Assurance != "cooperative-native-executor" {
+		t.Fatal("interruption does not identify the exact cleaned runner operation", receipt)
+	}
+}
+
 func asyncJobs(t *testing.T, f verificationFixture) *application.NativeVerificationJobs {
 	t.Helper()
 	p, e := application.OpenNativeVerificationProfile(f.connection, f.runnerProfile)
@@ -169,9 +185,7 @@ func TestAsyncVerificationCancelShutdownAndRestartPending(t *testing.T) {
 			fresh := asyncJobs(t, f)
 			for _, call := range []func(application.NativeVerificationRequest) (application.VerificationStatus, error){fresh.Status, fresh.Cancel, fresh.Request} {
 				s, e := call(r)
-				if e != nil || s.State != "reconciliation_required" || s.Evidence != nil {
-					t.Fatal("pending fabricated receipt or reexecution", s, e)
-				}
+				requireAsyncCleanedInterruption(t, f, s, e)
 			}
 			b, _ := os.ReadFile(marker)
 			if string(b) != "started" {
@@ -418,9 +432,7 @@ func TestAsyncNativeTransportFailureCancelsRealChild(t *testing.T) {
 			if kind == "writer" {
 				fresh := asyncJobs(t, f)
 				s, e := fresh.Status(asyncRequest(f))
-				if e != nil || s.State != "reconciliation_required" || s.Evidence != nil {
-					t.Fatal("failed transport fabricated completion", s, e)
-				}
+				requireAsyncCleanedInterruption(t, f, s, e)
 			}
 		})
 	}
@@ -486,9 +498,7 @@ func testAsyncNativeBackpressure(t *testing.T, eof bool) {
 	}
 	fresh := asyncJobs(t, f)
 	s, e := fresh.Status(asyncRequest(f))
-	if e != nil || s.State != "reconciliation_required" {
-		t.Fatal(s, e)
-	}
+	requireAsyncCleanedInterruption(t, f, s, e)
 }
 
 func asyncChildRunning(t *testing.T, pid int) bool {
