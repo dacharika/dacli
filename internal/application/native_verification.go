@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"sync/atomic"
 
@@ -134,10 +135,13 @@ type nativePreparedVerification struct {
 func (nativePreparedVerification) String() string   { return "nativePreparedVerification" }
 func (nativePreparedVerification) GoString() string { return "nativePreparedVerification" }
 func (p *nativePreparedVerification) Execute(ctx context.Context) (sessions.Evidence, error) {
-	if p == nil || p.consumed == nil || !p.consumed.CompareAndSwap(false, true) || ctx == nil || ctx.Err() != nil {
+	if p == nil || p.consumed == nil || !p.consumed.CompareAndSwap(false, true) || ctx == nil {
 		return sessions.Evidence{}, sessions.ErrDenied
 	}
 	r, c, rev, request, digest, workerToken := p.runner, p.check, p.revision, p.request, p.digest, p.workerToken
+	if ctx.Err() != nil {
+		return p.interrupted(ctx.Err(), "not_started")
+	}
 	// Asynchronous preparation is not a lasting launch permission. Reauthenticate
 	// the exact worker, lease, runner grant and revision before the executor.
 	current, e := r.authority.ObserveVerificationRevision(workerToken, r.token, r.session, request, digest)
@@ -154,6 +158,9 @@ func (p *nativePreparedVerification) Execute(ctx context.Context) (sessions.Evid
 	} else {
 		ev, output, runErr = store.RunAcceptanceVerificationRevisionContext(bounded, rev.Observation.Locator, r.session, c.Descriptor.Command, rev.Observation.Commit, rev.Observation.Tree)
 	}
+	if bounded.Err() != nil && ev.NativeTermination.State != "" {
+		return p.interrupted(bounded.Err(), ev.NativeTermination.State)
+	}
 	if store.IsVerificationPolicyError(runErr) || bounded.Err() != nil {
 		return sessions.Evidence{}, sessions.ErrDenied
 	}
@@ -167,6 +174,29 @@ func (p *nativePreparedVerification) Execute(ctx context.Context) (sessions.Evid
 	}
 	result := sessions.VerificationResult{Commit: ev.CommitSHA, Tree: ev.TreeSHA, Directory: ev.WorkingDirectory, CommandDigest: digest, OutputDigest: ev.ArtifactHash, Output: output, ExitCode: ev.ExitCode, Clean: ev.Clean}
 	return r.authority.CompleteVerification(workerToken, r.token, r.session, request, result)
+}
+
+// Persist only knowledge supplied by this prepared executor, after owned process
+// cleanup or before any launch. An unobserved restart retains Pending (core627).
+func (p *nativePreparedVerification) interrupted(cause error, termination string) (sessions.Evidence, error) {
+	reason := "cancelled"
+	if errors.Is(cause, context.DeadlineExceeded) {
+		reason = "deadline"
+	} else if !errors.Is(cause, context.Canceled) {
+		return sessions.Evidence{}, sessions.ErrDenied
+	}
+	switch termination {
+	case "not_started":
+		reason += "_before_start"
+	case "owned_group_cleanup":
+		reason += "_owned_group_cleanup"
+	default:
+		return sessions.Evidence{}, sessions.ErrDenied
+	}
+	if _, err := p.runner.authority.InterruptVerification(p.workerToken, p.runner.token, p.runner.session, p.request, p.digest, reason); err != nil {
+		return sessions.Evidence{}, err
+	}
+	return sessions.Evidence{}, sessions.ErrDenied
 }
 
 func (a *NativeVerificationAccess) Run(ctx context.Context, req NativeVerificationRequest) (sessions.Evidence, error) {

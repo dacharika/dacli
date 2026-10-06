@@ -478,6 +478,10 @@ func (a *Authority) controllerProgressWave(s *state, token, session string, iv *
 				missing = true
 				continue
 			}
+			if interrupted := verificationInterruption(op, route.RunnerSession, request); interrupted != nil {
+				controllerHalt(iv, "verification_interrupted", "known runner interruption; owner selects recovery while preserving original operation and protection", false, true)
+				return nil
+			}
 			if op.Pending || op.Evidence == nil {
 				pending = true
 				continue
