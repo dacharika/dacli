@@ -1,6 +1,8 @@
 package workspace_test
 
 import (
+	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -171,5 +173,114 @@ func TestProjectDirContainment(t *testing.T) {
 			len(rel) >= 2 && rel[0] == '.' && rel[1] == '.' {
 			t.Fatalf("ProjectDir(%q) = %s escaped projects/ (rel=%q)", evil, got, rel)
 		}
+	}
+}
+
+// An ignored canonical workspace is absent from an external worktree checkout.
+// Discovery must share the main record without relying on a local snapshot.
+func TestFindExternalLinkedWorktreeWithoutLocalWorkspace(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	parent := t.TempDir()
+	root := filepath.Join(parent, "main")
+	if err := os.Mkdir(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	git(t, root, "init", "-q")
+	git(t, root, "config", "user.email", "t@t")
+	git(t, root, "config", "user.name", "t")
+	canonical, err := workspace.Init(root, "canonical")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(root, ".gitignore"), []byte(".dacli/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, root, "add", ".gitignore")
+	git(t, root, "commit", "-qm", "ignore workspace record")
+	wt := filepath.Join(parent, "external-worker")
+	git(t, root, "worktree", "add", "-q", wt, "-b", "worker", "HEAD")
+	nested := filepath.Join(wt, "src", "nested")
+	if err = os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, start := range []string{wt, nested} {
+		found, err := workspace.Find(start)
+		if err != nil {
+			t.Fatalf("Find(%s): %v", start, err)
+		}
+		if found.ID != canonical.ID || realpath(t, found.Root) != realpath(t, root) {
+			t.Fatalf("Find(%s) = %+v; want canonical workspace %+v", start, found, canonical)
+		}
+	}
+	if _, err = os.Stat(filepath.Join(wt, workspace.Dir)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("external checkout unexpectedly contains a workspace: %v", err)
+	}
+
+	t.Run("nearest workspace precedes Git fallback", func(t *testing.T) {
+		local, err := workspace.Init(nested, "local")
+		if err != nil {
+			t.Fatal(err)
+		}
+		found, err := workspace.Find(nested)
+		if err != nil || found.ID != local.ID {
+			t.Fatalf("nearest workspace lost precedence: %+v %v", found, err)
+		}
+	})
+	t.Run("ancestor workspace precedes Git fallback", func(t *testing.T) {
+		outer, err := workspace.Init(parent, "outer")
+		if err != nil {
+			t.Fatal(err)
+		}
+		found, err := workspace.Find(wt)
+		if err != nil || found.ID != outer.ID {
+			t.Fatalf("ordinary ancestor workspace lost precedence: %+v %v", found, err)
+		}
+		if err = os.RemoveAll(filepath.Join(parent, workspace.Dir)); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("absent canonical workspace is not created", func(t *testing.T) {
+		if err := os.RemoveAll(filepath.Join(root, workspace.Dir)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := workspace.Find(wt); !errors.Is(err, workspace.ErrNotFound) {
+			t.Fatalf("Find without canonical workspace = %v; want ErrNotFound", err)
+		}
+		if _, err := os.Stat(filepath.Join(wt, workspace.Dir)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("discovery created an external workspace: %v", err)
+		}
+	})
+}
+
+// A submodule's gitdir pointer does not make the parent of its common dir a
+// canonical workspace. A decoy there catches both fallback and local redirect.
+func TestFindSubmoduleDoesNotBorrowCommonDirParentWorkspace(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	origin, root := t.TempDir(), t.TempDir()
+	for _, dir := range []string{origin, root} {
+		git(t, dir, "init", "-q")
+		git(t, dir, "config", "user.email", "t@t")
+		git(t, dir, "config", "user.name", "t")
+		git(t, dir, "commit", "--allow-empty", "-qm", "init")
+	}
+	git(t, root, "-c", "protocol.file.allow=always", "submodule", "add", "-q", origin, "sub")
+	sub := filepath.Join(root, "sub")
+	if _, err := workspace.Init(filepath.Join(root, ".git", "modules"), "unrelated"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := workspace.Find(sub); !errors.Is(err, workspace.ErrNotFound) {
+		t.Fatalf("submodule borrowed unrelated workspace: %v", err)
+	}
+	local, err := workspace.Init(sub, "submodule")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found, err := workspace.Find(sub)
+	if err != nil || found.ID != local.ID || realpath(t, found.Root) != realpath(t, sub) {
+		t.Fatalf("submodule local workspace redirected to unrelated record: %+v %v", found, err)
 	}
 }
