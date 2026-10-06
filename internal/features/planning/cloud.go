@@ -52,7 +52,7 @@ func cloudLocation(ctx *clikit.Ctx, slug string, mutate bool) (*workspace.Worksp
 	if mutate && (id.ID != agentid.RootID || id.Grant != model.GrantRW) {
 		return nil, "", clikit.Refusedf("cloud project connection requires the local owner and explicit device identity")
 	}
-	return w, w.Path("cloudsync", slug), nil
+	return w, filepath.Join(w.Root, workspace.Dir, "cloudsync", slug), nil
 }
 func cloudContext() (context.Context, context.CancelFunc) {
 	bounded, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
