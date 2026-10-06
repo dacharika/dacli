@@ -20,6 +20,8 @@ import (
 // so no command can quietly claim --json support. Adding an entry is the
 // deliberate act that says "I checked: this command honors --json."
 var jsonHonoringCommands = map[string]bool{
+	"auth login": true, "auth logout": true, "auth whoami": true,
+	"project connect": true, "project disconnect": true, "project sync": true, "project status": true,
 	"native external configure": true, "native external inspect": true, "native external apply": true, "native external reconcile": true,
 	"native model-routing configure": true,
 	"native integration configure":   true, "native integration inspect": true, "native integration apply": true, "native integration reconcile": true,
