@@ -42,6 +42,26 @@ func TestCapabilityRegistryGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := fmt.Sprintf("%x", sha256.Sum256(raw))
+	// Explicit source generation only. Normal runs retain strict equality and
+	// never rewrite a mismatch into acceptance. The owner regenerates once on
+	// the actual combined registry after all producers have been assembled.
+	if os.Getenv("DACLI_WRITE_CAPABILITY_GOLDEN") == "1" {
+		const path = "capabilities_test.go"
+		source, e := os.ReadFile(path)
+		if e != nil {
+			t.Fatal(e)
+		}
+		old := `const capabilityRegistryGolden = "` + capabilityRegistryGolden + `"`
+		if strings.Count(string(source), old) != 1 {
+			t.Fatal("capability generation requires exact prior constant")
+		}
+		updated := strings.Replace(string(source), old, `const capabilityRegistryGolden = "`+got+`"`, 1)
+		if e = os.WriteFile(path, []byte(updated), 0644); e != nil {
+			t.Fatal(e)
+		}
+		t.Logf("generated capability registry digest %s; generation is not behavioral verification", got)
+		return
+	}
 	if got != capabilityRegistryGolden {
 		t.Fatalf("capability registry golden = %s, want %s", got, capabilityRegistryGolden)
 	}

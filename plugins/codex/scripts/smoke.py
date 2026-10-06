@@ -457,7 +457,7 @@ def smoke(codex, dacli, schema5_dacli=None):
 
 
 ORCHESTRATION_TOOLS = {
-    'controller': {'plan_swarm', 'start_loop', 'get_loop_status', 'step_loop', 'reconcile_loop',
+    'controller': {'get_dispatch_routing', 'plan_swarm', 'start_loop', 'get_loop_status', 'step_loop', 'reconcile_loop',
                    'stop_loop', 'cancel_dispatch', 'get_dispatch_status', 'get_dispatch_lifecycle'},
     'bridge': {'correlate_dispatch', 'observe_dispatch', 'acknowledge_cancellation',
                'get_dispatch_status', 'get_dispatch_lifecycle'},
