@@ -534,7 +534,13 @@ func controllerClosedRouteFixture(t *testing.T, recoverHeld bool) (controllerFix
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.a.RecordCheckpoint(f.token, f.s.ID, CheckpointRequest{OperationKey: "closed-producer-history", CheckpointID: previous.CheckpointID, ProjectID: "project", InvocationID: previous.ID, Phase: "halt", ExpectedSequence: sequence, Refs: previous.Refs}); err != nil {
+	// A bounded controller cannot call generic checkpoint mutation APIs. Enroll
+	// the fixture's separate scoped recorder through the owner's public API.
+	recorder, recorderToken, err := f.a.Enroll(f.owner, Scope{Actions: []string{"checkpoint.record"}, Resources: f.s.Scope.Resources}, time.Now().Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.a.RecordCheckpoint(recorderToken, recorder.ID, CheckpointRequest{OperationKey: "closed-producer-history", CheckpointID: previous.CheckpointID, ProjectID: "project", InvocationID: previous.ID, Phase: "halt", ExpectedSequence: sequence, Refs: previous.Refs}); err != nil {
 		t.Fatal("persist closed-route producer references", err)
 	}
 	return f, previous
