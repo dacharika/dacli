@@ -509,6 +509,37 @@ host/command/integration knowledge is not completion, and only explicit owner
 recovery can release retained protection. See
 [native controller](GOVERNANCE_NATIVE_CONTROLLER.md).
 
+`native model-routing upgrade` explicitly migrates schema16→17 with the
+private owner credential, preserving existing records. `native model-routing configure`
+records owner-approved difficulty, role and model candidates. Selection is bound
+to the task and policy; correction routing applies only to a new native child
+turn. It does not switch an active child's model or release an uncertain writer.
+Policy revisions preserve history; there is no automatic migration or history
+undo, and owner availability attestations do not guarantee provider availability.
+
+`native integration upgrade` explicitly migrates schema17→18 with the private
+owner credential. `native integration configure` pins the separately selected
+owner/review/integration policies. `native integration inspect` reads policy or
+an exact durable operation. `native integration apply` performs only the
+owner-approved local fast-forward of the exact source/target revision and tree
+under its successful required-check and independent-review bindings.
+`native integration reconcile` observes the same operation after an uncertain
+effect; it cannot rerun an unknown effect under a new identity. Pending/unknown
+outcomes retain protection. Existing history is preserved; recovery requires
+explicit owner reconciliation rather than deleting receipts or rewriting
+history. Local integration grants no worker MCP merge, push, deployment, tag
+or release authority, and grants no remote publication permission.
+
+`native verifier review-policy` authenticates the explicit private owner,
+canonical task binding and pinned runner profile before creating a new private
+routed review-policy file. It pins the complete selected required-check set;
+it executes no checks and authorizes no acceptance. `native verifier inspect`
+authenticates the explicit worker/runner selection and reads the exact routed
+plan without executing it. These commands accept no ambient legacy grant as
+native authority and are not worker MCP authority-granting routes. The owner
+can supersede a private policy selection explicitly; historical evidence remains
+bound to its original policy, revision and producer identities.
+
 ### Native dashboard reads
 
 `dashboard --native-connection` selects an explicit private reader profile.

@@ -20,7 +20,10 @@ import (
 // so no command can quietly claim --json support. Adding an entry is the
 // deliberate act that says "I checked: this command honors --json."
 var jsonHonoringCommands = map[string]bool{
-	"native storage observe": true, "native storage experiment": true, "native storage retention": true,
+	"native model-routing configure": true,
+	"native integration configure":   true, "native integration inspect": true, "native integration apply": true, "native integration reconcile": true,
+	"native verifier inspect": true,
+	"native storage observe":  true, "native storage experiment": true, "native storage retention": true,
 	"native budget configure": true, "native budget quote": true, "native budget status": true, "native budget settle": true,
 	"native checkpoint configure": true, "native checkpoint record": true, "native checkpoint reconcile": true, "native checkpoint status": true,
 	"native preflight configure": true, "native preflight override": true, "native preflight check": true,
