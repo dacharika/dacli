@@ -340,6 +340,15 @@ func (a *Authority) startController(owner, token, session string, r ControllerSt
 			deadline = actor.ExpiresAt
 		}
 		out = ControllerStatus{SchemaVersion: 1, ID: r.InvocationID, ProjectID: p.ProjectID, ControllerSessionID: actor.ID, PolicyRevision: p.Revision, Harness: p.Harness, CheckpointID: r.CheckpointID, Sequence: 1, Phase: "reconcile", StartedAt: now, Deadline: deadline, Assurance: "cooperative-native", Actions: []ControllerAction{}, Refs: []CheckpointRefs{}}
+		// A continuation must carry every original producer reference into its next
+		// checkpoint write. Starting with empty refs would correctly trip the
+		// immutable-history gate on the first step (core643). Copy only bookkeeping;
+		// checkpoint bounds and prior invocation receipts remain untouched.
+		if history := s.Checkpoints[r.CheckpointID]; len(history) > 0 {
+			latest := history[len(history)-1]
+			out.Refs = append(out.Refs, latest.Refs...)
+			out.CheckpointSequence = latest.Sequence
+		}
 		s.ControllerInvocations[out.ID] = controllerInvocation{Status: out, Policy: p, Routes: r.Routes, CorrectionSources: map[string]string{}}
 		s.ControllerHistory[out.ID] = []ControllerStatus{out}
 		s.ControllerOperations[r.OperationKey] = controllerReceipt{Digest: digest, Status: out}

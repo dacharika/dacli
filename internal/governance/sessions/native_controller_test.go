@@ -525,6 +525,24 @@ func controllerClosedRouteFixture(t *testing.T, recoverHeld bool) (controllerFix
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// Persist the real producer identities through the authenticated checkpoint
+	// API. A fixture with only invocation refs cannot measure restart carry-forward.
+	var sequence uint64
+	if err := f.a.transaction(false, false, func(s *state) error {
+		sequence = uint64(len(s.Checkpoints[previous.CheckpointID]))
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// A bounded controller cannot call generic checkpoint mutation APIs. Enroll
+	// the fixture's separate scoped recorder through the owner's public API.
+	recorder, recorderToken, err := f.a.Enroll(f.owner, Scope{Actions: []string{"checkpoint.record"}, Resources: f.s.Scope.Resources}, time.Now().Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.a.RecordCheckpoint(recorderToken, recorder.ID, CheckpointRequest{OperationKey: "closed-producer-history", CheckpointID: previous.CheckpointID, ProjectID: "project", InvocationID: previous.ID, Phase: "halt", ExpectedSequence: sequence, Refs: previous.Refs}); err != nil {
+		t.Fatal("persist closed-route producer references", err)
+	}
 	return f, previous
 }
 
@@ -550,12 +568,25 @@ func TestNativeControllerStartsWithExactClosedRoutesAndPreservesCheckpoint(t *te
 		if err := json.Unmarshal(before.PrivateBytes, &original); err != nil {
 			return err
 		}
+		history := original.Checkpoints[previous.CheckpointID]
+		if len(history) == 0 || len(history[len(history)-1].Refs) == 0 || !reflect.DeepEqual(out.Refs, history[len(history)-1].Refs) || out.CheckpointSequence != history[len(history)-1].Sequence {
+			t.Fatal("continuation dropped original checkpoint producer references", out)
+		}
 		if !reflect.DeepEqual(s.Checkpoints, original.Checkpoints) || !reflect.DeepEqual(s.ControllerInvocations[previous.ID], original.ControllerInvocations[previous.ID]) || !reflect.DeepEqual(s.ControllerPolicies["project"].TaskIDs, []string{"task-a", "task-b", "task-c"}) || !reflect.DeepEqual(s.NativeAcceptanceOperations, original.NativeAcceptanceOperations) || !reflect.DeepEqual(s.Leases, original.Leases) || !reflect.DeepEqual(s.Grants, original.Grants) || !reflect.DeepEqual(s.ReviewGrants, original.ReviewGrants) {
 			t.Fatal("closed route startup rewrote protection, scope, receipts, grants, or checkpoint counters")
 		}
 		return nil
 	}); err != nil {
 		t.Fatal(err)
+	}
+	advanced, err := f.a.StepController(f.token, f.s.ID, ControllerStepRequest{OperationKey: "closed-next-step", ProjectID: "project", InvocationID: out.ID, ExpectedSequence: out.Sequence})
+	if err != nil || advanced.Sequence != out.Sequence+1 {
+		t.Fatal("continuation could not persist original references on first step", advanced, err)
+	}
+	for _, ref := range out.Refs {
+		if !containsCheckpointRef(advanced.Refs, ref) {
+			t.Fatal("continuation step lost a historical producer identity", ref)
+		}
 	}
 }
 
