@@ -461,7 +461,9 @@ ORCHESTRATION_TOOLS = {
                    'stop_loop', 'cancel_dispatch', 'get_dispatch_status', 'get_dispatch_lifecycle'},
     'bridge': {'correlate_dispatch', 'observe_dispatch', 'acknowledge_cancellation',
                'get_dispatch_status', 'get_dispatch_lifecycle'},
-    'worker': {'acknowledge_dispatch', 'get_dispatch_status', 'get_dispatch_lifecycle'},
+    'worker': {'register_attempt', 'acquire_lease', 'renew_lease', 'release_lease',
+               'publish_revision', 'submit_evidence', 'acknowledge_dispatch',
+               'get_dispatch_status', 'get_dispatch_lifecycle'},
 }
 ORCHESTRATION_READS = {'identity', 'workspace_status', 'task_list', 'task_get',
                        'get_policy_status', 'get_orchestration_host_status'}
