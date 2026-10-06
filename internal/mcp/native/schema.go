@@ -67,6 +67,12 @@ func validValue(s map[string]any, v any) bool {
 					r, ok := new(big.Rat).SetString(string(n))
 					matches = matches || (ok && r.IsInt())
 				}
+			case "number":
+				n, ok := v.(json.Number)
+				if ok {
+					_, finite := new(big.Rat).SetString(string(n))
+					matches = matches || finite
+				}
 			}
 		}
 		if !matches {
@@ -97,6 +103,11 @@ func validValue(s map[string]any, v any) bool {
 			p, known := props[k]
 			if !known {
 				if reflect.DeepEqual(s["additionalProperties"], false) {
+					return false
+				}
+				// Typed maps in orchestration results must validate every value,
+				// including nested routing and capacity facts.
+				if extra, typed := s["additionalProperties"].(map[string]any); typed && !validValue(extra, x) {
 					return false
 				}
 				continue
