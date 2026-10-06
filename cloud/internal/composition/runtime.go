@@ -45,6 +45,7 @@ var hostedCatalog = []struct {
 	{8, "mutation_audit_identity", "b93d36bd8f79041a45f9708446a5537c44a17520bde60cead83774e398f08fd8"},
 	{9, "mutation_attempts", "47ff94950a568531603007a17f36721be3f208fc4ee0deaccdbe8f661d81cc5e"},
 	{10, "inbox_processing", "44a2d2a1e25ffdee982364a422f2d0ac805b2f8cabe6f8ce978b9d1496961112"},
+	{11, "device_auth", "132929846e4407ff563563be63adde5da9ab4e2002d107d68b0e0be63bd4ca3c"},
 }
 
 func Open(ctx context.Context, cfg config.Config, logger *slog.Logger) (*Runtime, error) {
@@ -126,6 +127,25 @@ func Open(ctx context.Context, cfg config.Config, logger *slog.Logger) (*Runtime
 		_ = db.Close()
 		return nil, e
 	}
+	keys := deviceKeys{static: r.keys, repo: repo, bindings: hosted.SyncBindings()}
+	if device := hosted.DeviceOAuth(); device != nil {
+		keys.serverKeys = device.ServerSigningKeys
+	}
+	if e = enableDevice(r, repo, keys); e != nil {
+		_ = db.Close()
+		return nil, e
+	}
+	if len(hosted.SyncBindings()) > 0 {
+		exchangeInbox, e := envelopeworker.NewLimitedService(exchangeIdentity{identity}, keys, envelopes, limiter, []byte(cfg.ServiceSecret()))
+		if e != nil {
+			_ = db.Close()
+			return nil, e
+		}
+		if e = r.API.EnableSyncAPI(identity, syncBindings{repo: repo, keys: keys, routes: hosted.SyncBindings()}, exchangeInbox, envelopes, []byte(cfg.ServiceSecret())); e != nil {
+			_ = db.Close()
+			return nil, e
+		}
+	}
 	return r, nil
 }
 func (r *Runtime) Close() error {
@@ -142,7 +162,7 @@ func (r *Runtime) Ready(ctx context.Context) error {
 	if e := r.db.QueryRowContext(ctx, `SELECT rolsuper,rolbypassrls FROM pg_roles WHERE rolname=current_user`).Scan(&super, &bypass); e != nil || super || bypass {
 		return errors.New("hosted runtime requires a tenant-isolated application database role")
 	}
-	rows, e := r.db.QueryContext(ctx, `SELECT version,name,checksum FROM public.controlplane_schema_migrations ORDER BY version LIMIT 11`)
+	rows, e := r.db.QueryContext(ctx, `SELECT version,name,checksum FROM public.controlplane_schema_migrations ORDER BY version LIMIT 12`)
 	if e != nil {
 		return errors.New("hosted migration ledger unavailable")
 	}
@@ -163,10 +183,10 @@ func (r *Runtime) Ready(ctx context.Context) error {
 	}
 	e = rows.Err()
 	closeErr := rows.Close()
-	if e != nil || closeErr != nil || n != 10 {
-		return errors.New("hosted runtime requires the complete schema10 migration catalog")
+	if e != nil || closeErr != nil || n != 11 {
+		return errors.New("hosted runtime requires the complete schema11 migration catalog")
 	}
-	for _, relation := range []string{"controlplane_teams", "controlplane_invitations", "controlplane_project_assignments", "controlplane_environment_assignments", "controlplane_tenant_audit_events", "controlplane_projects", "controlplane_environments", "controlplane_devices", "controlplane_memberships", "controlplane_device_sessions", "controlplane_envelope_streams", "controlplane_envelope_inbox_identities", "controlplane_envelope_inbox_payloads", "controlplane_envelope_outbox", "controlplane_envelope_audit_events", "controlplane_envelope_inbox_jobs", "controlplane_envelope_proposals"} {
+	for _, relation := range []string{"controlplane_device_auth", "controlplane_teams", "controlplane_invitations", "controlplane_project_assignments", "controlplane_environment_assignments", "controlplane_tenant_audit_events", "controlplane_projects", "controlplane_environments", "controlplane_devices", "controlplane_memberships", "controlplane_device_sessions", "controlplane_envelope_streams", "controlplane_envelope_inbox_identities", "controlplane_envelope_inbox_payloads", "controlplane_envelope_outbox", "controlplane_envelope_audit_events", "controlplane_envelope_inbox_jobs", "controlplane_envelope_proposals"} {
 		var enabled, forced bool
 		if e = r.db.QueryRowContext(ctx, `SELECT relrowsecurity,relforcerowsecurity FROM pg_class WHERE oid=to_regclass($1)`, "public."+relation).Scan(&enabled, &forced); e != nil || !enabled || !forced {
 			return errors.New("hosted schema dependency or tenant isolation unavailable")
