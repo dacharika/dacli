@@ -125,6 +125,16 @@ func cloudAuthenticate(ctx context.Context, provider, tenant, device string) (de
 	return client.Authenticate(ctx)
 }
 
+// Repository equality does not identify a workspace: two checkouts can share
+// an origin while their canonical workspace IDs and selected projects differ.
+// Check before signing, changing a tombstone or accessing device credentials.
+func cloudLocalBinding(w *workspace.Workspace, slug string, connection cloudsync.ProjectConnection) error {
+	if connection.Binding.Route.WorkspaceID != w.ID || connection.LocalProject != slug {
+		return clikit.Refusedf("project connection belongs to another local workspace or project; connect the exact local binding")
+	}
+	return nil
+}
+
 func cmdProjectConnect(ctx *clikit.Ctx, args []string) error {
 	f, e := cloudFlags(args, "provider", "tenant", "device", "remote-project", "environment", "repository")
 	if e != nil {
@@ -207,7 +217,7 @@ func cmdProjectDisconnect(ctx *clikit.Ctx, args []string) error {
 	if e != nil {
 		return e
 	}
-	_, root, e := cloudLocation(ctx, f.Pos[0], true)
+	w, root, e := cloudLocation(ctx, f.Pos[0], true)
 	if e != nil {
 		return e
 	}
@@ -215,6 +225,9 @@ func cmdProjectDisconnect(ctx *clikit.Ctx, args []string) error {
 		connection, e := cloudsync.LoadProjectConnection(root)
 		if e != nil {
 			return cloudError(e)
+		}
+		if e = cloudLocalBinding(w, f.Pos[0], connection); e != nil {
+			return e
 		}
 		if connection.Connected {
 			now := time.Now().UTC()
@@ -272,6 +285,9 @@ func cmdProjectSync(ctx *clikit.Ctx, args []string) error {
 		connection, e := cloudsync.LoadProjectConnection(root)
 		if e != nil {
 			return cloudError(e)
+		}
+		if e = cloudLocalBinding(w, f.Pos[0], connection); e != nil {
+			return e
 		}
 		if !connection.Connected {
 			return clikit.Refusedf("project disconnected; preserve tombstone and reconnect the same verified binding")
