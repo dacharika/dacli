@@ -18,8 +18,10 @@ type ControllerPolicy struct {
 	ExpiresAt                                                                      time.Time
 }
 
-// ControllerTaskRoute names independently enrolled actors, never private profiles.
+// ControllerCheckRoute binds a check to its independently enrolled grant.
 type ControllerCheckRoute struct{ CheckID, GrantID string }
+
+// ControllerTaskRoute names independently enrolled actors, never private profiles.
 type ControllerTaskRoute struct {
 	Checks                                                                                                                      []ControllerCheckRoute `json:",omitempty"`
 	BridgeSession, WorkerSession, RunnerSession, ReviewerSession, VerificationGrantID, ReviewGrantID, CheckID, PromptSpecDigest string

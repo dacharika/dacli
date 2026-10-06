@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-// External commands require independent, private owner selections. A worker
+// ExternalCommands requires independent, private owner selections. A worker
 // session never receives an external-action grant through these routes.
 func ExternalCommands() []clikit.Command {
 	var commands []clikit.Command

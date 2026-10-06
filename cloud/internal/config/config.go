@@ -295,7 +295,7 @@ func safeLimit(value ratelimit.Policy) map[string]any {
 	return map[string]any{"capacity": value.Capacity, "refill_interval": value.RefillInterval.String(), "max_keys": value.MaxKeys, "idle_ttl": value.IdleTTL.String()}
 }
 
-// Hosted composition is opt-in in configuration but mandatory for these
+// HostedFile selects hosted composition, opt-in in configuration but mandatory for these
 // production entrypoints. The legacy config parser remains compatible.
 type HostedFile struct {
 	DeviceOAuth    *DeviceOAuthFile   `json:"device_oauth,omitempty"`
@@ -485,7 +485,7 @@ func (h *HostedRuntime) DeliveryCredential(t tenant.OrganizationID) string { ret
 func (h HostedRuntime) String() string                                     { return "HostedRuntime" }
 func (h HostedRuntime) GoString() string                                   { return "HostedRuntime" }
 
-// Device provider configuration is owner-selected; secrets never enter safe config.
+// DeviceSubject binds an owner-selected provider subject; secrets never enter safe config.
 type DeviceSubject struct {
 	TenantID  string `json:"tenant_id"`
 	Subject   string `json:"subject"`

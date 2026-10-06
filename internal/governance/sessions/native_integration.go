@@ -21,7 +21,7 @@ type NativeIntegrationInput struct {
 	Candidate                    NativeAcceptanceInput
 }
 
-// Git facts contain no command, output, credential or private filesystem path.
+// NativeIntegrationObservation contains Git facts without command, output, credential or private filesystem path.
 type NativeIntegrationObservation struct {
 	Commit, Tree string
 	Clean        bool

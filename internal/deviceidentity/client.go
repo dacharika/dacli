@@ -234,7 +234,7 @@ func (c *Client) install(t tokenResponse, private ed25519.PrivateKey, started ti
 		return failure("expired_token", false, "provider token expired before it could be stored")
 	}
 	next := Metadata{SchemaVersion: 1, Provider: c.provider, TenantID: t.TenantID, AccountID: t.AccountID, DeviceID: t.DeviceID, Scopes: strings.Fields(t.Scope), ExpiresAt: t.ServerTime.Add(ttl), LocalExpiresAt: local.UTC(), SigningKeyID: t.SigningKeyID, TrustedKeys: keys}
-	raw, e := json.Marshal(credentials{AccessToken: t.AccessToken, RefreshToken: t.RefreshToken, PrivateKey: private, InstalledMetadata: &next})
+	raw, e := json.Marshal(credentials{AccessToken: t.AccessToken, RefreshToken: t.RefreshToken, PrivateKey: private, InstalledMetadata: &next}) // #nosec G117 -- Secret payload is written only to the OS Keychain credential store; safe metadata is saved separately.
 	if e != nil {
 		return e
 	}
@@ -308,7 +308,7 @@ func (c *Client) Authenticate(ctx context.Context) (Session, error) {
 			started = time.Now().UTC()
 			secret.PendingRefreshID = id
 			secret.PendingRefreshAt = started
-			raw, err := json.Marshal(secret)
+			raw, err := json.Marshal(secret) // #nosec G117 -- Refresh recovery payload is written only to the OS Keychain credential store, never to metadata or output.
 			if err != nil {
 				return Session{}, failure("invalid_request", false, "repair native credential state")
 			}
@@ -368,7 +368,7 @@ func (c *Client) Whoami(ctx context.Context) (Metadata, error) {
 	return m, nil
 }
 
-// Login exposes only the human verification URI/code, never the device code.
+// Challenge exposes only the human verification URI/code, never the device code.
 type Challenge struct {
 	VerificationURI string `json:"verification_uri"`
 	UserCode        string `json:"user_code"`

@@ -318,9 +318,10 @@ func (s *Service) Token(ctx context.Context, r TokenRequest) (TokenResponse, err
 		accessBytes, _ := base64.RawURLEncoding.DecodeString(access)
 		record := devicesession.Record{Tenant: scope.Organization, ID: devicesession.ID(sessionID), Account: account, Device: device, CredentialDigest: sha256.Sum256(accessBytes), State: devicesession.StateActive, Version: 1, ExpiresUnix: now.Add(15 * time.Minute).Unix()}
 		platform := tenant.PlatformLinux
-		if f.Begin.Platform == "darwin" {
+		switch f.Begin.Platform {
+		case "darwin":
 			platform = tenant.PlatformDarwin
-		} else if f.Begin.Platform == "windows" {
+		case "windows":
 			platform = tenant.PlatformWindows
 		}
 		d := tenant.Device{Tenant: scope.Organization, ID: device, Account: account, Name: f.Begin.DeviceName, Platform: platform, State: tenant.LifecycleActive, Version: 1}

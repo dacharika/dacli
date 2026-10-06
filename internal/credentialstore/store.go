@@ -11,7 +11,7 @@ var (
 
 const MaxCredentialBytes = 65536
 
-// Keys are opaque installation/provider/tenant/device digests, never tokens.
+// Store keeps credentials under opaque installation/provider/tenant/device digests, never tokens.
 type Store interface {
 	Get(string) ([]byte, error)
 	Put(string, []byte) error

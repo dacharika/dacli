@@ -40,7 +40,7 @@ type CheckDescriptor struct {
 	BaseCommit         string   `json:",omitempty"`
 }
 
-// Legacy identities retain exactly the historical field order and JSON shape.
+// CheckDigest retains exactly the historical field order and JSON shape for legacy identities.
 func CheckDigest(c CheckDescriptor) string {
 	if c.Version == 0 || c.Version == 1 {
 		return identity("check", "", struct {
