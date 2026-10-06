@@ -193,18 +193,39 @@ func (a *LeaseAdmission) ObservePreflight(workspaceID, project, task string, spe
 	}
 	if spec.RequireVerification || spec.RequireReview {
 		var p NativeRunnerProfile
-		if verificationPrivateJSON(spec.RunnerProfile, &p) != nil || p.SchemaVersion != 1 || p.WorkspaceID != workspaceID || p.TaskID != task || p.Authority != worker.Authority || p.InstallationID != worker.InstallationID || p.Workspace != worker.Workspace {
+		if verificationPrivateJSON(spec.RunnerProfile, &p) != nil || (p.SchemaVersion != 1 && p.SchemaVersion != 2) || p.WorkspaceID != workspaceID || p.TaskID != task || p.Authority != worker.Authority || p.InstallationID != worker.InstallationID || p.Workspace != worker.Workspace {
 			phase("verification", "unsupported", "private-profile", "provision exact trusted runner, workdir and bounded check profile", true, "")
 		} else {
-			checks, e := NativeCheckDescriptors(p.Checks, true)
+			checks, e := NativeProfileCheckDescriptors(p, true)
 			credential, ce := credentialDigest(p.CredentialFile)
 			if e != nil || ce != nil {
 				phase("verification", "policy_refused", "private-profile", "repair bounded checks and runner credential", true, "")
 			} else {
+				if p.SchemaVersion == 2 {
+					routing, re := nativeVerificationRoutingProfile(p)
+					working, we := checkout.Observe(placement.Checkout)
+					if re != nil || we != nil || working.Repository != p.Repository {
+						return o, sessions.ErrDenied
+					}
+					required, re := requiredRoutingSet(routing, p, sessions.AttemptRevision{Observation: working})
+					if re != nil {
+						return o, re
+					}
+					o.RequiredSet = required
+				}
 				o.Runner = sessions.PreflightActor{SessionID: p.RunnerSessionID, CredentialHash: credential}
+				for _, c := range checks {
+					o.AvailableChecks = append(o.AvailableChecks, sessions.RequiredCheck{ID: c.Descriptor.ID, CommandDigest: sessions.CheckDigest(c.Descriptor)})
+					o.AvailableGrantIDs = append(o.AvailableGrantIDs, c.GrantID)
+				}
 				for _, c := range checks {
 					o.VerificationGrantIDs = append(o.VerificationGrantIDs, c.GrantID)
 					o.Checks = append(o.Checks, sessions.RequiredCheck{ID: c.Descriptor.ID, CommandDigest: sessions.CheckDigest(c.Descriptor)})
+				}
+				if o.RequiredSet != nil {
+					o.Checks = append([]sessions.RequiredCheck(nil), o.RequiredSet.Checks...)
+					o.VerificationGrantIDs = append([]string(nil), o.RequiredSet.GrantIDs...)
+					o.ReviewObservation.RequiredSet = o.RequiredSet
 				}
 				phase("verification", "ready", "configured-trusted-runner", "exact checks are configured; no execution evidence is invented", true, safeDigest(o.Checks))
 			}
@@ -250,6 +271,7 @@ func (a *LeaseAdmission) ObservePreflight(workspaceID, project, task string, spe
 	}
 	phase("tokens", "unsupported", "advisory", "required enforced token controls cannot be satisfied by an owner declaration", spec.RequireEnforcedTokens, safeDigest(contract.TokenControl))
 	phase("budget", "unknown", "unavailable", "accounting552 rolling budgets are unavailable; no billing or enforced spending guarantee", spec.RequireEnforcedBudget, safeDigest(contract.BudgetControl))
+	profileFacts = append(profileFacts, o.RequiredSet)
 	// Profile identities deliberately exclude credential bytes/hashes and runner commands.
 	o.ProfileDigest = safeDigest(profileFacts)
 	return o, nil

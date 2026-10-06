@@ -19,7 +19,9 @@ type ControllerPolicy struct {
 }
 
 // ControllerTaskRoute names independently enrolled actors, never private profiles.
+type ControllerCheckRoute struct{ CheckID, GrantID string }
 type ControllerTaskRoute struct {
+	Checks                                                                                                                      []ControllerCheckRoute `json:",omitempty"`
 	BridgeSession, WorkerSession, RunnerSession, ReviewerSession, VerificationGrantID, ReviewGrantID, CheckID, PromptSpecDigest string
 }
 type ControllerStartRequest struct {
@@ -33,6 +35,9 @@ type ControllerStepRequest struct {
 
 // ControllerAction binds a pending instruction to its original producer identity.
 type ControllerAction struct {
+	Verifications                                                                                                       []VerificationRequest    `json:",omitempty"`
+	EvidenceIDs                                                                                                         []string                 `json:",omitempty"`
+	RequiredSet                                                                                                         *RequiredVerificationSet `json:",omitempty"`
 	ID, Kind, ActorID, TaskID, DispatchID, IntentID, LeaseID, AttemptID, RevisionID, EvidenceID, ReviewID, OperationKey string
 	Fence, ReservationFence                                                                                             uint64
 	Verification                                                                                                        VerificationRequest
@@ -209,6 +214,43 @@ func (a *Authority) startController(owner, token, session string, r ControllerSt
 
 			if route.BridgeSession == route.WorkerSession || route.BridgeSession == actor.ID || route.WorkerSession == actor.ID || !dispatchBoundActor(s, route.BridgeSession, p.ProjectID, "dispatch.correlate", d) || !dispatchBoundActor(s, route.WorkerSession, p.ProjectID, "lease.acquire", d) {
 				return ErrDenied
+			}
+			if len(route.Checks) > 0 {
+				seen := map[string]bool{}
+				for _, check := range route.Checks {
+					g, ok := s.Grants[check.GrantID]
+					if seen[check.CheckID] || !ok || g.Revoked || g.TaskID != task || g.Repository != binding.Repository || g.RunnerSession != route.RunnerSession || g.CheckID != check.CheckID || !time.Now().Before(g.ExpiresAt) {
+						return ErrDenied
+					}
+					seen[check.CheckID] = true
+				}
+			}
+			if observer, ok := a.admission.(PreflightObserver); ok {
+				spec := s.PreflightPolicies[p.ProjectID].Tasks[task]
+				obs, e := observer.ObservePreflight(s.Binding.Workspace, p.ProjectID, task, spec, placement)
+				if e != nil {
+					return e
+				}
+				checks, grants := obs.Checks, obs.VerificationGrantIDs
+				if obs.RequiredSet != nil {
+					checks, grants = obs.AvailableChecks, obs.AvailableGrantIDs
+				}
+				if len(checks) > 1 || obs.RequiredSet != nil {
+					if len(route.Checks) != len(checks) {
+						return ErrDenied
+					}
+					for i, c := range checks {
+						found := false
+						for _, r := range route.Checks {
+							if r.CheckID == c.ID && i < len(grants) && r.GrantID == grants[i] {
+								found = true
+							}
+						}
+						if !found {
+							return ErrDenied
+						}
+					}
+				}
 			}
 			vg, vok := s.Grants[route.VerificationGrantID]
 			rg, rok := s.ReviewGrants[route.ReviewGrantID]

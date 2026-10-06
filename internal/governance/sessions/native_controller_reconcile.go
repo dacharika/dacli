@@ -393,6 +393,32 @@ func (a *Authority) controllerProgressWave(s *state, token, session string, iv *
 		}
 		route := iv.Routes[action.TaskID]
 		i, present := s.DispatchIntents[d.ID]
+		if action.Kind == "integration_checkpoint" || action.Kind == "canonical_acceptance" || action.Kind == "accepted" {
+			at, ae := reviewAttempt(s, action.AttemptID)
+			if ae != nil {
+				return ae
+			}
+			var rev AttemptRevision
+			for _, v := range s.Revisions[at.ID] {
+				if v.ID == action.RevisionID {
+					rev = v
+				}
+			}
+			review, found := s.Reviews[action.ReviewID]
+			if rev.ID == "" || !found {
+				return ErrDenied
+			}
+			handled, e := a.controllerIntegrationProgress(s, iv, n, action, at, rev, review)
+			if e != nil {
+				return e
+			}
+			if handled {
+				if !controllerActionRetired(s, d) {
+					allRetired = false
+				}
+				continue
+			}
+		}
 		if controllerActionRetired(s, d) {
 			continue
 		}
@@ -434,36 +460,63 @@ func (a *Authority) controllerProgressWave(s *state, token, session string, iv *
 		if e := observeRevision(at, rev); e != nil {
 			return e
 		}
-		request := VerificationRequest{OperationKey: controllerKey(*st, "verification", rev.ID), WorkerSession: at.SessionID, AttemptID: at.ID, LeaseID: rev.LeaseID, RevisionID: rev.ID, CheckID: route.CheckID, GrantID: route.VerificationGrantID, ExpectedFence: rev.Fence}
-		controllerRef(st, CheckpointRefs{TaskID: action.TaskID, DispatchID: d.ID, IntentID: i.ID, RunnerSession: route.RunnerSession, VerificationKey: request.OperationKey, Verification: request})
-		op, present := s.Operations[request.OperationKey]
-		if !present {
-			st.Actions[n] = ControllerAction{ID: controllerKey(*st, "verify-action", rev.ID), Kind: "verification", ActorID: route.RunnerSession, TaskID: action.TaskID, DispatchID: d.ID, IntentID: i.ID, AttemptID: at.ID, LeaseID: rev.LeaseID, RevisionID: rev.ID, Fence: rev.Fence, ReservationFence: d.Reservation.Fence, OperationKey: request.OperationKey, Verification: request}
+		required, requests, e := a.controllerRequiredVerification(s, *iv, at, rev, route)
+		if e != nil {
+			return e
+		}
+		evidenceIDs := []string{}
+		pending, missing := false, false
+		failed := false
+		for _, request := range requests {
+			controllerRef(st, CheckpointRefs{TaskID: action.TaskID, DispatchID: d.ID, IntentID: i.ID, RunnerSession: route.RunnerSession, VerificationKey: request.OperationKey, Verification: request})
+			op, present := s.Operations[request.OperationKey]
+			if !present {
+				missing = true
+				continue
+			}
+			if op.Pending || op.Evidence == nil {
+				pending = true
+				continue
+			}
+			ev := *op.Evidence
+			if !controllerEvidenceCurrent(s, ev, request, route.RunnerSession, op) {
+				return ErrDenied
+			}
+			controllerRef(st, CheckpointRefs{TaskID: action.TaskID, DispatchID: d.ID, EvidenceID: ev.ID})
+			if ev.ExitCode != 0 {
+				if e := a.controllerCorrection(s, iv, n, action, rev.ID, ev.ID); e != nil {
+					return e
+				}
+				failed = true
+				break
+			}
+			evidenceIDs = append(evidenceIDs, ev.ID)
+		}
+		if st.Terminal {
+			return nil
+		}
+		if failed {
+			continue
+		}
+		if missing || pending {
+			staged := ControllerAction{ID: controllerKey(*st, "verify-action", rev.ID), Kind: "verification", ActorID: route.RunnerSession, TaskID: action.TaskID, DispatchID: d.ID, IntentID: i.ID, AttemptID: at.ID, LeaseID: rev.LeaseID, RevisionID: rev.ID, Fence: rev.Fence, ReservationFence: d.Reservation.Fence, OperationKey: requests[0].OperationKey, Verification: requests[0], RequiredSet: required}
+			if required != nil || len(requests) > 1 {
+				staged.Verifications = append([]VerificationRequest(nil), requests...)
+			}
+			st.Actions[n] = staged
 			st.Phase = "verification"
 			st.HaltClass = ""
-			st.NextAction = "independent runner prepares and executes original named check"
+			st.NextAction = "independent runner executes each exact required check operation; original keys survive restart"
+			if pending {
+				st.HaltClass = "verification_unknown"
+				st.NextAction = "observe original pending required command operations; never substitute a new key"
+			}
 			continue
 		}
-		if op.Pending || op.Evidence == nil {
-			st.Phase = "verification"
-			st.HaltClass = "verification_unknown"
-			st.NextAction = "observe original pending command; owner reconciliation, never execute new key"
-			continue
-		}
-		ev := *op.Evidence
-		if !controllerEvidenceCurrent(s, ev, request, route.RunnerSession, op) {
+		if len(evidenceIDs) != len(requests) || len(evidenceIDs) == 0 {
 			return ErrDenied
 		}
-		controllerRef(st, CheckpointRefs{TaskID: action.TaskID, DispatchID: d.ID, EvidenceID: ev.ID})
-		if ev.ExitCode != 0 {
-			if e := a.controllerCorrection(s, iv, n, action, rev.ID, ev.ID); e != nil {
-				return e
-			}
-			if st.Terminal {
-				return nil
-			}
-			continue
-		}
+		ev := *s.Operations[requests[0].OperationKey].Evidence
 		reviews := []string{}
 		for id, review := range s.Reviews {
 			if review.Request.AttemptID == at.ID && review.Request.RevisionID == rev.ID && review.IssuerSession == route.ReviewerSession && review.Request.GrantID == route.ReviewGrantID {
@@ -478,7 +531,7 @@ func (a *Authority) controllerProgressWave(s *state, token, session string, iv *
 			return x.CreatedAt.Before(y.CreatedAt)
 		})
 		if len(reviews) == 0 {
-			st.Actions[n] = ControllerAction{ID: controllerKey(*st, "review-action", rev.ID), Kind: "independent_review", ActorID: route.ReviewerSession, TaskID: action.TaskID, DispatchID: d.ID, AttemptID: at.ID, LeaseID: rev.LeaseID, RevisionID: rev.ID, Fence: rev.Fence, ReservationFence: d.Reservation.Fence, EvidenceID: ev.ID, OperationKey: controllerKey(*st, "review", rev.ID)}
+			st.Actions[n] = ControllerAction{ID: controllerKey(*st, "review-action", rev.ID), Kind: "independent_review", ActorID: route.ReviewerSession, TaskID: action.TaskID, DispatchID: d.ID, AttemptID: at.ID, LeaseID: rev.LeaseID, RevisionID: rev.ID, Fence: rev.Fence, ReservationFence: d.Reservation.Fence, EvidenceID: ev.ID, EvidenceIDs: evidenceIDs, RequiredSet: required, OperationKey: controllerKey(*st, "review", rev.ID)}
 			st.Phase = "review"
 			st.HaltClass = ""
 			st.NextAction = "independent reviewer proposes against exact trusted evidence"
@@ -491,7 +544,11 @@ func (a *Authority) controllerProgressWave(s *state, token, session string, iv *
 			if !ok {
 				return ErrDenied
 			}
-			obs, e := observer.ObservePreflight(s.Binding.Workspace, st.ProjectID, action.TaskID, s.PreflightPolicies[st.ProjectID].Tasks[action.TaskID], s.SwarmPolicies[st.ProjectID].Placements[action.TaskID])
+			spec, found := routingPreflightSpec(s, st.ProjectID, action.TaskID, d.ImplementationRole)
+			if !found {
+				return ErrDenied
+			}
+			obs, e := observer.ObservePreflight(s.Binding.Workspace, st.ProjectID, action.TaskID, spec, s.SwarmPolicies[st.ProjectID].Placements[action.TaskID])
 			if e != nil {
 				return e
 			}
@@ -511,6 +568,13 @@ func (a *Authority) controllerProgressWave(s *state, token, session string, iv *
 			}
 			continue
 		}
+		handled, he := a.controllerIntegrationProgress(s, iv, n, action, at, rev, review)
+		if he != nil {
+			return he
+		}
+		if handled {
+			continue
+		}
 		// A real independent review creates a real integration checkpoint, never a
 		// fabricated integration outcome. The producer remains core592.
 		ref := CheckpointRefs{TaskID: action.TaskID, DispatchID: d.ID, IntentID: i.ID, EvidenceID: ev.ID, ReviewID: review.ID, IntegrationOperationID: controllerKey(*st, "integration", rev.ID)}
@@ -522,7 +586,7 @@ func (a *Authority) controllerProgressWave(s *state, token, session string, iv *
 		}
 		st.Checkpoint = &cp
 		st.CheckpointSequence = cp.Sequence
-		st.Actions[n] = ControllerAction{ID: ref.IntegrationOperationID, Kind: "integration_checkpoint", ActorID: "owner", TaskID: action.TaskID, DispatchID: d.ID, AttemptID: at.ID, LeaseID: rev.LeaseID, RevisionID: rev.ID, Fence: rev.Fence, ReservationFence: d.Reservation.Fence, EvidenceID: ev.ID, ReviewID: review.ID, OperationKey: ref.IntegrationOperationID}
+		st.Actions[n] = ControllerAction{ID: ref.IntegrationOperationID, Kind: "integration_checkpoint", ActorID: "owner", TaskID: action.TaskID, DispatchID: d.ID, AttemptID: at.ID, LeaseID: rev.LeaseID, RevisionID: rev.ID, Fence: rev.Fence, ReservationFence: d.Reservation.Fence, EvidenceID: ev.ID, EvidenceIDs: evidenceIDs, RequiredSet: required, ReviewID: review.ID, OperationKey: ref.IntegrationOperationID}
 		st.Phase = "integration"
 		st.HaltClass = "pending_local_integration"
 		st.NextAction = "core592 must supply actual authenticated integration producer; retain protection"
@@ -671,6 +735,9 @@ func controllerFreshActions(s *state, iv controllerInvocation) bool {
 		if !ok || d.ProjectID != iv.Status.ProjectID || d.Reservation.TaskID != action.TaskID || d.Reservation.Fence != action.ReservationFence {
 			return false
 		}
+		if controllerIntegrationActionHistorical(s, iv, action) {
+			continue
+		}
 		if controllerActionRetired(s, d) {
 			continue
 		}
@@ -693,6 +760,15 @@ func controllerFreshActions(s *state, iv controllerInvocation) bool {
 		if !controllerEvidenceActorsCurrent(s, at, req, route.RunnerSession) {
 			return false
 		}
+		for _, request := range action.Verifications {
+			if request.AttemptID != at.ID || request.RevisionID != rev.ID || request.LeaseID != rev.LeaseID || request.ExpectedFence != rev.Fence || !controllerEvidenceActorsCurrent(s, at, request, route.RunnerSession) {
+				return false
+			}
+			g := s.Grants[request.GrantID]
+			if g.RunnerSession != route.RunnerSession || g.CheckID != request.CheckID || g.TaskID != action.TaskID || g.Repository != at.Observation.Repository {
+				return false
+			}
+		}
 		vg := s.Grants[route.VerificationGrantID]
 		if vg.RunnerSession != route.RunnerSession || vg.TaskID != action.TaskID || vg.Repository != at.Observation.Repository || vg.CheckID != route.CheckID {
 			return false
@@ -705,4 +781,90 @@ func controllerFreshActions(s *state, iv controllerInvocation) bool {
 		}
 	}
 	return true
+}
+
+// Each check operation is derived from the immutable invocation/revision/check,
+// never supplied by a caller choosing a convenient successful subset.
+func (a *Authority) controllerRequiredVerification(s *state, iv controllerInvocation, at Attempt, rev AttemptRevision, route ControllerTaskRoute) (*RequiredVerificationSet, []VerificationRequest, error) {
+	checks := []ControllerCheckRoute{{CheckID: route.CheckID, GrantID: route.VerificationGrantID}}
+	var required *RequiredVerificationSet
+	if observer, ok := a.admission.(PreflightObserver); ok {
+		d := s.Dispatches[iv.Status.Actions[0].DispatchID]
+		// Resolve this task's actual selected role rather than another width member.
+		for _, action := range iv.Status.Actions {
+			if action.TaskID == at.Request.TaskID {
+				d = s.Dispatches[action.DispatchID]
+			}
+		}
+		spec, found := routingPreflightSpec(s, iv.Status.ProjectID, at.Request.TaskID, d.ImplementationRole)
+		if !found {
+			return nil, nil, ErrDenied
+		}
+		obs, e := observer.ObservePreflight(s.Binding.Workspace, iv.Status.ProjectID, at.Request.TaskID, spec, s.SwarmPolicies[iv.Status.ProjectID].Placements[at.Request.TaskID])
+		if e != nil {
+			return nil, nil, e
+		}
+		required = obs.RequiredSet
+		available, grants := obs.Checks, obs.VerificationGrantIDs
+		if required != nil {
+			available, grants = obs.AvailableChecks, obs.AvailableGrantIDs
+		}
+		if len(available) > 1 || required != nil {
+			if len(route.Checks) != len(available) {
+				return nil, nil, ErrDenied
+			}
+			for i, c := range available {
+				found := false
+				for _, r := range route.Checks {
+					if r.CheckID == c.ID && i < len(grants) && r.GrantID == grants[i] {
+						found = true
+					}
+				}
+				if !found {
+					return nil, nil, ErrDenied
+				}
+			}
+		}
+		if required != nil {
+			if required.RevisionCommit != rev.Observation.Commit || required.RevisionTree != rev.Observation.Tree || len(required.Checks) == 0 || len(required.Checks) != len(required.GrantIDs) {
+				return nil, nil, ErrDenied
+			}
+			requiredCopy := *required
+			requiredCopy.RevisionID = rev.ID
+			required = &requiredCopy
+			checks = nil
+			for i, c := range required.Checks {
+				checks = append(checks, ControllerCheckRoute{CheckID: c.ID, GrantID: required.GrantIDs[i]})
+			}
+		} else if len(route.Checks) > 0 {
+			checks = route.Checks
+		}
+	}
+	requests := []VerificationRequest{}
+	for _, check := range checks {
+		grant, ok := s.Grants[check.GrantID]
+		if !ok || grant.TaskID != at.Request.TaskID || grant.Repository != at.Observation.Repository || grant.RunnerSession != route.RunnerSession || grant.CheckID != check.CheckID {
+			return nil, nil, ErrDenied
+		}
+		if required != nil {
+			matched := false
+			for _, c := range required.Checks {
+				if c.ID == check.CheckID && c.CommandDigest == grant.CommandDigest {
+					matched = true
+				}
+			}
+			if !matched {
+				return nil, nil, ErrDenied
+			}
+		}
+		key := controllerKey(iv.Status, "verification", rev.ID)
+		if required != nil || len(checks) > 1 {
+			key = controllerKey(iv.Status, "verification", rev.ID+":"+check.CheckID)
+		}
+		requests = append(requests, VerificationRequest{OperationKey: key, WorkerSession: at.SessionID, AttemptID: at.ID, LeaseID: rev.LeaseID, RevisionID: rev.ID, CheckID: check.CheckID, GrantID: check.GrantID, ExpectedFence: rev.Fence})
+	}
+	if len(requests) == 0 {
+		return nil, nil, ErrDenied
+	}
+	return required, requests, nil
 }

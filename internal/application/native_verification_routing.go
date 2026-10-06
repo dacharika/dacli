@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"reflect"
+	"sort"
 
 	"github.com/mlnomadpy/dacli/internal/governance/checkout"
 	"github.com/mlnomadpy/dacli/internal/governance/nativeconfig"
@@ -102,4 +103,142 @@ func (a *NativeVerificationAccess) InspectRouting(ctx context.Context, req Nativ
 		return verificationrouting.Plan{}, e
 	}
 	return a.Runner.routing.plan(ctx, rev)
+}
+
+// requiredSet projects every required gate from the complete owner policy,
+// preserving the plan digest without exporting command bytes/private profiles.
+func requiredRoutingSet(r *nativeVerificationRouting, p NativeRunnerProfile, rev sessions.AttemptRevision) (*sessions.RequiredVerificationSet, error) {
+	if r == nil {
+		return nil, nil
+	}
+	plan, e := r.plan(context.Background(), rev)
+	if e != nil {
+		return nil, e
+	}
+	checks, e := NativeProfileCheckDescriptors(p, true)
+	if e != nil {
+		return nil, e
+	}
+	out := &sessions.RequiredVerificationSet{PolicyDigest: plan.Binding.PolicyDigest, PolicyBytesDigest: plan.Binding.PolicyBytesDigest, BaseCommit: plan.Binding.BaseCommit, RevisionID: rev.ID, RevisionCommit: plan.Binding.RevisionCommit, RevisionTree: plan.Binding.RevisionTree, PlanDigest: plan.Digest}
+	for _, id := range plan.RequiredGateIDs {
+		found := false
+		for _, check := range checks {
+			if check.Descriptor.ID == id {
+				out.Checks = append(out.Checks, sessions.RequiredCheck{ID: id, CommandDigest: sessions.CheckDigest(check.Descriptor)})
+				out.GrantIDs = append(out.GrantIDs, check.GrantID)
+				found = true
+			}
+		}
+		if !found {
+			return nil, sessions.ErrDenied
+		}
+	}
+	if len(out.Checks) == 0 {
+		return nil, sessions.ErrDenied
+	}
+	return out, nil
+}
+func readRoutedReviewProfile(p NativeReviewPolicy) (NativeRunnerProfile, *nativeVerificationRouting, error) {
+	raw, e := nativeconfig.ReadPrivate(p.RunnerProfile, 65536)
+	if e != nil {
+		return NativeRunnerProfile{}, nil, sessions.ErrDenied
+	}
+	digest := sha256.Sum256(raw)
+	if hex.EncodeToString(digest[:]) != p.RunnerProfileDigest {
+		return NativeRunnerProfile{}, nil, sessions.ErrDenied
+	}
+	var runner NativeRunnerProfile
+	if nativeconfig.Decode(raw, &runner) != nil || runner.SchemaVersion != 2 || runner.WorkspaceID != p.WorkspaceID || runner.TaskID != p.TaskID {
+		return runner, nil, sessions.ErrDenied
+	}
+	route, e := nativeVerificationRoutingProfile(runner)
+	if e != nil {
+		return runner, nil, e
+	}
+	checks, e := NativeProfileCheckDescriptors(runner, true)
+	if e != nil || len(checks) != len(p.Checks) {
+		return runner, nil, sessions.ErrDenied
+	}
+	for _, check := range checks {
+		found := false
+		for _, configured := range p.Checks {
+			if configured.ID == check.Descriptor.ID && configured.CommandDigest == sessions.CheckDigest(check.Descriptor) {
+				found = true
+			}
+		}
+		if !found {
+			return runner, nil, sessions.ErrDenied
+		}
+	}
+	return runner, route, nil
+}
+func nativeReviewRoutingRevision(p NativeReviewPolicy) (string, error) {
+	if p.SchemaVersion == 1 {
+		return p.Revision, nil
+	}
+	_, r, e := readRoutedReviewProfile(p)
+	if e != nil {
+		return "", e
+	}
+	return safeDigest(struct{ Revision, Profile, Policy, Raw, Base string }{p.Revision, p.RunnerProfileDigest, r.digest, r.bytesDigest, r.base}), nil
+}
+
+// NativeRoutedReviewPolicyFromProfile prepares private schema2 owner input;
+// only explicit owner handlers may materialize it, never a worker request.
+func NativeRoutedReviewPolicyFromProfile(workspace, project, task, revision, path string) (NativeReviewPolicy, error) {
+	raw, e := nativeconfig.ReadPrivate(path, 65536)
+	if e != nil {
+		return NativeReviewPolicy{}, sessions.ErrDenied
+	}
+	var runner NativeRunnerProfile
+	if nativeconfig.Decode(raw, &runner) != nil || runner.SchemaVersion != 2 || runner.WorkspaceID != workspace || runner.TaskID != task {
+		return NativeReviewPolicy{}, sessions.ErrDenied
+	}
+	checks, e := NativeProfileCheckDescriptors(runner, true)
+	if e != nil {
+		return NativeReviewPolicy{}, e
+	}
+	digest := sha256.Sum256(raw)
+	p := NativeReviewPolicy{SchemaVersion: 2, WorkspaceID: workspace, ProjectID: project, TaskID: task, Revision: revision, RunnerProfile: path, RunnerProfileDigest: hex.EncodeToString(digest[:])}
+	for _, c := range checks {
+		p.Checks = append(p.Checks, sessions.RequiredCheck{ID: c.Descriptor.ID, CommandDigest: sessions.CheckDigest(c.Descriptor)})
+	}
+	sort.Slice(p.Checks, func(i, j int) bool { return p.Checks[i].ID < p.Checks[j].ID })
+	if validateNativeReviewPolicy(p) != nil {
+		return NativeReviewPolicy{}, sessions.ErrDenied
+	}
+	return p, nil
+}
+
+// ObserveRequiredVerification rereads explicit private policy/profile pins at
+// the exact revision. Schema1 keeps its original static grant contract.
+func (o *NativeReviewObserver) ObserveRequiredVerification(workspace, project, task string, rev sessions.AttemptRevision) (*sessions.RequiredVerificationSet, error) {
+	if o == nil || o.workspace.ID != workspace {
+		return nil, sessions.ErrDenied
+	}
+	var policy NativeReviewPolicy
+	switch p := o.policy.(type) {
+	case NativeReviewPolicy:
+		policy = p
+	case privateNativeReviewPolicy:
+		if verificationPrivateJSON(p.path, &policy) != nil {
+			return nil, sessions.ErrDenied
+		}
+	default:
+		return nil, nil
+	}
+	if validateNativeReviewPolicy(policy) != nil || policy.WorkspaceID != workspace || policy.ProjectID != project || policy.TaskID != task {
+		return nil, sessions.ErrDenied
+	}
+	if policy.SchemaVersion == 1 {
+		return nil, nil
+	}
+	runner, r, e := readRoutedReviewProfile(policy)
+	if e != nil {
+		return nil, e
+	}
+	if runner.Repository != rev.Observation.Repository {
+		return nil, sessions.ErrDenied
+	}
+	return requiredRoutingSet(r, runner, rev)
 }

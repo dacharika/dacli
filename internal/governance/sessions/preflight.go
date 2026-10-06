@@ -41,7 +41,21 @@ type PreflightPhase struct {
 	Phase, Verdict, Assurance, EvidenceDigest, Remediation string
 	Required                                               bool
 }
+
+// RequiredVerificationSet contains sanitized producer bindings, never argv or private paths.
+type RequiredVerificationSet struct {
+	PolicyDigest, PolicyBytesDigest, BaseCommit, RevisionID, RevisionCommit, RevisionTree, PlanDigest string
+	Checks                                                                                            []RequiredCheck
+	GrantIDs                                                                                          []string
+}
+type RequiredVerificationObserver interface {
+	ObserveRequiredVerification(workspace, project, task string, revision AttemptRevision) (*RequiredVerificationSet, error)
+}
 type PreflightObservation struct {
+	RequiredSet       *RequiredVerificationSet `json:",omitempty"`
+	AvailableChecks   []RequiredCheck          `json:",omitempty"`
+	AvailableGrantIDs []string                 `json:",omitempty"`
+
 	ReviewerRepository, RunnerRepository string
 
 	TaskDigest, RosterDigest, ClaimsDigest, ProfileDigest, Harness string
@@ -69,8 +83,9 @@ type PreflightRoleCapacity struct {
 	Capacity                              team.TaskCapacityVerdict
 }
 type PreflightReport struct {
-	RoutingPolicyDigest                                                                                                                   string `json:",omitempty"`
-	RoutingRole                                                                                                                           string `json:",omitempty"`
+	RequiredSet                                                                                                                           *RequiredVerificationSet `json:",omitempty"`
+	RoutingPolicyDigest                                                                                                                   string                   `json:",omitempty"`
+	RoutingRole                                                                                                                           string                   `json:",omitempty"`
 	AuthorityDigest                                                                                                                       string
 	RoleCapacities                                                                                                                        []PreflightRoleCapacity
 	SchemaVersion                                                                                                                         int
@@ -210,6 +225,7 @@ func (a *Authority) preflightSpec(s *state, project, task, impl, review, worker 
 	if !obs.Sized {
 		fail("implementation", "policy_refused", "canonical PERT estimate is required before normal assignment or native allocation")
 	}
+	report.RequiredSet = obs.RequiredSet
 	report.TaskDigest = obs.TaskDigest
 	report.RoleDigest = roleDigest(obs.Implementation)
 	report.RosterDigest = obs.RosterDigest
@@ -314,13 +330,28 @@ func (a *Authority) preflightSpec(s *state, project, task, impl, review, worker 
 		authorityFacts = append(authorityFacts, g)
 		bindExpiry(g.ExpiresAt)
 		_, independence := reviewIndependence(s, rr.ID, wr.ID, task, time.Now())
-		if !valid || independence != nil || obs.ReviewerRepository != s.Tasks[task].Repository || rr.Parent != "" || reviewRoot == root || !reviewOnly(rr, task) || !found || g.Revoked || !time.Now().Before(g.ExpiresAt) || g.ReviewerSession != rr.ID || g.WorkerRoot != root || g.TaskID != task || g.Repository != s.Tasks[task].Repository || !reflect.DeepEqual(g.Observation, obs.ReviewObservation) {
+		if !valid || independence != nil || obs.ReviewerRepository != s.Tasks[task].Repository || rr.Parent != "" || reviewRoot == root || !reviewOnly(rr, task) || !found || g.Revoked || !time.Now().Before(g.ExpiresAt) || g.ReviewerSession != rr.ID || g.WorkerRoot != root || g.TaskID != task || g.Repository != s.Tasks[task].Repository || !samePreflightReviewPolicy(g.Observation, obs.ReviewObservation) {
 			fail("review", "policy_refused", "owner must provision an independent reviewer, matching current grant, policy and private connection before implementation")
 		}
 	}
 	if spec.RequireVerification || spec.RequireReview {
 		if spec.RequireReview {
-			for _, required := range obs.ReviewObservation.Checks {
+			reviewChecks := obs.ReviewObservation.Checks
+			if obs.RequiredSet != nil {
+				for _, selected := range obs.RequiredSet.Checks {
+					found := false
+					for _, allowed := range obs.ReviewObservation.Checks {
+						if selected == allowed {
+							found = true
+						}
+					}
+					if !found {
+						fail("verification", "policy_refused", "every routed required check must be in the full owner review policy")
+					}
+				}
+				reviewChecks = obs.RequiredSet.Checks
+			}
+			for _, required := range reviewChecks {
 				found := false
 				for _, configured := range obs.Checks {
 					if required == configured {
@@ -537,4 +568,21 @@ func preflightPlanError(fresh, old SwarmPlan) error {
 		return ErrPreflightTransient
 	}
 	return ErrDenied
+}
+
+func samePreflightReviewPolicy(grant, current ReviewObservation) bool {
+	current.RequiredSet = nil
+	return reflect.DeepEqual(grant, current)
+}
+func (o checkpointReviewObservation) ObserveRequiredVerification(workspace, project, task string, rev AttemptRevision) (*RequiredVerificationSet, error) {
+	set := o.observation.RequiredSet
+	if set == nil {
+		return nil, nil
+	}
+	if set.RevisionCommit != rev.Observation.Commit || set.RevisionTree != rev.Observation.Tree || len(set.Checks) == 0 {
+		return nil, ErrDenied
+	}
+	result := *set
+	result.RevisionID = rev.ID
+	return &result, nil
 }
