@@ -540,6 +540,25 @@ native authority and are not worker MCP authority-granting routes. The owner
 can supersede a private policy selection explicitly; historical evidence remains
 bound to its original policy, revision and producer identities.
 
+`native external upgrade` is an optional explicit owner-authenticated
+schema18→19 migration preserving prior authority and durable history. It is
+never an automatic installation or worker action. `native external configure`
+uses an explicit private owner profile to pin external policy and the selected
+repository, canonical task, delivery generation, source commit/tree and target.
+`native external inspect` observes the selected policy or durable operation;
+it grants no permission from a historical observation.
+
+`native external apply` requires the freshly authorized exact owner selection
+and records a durable operation before its external effect. `native external reconcile`
+uses the same operation identity to observe an uncertain result. An unknown
+result retains protection and must not be rerun under a new key. Reconciliation
+is an owner recovery path, not deletion of history or an implicit retry grant.
+An external merged observation is distinct from local integration and canonical
+acceptance: it cannot substitute for either outcome or their required checks.
+These commands authenticate the owner explicitly; no worker MCP route grants
+external publication, merge, deployment, tag or release authority. Owner policy
+changes preserve historical bindings rather than rewriting old receipts.
+
 ### Native dashboard reads
 
 `dashboard --native-connection` selects an explicit private reader profile.

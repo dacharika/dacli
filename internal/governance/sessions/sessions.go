@@ -47,6 +47,10 @@ type record struct {
 	Hash string
 }
 type state struct {
+	NativeExternalPolicies   map[string]NativeExternalPolicy
+	NativeExternalHistory    map[string]NativeExternalPolicy
+	NativeExternalOperations map[string]NativeExternalRecord
+
 	NativeIntegrationPolicies   map[string]NativeIntegrationPolicy
 	NativeIntegrationHistory    map[string]NativeIntegrationPolicy
 	NativeIntegrationOperations map[string]NativeIntegrationRecord
@@ -433,7 +437,7 @@ func (a *Authority) Revoke(owner, id string) error {
 // decodeAuthorityState shares the exact supported schema interpreter with bounded readers.
 func decodeAuthorityState(data []byte, binding Binding, version int) (state, error) {
 	var s state
-	if json.Unmarshal(data, &s) != nil || (s.Version != version && !((version >= 6 && version <= 12) && s.Version >= version && s.Version <= 18)) || s.Binding != binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version >= 3 && (s.Leases == nil || s.Operations == nil)) || (s.Version >= 4 && (s.Revisions == nil || s.Grants == nil || s.Evidence == nil)) || (s.Version >= 5 && (s.ReviewGrants == nil || s.Reviews == nil)) || (s.Version >= 6 && (s.PublicationPolicies == nil || s.PublicationDecisions == nil || s.PublicationConsumed == nil)) {
+	if json.Unmarshal(data, &s) != nil || (s.Version != version && !((version >= 6 && version <= 12) && s.Version >= version && s.Version <= 19)) || s.Binding != binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version >= 3 && (s.Leases == nil || s.Operations == nil)) || (s.Version >= 4 && (s.Revisions == nil || s.Grants == nil || s.Evidence == nil)) || (s.Version >= 5 && (s.ReviewGrants == nil || s.Reviews == nil)) || (s.Version >= 6 && (s.PublicationPolicies == nil || s.PublicationDecisions == nil || s.PublicationConsumed == nil)) {
 		return state{}, ErrStorage
 	}
 	if e := validateAuthorityMaps(&s); e != nil {
@@ -442,6 +446,12 @@ func decodeAuthorityState(data []byte, binding Binding, version int) (state, err
 	return s, nil
 }
 func validateAuthorityMaps(s *state) error {
+	if s.Version < 19 && (s.NativeExternalPolicies != nil || s.NativeExternalHistory != nil || s.NativeExternalOperations != nil) {
+		return ErrStorage
+	}
+	if s.Version >= 19 && (s.NativeExternalPolicies == nil || s.NativeExternalHistory == nil || s.NativeExternalOperations == nil) {
+		return ErrStorage
+	}
 
 	if s.Version < 18 && (s.NativeIntegrationPolicies != nil || s.NativeIntegrationHistory != nil || s.NativeIntegrationOperations != nil) {
 		return ErrStorage

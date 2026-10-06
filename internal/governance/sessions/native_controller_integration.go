@@ -67,6 +67,15 @@ func (a *Authority) controllerIntegrationProgress(s *state, iv *controllerInvoca
 	if !validNativeIntegrationOutcome(rec) || !reflect.DeepEqual(s.NativeIntegrationHistory[rec.Policy.TaskID+":"+rec.Policy.Revision], rec.Policy) {
 		return true, ErrDenied
 	}
+	// External delivery remains optional unless separately required by owner.
+	// The fresh diagnostic gate advances no counters and never substitutes the
+	// existing integration and canonical acceptance receipts below.
+	if class, next, ready := nativeExternalGate(s, action.TaskID, input); !ready {
+		st.Phase = "integration"
+		st.HaltClass = class
+		st.NextAction = next
+		return true, nil
+	}
 	acceptanceKey := input.OperationKey
 	if !validID(acceptanceKey) || acceptanceKey == operation {
 		return true, ErrDenied
