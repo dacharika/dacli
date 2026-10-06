@@ -94,7 +94,7 @@ type observedRefresh struct {
 	RequestID    string `json:"request_id"`
 }
 
-func TestAuthenticatePersistsRefreshBeforeHTTPAndReplaysIdentity(t *testing.T) {
+func TestNativeDeviceRefreshPersistsBeforeHTTPAndReplaysIdentity(t *testing.T) {
 	type observation struct {
 		request                     observedRefresh
 		persisted                   credentials
@@ -151,7 +151,7 @@ func TestAuthenticatePersistsRefreshBeforeHTTPAndReplaysIdentity(t *testing.T) {
 		t.Fatal("ambiguous provider reply changed installed credentials")
 	}
 }
-func TestAuthenticateRefusesHTTPWhenRefreshPersistenceFails(t *testing.T) {
+func TestNativeDeviceRefreshRefusesHTTPWhenPersistenceFails(t *testing.T) {
 	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		calls.Add(1)
@@ -168,7 +168,7 @@ func TestAuthenticateRefusesHTTPWhenRefreshPersistenceFails(t *testing.T) {
 		t.Fatal("failed persistence allowed HTTP or changed the durable credential")
 	}
 }
-func TestAuthenticateMalformedRefreshDoesNotInstallCredentials(t *testing.T) {
+func TestNativeDeviceRefreshMalformedResponseDoesNotInstallCredentials(t *testing.T) {
 	valid := tokenResponse{TokenType: "Bearer", AccessToken: "test-new-access", RefreshToken: "test-new-refresh", ExpiresIn: 3600, ServerTime: time.Now().UTC(), TenantID: "tenant", AccountID: "account", DeviceID: "device", Scope: "read", SigningKeyID: "device-key", ServerSigningKeys: []Key{{ID: "server-key", PublicKey: base64.StdEncoding.EncodeToString(make([]byte, ed25519.PublicKeySize))}}}
 	cases := []struct {
 		name, code string
