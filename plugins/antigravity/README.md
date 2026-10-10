@@ -27,13 +27,38 @@ permissions. The adapter reads selection paths, never credential contents.
 Antigravity `orchestration_config_file` is refused because no host capability
 adapter has been established.
 
-From this repository, generate a standalone package at a new absolute path:
+From this repository, generate a configured plugin directly at its final
+workspace plugin path (replace both paths with your own absolute paths):
+
+```sh
+python3 plugins/antigravity/scripts/package.py \
+  --output /absolute/workspace/.agents/plugins/dacli-governance \
+  --selection /absolute/private/antigravity-selection.json
+```
+
+This writes resolved MCP paths into the plugin itself and records their hashes.
+It pins the Python interpreter used to build the package, so a GUI launch does
+not depend on your shell's PATH. The selection is validated using the shared
+bootstrap; credentials are never copied into the plugin. Keep the private
+selection and its referenced runtime/profiles available. Restart or refresh the
+host's customizations, then call `identity` and confirm the expected principal
+before making changes. Package generation does not enroll or authenticate a
+session and does not prove host tool execution.
+
+Do not move or copy a configured package: its MCP entry pins its final absolute
+location. Generate at the final destination instead. In particular, CLI plugin
+installation may stage a copy elsewhere; use the explicit workspace MCP config
+route below for that surface unless its staged paths have been validated.
+
+For a distribution template without any private selection binding:
 
 ```sh
 python3 plugins/antigravity/scripts/package.py --output /absolute/path/dacli-antigravity
 ```
 
-Preview a configuration merge (no file changes):
+An unconfigured template still contains placeholders and must not be activated
+as a plugin. It can instead supply the bootstrap for an explicitly rendered MCP
+configuration. Preview that configuration merge (no file changes):
 
 ```sh
 python3 /absolute/path/dacli-antigravity/scripts/install.py \
@@ -49,11 +74,16 @@ symlink or unknown configuration shape refuses rather than overwrites. Writes
 use an atomic file replacement and an exact private backup of existing bytes.
 The installer does not start a host, enroll sessions or change host caches.
 
+Choose either the configured plugin or the standalone MCP configuration, not
+both for the same connection: duplicate registrations share the same principal
+and are not independent workers. One selection exposes one principal. Separate
+worker, runner and reviewer sessions need separately provisioned host contexts;
+adding names or agent personas does not grant independent authority.
+
 The official workspace config is `.agents/mcp_config.json`; the global config is
 `~/.gemini/config/mcp_config.json`. Documented local plugin locations are
 `.agents/plugins/` and `~/.gemini/config/plugins/`. Generate into the intended
-plugin directory if using that installation route, then render its MCP config
-with the private selection before manually activating the host. Use a separate
+plugin directory with `--selection` if using that installation route. Use a separate
 server configuration and independent private connection for each principal.
 
 To undo an explicit config installation, stop using the connection and restore
@@ -79,3 +109,16 @@ forked host implementations. Retained Codex receipts are Codex evidence only.
 Actual versioned Antigravity installation, task/review calls, schema conformance
 and observed differences must be recorded before core572 can be accepted.
 No test, live installation or host validation is claimed by this source package.
+
+## Improvements still needed
+
+The immediate packaging gap was an unresolved `mcp_config.json` inside generated
+plugins; `--selection` now binds the actual entry at generation time. Next, record
+a real Antigravity identity/task/revision/review workflow with distinct enrolled
+principals before calling this host-qualified. A native swarm adapter needs
+documented child identity, dispatch, completion and cancellation APIs with actual
+versioned receipts. Lifecycle hooks may provide useful reminders or refusals,
+but must be evaluated separately from process/filesystem containment. Model
+selection and usage reporting must remain advisory until the host exposes and
+demonstrates enforceable capabilities. These gaps do not justify adding coding
+CLI wrappers or another governance state machine.

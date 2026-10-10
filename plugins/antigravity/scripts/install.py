@@ -2,11 +2,12 @@
 """Render an MCP entry; modify configuration only with explicit --install."""
 import argparse
 import hashlib
-import importlib.util
 import json
 import os
 from pathlib import Path
+import runpy
 import stat
+import sys
 import tempfile
 
 FILES = {'plugin.json', 'mcp_config.json', 'README.md',
@@ -41,6 +42,18 @@ def load(raw):
     return json.loads(raw, object_pairs_hook=unique)
 
 
+def mcp_entry(root, selection):
+    """Bind a private selection without reading credentials or starting dacli."""
+    if not root.is_absolute() or not selection.is_absolute():
+        raise ValueError('explicit absolute paths required')
+    bootstrap = runpy.run_path(str(root / 'scripts/serve.py'))
+    chosen = bootstrap['selection'](selection)
+    if 'orchestration_config_file' in chosen:
+        raise ValueError('Antigravity orchestration capability adapter unsupported')
+    # GUI hosts need not inherit the shell's PATH or Python installation.
+    return {'command': sys.executable, 'args': [str(root / 'scripts/serve.py'), str(selection)]}
+
+
 def render(root, selection, config):
     manifest = load(read(root / 'package-manifest.json'))
     if (manifest.get('schema_version') != 1 or manifest.get('adapter') != 'antigravity'
@@ -51,23 +64,16 @@ def render(root, selection, config):
             raise ValueError('package source changed')
     if manifest.get('shared_bootstrap_sha256') != manifest['files']['scripts/serve.py']:
         raise ValueError('shared bootstrap binding missing')
-    # Reuse the shared descriptor-bound selection validator. It reads paths,
-    # never credential contents, and this function never invokes launch().
-    spec = importlib.util.spec_from_file_location('dacli_bootstrap', root / 'scripts/serve.py')
-    bootstrap = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(bootstrap)
-    chosen = bootstrap.selection(selection)
-    if 'orchestration_config_file' in chosen:
-        raise ValueError('Antigravity orchestration capability adapter unsupported')
+    desired = mcp_entry(root, selection)
     old = read(config) if config.exists() or config.is_symlink() else None
     document = load(old) if old is not None else {}
     if not isinstance(document, dict) or not isinstance(document.get('mcpServers', {}), dict):
         raise ValueError('unknown MCP configuration shape')
     template = load(read(root / 'mcp_config.json'))
     entry = template['mcpServers']['dacli']
-    if entry != {'command': 'python3', 'args': ['@DACLI_PACKAGE_ROOT@/scripts/serve.py', '@DACLI_SELECTION_FILE@']}:
-        raise ValueError('unknown MCP template')
-    desired = {'command': 'python3', 'args': [str(root / 'scripts/serve.py'), str(selection)]}
+    placeholder = {'command': 'python3', 'args': ['@DACLI_PACKAGE_ROOT@/scripts/serve.py', '@DACLI_SELECTION_FILE@']}
+    if entry not in (placeholder, desired):
+        raise ValueError('unknown MCP template or different private selection')
     servers = dict(document.get('mcpServers', {}))
     if 'dacli' in servers and servers['dacli'] != desired:
         raise ValueError('conflicting dacli server; preserve existing configuration')
