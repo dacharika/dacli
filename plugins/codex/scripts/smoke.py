@@ -202,9 +202,10 @@ def smoke(codex, dacli, schema5_dacli=None, expected_codex_version='codex-cli 0.
             brief_observed_at = datetime.fromisoformat(task_brief['observed_at'].replace('Z', '+00:00'))
             brief_fresh = abs((datetime.now(timezone.utc) - brief_observed_at).total_seconds()) < 30
             assert brief_fresh, 'task brief observation timestamp is stale'
-            frontier = call('ready_frontier', project='fixture', limit=10)
+            frontier = call('ready_frontier', task=task_id, limit=10)
             assert frontier['schema'] == 'native-ready-frontier/v1'
-            assert frontier['project'] == 'fixture' and frontier['diagnostic_only'] is True
+            assert frontier['project'] == task['task']['project'] and frontier['task'] == task_id
+            assert frontier['scope'] == 'task' and frontier['diagnostic_only'] is True
             frontier_observed_at = datetime.fromisoformat(frontier['observed_at'].replace('Z', '+00:00'))
             assert abs((datetime.now(timezone.utc) - frontier_observed_at).total_seconds()) < 30
             assert any(item['id'] == task_id for item in frontier['ready']), 'task missing from diagnostic ready frontier'
