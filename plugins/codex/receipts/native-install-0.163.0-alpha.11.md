@@ -4,7 +4,8 @@ The adjacent JSON is the unmodified output of the actual current-host install,
 MCP transport, named verification, independent review and recovery smoke on
 2026-10-22. It uses temporary HOME/CODEX_HOME directories, a synthetic Git
 workspace and owner-enrolled profiles. It does not change the user's installed
-plugin and requests no model turn or coding CLI execution.
+plugin. It uses Codex app-server for diagnostic MCP calls and requests no model
+turn or coding-agent worker.
 
 - Smoke source commit: `014ca4727e308046e9f1c55a3d882abddb0cb122`.
 - Smoke source tree: `70aeda5127533c5cafaf9b68c61d73ab8318d212`.
