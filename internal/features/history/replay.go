@@ -16,6 +16,7 @@ import (
 	"github.com/mlnomadpy/dacli/internal/clikit"
 	"github.com/mlnomadpy/dacli/internal/eventlog"
 	"github.com/mlnomadpy/dacli/internal/store"
+	"github.com/mlnomadpy/dacli/internal/ulid"
 	"github.com/mlnomadpy/dacli/internal/workspace"
 )
 
@@ -60,11 +61,34 @@ func readRunMeta(w *workspace.Workspace, runDir string) runMeta {
 }
 
 // timelineEntry is one moment, keyed by its ULID so brief-deliveries and
-// events sort into one true chronological order.
+// events sort by their encoded creation time.
 type timelineEntry struct {
 	ulid string
 	kind string // BRIEF | event-kind
 	text string
+}
+
+// timelineLess orders ULID timestamps first. ULIDs have only millisecond
+// precision; their random suffix cannot establish chronology for entries in
+// the same millisecond. In that tie, a brief is known to have been delivered
+// before the child could write events, so it comes first. Event-to-event ties
+// retain the event log's existing ULID suffix order.
+func timelineLess(a, b timelineEntry) bool {
+	at, aok := ulid.Time(a.ulid)
+	bt, bok := ulid.Time(b.ulid)
+	if !aok || !bok {
+		return a.ulid < b.ulid
+	}
+	if !at.Equal(bt) {
+		return at.Before(bt)
+	}
+	if a.kind == "BRIEF" && b.kind != "BRIEF" {
+		return true
+	}
+	if a.kind != "BRIEF" && b.kind == "BRIEF" {
+		return false
+	}
+	return a.ulid < b.ulid
 }
 
 func cmdReplay(ctx *clikit.Ctx, args []string) error {
@@ -119,8 +143,7 @@ func cmdReplay(ctx *clikit.Ctx, args []string) error {
 	for _, m := range metas {
 		taskID = m.taskID
 		childIDs[m.childID] = true
-		// The brief is delivered at spawn time — its run id IS that ULID, so
-		// it sorts ahead of everything the child then wrote.
+		// The run id records the brief's delivery time at millisecond precision.
 		summary := briefSummary(m.briefPath, full)
 		label := "BRIEF delivered to " + clikit.OrDash(m.childID)
 		if m.turn != "" {
@@ -145,7 +168,7 @@ func cmdReplay(ctx *clikit.Ctx, args []string) error {
 			text: fmt.Sprintf("%s by %s: %s", e.Kind, e.Actor, body)})
 	}
 
-	sort.Slice(line, func(i, j int) bool { return line[i].ulid < line[j].ulid })
+	sort.Slice(line, func(i, j int) bool { return timelineLess(line[i], line[j]) })
 
 	fmt.Fprintf(ctx.Stdout, "=== replay · task %s · %d run(s) · %d agent(s) ===\n", clikit.OrDash(taskID), len(metas), len(childIDs))
 	for _, e := range line {

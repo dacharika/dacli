@@ -2,9 +2,9 @@ package cli
 
 import (
 	"github.com/mlnomadpy/dacli/internal/agentid"
+	"github.com/mlnomadpy/dacli/internal/eventlog"
 	"github.com/mlnomadpy/dacli/internal/model"
 	"github.com/mlnomadpy/dacli/internal/store"
-	"github.com/mlnomadpy/dacli/internal/ulid"
 	"github.com/mlnomadpy/dacli/internal/workspace"
 	"os"
 	"path/filepath"
@@ -34,20 +34,28 @@ func TestReplayReconstructsRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	id := ulid.New()
+	brief := run(t, dir, 0, "context", "001")
+	t.Setenv(agentid.EnvVar, token)
+	run(t, dir, 0, "note", "add", "finding", "found the direct writer", "--project", "p", "--about", "001", "--body", "settle.go:112")
+	run(t, dir, 0, "note", "add", "finding", "and a second writer", "--project", "p", "--about", "001", "--body", "batch.go:40")
+	_ = os.Unsetenv(agentid.EnvVar)
+	// Make the recorded run ULID share the first event's millisecond while
+	// sorting after its random suffix. This pins the timestamp tie case without
+	// sleeping or relying on command timing: the brief was frozen before the
+	// events, so replay must still place it first within that millisecond.
+	events, err := eventlog.List(w, eventlog.Query{Actor: child})
+	if err != nil || len(events) == 0 {
+		t.Fatalf("read child events: got %d events, err %v", len(events), err)
+	}
+	id := events[len(events)-1].ID[:10] + strings.Repeat("Z", 16)
 	if err = os.MkdirAll(w.RunDir(id), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	brief := run(t, dir, 0, "context", "001")
 	for file, body := range map[string]string{"brief.md": brief, "invocation.txt": "run: " + id + "\nchild: " + child + "\ntask: " + task.ID + "\n", "outcome.md": "outcome: finished\n"} {
 		if err = os.WriteFile(filepath.Join(w.RunDir(id), file), []byte(body), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
-	t.Setenv(agentid.EnvVar, token)
-	run(t, dir, 0, "note", "add", "finding", "found the direct writer", "--project", "p", "--about", "001", "--body", "settle.go:112")
-	run(t, dir, 0, "note", "add", "finding", "and a second writer", "--project", "p", "--about", "001", "--body", "batch.go:40")
-	_ = os.Unsetenv(agentid.EnvVar)
 
 	// Replay by task: the frozen brief, then the child's two findings, in order.
 	out := run(t, dir, 0, "replay", "--task", "001")
