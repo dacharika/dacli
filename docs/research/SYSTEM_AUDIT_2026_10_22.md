@@ -265,6 +265,16 @@ Pinned Beads sources:
 
 ## Issue reconciliation inventory
 
+### Dolt follow-up
+
+The user-requested [Dolt/DoltHub evaluation](DOLT_EVALUATION_2026_10_22.md)
+adds Dolt as an explicit candidate under #1084, alongside the current model and
+a simpler SQLite option. Its strongest potential fit is versioned task knowledge
+and configuration proposals. Live leases, revoked identities, consumed decisions
+and canonical acceptance must not become mergeable branch state. PostgreSQL
+remains the hosted engine; #1091's bounded read work and #1088's publication are
+not blocked on this evaluation. No extra database-migration issue is created.
+
 All 27 previously open issues receive dated current-state evidence, priority,
 dependencies and a concrete next action. Existing checkboxes are not automatically
 marked complete; legacy criteria are corrected where the user changed direction.

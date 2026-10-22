@@ -18,6 +18,12 @@ A future cutover must identify every writer, prove source identity/count/digest
 reconciliation, stop conflicting direct writes and define recovery before it
 activates a new authority. An imported projection cannot satisfy that transition.
 
+The [2026-10-22 Dolt evaluation](research/DOLT_EVALUATION_2026_10_22.md) adds
+Dolt as an explicit future candidate for versioned project knowledge, compared
+with this model and SQLite. It does not select a new writer or change this
+decision. Transaction/merge semantics, monotonic authority, permissions,
+privacy, migration and measured growth must be qualified before any cutover.
+
 ## Versions and current observations
 
 The installed runtime can support native authority through schema16. This is a
