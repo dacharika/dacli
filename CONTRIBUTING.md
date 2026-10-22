@@ -66,11 +66,12 @@ go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
 ```
 
 The reachable-vulnerability scanner is pinned for the same reason and runs on
-the isolated patched Go 1.26.6 security toolchain. Run the reviewed pair with:
+the isolated patched Go 1.26.10 security toolchain, including the crypto/x509
+fix for GO-2026-6809. Run the reviewed pair with:
 
 ```bash
-GOTOOLCHAIN=go1.26.6 go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
-govulncheck ./...
+GOTOOLCHAIN=go1.26.10 go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+GOTOOLCHAIN=go1.26.10 govulncheck ./...
 ```
 
 Before upgrading either tool, verify its declared Go version against the lint

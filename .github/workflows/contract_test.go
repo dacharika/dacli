@@ -51,8 +51,8 @@ func TestLintUsesPatchedGo126Toolchain(t *testing.T) {
 	workflow := readWorkflow(t)
 	lintJob := jobBlock(t, workflow, "lint")
 
-	if !regexp.MustCompile(`(?m)^          go-version: "1\.26\.([6-9]|[1-9][0-9]+)"$`).MatchString(lintJob) {
-		t.Fatal("lint/security job must use patched Go 1.26.6 or newer within the 1.26 line")
+	if !regexp.MustCompile(`(?m)^          go-version: "1\.26\.([1-9][0-9]+)"$`).MatchString(lintJob) {
+		t.Fatal("lint/security job must use patched Go 1.26.10 or newer within the 1.26 line")
 	}
 }
 
