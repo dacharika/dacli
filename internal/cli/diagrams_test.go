@@ -51,7 +51,7 @@ func TestDiagramsHaveAllThreeViews(t *testing.T) {
 	for _, kind := range []struct{ needle, view string }{
 		{"```mermaid", "at least one Mermaid diagram"},
 		{"graph TD", "a component graph (structure)"},
-		{"sequenceDiagram", "a spawn-through-landing sequence"},
+		{"sequenceDiagram", "a native task-through-landing sequence"},
 		{"stateDiagram", "a task-lifecycle state machine"},
 	} {
 		if !strings.Contains(text, kind.needle) {

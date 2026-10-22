@@ -66,6 +66,11 @@ jobs:
         run: go vet ./...
       - name: CI workflow contract
         run: go test ./.github/workflows
+      # Backend-only conformance. No coding host/model/hook certification.
+      - name: shared native governance transport contract
+        run: python3 -m unittest discover -s contracts/governance/v1 -p test_conformance.py -v
+      - name: real native governance provisioning and recovery contracts
+        run: go test ./internal/features/nativegovernance -run 'TestNative(SwarmOwnerProvisioning|DispatchOwnerProvisioning|LifecycleOwnerCLI|RecoveryOwnerCLI)|TestNamedVerificationExecutesTrustedCheckAndReplays|TestAsyncVerificationCancelShutdownAndRestartPending'
       - name: deterministic release-readiness scenarios
         run: go test -v ./internal/scenarios
       - name: control-plane service contracts
@@ -92,7 +97,7 @@ jobs:
       # measures the locking rather than the happy path (dacli 359).
       #
       # -race is still worth running: it is the cheapest guard available and it
-      # covers the in-process supervisor paths.
+      # covers concurrent native authority and retained process-observation paths.
       - name: test (race + coverage)
         run: go test -race -coverprofile=coverage.out ./...
       # Global AND per-package floors. One aggregate hides the failure that
@@ -105,8 +110,8 @@ jobs:
       - name: process suites (repeated, race)
         run: |
           go test -race -count=5 ./internal/procmon/
-          go test -race -count=5 ./internal/features/execution/ \
-            -run 'TestExecRuntimeDetached|TestAlive|TestKillTree|TestRecordRoundTrip'
+          go test -race -count=5 ./internal/governance/sessions/ \
+            -run 'TestLeaseCrashPreservesLockAndAuthority|TestLeaseLostReplyReplayAcrossProcesses'
       - name: build
         run: go build ./cmd/dacli
       # Share this build with cross-compile below instead of every job running
@@ -136,9 +141,9 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          # 1.26.5 has reachable crypto/tls, net/http, and encoding/asn1
-          # vulnerabilities fixed by 1.26.6 (issue #1046).
-          go-version: "1.26.6"
+          # 1.26.6 has reachable standard-library vulnerabilities; 1.26.10
+          # includes the crypto/x509 fix for GO-2026-6809 (issue #1088).
+          go-version: "1.26.10"
       # go:embed all:ui/dist means the dashboard package does not typecheck
       # without the built frontend, so reuse the artifact the test job produced.
       - uses: actions/download-artifact@v8

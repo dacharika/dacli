@@ -15,12 +15,14 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"sort"
 	"strings"
 
+	"github.com/mlnomadpy/dacli/internal/agentid"
 	"github.com/mlnomadpy/dacli/internal/clikit"
 	"github.com/mlnomadpy/dacli/internal/commandresult"
 	"github.com/mlnomadpy/dacli/internal/features/acceptance"
@@ -29,17 +31,19 @@ import (
 	"github.com/mlnomadpy/dacli/internal/features/cleanup"
 	"github.com/mlnomadpy/dacli/internal/features/collab"
 	"github.com/mlnomadpy/dacli/internal/features/dashboard"
-	"github.com/mlnomadpy/dacli/internal/features/execution"
+	"github.com/mlnomadpy/dacli/internal/features/deviceauth"
 	"github.com/mlnomadpy/dacli/internal/features/ghmirror"
+	"github.com/mlnomadpy/dacli/internal/features/history"
 	"github.com/mlnomadpy/dacli/internal/features/insight"
 	"github.com/mlnomadpy/dacli/internal/features/journal"
 	"github.com/mlnomadpy/dacli/internal/features/knowledge"
+	"github.com/mlnomadpy/dacli/internal/features/nativegovernance"
 	"github.com/mlnomadpy/dacli/internal/features/onboard"
-	"github.com/mlnomadpy/dacli/internal/features/orchestration"
 	"github.com/mlnomadpy/dacli/internal/features/planning"
 	"github.com/mlnomadpy/dacli/internal/features/queues"
 	"github.com/mlnomadpy/dacli/internal/features/reconciliation"
 	"github.com/mlnomadpy/dacli/internal/features/releasetrain"
+	"github.com/mlnomadpy/dacli/internal/features/reviewing"
 	"github.com/mlnomadpy/dacli/internal/features/selfreport"
 	"github.com/mlnomadpy/dacli/internal/features/ship"
 	"github.com/mlnomadpy/dacli/internal/features/shortcuts"
@@ -64,6 +68,8 @@ type (
 // slice).
 var commands = aggregate(
 	wscore.Commands,
+	deviceauth.Commands,
+	nativegovernance.Commands,
 	onboard.Commands,
 	planning.Commands,
 	briefing.Commands,
@@ -77,7 +83,7 @@ var commands = aggregate(
 	releasetrain.Commands,
 	cleanup.Commands,
 	journal.Commands,
-	execution.Commands,
+	history.Commands,
 	stagegate.Commands,
 	ghmirror.Commands,
 	skillforge.Commands,
@@ -87,11 +93,11 @@ var commands = aggregate(
 	ship.Commands,
 	slices.Commands,
 	catalog.Commands,
-	orchestration.Commands,
+	reviewing.Commands,
 	dashboard.Commands,
 	[]Command{
-		{Path: "capabilities", Brief: "Print the generated CLI, MCP, schema, prompt, and runtime-adapter capability manifest", JSON: true, Usage: "dacli capabilities [--json]", Run: cmdCapabilities},
-		{Path: "mcp serve", Brief: "Serve the workspace as MCP tools over stdio", Usage: "dacli mcp serve", Run: cmdMcpServe},
+		{Path: "capabilities", Brief: "Print the generated CLI, MCP, schema and prompt capability manifest", JSON: true, Usage: "dacli capabilities [--json]", Run: cmdCapabilities},
+		{Path: "mcp serve", Brief: "Serve MCP over stdio with DACLI_AGENT identity; --operator explicitly permits local root when no token is set", Usage: "dacli mcp serve [--operator]", Run: cmdMcpServe},
 	},
 )
 
@@ -112,12 +118,6 @@ var (
 
 // Main dispatches argv and returns a process exit code.
 func Main(argv []string) int {
-	if len(argv) >= 2 && argv[0] == "__run-guardian" {
-		return execution.RunGuardian(argv[1:])
-	}
-	if len(argv) == 2 && argv[0] == "__run-watchdog" {
-		return execution.RunWatchdog(strings.Join(argv[1:], ""))
-	}
 	cwd, _ := os.Getwd()
 	ctx := &Ctx{Stdout: os.Stdout, Stderr: os.Stderr, Cwd: cwd}
 
@@ -330,6 +330,10 @@ func jsonAlternatives(path string) []string {
 // defers to the handler, which reports the real problem (no workspace, bad
 // token) instead of a misleading grant refusal.
 func refuseUngrantedMutation(ctx *Ctx, cmd *Command, args []string) error {
+	// These exact handlers enforce explicit native authority, never legacy ambient grants.
+	if nativegovernance.AuthenticatesExplicitly(cmd.Path) || deviceauth.AuthenticatesExplicitly(cmd.Path) {
+		return nil
+	}
 	if !cmd.Mutates || hasDryRun(args) || mutationInvocationIsReadOnly(cmd, args) {
 		return nil
 	}
@@ -345,15 +349,6 @@ func refuseUngrantedMutation(ctx *Ctx, cmd *Command, args []string) error {
 
 func mutationInvocationIsReadOnly(cmd *Command, args []string) bool {
 	switch cmd.Path {
-	case "start":
-		for i, arg := range args {
-			if arg == "--show" || arg == "--show=true" {
-				return true
-			}
-			if arg == "--profile=inspect" || arg == "--profile" && i+1 < len(args) && args[i+1] == "inspect" {
-				return true
-			}
-		}
 	case "project show":
 		return !hasNamedFlag(args, "landing-mode") && !hasNamedFlag(args, "landing-base")
 	case "reconcile":
@@ -465,10 +460,10 @@ func usage(w io.Writer) {
 	fmt.Fprintln(w, "\nUsage: dacli <command> [args] [--json]")
 	fmt.Fprintln(w, "\nPrimary bounded workflow:")
 	fmt.Fprintln(w, "  inspect → plan → claim → implement → verify → review → PR → CI → merge")
-	fmt.Fprintln(w, "  start --profile inspect|task|wave|loop   choose the operating scope")
+	fmt.Fprintln(w, "  native / overview / next / task         provision and inspect governed work")
 	fmt.Fprintln(w, "  overview / next / task                  inspect and select bounded work")
-	fmt.Fprintln(w, "  context / spawn / wait                  brief, run, and collect workers")
-	fmt.Fprintln(w, "  verify / accept / pr / pr diagnose      prove work and observe GitHub")
+	fmt.Fprintln(w, "  context / review / handoff              brief native agents and inspect evidence")
+	fmt.Fprintln(w, "  task check / accept / pr diagnose       record checks and observe GitHub")
 	fmt.Fprintln(w, "  pr wait / pr land / integrate / ship    wait, land one task, or finish one wave")
 	fmt.Fprintln(w, "  branches audit / branches prune         inspect or safely apply cleanup plans")
 	fmt.Fprintln(w, "\nCommand families:")
@@ -592,6 +587,15 @@ func executor(cwd string) mcp.Executor {
 			err := unknownCommandError(argv)
 			return "", marshalErrorDetails(clikit.DescribeError(err)), exitCode(err)
 		}
+		// Owner provisioning and stdio transport are local-only, including through
+		// the legacy MCP CLI escape hatch. Native tools have their own narrow catalog.
+		if !hasHelp(rest) && (cmd.Path == "native serve" || nativegovernance.AuthenticatesExplicitly(cmd.Path) || deviceauth.AuthenticatesExplicitly(cmd.Path)) {
+			if err := refuseUnsupportedJSON(cmd, jsonMode); err != nil {
+				return "", marshalErrorDetails(clikit.DescribeError(err)), exitCode(err)
+			}
+			err := clikit.Refusedf("native provisioning and transport are local-only commands")
+			return "", marshalErrorDetails(clikit.DescribeError(err)), exitCode(err)
+		}
 		// The MCP front end is a second door to the same table, so it goes
 		// through the same gates — otherwise every bypass they close reopens
 		// over MCP.
@@ -617,16 +621,44 @@ func marshalErrorDetails(details clikit.ErrorDetails) string {
 }
 
 func cmdMcpServe(ctx *Ctx, args []string) error {
-	// This command takes no flags, so ANY flag is a typo. An empty allowlist
-	// rejects every one — without it a mistyped flag was dropped and the
-	// command ran as if nothing were wrong.
-	if f, ferr := clikit.ParseFlags(args); ferr != nil {
+	f, ferr := clikit.ParseFlags(args)
+	if ferr != nil {
 		return ferr
-	} else if err := f.Reject(); err != nil {
+	}
+	if err := f.Reject("operator"); err != nil {
 		return err
 	}
-	// Identity binds at launch from the environment; Serve fails fast on a
-	// bad token rather than erroring on the tenth tool call.
-	fmt.Fprintln(ctx.Stderr, "dacli mcp: serving on stdio (identity from DACLI_AGENT, root if unset)")
+	if len(f.Pos) != 0 {
+		return clikit.Usagef("mcp serve accepts no positional arguments")
+	}
+	// Flags.Bool deliberately treats arbitrary values as enabled in some
+	// legacy commands. An authority opt-in must accept only explicit booleans.
+	for _, value := range f.All("operator") {
+		if value != "true" && value != "false" {
+			return clikit.Usagef("--operator accepts only true or false")
+		}
+	}
+	_, tokenPresent := os.LookupEnv("DACLI_AGENT")
+	if f.Bool("operator") && tokenPresent {
+		return clikit.Refusedf("--operator conflicts with DACLI_AGENT; it is only available when no agent token is set")
+	}
+	if !tokenPresent && !f.Bool("operator") {
+		return clikit.Refusedf("MCP requires DACLI_AGENT; provide an agent token through the environment, or explicitly use --operator for local root access")
+	}
+	// Validate the real workspace and identity before reading any requests.
+	// Keep ordinary CLI root convenience, but never inherit it implicitly at
+	// the agent-facing server boundary (issue #1069). Resolution errors do not
+	// contain the credential, including for empty or unrecognized tokens.
+	if _, _, err := openWorkspace(ctx); err != nil {
+		if errors.Is(err, agentid.ErrBadToken) || errors.Is(err, agentid.ErrEmptyToken) {
+			return clikit.Refusedf("cannot serve MCP: %v", err)
+		}
+		return err
+	}
+	mode := "identity from DACLI_AGENT"
+	if f.Bool("operator") {
+		mode = "explicit local operator root identity"
+	}
+	fmt.Fprintf(ctx.Stderr, "dacli mcp: serving on stdio (%s)\n", mode)
 	return mcp.Serve(os.Stdin, ctx.Stdout, executor(ctx.Cwd), cmdDescription())
 }

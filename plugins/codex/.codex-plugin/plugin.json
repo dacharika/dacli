@@ -1,0 +1,24 @@
+{
+  "name": "dacli-governance",
+  "version": "0.5.0",
+  "description": "Scoped native swarms and bounded loops with model routing, required verification and independent review.",
+  "author": {
+    "name": "Taha Bouhsine"
+  },
+  "repository": "https://github.com/mlnomadpy/dacli",
+  "license": "BSD-3-Clause",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "dacli Governance",
+    "shortDescription": "Govern native agent swarms",
+    "longDescription": "Owner-enrolled native tools for scoped swarm planning, bounded controller loops, dispatch lifecycle, next-turn model routing explanations, full required-check verification and independent review. Owner integration remains explicit. Cooperative host delivery; shared MCP connections share one session identity.",
+    "developerName": "Taha Bouhsine",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": "Use dacli to inspect this workspace and plan a governed task."
+  }
+}

@@ -19,8 +19,10 @@
 package acceptance
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -39,6 +41,7 @@ const acceptApplyUsage = "dacli accept apply <task> --proposal <id> [--allow-unl
 
 // Commands is this slice's table, aggregated by the app layer (cli.go).
 var Commands = []clikit.Command{
+	{Path: "accept apply-native", Brief: "Explicit native owner consumes independently reviewed exact landed evidence and closes the canonical task", JSON: true, Mutates: true, Usage: nativeApplyUsage, Run: cmdAcceptApplyNative},
 	{Path: "accept", Brief: "Workspace owner validates a worker proposal against fixed acceptance and reviewed-head evidence, then closes it; this does not merge the branch", JSON: true, Usage: acceptUsage, Run: cmdAccept},
 	{Path: "accept propose", Brief: "Independent read-only reviewer records a verified, exact-tree acceptance handoff", JSON: true, Usage: acceptProposeUsage, Run: cmdAcceptPropose},
 	{Path: "accept apply", Brief: "Task owner atomically validates and applies one independent acceptance handoff", JSON: true, Mutates: true, Usage: acceptApplyUsage, Run: cmdAcceptApply},
@@ -355,6 +358,234 @@ func acceptOneForTree(ctx *clikit.Ctx, w *workspace.Workspace, id *agentid.Ident
 	return acceptOneForTreePolicy(ctx, w, id, t, verify, requireVerify, requireIndependent, allowUnverified, allowUnlanded, false, deferLanding, false, into, finalCommit, finalTree)
 }
 
+// acceptanceArtifact separates the task's reviewed PR head from the explicit
+// post-landing artifact supplied by ship. Neither is inferred from the checkout
+// running the verifier: a clean stale checkout otherwise closed work (core541).
+type acceptanceArtifact struct {
+	Commit string
+	Tree   string
+}
+
+var observeAcceptanceArtifact = canonicalAcceptanceArtifact
+
+func acceptanceSHA(value string) bool {
+	if len(value) != 40 && len(value) != 64 {
+		return false
+	}
+	for _, c := range value {
+		if !(c >= '0' && c <= '9') && !(c >= 'a' && c <= 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+func acceptanceAPIArtifact(w *workspace.Workspace, repo, ref string, landing bool) (acceptanceArtifact, error) {
+	endpoint := "repos/" + repo + "/git/commits/" + ref
+	if landing {
+		endpoint = "repos/" + repo + "/commits/" + url.PathEscape(ref)
+	}
+	out, err := runLandingGH(w.Root, "api", endpoint)
+	if err != nil {
+		return acceptanceArtifact{}, fmt.Errorf("canonical GitHub artifact is unobservable: %w", err)
+	}
+	var commit struct {
+		SHA  string `json:"sha"`
+		Tree struct {
+			SHA string `json:"sha"`
+		} `json:"tree"`
+		Commit struct {
+			Tree struct {
+				SHA string `json:"sha"`
+			} `json:"tree"`
+		} `json:"commit"`
+	}
+	if err := json.Unmarshal([]byte(out), &commit); err != nil {
+		return acceptanceArtifact{}, fmt.Errorf("canonical GitHub artifact is malformed: %w", err)
+	}
+	tree := commit.Tree.SHA
+	if landing {
+		tree = commit.Commit.Tree.SHA
+	}
+	if !acceptanceSHA(commit.SHA) || !acceptanceSHA(tree) || (!landing && commit.SHA != ref) {
+		return acceptanceArtifact{}, fmt.Errorf("canonical GitHub artifact has no exact matching commit/tree")
+	}
+	return acceptanceArtifact{Commit: commit.SHA, Tree: tree}, nil
+}
+
+func localAcceptanceArtifact(w *workspace.Workspace, ref string) (acceptanceArtifact, error) {
+	commit, err := gitx.Run(w.Root, "--no-replace-objects", "rev-parse", "--verify", ref+"^{commit}")
+	if err != nil {
+		return acceptanceArtifact{}, err
+	}
+	commit = strings.TrimSpace(commit)
+	tree, err := gitx.Run(w.Root, "--no-replace-objects", "rev-parse", "--verify", commit+"^{tree}")
+	if err != nil {
+		return acceptanceArtifact{}, err
+	}
+	tree = strings.TrimSpace(tree)
+	if !acceptanceSHA(commit) || !acceptanceSHA(tree) {
+		return acceptanceArtifact{}, fmt.Errorf("canonical local artifact has no exact commit/tree")
+	}
+	return acceptanceArtifact{Commit: commit, Tree: tree}, nil
+}
+
+func canonicalAcceptanceArtifact(w *workspace.Workspace, task *store.Task, into string, landing bool) (acceptanceArtifact, error) {
+	project, err := store.LoadProject(w, task.Project)
+	if err != nil {
+		var missing store.ErrNotFound
+		if !errors.As(err, &missing) {
+			return acceptanceArtifact{}, err
+		}
+	}
+	repo := ""
+	if project != nil {
+		repo, _ = project.Doc.Front.Get("github_repo")
+		repo = strings.TrimSpace(repo)
+	}
+	target, err := landingTarget(w, task, into)
+	if err != nil {
+		if project != nil || repo != "" || landing {
+			return acceptanceArtifact{}, err
+		}
+		target = store.TrunkBranch(w)
+	}
+	if landing {
+		if repo != "" {
+			return acceptanceAPIArtifact(w, repo, target, true)
+		}
+		return localAcceptanceArtifact(w, "refs/heads/"+target)
+	}
+	branch := store.TaskBranch(task)
+	current, currentErr := localAcceptanceArtifact(w, "refs/heads/"+branch)
+	recorded := store.RecordedPRURL(task)
+	if repo == "" && recorded == "" {
+		// Historical branchless local records have no reviewed-PR contract.
+		// Preserve their clean diagnostic verification; task-check stays advisory.
+		if !gitx.BranchExists(w.Root, branch) {
+			return acceptanceArtifact{}, nil
+		}
+		return current, currentErr
+	}
+	type observedPR struct {
+		Number int    `json:"number"`
+		URL    string `json:"url"`
+		State  string `json:"state"`
+		Base   string `json:"baseRefName"`
+		Branch string `json:"headRefName"`
+		Head   string `json:"headRefOid"`
+	}
+	var selected observedPR
+	if recorded != "" {
+		out, err := runLandingGH(w.Root, "pr", "view", recorded, "--json", "number,url,state,baseRefName,headRefName,headRefOid")
+		if err != nil {
+			return acceptanceArtifact{}, fmt.Errorf("recorded reviewed PR is unobservable: %w", err)
+		}
+		if err := json.Unmarshal([]byte(out), &selected); err != nil {
+			return acceptanceArtifact{}, fmt.Errorf("recorded reviewed PR is malformed: %w", err)
+		}
+		if selected.URL != recorded {
+			return acceptanceArtifact{}, fmt.Errorf("reviewed PR does not match its canonical record")
+		}
+	} else {
+		if currentErr != nil {
+			return acceptanceArtifact{}, fmt.Errorf("current task head is unobservable; record the canonical PR or restore the task branch")
+		}
+		out, err := runLandingGH(w.Root, "pr", "list", "--head", branch, "--base", target, "--state", "all", "--json", "number,url,state,baseRefName,headRefName,headRefOid", "--limit", "100")
+		if err != nil {
+			return acceptanceArtifact{}, fmt.Errorf("reviewed task PR is unobservable: %w", err)
+		}
+		var prs []observedPR
+		if err := json.Unmarshal([]byte(out), &prs); err != nil {
+			return acceptanceArtifact{}, fmt.Errorf("reviewed task PR is malformed: %w", err)
+		}
+		for _, pr := range prs {
+			if pr.Branch == branch && pr.Base == target && pr.Head == current.Commit {
+				if pr.Number == selected.Number && selected.Number != 0 {
+					return acceptanceArtifact{}, fmt.Errorf("reviewed task PR observations are ambiguous")
+				}
+				if pr.Number > selected.Number {
+					selected = pr
+				}
+			}
+		}
+	}
+	if selected.Number <= 0 || selected.Branch == "" || selected.Base != target || !acceptanceSHA(selected.Head) || (selected.State != "MERGED" && selected.State != "OPEN") {
+		return acceptanceArtifact{}, fmt.Errorf("canonical reviewed PR has no usable exact task head/base/state")
+	}
+	prURL, err := url.Parse(selected.URL)
+	if err != nil || prURL.Scheme != "https" || prURL.Host == "" {
+		return acceptanceArtifact{}, fmt.Errorf("canonical reviewed PR URL is malformed")
+	}
+	parts := strings.Split(strings.Trim(prURL.Path, "/"), "/")
+	if len(parts) != 4 || parts[2] != "pull" || parts[3] != fmt.Sprintf("%d", selected.Number) || (repo != "" && parts[0]+"/"+parts[1] != repo) {
+		return acceptanceArtifact{}, fmt.Errorf("canonical reviewed PR belongs to another repository")
+	}
+	if selected.Branch != branch && recorded == "" {
+		return acceptanceArtifact{}, fmt.Errorf("canonical reviewed PR belongs to another task branch")
+	}
+	if currentErr == nil && selected.Head != current.Commit {
+		return acceptanceArtifact{}, fmt.Errorf("recorded PR head differs from the current canonical task branch; inspect the current generation")
+	}
+	artifact, err := localAcceptanceArtifact(w, selected.Head)
+	if err == nil {
+		return artifact, nil
+	}
+	if repo == "" {
+		return acceptanceArtifact{}, fmt.Errorf("reviewed PR tree is unobservable locally")
+	}
+	return acceptanceAPIArtifact(w, repo, selected.Head, false)
+}
+
+// An explicit local unlanded close predates reviewed-PR verification. Preserve
+// that escape only when neither configured GitHub nor a recorded PR defines a
+// reviewed artifact; it cannot relax any remote acceptance contract.
+func localUnlandedAcceptance(w *workspace.Workspace, task *store.Task, allowUnlanded bool) bool {
+	if !allowUnlanded || store.RecordedPRURL(task) != "" {
+		return false
+	}
+	project, err := store.LoadProject(w, task.Project)
+	if err != nil {
+		return false
+	}
+	repo, _ := project.Doc.Front.Get("github_repo")
+	return strings.TrimSpace(repo) == ""
+}
+
+func pinAcceptanceArtifact(ctx *clikit.Ctx, w *workspace.Workspace, task *store.Task, into, finalCommit, finalTree string) (acceptanceArtifact, error) {
+	expected, err := observeAcceptanceArtifact(w, task, into, finalCommit != "")
+	if err != nil {
+		return expected, clikit.Refusedf("task %03d canonical verification artifact is unobservable: %v; inspect the recorded PR/current task head before verifying", task.Seq, err)
+	}
+	if finalCommit != "" && (finalCommit != expected.Commit || finalTree != expected.Tree) {
+		return expected, clikit.Refusedf("task %03d supplied final commit/tree %s/%s differs from canonical landing head %s/%s; rerun verification on the reviewed head", task.Seq, finalCommit, finalTree, expected.Commit, expected.Tree)
+	}
+	if expected.Commit == "" {
+		return expected, nil
+	}
+	commit, tree, clean, err := currentAcceptanceTree(ctx.Cwd)
+	if err != nil || !clean {
+		return expected, clikit.Refusedf("task %03d verification working tree is dirty or unreadable; commit or discard changes before verifying", task.Seq)
+	}
+	if commit != expected.Commit || tree != expected.Tree {
+		return expected, clikit.Refusedf("task %03d verification checkout %s/%s differs from canonical reviewed head %s/%s; rerun verification on the reviewed head", task.Seq, commit, tree, expected.Commit, expected.Tree)
+	}
+	return expected, nil
+}
+
+func recheckAcceptanceArtifact(w *workspace.Workspace, task *store.Task, into string, landing bool, expected acceptanceArtifact, evidence store.VerificationEvidence) error {
+	fresh, err := observeAcceptanceArtifact(w, task, into, landing)
+	if err != nil || fresh != expected {
+		return clikit.Refusedf("task %03d canonical verification artifact changed or became unobservable during verification; before %s/%s after %s/%s: %v; rerun verification on the reviewed head", task.Seq, expected.Commit, expected.Tree, fresh.Commit, fresh.Tree, err)
+	}
+	if expected.Commit != "" {
+		if err := store.ValidateFinalTreeVerification(evidence, expected.Commit, expected.Tree); err != nil {
+			return clikit.Refusedf("task %03d verification does not certify the reviewed head: %v", task.Seq, err)
+		}
+	}
+	return nil
+}
+
 func acceptOneForTreePolicy(ctx *clikit.Ctx, w *workspace.Workspace, id *agentid.Identity, t *store.Task, verify string, requireVerify, requireIndependent, allowUnverified, allowUnlanded, allowPolicyUnknown, deferLanding, fullOutput bool, into, finalCommit, finalTree string) error {
 	// A task with no acceptance criteria checks zero boxes and reports success,
 	// so zero boxes read as all boxes and the close certifies nothing (dacli
@@ -373,18 +604,28 @@ func acceptOneForTreePolicy(ctx *clikit.Ctx, w *workspace.Workspace, id *agentid
 		return err
 	}
 	var verifyRecord store.VerificationEvidence
+	var expectedArtifact acceptanceArtifact
+	canonicalLanding := finalCommit != ""
+	bindCanonical := canonicalLanding || (!deferLanding && !localUnlandedAcceptance(w, t, allowUnlanded))
 	if verify != "" {
 		var err error
+		if bindCanonical {
+			expectedArtifact, err = pinAcceptanceArtifact(ctx, w, t, into, finalCommit, finalTree)
+		}
+		if err != nil {
+			return err
+		}
 		verifyRecord, err = runVerify(ctx, w, id.ID, verify, fullOutput)
 		if err != nil {
 			// A failed check is a RESULT, reported operationally (exit 1): the
 			// verification ran and the task did not pass it, so it stays open.
 			return fmt.Errorf("verification failed — task %03d NOT accepted: %w", t.Seq, err)
 		}
-		if finalCommit != "" {
-			if err := store.ValidateFinalTreeVerification(verifyRecord, finalCommit, finalTree); err != nil {
-				return clikit.Refusedf("task %03d verification does not certify the reviewed landing head: %v", t.Seq, err)
+		if bindCanonical {
+			if err := recheckAcceptanceArtifact(w, t, into, canonicalLanding, expectedArtifact, verifyRecord); err != nil {
+				return err
 			}
+			finalCommit = expectedArtifact.Commit
 		}
 		if !ctx.JSON {
 			fmt.Fprintf(ctx.Stderr, "verification passed: %s\n", verify)
@@ -443,6 +684,11 @@ func acceptOneForTreePolicy(ctx *clikit.Ctx, w *workspace.Workspace, id *agentid
 	var proposals []*eventlog.Event
 	var newly, satisfied, total int
 	if err := store.WithTask(w, t, func(fresh *store.Task) error {
+		if verify != "" && bindCanonical {
+			if err := recheckAcceptanceArtifact(w, fresh, into, canonicalLanding, expectedArtifact, verifyRecord); err != nil {
+				return err
+			}
+		}
 		if t.Owner() == id.ID && fresh.Owner() != id.ID {
 			prev := fresh.Owner()
 			fresh.Doc.Front.Set("owner", id.ID)
@@ -676,9 +922,18 @@ func acceptAllForTreePolicy(ctx *clikit.Ctx, w *workspace.Workspace, id *agentid
 		// task N specifically was done, yet it closed every proposed task
 		// (dacli 185). Re-running costs more; a true record is worth it.
 		var verifyRecord store.VerificationEvidence
+		var expectedArtifact acceptanceArtifact
+		canonicalLanding := finalCommit != ""
+		bindCanonical := canonicalLanding || (!deferLanding && !localUnlandedAcceptance(w, t, allowUnlanded))
 		var checkPolicy *store.GitHubRequiredCheckPolicy
 		if verify != "" {
 			var err error
+			if bindCanonical {
+				expectedArtifact, err = pinAcceptanceArtifact(ctx, w, t, into, finalCommit, finalTree)
+			}
+			if err != nil {
+				return err
+			}
 			verifyRecord, err = runVerify(ctx, w, id.ID, verify, fullOutput)
 			if err != nil {
 				if clikit.ExitCode(err) == 3 {
@@ -687,12 +942,12 @@ func acceptAllForTreePolicy(ctx *clikit.Ctx, w *workspace.Workspace, id *agentid
 				fmt.Fprintf(ctx.Stderr, "skipped %03d-%s: verification failed — %v\n", t.Seq, t.Slug, err)
 				continue
 			}
-			if finalCommit != "" {
-				if err := store.ValidateFinalTreeVerification(verifyRecord, finalCommit, finalTree); err != nil {
-					return clikit.Refusedf("task %03d verification does not certify the reviewed landing head: %v", t.Seq, err)
+			if bindCanonical {
+				if err := recheckAcceptanceArtifact(w, t, into, canonicalLanding, expectedArtifact, verifyRecord); err != nil {
+					return err
 				}
 			}
-			checkPolicy, err = observeAcceptancePolicy(ctx, w, t, into, finalCommit, allowPolicyUnknown, &verifyRecord)
+			checkPolicy, err = observeAcceptancePolicy(ctx, w, t, into, expectedArtifact.Commit, allowPolicyUnknown, &verifyRecord)
 			if err != nil {
 				return err
 			}
@@ -703,6 +958,11 @@ func acceptAllForTreePolicy(ctx *clikit.Ctx, w *workspace.Workspace, id *agentid
 		var proposals []*eventlog.Event
 		var newly, satisfied, total int
 		err := store.WithTask(w, t, func(fresh *store.Task) error {
+			if verify != "" && bindCanonical {
+				if err := recheckAcceptanceArtifact(w, fresh, into, canonicalLanding, expectedArtifact, verifyRecord); err != nil {
+					return err
+				}
+			}
 			if t.Owner() == id.ID && fresh.Owner() != id.ID {
 				prev := fresh.Owner()
 				fresh.Doc.Front.Set("owner", id.ID)

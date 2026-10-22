@@ -6,9 +6,12 @@ The [`cloud/`](https://github.com/mlnomadpy/dacli/tree/main/cloud) boundary now
 contains a runnable API lifecycle, background-worker lifecycle, strict typed
 configuration, a transactional checksummed PostgreSQL migration runner, and a
 tenant-scoped repository foundation. This is infrastructure for the Phase 1
-plan, not a customer-ready SaaS claim. There is no browser/device-code login
-CLI, deployed tenant API, metadata synchronization, billing, approval service,
-portfolio view, hosted GitHub App service, deployment, or SLO yet.
+plan, not a customer-ready SaaS claim. Device-code authentication and signed
+metadata-sync client/hosted adapters are assembled in source, with native OS
+credential storage and explicit operator-configured routes. The assembled
+production source compiles, but this implementation wave remains behaviorally
+untested and has no live provider, synchronization or deployment proof yet. A deployed tenant API, billing, approval service, portfolio view,
+hosted GitHub App service and SLO remain pending.
 
 ## What exists
 
@@ -67,8 +70,8 @@ boundaries are in the
 
 The program remains tracked by
 [#446](https://github.com/mlnomadpy/dacli/issues/446). The ordered implementation
-path is native signed device authentication, metadata-only sync, signed
-role/policy publication, approval and budget
+path begins with validating the assembled native device authentication and
+metadata-only sync adapters, then signed role/policy publication, approval and budget
 controls, the GitHub App service, and finally the cross-project operator view.
 Each feature must satisfy
 the [threat model](CONTROL_PLANE_THREAT_MODEL.md),
@@ -80,3 +83,33 @@ The exact persistence, crash, retry, retention, and recovery contract is in the
 [worker boundary](CONTROL_PLANE_WORKER.md). The versioned, executable
 PostgreSQL restore, signing-key rotation, tenant-retention, and incident
 procedure is in the [recovery runbook](CONTROL_PLANE_RECOVERY.md).
+
+## Device authentication and local metadata sync source
+
+The local commands are `auth login`, `auth logout`, `auth whoami`,
+`project connect`, `project disconnect`, `project sync` and `project status`.
+Authentication uses explicit provider/tenant/device selection and the native OS
+credential store; unsupported stores refuse. Project sync reuses the signed v1
+allowlist and immutable outbox/inbox rather than creating remote execution
+permission. A local signer can queue offline, but authenticated server binding
+and exact acknowledgment are required before delivery advances. Incoming signed
+records remain proposals under existing local authority.
+
+The hosted source exposes device authorization, token exchange/refresh, whoami
+and revocation plus exact sync binding and bounded exchange. Activation requires
+explicit owner `hosted.device_oauth` configuration, approved subject mappings,
+server public signing keys and `hosted.sync_bindings` for the exact local/remote
+route. Client-secret configuration contains only the environment-variable name;
+resolved values are excluded from safe config output. No user query or body
+creates tenant authority, membership, device trust or a repository binding.
+
+Migration `0011_device_auth.sql` adds tenant-isolated encrypted device flow state
+and immutable serialized outbox delivery order. Run the existing explicit
+operator migration workflow before activating a runtime that requires schema11;
+startup does not migrate or provision accounts. Operators must also grant the
+application database role the required auth-flow table privileges and sequence
+USAGE for the new delivery ordinal sequence; trigger-based allocation is not an
+automatic permission grant. Existing configured PostgreSQL
+state, provider credentials and deployment remain operator responsibilities.
+See [API wire contracts](CONTROL_PLANE_API.md) and [trust/undo](TRUST.md).
+Source assembly is not a claim of live login, delivery, conformance or rollout.

@@ -1,166 +1,81 @@
 ---
 name: dacli
-description: "Run autonomous product-building swarms with dacli. Use when an orchestrator AI agent must plan a critical-path backlog, route models across coding-agent CLIs, execute bounded task/wave/loop profiles, recover durable state, or verify and land work through GitHub."
+description: "Govern native coding-host work with dacli: inspect canonical tasks, use scoped plugin sessions and fenced leases, record exact revision evidence, and preserve explicit owner review, publication and recovery authority."
 ---
 
 # dacli
 
-Act as the orchestrator agent. Use dacli as the agent-facing control plane over
-replaceable coding CLIs: interpret the product direction, maintain the critical
-path, choose capable and economical roles/models, and judge evidence while
-dacli enforces state, permissions, budgets, lifecycle, recovery, and landing.
-Continuous operation is repeated bounded transactions with durable checkpoints,
-not permissionless execution.
+Use the native coding host for agent creation, delegation, model selection and
+execution. dacli supplies shared task/context records and authenticated governance
+transitions. Coding-agent CLI launchers, runtime presets and provider-driven
+start/loop/service commands have been removed from current source.
 
-Keep authority explicit. The human governor supplies direction, credentials,
-exceptions, emergency stop, and release policy. Worker coding agents implement,
-review, and test. GitHub is the shared collaboration and landing surface; the
-local dacli workspace is the canonical execution and evidence ledger.
+I will use this skill to inspect the workspace and preserve its authority and
+evidence boundaries. Repository instructions and the user's explicit scope take
+precedence. Do not fabricate credentials or treat a host label as authentication.
 
-Repository `AGENTS.md` and `CONTRIBUTING.md` override this skill. Negotiate the
-installed surface before following examples, then measure live state through
-machine-readable commands:
+## Inspect the installed surface
 
 ```bash
 dacli version --compatibility --json
 dacli capabilities --json
-dacli whoami --json
-dacli overview --json
 dacli status --project <project> --json
-dacli doctor --json
 dacli task list --status open --project <project> --json
-dacli next --project <project> --critical-path --json
-dacli agents --project <project> --active-only --limit 50 --json
-dacli loop status --project <project> --json
-dacli task status <task> --json
 dacli explain --project <project> --json
-dacli github pull <project> --dry-run --limit 100 --json
 ```
 
-For incremental observation, resume worker pages with `--cursor
-<next_cursor>` and transcript pages with `dacli logs <run> --cursor <byte>
---limit 65536 --json`. Use `agents --history`, `logs --full`, or verification
-`--full-output` only when the complete bounded artifact is intentionally needed.
-GitHub adoption previews are paged plan projections: resume with `--cursor
-<next_cursor>`, and add `--include-acceptance` only when issue acceptance text
-is necessary for the decision. Use `github sync <project> --dry-run --json`
-when both the inbound adoption plan and a bounded outbound preview are needed.
-JSON pull/sync without `--dry-run` refuses because applying either plan mutates
-local or remote state.
+The adjacent `capabilities.json` declares required command contracts. Inspect
+live JSON support before parsing output. A required capability gap means this
+skill and binary do not match; do not invent a fallback launcher. Older released
+v0.3.1 binaries do not contain the native plugin preview.
 
-This discovers the adjacent `capabilities.json` requirement document and
-reports supported, optional-missing, required-missing, and incompatible-schema
-states. A required gap is a policy refusal: update the binary or use guidance
-generated for its `dacli capabilities --json` manifest. An optional gap names
-an explicit fallback. Confirm `json: true` in the live manifest for every
-command whose output the agent will parse—not only the bootstrap block, but
-also `github projection`, `start --show`, `pr diagnose`, and optional `pr
-wait`. Requirements v1 identifies commands and flags, while that live field is
-the authority for machine-readable output. In particular, use `task check
---verify` only when
-`cli.command.task.check.flag.verify` is advertised; otherwise run the verifier
-separately, retain its output, and check only criteria whose evidence contract
-allows that fallback.
+## Native task workflow
 
-## Choose the first mode
+Use the reviewed [Codex plugin setup](https://github.com/mlnomadpy/dacli/blob/main/plugins/codex/README.md).
+Owner provisioning/enrollment is explicit and local-only. Profiles and tokens
+stay private, outside the repository and plugin archive. The plugin starts only
+`dacli native serve` with its configured connection. Never inject `DACLI_AGENT`,
+use an operator fallback, or spawn a nested coding CLI to obtain access.
 
-| Situation | First choice |
-|---|---|
-| Understand work | `dacli start --profile inspect` |
-| One bounded change | `dacli start --profile task` |
-| Independent ready tasks | `dacli start --profile wave` with fixed WIP and claims |
-| Repeatable backlog improvement | `dacli start --profile loop` with bounded cycles and budgets |
-| Resident single-project runner | `dacli start --profile service`; repeated finite loops |
-| Multi-repo or multi-tenant control | Future control-plane vision, not a local-service promise |
+1. Inspect native `identity`, `workspace_status` and `task_get` before acting.
+2. Register the externally created clean Git checkout as an attempt and acquire
+   a current scoped lease. Observe readiness/refusals; renew before expiry.
+3. Use the host's tools within the assigned scope. Commit the finished change,
+   publish the exact observed revision, then submit self-reported evidence.
+4. Trusted runner evidence and independent review require distinct owner-issued
+   grants. A shared MCP connection shares one identity; role/model/host metadata
+   cannot establish reviewer independence. A reviewer does not take the worker lease.
+5. The owner verifies exact-source artifacts and current acceptance. Native review
+   registration and one-use publication decisions do not themselves close tasks,
+   publish, merge or release. Release unused leases and revoke unused sessions.
 
-Preview the resolved project policy before execution:
+Run actual checks from the checkout containing the change. Preserve command,
+working directory, commit/tree, test names and output digest. Zero exit with no
+matching tests is not proof. Make a named semantic test fail by mutating its guard,
+restore it, and record both results when repository policy requires that evidence.
 
-```bash
-dacli start --project <project> --profile <mode> --dry-run
-dacli start --project <project> --profile <mode> --configure
-dacli start --project <project> --show --json
-```
+## Recovery and publication
 
-Choose the coding harness separately from the model tier. The safe default is
-one harness family for the whole run: implementation, continuous-improvement
-review, recovery, and fallback. For example, a Codex run is configured with
-`--harness codex`; dacli may route among Codex roles/models, but it must not
-silently try Claude Code, Gemini, Copilot, or a generic adapter. Cross-harness
-work requires an explicit allowlist and `--hybrid`:
+Use bounded historical `agents`, `runs`, `logs` and `replay` reads for existing
+records. Do not treat an old process record or acquisition receipt as live native
+authority. Cleanup requires an exact preview/apply plan; unknown or divergent
+material stays protected. Never erase an authority file to repair a refusal.
 
-```bash
-dacli start --project <project> --profile loop --harness codex --configure
-dacli start --project <project> --profile loop \
-  --harness codex --harness claude --hybrid --configure
-```
+Preview GitHub adoption/projection before an authorized write; public-safe task
+fields are the default. Internal content requires separate recorded authority.
+Do not publish messages, issues or PRs without the user's scope authorizing them.
+No eligible work is a reason to stop, not to create busywork.
 
-Do not confuse independence with vendor switching. A single-harness run may use
-a different role or model for review. Use hybrid only when the operator wants
-cross-harness diversity and every listed CLI is authenticated and preflighted.
+Read the current [operator playbook](https://github.com/mlnomadpy/dacli/blob/main/docs/OPERATOR_PLAYBOOK.md)
+and the relevant local reference:
 
-`--dry-run` neither writes nor launches; `--configure` persists without
-launching. Inspect execution is read-only. Every other profile persists its
-resolution and then delegates to the existing bounded loop strategy. Service
-adds a lease and durable checkpoints around repeated finite invocations; it
-never grants tag or release authority.
-
-Never manufacture backlog work. When GitHub is the declared collaboration
-surface, confirm or create the issue before implementation, then keep the issue,
-task, branch, PR, checks, and accepted trunk state linked. Exit 3 is a policy
-refusal: stop and follow the stated remedy rather than retrying unchanged.
-For independent acceptance, a spawned RO reviewer runs `dacli accept propose
-<task> --verify "<command>"`; the owner copies its exact `dacli accept apply
-<task> --proposal <ap-id>` next action. The content-addressed handoff binds the
-reviewer and spawned runtime, clean commit/tree, checklist, and verification
-evidence, survives restart, and appears in `task show` / `task status`. Never
-export or copy the reviewer token to apply a proposal. Use plain `dacli accept`
-only for direct owner acceptance where a separate reviewer is not required.
-For `accept --verify`, dacli merges configured checks with legacy branch
-protection and applicable repository/organization rulesets. Treat an
-unobservable check policy as a real refusal; the explicit
-`--allow-unobservable-check-policy` exception is owner authority that is
-recorded in the task log, not a routine retry strategy.
-
-Use the short agent lifecycle surface for the ordinary path. `route <path>` is
-the exact alias of `team route`; `pr wait --task <ref>` repeatedly consumes the
-typed `pr diagnose` result within a bound; `pr land --task <ref>` delegates to
-the existing integration transaction. Before removing old worktrees or local
-branches, run `branches audit --project <project> --json`, then apply only its
-exact content-addressed id with `branches prune --project <project>
---apply-safe <plan-id>`. These aliases do not create parallel state machines.
-
-Treat writable claims as enforced authority, not planning hints. An isolated
-RW run executes in a disposable `claim-sandbox/v1` checkout and projects only
-validated claimed regular-file additions/modifications into the canonical task
-worktree. If review proves the scope too narrow, root may record a reasoned
-expansion for a later relaunch with `dacli claim expand --task <ref> --run
-<terminal-run> --add <path> --reason <why>`; never infer authority from paths a
-provider attempted to write.
-
-## Read one focused reference before acting
-
-- [operating-profiles.md](references/operating-profiles.md): choose task,
-  wave, or bounded loop; WIP and budgets.
-- [model-economics.md](references/model-economics.md): capability, Te, context,
-  consequence uplift, quota/health, and independent review diversity.
-- [critical-path-github.md](references/critical-path-github.md): deduplicate,
-  estimate/depend, critical path, GitHub issue/PR/check/merge cycle.
-- [continuous-operations.md](references/continuous-operations.md): STOP,
-  heartbeats, journals, breakers, dead letters, observability, recovery.
-- [workspace-tasks-projects.md](references/workspace-tasks-projects.md):
-  project isolation, shared workspace state, references, and GitHub mappings.
-- [runtimes-models-skills.md](references/runtimes-models-skills.md): harness
-  pinning, explicit hybrid mode, model routing, and symmetric
-  Codex/Claude Code/Gemini/Copilot/generic adapters.
-- [roster-design.md](references/roster-design.md): capability tiers, role sizing,
-  provider diversity, and reusable team policy.
-- [swarms-loops.md](references/swarms-loops.md): claims, worktrees, supervision,
-  dashboard observation, review timing, and bounded loop execution.
-- [recovery.md](references/recovery.md): refusals, partial runs, PR conflicts,
-  journals, and safe restart inspection.
-- [github-landing.md](references/github-landing.md): GitHub disclosure,
-  PR/landing policy, and release boundary.
-
-The canonical orchestration narrative is the public
-[operator playbook](https://github.com/mlnomadpy/dacli/blob/main/docs/OPERATOR_PLAYBOOK.md).
-Keep this file a router; do not duplicate its detailed runbooks.
+- [Workspace tasks and projects](references/workspace-tasks-projects.md)
+- [Operating boundaries](references/operating-profiles.md)
+- [Native hosts and skills](references/runtimes-models-skills.md)
+- [Host delegation](references/swarms-loops.md)
+- [Repeated work](references/continuous-operations.md)
+- [Model economics](references/model-economics.md)
+- [Roles and independence](references/roster-design.md)
+- [Critical-path GitHub work](references/critical-path-github.md)
+- [Landing](references/github-landing.md)
+- [Recovery](references/recovery.md)

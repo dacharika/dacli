@@ -435,7 +435,7 @@ func worktreeOwnerships(w *workspace.Workspace, dir string) ([]worktreeOwnership
 			return nil, fmt.Errorf("run %s owner %s still has a live process", rec.RunID, rec.Child)
 		}
 		if rec.Outcome == "" {
-			return nil, fmt.Errorf("run %s owner %s has no terminal outcome; finalize it with `dacli wait %s`", rec.RunID, rec.Child, rec.RunID)
+			return nil, fmt.Errorf("run %s owner %s has no terminal outcome; inspect the native host outcome and use audited owner recovery before reclaiming ownership", rec.RunID, rec.Child)
 		}
 		owner := rec.Child
 		if transfer, err := readWorktreeTransfer(filepath.Join(runDir, worktreeTransferFile)); err == nil {

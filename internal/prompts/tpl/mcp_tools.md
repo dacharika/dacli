@@ -1,4 +1,4 @@
-<!-- dacli-prompt schema: dacli-prompt/v1 base: autonomous-delivery/v1 -->
+<!-- dacli-prompt schema: dacli-prompt/v1 base: native-governance/v1 -->
 # MCP tool descriptions
 
 One section per tool, matched by heading. For the primary audience these ARE
@@ -7,7 +7,9 @@ here; the server picks the text up at build time.
 
 The surface is two tiers: the core verbs below get full schemas (what a working
 agent touches between claim and done), and one `cli` escape hatch reaches every
-remaining command. A policy refusal is a normal result carrying `refused`, not
+remaining administrative command allowed by this transport. Native owner commands
+are local-only; coding-agent launchers have been removed. This is the legacy
+administrative catalog, not the native plugin catalog. A policy refusal is a normal result carrying `refused`, not
 an error — read it and do what its `next` says; never retry it.
 
 ## get_context
@@ -78,7 +80,7 @@ Inspect the exact typed GitHub publication policy before opening a PR or mirrori
 Escape hatch: run any dacli command by `argv` — everything outside the tools above. It returns the same `--json` payload the CLI emits (pass `json: true` where the command supports it), and it honors the same exit-code contract: a policy refusal comes back as a `refused` result, never an error, so never retry it.
 
 - Setup & admin: init, project, role, agent, risk, glossary, sync (apply pending child events you own), events tail, next (--parallel N), lint, doctor, standup, catalog (browsable role/skill roster to docs/ROSTER.md).
-- Agent lifecycle: spawn (--detach backgrounds it and returns a run-id immediately; --claim "<path,path>" declares its edit paths so parallel children stay disjoint; --advise PREVIEWS the calibrated role×model×runtime band, taint status, and requested token-ceiling capability without launching; --max-tokens N passes a declared runtime ceiling flag or refuses, while --allow-advisory-tokens explicitly permits an unenforced launch), wait (block until detached runs finish, then finalize outcome), agents --tail (each child's last transcript line — thinking vs. hung), logs -f (follow a run's transcript), kill (whole process tree, SIGTERM→SIGKILL).
-- Owner close-out: accept (verify + box-check + done in one step), commit, push, pr (body carries acceptance + findings; --with-verdicts posts the verify panel), integrate and ship (--pr opens a PR per branch and merges via gh; --no-merge stops for review; local merge otherwise), merge.
-- Verification & calibration: verify (adversarial refuter panel, one seat per runtime, tally derived from the log), calibrate (Te vs. actuals by size band), estimate, taint (blast radius of a suspect source).
+- Historical evidence: agents, runs list/show, logs and replay inspect retained run records. They do not resume removed launchers or confer native authority.
+- Owner close-out: accept (verify + box-check + done in one step), commit, push, pr (body carries acceptance + findings; --with-verdicts projects historical verdicts under disclosure policy), integrate and ship (--pr opens a PR per branch and merges via gh; --no-merge stops for review; local merge otherwise), merge.
+- Verification & calibration: task check --verify (explicit bounded check command), calibrate (Te vs. actuals by size band), estimate, taint (blast radius of a suspect source).
 - GitHub mirror: github push (tasks→issues, marker-idempotent), github pull (adopt human issues as tasks), github sync (pull then push), github project (mirror issues into a Project v2 board with mapped Status/Severity/Area fields).

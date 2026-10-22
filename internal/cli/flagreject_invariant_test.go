@@ -84,7 +84,7 @@ func TestHelpNeverExecutesTheCommand(t *testing.T) {
 	}
 
 	// -h is the same promise.
-	if out := run(t, dir, 0, "kill", "-h"); !strings.Contains(out, "kill") {
+	if out := run(t, dir, 0, "task", "claim", "001", "-h"); !strings.Contains(out, "task claim") {
 		t.Errorf("-h must describe the command, got:\n%s", out)
 	}
 }
@@ -124,15 +124,13 @@ func TestHelpShowsTheFlagSynopsisWithValueShapes(t *testing.T) {
 	gitInit(t, dir)
 	run(t, dir, 0, "init", "--name", "h")
 
-	out := run(t, dir, 0, "loop", "--help")
+	out := run(t, dir, 0, "task", "check", "--help")
 	for _, want := range []string{
-		"--project <slug>",
-		"--halt-after-idle N", // the flag from the report, with its value
-		"--max-cycles N",
-		"--width N",
+		"--n N",
+		"--verify command",
 	} {
 		if !strings.Contains(out, want) {
-			t.Errorf("loop --help must document %q:\n%s", want, out)
+			t.Errorf("task check --help must document %q:\n%s", want, out)
 		}
 	}
 }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import NativeGovernancePanel from '@/components/NativeGovernancePanel.vue'
 import { computed } from 'vue'
 import ChartFrame from '@/components/ChartFrame.vue'
 import type { Burn, ChartContract } from '@/types'
@@ -309,5 +310,10 @@ const chartContract = computed<ChartContract>(() => ({
         </div>
       </div>
     </template>
+    <NativeGovernancePanel
+      v-for="snapshot in burn.native ?? []"
+      :key="snapshot.project"
+      :snapshot="snapshot"
+    />
   </section>
 </template>

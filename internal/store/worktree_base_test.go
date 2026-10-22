@@ -133,3 +133,81 @@ func TestResolveTaskWorktreeBaseRefusesMissingConfiguredRemoteBase(t *testing.T)
 		t.Fatal("base observation failure created a task branch")
 	}
 }
+
+func TestResolveTaskWorktreeBaseRespectsExplicitLocalLanding(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git unavailable")
+	}
+	remote := filepath.Join(t.TempDir(), "remote.git")
+	worktreeBaseGit(t, t.TempDir(), "init", "--bare", "-q", remote)
+	root := t.TempDir()
+	worktreeBaseGit(t, root, "init", "-q", "-b", "main")
+	worktreeBaseGit(t, root, "config", "user.email", "test@example.com")
+	worktreeBaseGit(t, root, "config", "user.name", "Test")
+	remoteHead := worktreeBaseCommit(t, root, "remote.txt")
+	worktreeBaseGit(t, root, "remote", "add", "origin", remote)
+	worktreeBaseGit(t, root, "push", "-q", "-u", "origin", "main")
+	localHead := worktreeBaseCommit(t, root, "landed-locally.txt")
+	worktreeBaseGit(t, root, "checkout", "-q", "-b", "operator-feature")
+	worktreeBaseCommit(t, root, "operator-only.txt")
+	w, err := workspace.Init(root, "local-landing")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, base, ref, source, commit string
+		mode                            model.LandingMode
+	}{
+		{"local", "main", "refs/heads/main", "local-landing", localHead, model.LandingLocal},
+		{"local-default-base", "", "refs/heads/main", "local-landing", localHead, model.LandingLocal},
+		{"pr", "main", "refs/remotes/origin/main", "fresh-origin", remoteHead, model.LandingPR},
+		{"legacy", "", "refs/remotes/origin/main", "fresh-origin", remoteHead, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var policies []model.LandingPolicy
+			if tc.mode != "" {
+				policies = append(policies, model.LandingPolicy{Mode: tc.mode, Base: tc.base})
+			}
+			if _, err := CreateProject(w, "a-root", tc.name, tc.name, "", "", policies...); err != nil {
+				t.Fatal(err)
+			}
+			task, err := CreateTask(w, "a-root", tc.name, "Exact landing base", TaskOpts{Accept: []string{"done"}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := ResolveTaskWorktreeBase(w, task)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Commit != tc.commit || got.Ref != tc.ref || got.Source != tc.source || got.Branch != "main" || got.Configured != (tc.base != "") {
+				t.Fatalf("%s base=%+v, want %s at %s", tc.name, got, tc.ref, tc.commit)
+			}
+		})
+	}
+
+	// A missing local branch must not silently adopt the available remote ref.
+	localTask, err := FindTask(w, "local/001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	worktreeBaseGit(t, root, "branch", "-D", "main")
+	if _, err := ResolveTaskWorktreeBase(w, localTask); err == nil || !strings.Contains(err.Error(), "local landing base main") {
+		t.Fatalf("missing local ref used remote fallback: %v", err)
+	}
+	worktreeBaseGit(t, root, "branch", "main", localHead)
+	worktreeBaseGit(t, root, "remote", "set-url", "origin", filepath.Join(t.TempDir(), "unavailable.git"))
+	if got, err := ResolveTaskWorktreeBase(w, localTask); err != nil || got.Commit != localHead {
+		t.Fatalf("local landing unnecessarily consulted origin: %+v, %v", got, err)
+	}
+	prTask, err := FindTask(w, "pr/001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ResolveTaskWorktreeBase(w, prTask); err == nil || !strings.Contains(err.Error(), "observe landing base origin/main") {
+		t.Fatalf("PR landing used stale remote/local fallback: %v", err)
+	}
+	worktreeBaseGit(t, root, "remote", "remove", "origin")
+	if got, err := ResolveTaskWorktreeBase(w, prTask); err != nil || got.Commit != localHead || got.Source != "local-no-origin" {
+		t.Fatalf("no-origin compatibility changed: %+v, %v", got, err)
+	}
+}

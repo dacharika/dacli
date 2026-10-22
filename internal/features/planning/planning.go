@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/mlnomadpy/dacli/internal/agentid"
+	"github.com/mlnomadpy/dacli/internal/application"
 	"github.com/mlnomadpy/dacli/internal/clikit"
 	"github.com/mlnomadpy/dacli/internal/eventlog"
 	"github.com/mlnomadpy/dacli/internal/gates"
@@ -23,6 +24,10 @@ import (
 )
 
 var Commands = []clikit.Command{
+	{Path: "project connect", Brief: "Bind a local project to verified remote metadata sync", JSON: true, Mutates: true, Usage: "dacli project connect <slug> --provider <url> --tenant <id> --device <id> --remote-project <id> --environment <id> --repository <id>", Run: cmdProjectConnect},
+	{Path: "project disconnect", Brief: "Preserve a local connection tombstone without disabling local work", JSON: true, Mutates: true, Usage: "dacli project disconnect <slug>", Run: cmdProjectDisconnect},
+	{Path: "project sync", Brief: "Queue allowlisted signed metadata and receive proposal-only records", JSON: true, Mutates: true, Usage: "dacli project sync <slug>", Run: cmdProjectSync},
+	{Path: "project status", Brief: "Inspect cloud connection health, cursor and pending backlog", JSON: true, Usage: "dacli project status <slug>", Run: cmdProjectStatus},
 	{Path: "project add", Brief: "Create a project", Mutates: true, Usage: "dacli project add <title> [--slug s] [--goal g] [--stage definition|elicitation|approach|design] [--landing-mode local|pr] [--landing-base BRANCH]", Run: cmdProjectAdd},
 	{Path: "project list", Brief: "List projects", Usage: "dacli project list", Run: cmdProjectList},
 	{Path: "project show", Brief: "Show a project and configure its effective landing policy when landing flags are supplied", JSON: true, Mutates: true, Usage: "dacli project show <slug> [--landing-mode local|pr] [--landing-base BRANCH]", Run: cmdProjectShow},
@@ -319,7 +324,11 @@ func cmdTaskList(ctx *clikit.Ctx, args []string) error {
 	if ctx.JSON {
 		return cmdTaskListJSON(ctx, args)
 	}
-	w, _, err := clikit.OpenWorkspace(ctx)
+	w, id, err := clikit.OpenWorkspace(ctx)
+	if err != nil {
+		return err
+	}
+	r, err := application.NewCooperativeContext(w, id)
 	if err != nil {
 		return err
 	}
@@ -335,7 +344,7 @@ func cmdTaskList(ctx *clikit.Ctx, args []string) error {
 	if serr != nil {
 		return clikit.Usagef("%v", serr)
 	}
-	ts, err := store.ListTasks(w, f.Get("project"), status)
+	ts, err := application.ListTasks(r, f.Get("project"), status)
 	if err != nil {
 		return err
 	}
@@ -380,7 +389,11 @@ type taskJSON struct {
 }
 
 func cmdTaskListJSON(ctx *clikit.Ctx, args []string) error {
-	w, _, err := clikit.OpenWorkspace(ctx)
+	w, id, err := clikit.OpenWorkspace(ctx)
+	if err != nil {
+		return err
+	}
+	r, err := application.NewCooperativeContext(w, id)
 	if err != nil {
 		return err
 	}
@@ -396,7 +409,7 @@ func cmdTaskListJSON(ctx *clikit.Ctx, args []string) error {
 	if serr != nil {
 		return clikit.Usagef("%v", serr)
 	}
-	ts, err := store.ListTasks(w, f.Get("project"), status)
+	ts, err := application.ListTasks(r, f.Get("project"), status)
 	if err != nil {
 		return err
 	}
@@ -425,7 +438,11 @@ func cmdTaskListJSON(ctx *clikit.Ctx, args []string) error {
 }
 
 func cmdTaskShow(ctx *clikit.Ctx, args []string) error {
-	w, _, err := clikit.OpenWorkspace(ctx)
+	w, id, err := clikit.OpenWorkspace(ctx)
+	if err != nil {
+		return err
+	}
+	r, err := application.NewCooperativeContext(w, id)
 	if err != nil {
 		return err
 	}
@@ -438,7 +455,7 @@ func cmdTaskShow(ctx *clikit.Ctx, args []string) error {
 	if len(f.Pos) == 0 {
 		return clikit.Usagef("usage: dacli task show <ref>")
 	}
-	t, err := store.FindTask(w, f.Pos[0])
+	t, err := application.GetTask(r, f.Pos[0])
 	if err != nil {
 		return err
 	}

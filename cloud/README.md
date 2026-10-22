@@ -1,13 +1,20 @@
 # Control-plane service skeleton
 
 This directory is the Phase 1 reference service boundary decided in
-[ADR 0001](../docs/decisions/0001-control-plane-boundary.md). It contains one
-API process, one worker, strict shared configuration, a checksummed PostgreSQL
-migration runner, and the first tenant-scoped persistence boundary. It does
-**not** yet wire browser/device-code login or tenant routes into the standalone
-binary, nor ship billing, GitHub service, hosted queue composition, or remote-execution
-behavior. The tenant HTTP boundary is injectable so authentication and database
-drivers remain explicit deployment choices rather than hidden defaults.
+[ADR 0001](../docs/decisions/0001-control-plane-boundary.md). The standalone API
+and worker compose the PostgreSQL tenant repository, bounded tenant routes,
+envelope inbox/outbox processing, and the worker lifecycle. Device OAuth routes
+are enabled when explicit provider configuration is supplied; configured sync
+bindings enable the sync routes. Billing, a GitHub service, a general hosted
+queue, and remote execution are not included. PostgreSQL access uses the
+repository's linked `lib/pq` driver, while credentials, tenant configuration,
+OAuth endpoints and keys remain explicit deployment inputs.
+
+The service source is implemented, but deployment and support qualification are
+tracked separately. The real-PostgreSQL composition qualification is opt-in;
+it does not exercise external OAuth, Keychain, backup restore or crash recovery.
+The recovery runbook and smoke script define backup/restore procedures, but do
+not establish those as completed operational qualifications.
 
 Neither process imports dacli's local workspace, task store, or execution
 packages. The stable client/server boundary remains
@@ -19,7 +26,7 @@ The development topology is deliberately small and explicit:
 
 | Boundary | Binding | Credentials | Persistence |
 | --- | --- | --- | --- |
-| API | `127.0.0.1:8080` | service secret via environment | none |
+| API | `127.0.0.1:8080` | service secret via environment | PostgreSQL |
 | PostgreSQL 17.6 | `127.0.0.1:55432` | required environment value | named Docker volume |
 | Worker | no network listener | same environment references | PostgreSQL |
 
@@ -78,9 +85,12 @@ and applies each missing migration and its ledger record in one SQL
 transaction. It refuses gaps, unknown catalog files, duplicate/applied
 versions, an edited checksum, and a database version newer than the binary.
 
-A deployment must explicitly link a PostgreSQL `database/sql` driver. The
-repository intentionally does not select a driver: embedders retain control of
-driver version, connection pooling, TLS, and credential rotation.
+The repository links `github.com/lib/pq` as its PostgreSQL `database/sql`
+driver. Deployments must still provide a correctly scoped PostgreSQL URL,
+connection settings, TLS policy, and credential rotation. Startup checks the
+database and complete migration ledger but never applies migrations. The
+standalone service has no migration subcommand, so operators must provision the
+complete schema and ledger through an explicit reviewed procedure before startup.
 
 Migration `0003_tenant_repository.sql` creates the tenant identity graph. Every
 tenant-owned table has a composite tenant key, tenant-bearing relationships,
@@ -203,10 +213,11 @@ environment values, or arbitrary metadata, matching the v1 privacy boundary.
 
 `internal/tenantapi` composes current-membership authorization with the
 repository. It refuses a stale policy revision before any database or cache
-access. `internal/service` exposes bounded project and environment routes only
-when an identity verifier, backend, and cursor key are explicitly installed.
-The temporary HMAC identity is short-lived and is replaced by native device
-login in #984. Request bodies cannot carry tenant identity.
+access. `internal/service` exposes bounded project and environment routes in the
+standalone API composition. Device authorization, token, revocation and identity
+routes are enabled only with explicit device OAuth provider and subject-binding
+configuration; sync routes additionally require explicit route and key
+bindings. Request bodies cannot carry tenant identity.
 
 Project and environment lists use monotonic high-water snapshots, a maximum
 page size of 100, and HMAC-bound opaque cursors. The bounded tenant cache keys
@@ -225,10 +236,12 @@ original signed envelope across capped exponential retries, honors
 cancellation, and exposes scoped dead-letter metadata. Payload cleanup cannot
 delete permanent idempotency or replay state.
 
-The command in `cloud/cmd/worker` supplies the process lifecycle. A real
-deployment still has to inject the PostgreSQL driver, tenant scheduler,
-identity and key providers, and network sender; the checked-in development
-binary does not pretend those operational choices exist.
+The command in `cloud/cmd/worker` supplies the process lifecycle and repeatedly
+processes only explicitly configured tenants. It handles inbox processing and,
+when a tenant has a configured destination, bounded signed-envelope outbox
+delivery. Deployments must supply tenant schedules, identities, signing keys,
+destination URLs and credentials through strict configuration. The development
+configuration is a local reference, not production qualification.
 
 ## Device sessions
 

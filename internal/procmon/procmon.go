@@ -111,20 +111,44 @@ func writeRecordAtomic(path string, raw []byte) error {
 	return os.Rename(tmp, path)
 }
 
-// ReadRecord parses a proc.txt. A missing or malformed file is an error; the
-// caller skips it rather than treating it as a live agent.
+// ReadRecord preserves the historical permissive parser for diagnostic readers.
+// Destructive retained-evidence consumers use ReadRetainedRecord instead.
 func ReadRecord(path string) (Record, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return Record{}, err
 	}
+	return parseRecord(raw, false)
+}
+
+// ReadRetainedRecord refuses malformed process evidence rather than converting
+// a bad PID to zero and declaring its owner dead (core499). Optional legacy
+// fields remain optional; explicit numeric/time fields must parse, and repeated
+// fields cannot silently replace the recorded owner or process identity.
+func ReadRetainedRecord(path string) (Record, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return Record{}, err
+	}
+	return parseRecord(raw, true)
+}
+
+func parseRecord(raw []byte, strict bool) (Record, error) {
 	r := Record{}
+	seen := map[string]bool{}
 	for _, line := range strings.Split(string(raw), "\n") {
 		k, v, ok := strings.Cut(line, ":")
 		if !ok {
+			if strict && strings.TrimSpace(line) != "" {
+				return Record{}, fmt.Errorf("proc.txt has malformed line")
+			}
 			continue
 		}
 		k, v = strings.TrimSpace(k), strings.TrimSpace(v)
+		if strict && seen[k] {
+			return Record{}, fmt.Errorf("proc.txt repeats field %s", k)
+		}
+		seen[k] = true
 		switch k {
 		case "run":
 			r.RunID = v
@@ -137,15 +161,31 @@ func ReadRecord(path string) (Record, error) {
 		case "runtime":
 			r.Runtime = v
 		case "pid":
-			r.PID, _ = strconv.Atoi(v)
+			n, err := strconv.Atoi(v)
+			if strict && (err != nil || n < 0) {
+				return Record{}, fmt.Errorf("proc.txt has invalid pid")
+			}
+			r.PID = n
 		case "pgid":
-			r.PGID, _ = strconv.Atoi(v)
+			n, err := strconv.Atoi(v)
+			if strict && (err != nil || n < 0) {
+				return Record{}, fmt.Errorf("proc.txt has invalid pgid")
+			}
+			r.PGID = n
 		case "pid_start":
 			r.PIDStart = v
 		case "started":
-			r.Started, _ = time.Parse(time.RFC3339, v)
+			at, err := time.Parse(time.RFC3339, v)
+			if strict && err != nil {
+				return Record{}, fmt.Errorf("proc.txt has invalid started time")
+			}
+			r.Started = at
 		case "timeout_s":
-			if seconds, err := strconv.Atoi(v); err == nil && seconds > 0 {
+			seconds, err := strconv.Atoi(v)
+			if strict && (err != nil || seconds <= 0 || int64(seconds) > int64((time.Duration(1<<63-1))/time.Second)) {
+				return Record{}, fmt.Errorf("proc.txt has invalid timeout_s")
+			}
+			if err == nil && seconds > 0 {
 				r.Timeout = time.Duration(seconds) * time.Second
 			}
 		case "claims":
@@ -157,6 +197,17 @@ func ReadRecord(path string) (Record, error) {
 		case "outcome":
 			r.Outcome = v
 		}
+	}
+	if strict && r.Child == "" {
+		return Record{}, fmt.Errorf("proc.txt has no child")
+	}
+	if strict && !seen["pid"] {
+		return Record{}, fmt.Errorf("proc.txt has no pid")
+	}
+	// Zero denotes no identifiable leader, not evidence that an active writer
+	// exited. Explicit terminal records retain their historical zero-PID form.
+	if strict && r.PID == 0 && r.Outcome == "" {
+		return Record{}, fmt.Errorf("proc.txt has active zero pid; process evidence is unknown")
 	}
 	return r, nil
 }

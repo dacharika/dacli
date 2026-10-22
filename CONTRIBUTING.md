@@ -66,11 +66,12 @@ go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
 ```
 
 The reachable-vulnerability scanner is pinned for the same reason and runs on
-the isolated patched Go 1.26.6 security toolchain. Run the reviewed pair with:
+the isolated patched Go 1.26.10 security toolchain, including the crypto/x509
+fix for GO-2026-6809. Run the reviewed pair with:
 
 ```bash
-GOTOOLCHAIN=go1.26.6 go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
-govulncheck ./...
+GOTOOLCHAIN=go1.26.10 go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+GOTOOLCHAIN=go1.26.10 govulncheck ./...
 ```
 
 Before upgrading either tool, verify its declared Go version against the lint
@@ -152,9 +153,7 @@ app       internal/cli, internal/mcp
 ```
 
 `internal/cli/arch_test.go` enforces the isolation. When two slices need the
-same logic, it moves down into `entities` or `shared` — that is how the landing
-check ended up in `internal/store`, so `ship` could use it without importing
-`acceptance`.
+same logic, it moves down into `entities` or `shared` — shared landing and verification rules belong below the feature slices.
 
 ### Status is folder position
 
@@ -205,10 +204,9 @@ checks-, review-, and artifact-gated source-to-target promotion PR; even with
 recorded merge authority it never creates a tag or publishes a release.
 
 Tag and GitHub-release publication is a separate, explicit maintainer action.
-`dacli github release` with an exact project and tag (or `dacli ship --push
---release <tag>` for its deliberately narrower wave transaction) may perform
-it only when the maintainer chooses that command. No loop, service profile,
-release train, or CI workflow grants itself that authority. Changes to
+`dacli github release` with an exact project and tag may perform it only when
+the maintainer chooses that command. Neither a native host session, a release
+train nor a CI workflow grants itself that authority. Changes to
 publication automation must therefore document the exact authority,
 idempotency, rollback, and release-asset verification boundary rather than
 treating promotion and publication as one step.

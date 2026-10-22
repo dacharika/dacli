@@ -37,7 +37,7 @@ func TestRoleWiredIntoSpawn(t *testing.T) {
 	// A second historical identity is not a second live run and therefore does
 	// not consume the role's live-process WIP capacity.
 	run(t, dir, 0, "agent", "spawn", "--role", "auditor")
-	if agents := run(t, dir, 0, "agents"); !strings.Contains(agents, "no live agents") {
+	if agents := run(t, dir, 0, "agents"); !strings.Contains(agents, "no recorded workers for project") {
 		t.Errorf("agents liveness wrong:\n%s", agents)
 	}
 	team := run(t, dir, 0, "team")
@@ -120,45 +120,6 @@ func TestDoctorDetectors(t *testing.T) {
 	out = run(t, dir, 0, "doctor")
 	if !strings.Contains(out, "unanswered-questions") {
 		t.Errorf("open question not detected:\n%s", out)
-	}
-}
-
-// A role couples a grant with a runtime, and until dacli 250 nothing checked
-// that they agreed: junior shipped grant rw on `cc`, a runtime whose allowlist
-// has no Edit/Write, so every implementation spawn burned a run discovering the
-// child could not write. doctor now names every such role.
-func TestDoctorFlagsGrantRuntimeMismatch(t *testing.T) {
-	dir := t.TempDir()
-	run(t, dir, 0, "init", "--name", "x")
-	run(t, dir, 0, "project", "add", "P", "--slug", "p", "--goal", "g")
-
-	// roRT: the read-only `cc` shape — its only allowlist is the ro sandbox,
-	// with no write tool. rwRT: a write-capable allowlist (Edit,Write) and no
-	// read-only sandbox. (--sandbox-ro-arg/--arg take their value verbatim.)
-	run(t, dir, 0, "runtime", "add", "roRT", "--binary", "/bin/sh",
-		"--sandbox-ro-arg", "--allowedTools", "--sandbox-ro-arg", "Read,Grep")
-	run(t, dir, 0, "runtime", "add", "rwRT", "--binary", "/bin/sh",
-		"--arg", "--allowedTools", "--arg", "Edit,Write,Read")
-
-	// The bug shape: rw grant, no-write runtime.
-	run(t, dir, 0, "role", "add", "badimpl", "--grant", "rw", "--runtime", "roRT", "--scope", "internal/**")
-	// The healthy shape: rw grant, write-capable runtime — must NOT be flagged.
-	run(t, dir, 0, "role", "add", "goodimpl", "--grant", "rw", "--runtime", "rwRT", "--scope", "internal/**")
-
-	out := run(t, dir, 0, "doctor")
-	if !strings.Contains(out, "grant-runtime-mismatch") || !strings.Contains(out, "badimpl") {
-		t.Errorf("rw-grant/no-write-runtime mismatch not reported:\n%s", out)
-	}
-	if strings.Contains(out, "grant-runtime-mismatch: role goodimpl") {
-		t.Errorf("a write-capable rw role was falsely flagged:\n%s", out)
-	}
-
-	// The ro half: a ro grant on a runtime with no read-only sandbox also
-	// disagrees, and is likewise named.
-	run(t, dir, 0, "role", "add", "romismatch", "--grant", "ro", "--runtime", "rwRT", "--scope", "internal/**")
-	out = run(t, dir, 0, "doctor")
-	if !strings.Contains(out, "romismatch") || !strings.Contains(out, "cannot enforce read-only") {
-		t.Errorf("ro-grant/no-sandbox mismatch not reported:\n%s", out)
 	}
 }
 

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -15,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mlnomadpy/dacli/internal/commandresult"
@@ -24,27 +26,36 @@ import (
 
 const verificationSection = "Verification Evidence"
 const maxVerificationArtifact = 64 << 10
+const nativeVerificationPostflightTimeout = 5 * time.Second
+
+// NativeVerificationTermination is an executor-local observation, not check
+// evidence. It certifies only the owned cooperative process boundary (core627).
+// An empty value means termination is unknown; unsupported cleanup cannot certify it.
+type NativeVerificationTermination struct {
+	State string // not_started or owned_group_cleanup
+}
 
 // VerificationEvidence is the machine-readable provenance of one command
 // verification. Legacy is populated only for pre-schema rendered Log lines;
 // their unavailable provenance fields deliberately remain zero-valued.
 type VerificationEvidence struct {
-	Command          string                         `json:"command"`
-	Argv             []string                       `json:"argv,omitempty"`
-	WorkingDirectory string                         `json:"working_directory,omitempty"`
-	ExitCode         int                            `json:"exit_code"`
-	DurationMS       int64                          `json:"duration_ms"`
-	ArtifactHash     string                         `json:"artifact_hash"`
-	Verifier         string                         `json:"verifier"`
-	Branch           string                         `json:"branch"`
-	CommitSHA        string                         `json:"commit_sha"`
-	TreeSHA          string                         `json:"tree_sha,omitempty"`
-	Clean            bool                           `json:"clean,omitempty"`
-	RuntimeVersions  map[string]string              `json:"runtime_versions,omitempty"`
-	ToolVersions     map[string]string              `json:"tool_versions,omitempty"`
-	External         []ExternalVerificationEvidence `json:"external,omitempty"`
-	ExternalPolicy   *GitHubRequiredCheckPolicy     `json:"external_policy,omitempty"`
-	Legacy           string                         `json:"legacy,omitempty"`
+	NativeTermination NativeVerificationTermination  `json:"-"`
+	Command           string                         `json:"command"`
+	Argv              []string                       `json:"argv,omitempty"`
+	WorkingDirectory  string                         `json:"working_directory,omitempty"`
+	ExitCode          int                            `json:"exit_code"`
+	DurationMS        int64                          `json:"duration_ms"`
+	ArtifactHash      string                         `json:"artifact_hash"`
+	Verifier          string                         `json:"verifier"`
+	Branch            string                         `json:"branch"`
+	CommitSHA         string                         `json:"commit_sha"`
+	TreeSHA           string                         `json:"tree_sha,omitempty"`
+	Clean             bool                           `json:"clean,omitempty"`
+	RuntimeVersions   map[string]string              `json:"runtime_versions,omitempty"`
+	ToolVersions      map[string]string              `json:"tool_versions,omitempty"`
+	External          []ExternalVerificationEvidence `json:"external,omitempty"`
+	ExternalPolicy    *GitHubRequiredCheckPolicy     `json:"external_policy,omitempty"`
+	Legacy            string                         `json:"legacy,omitempty"`
 }
 
 // ExternalVerificationEvidence is a typed attachment to evidence observed by
@@ -95,6 +106,51 @@ type verificationTree struct {
 	Commit string
 	Tree   string
 	Clean  bool
+}
+
+// A final-tree refusal stays the public policy error even when an executed
+// command also failed. Only its sanitized operational cause is retained.
+type verificationCommandPolicyError struct {
+	policy  *VerificationPolicyError
+	command error
+}
+
+func (e *verificationCommandPolicyError) Error() string   { return e.policy.Error() }
+func (e *verificationCommandPolicyError) Unwrap() []error { return []error{e.policy, e.command} }
+func verificationFinalPolicyError(policy *VerificationPolicyError, command error) error {
+	if _, ok := commandresult.AsDiagnostic(command); ok {
+		return &verificationCommandPolicyError{policy: policy, command: command}
+	}
+	return policy
+}
+
+func nativeVerificationCommandError(ctx context.Context, cmd *exec.Cmd, capture *nativeVerificationCapture, workspace string, processCause error) error {
+	cause := processCause
+	if ctx.Err() != nil {
+		cause = errors.Join(cause, ctx.Err())
+	}
+	stdout, stderr := capture.diagnosticStreams()
+	diagnostic := commandresult.NewExternalError(cmd, commandresult.RunOptions{Operation: "verification command", WorkspaceRoot: workspace}, stdout, stderr, cause, errors.Is(ctx.Err(), context.DeadlineExceeded))
+	var policy *VerificationPolicyError
+	if errors.As(processCause, &policy) {
+		return verificationFinalPolicyError(policy, diagnostic)
+	}
+	return diagnostic
+}
+
+func nativeVerificationCancellationFailure(ctx context.Context, ev *VerificationEvidence, cmd *exec.Cmd, capture *nativeVerificationCapture, workspace string, processCause error) error {
+	if ctx.Err() == nil {
+		return nil
+	}
+	if ev.ExitCode == 0 {
+		ev.ExitCode = 1
+	}
+	commandErr := nativeVerificationCommandError(ctx, cmd, capture, workspace, processCause)
+	var policy *VerificationPolicyError
+	if errors.As(processCause, &policy) {
+		return commandErr
+	}
+	return verificationFinalPolicyError(&VerificationPolicyError{Reason: "verification command canceled before completion"}, commandErr)
 }
 
 // RunVerification is the legacy advisory entry point. It remains for source
@@ -148,21 +204,246 @@ func PersistVerificationArtifact(w *workspace.Workspace, ev VerificationEvidence
 	return atomicWrite(filepath.Join(dir, hash+".log"), out)
 }
 
+// RunAcceptanceVerificationContext is the bounded native-runner entry point.
+// The caller selects the command and deadline from trusted configuration.
+func RunAcceptanceVerificationContext(ctx context.Context, dir, verifier, command string) (VerificationEvidence, []byte, error) {
+	if ctx == nil {
+		return VerificationEvidence{ExitCode: 1}, nil, &VerificationPolicyError{Reason: "verification context required"}
+	}
+	return runVerificationWithContext(ctx, dir, verifier, command, true, true, "", "")
+}
+
+// RunAcceptanceVerificationRevisionContext additionally refuses a mismatched
+// expected commit/tree before executing the configured command.
+func RunAcceptanceVerificationRevisionContext(ctx context.Context, dir, verifier, command, commit, tree string) (VerificationEvidence, []byte, error) {
+	if ctx == nil || commit == "" || tree == "" {
+		return VerificationEvidence{ExitCode: 1}, nil, &VerificationPolicyError{Reason: "verification context and exact revision required"}
+	}
+	return runVerificationWithContext(ctx, dir, verifier, command, true, true, commit, tree)
+}
+
+// RunAcceptanceVerificationArgvRevisionContext runs literal owner argv in a
+// contained cwd. Evidence and before/after observations always bind the entire
+// checkout, independently of the command working directory.
+func RunAcceptanceVerificationArgvRevisionContext(ctx context.Context, dir, verifier string, argv []string, cwd, commit, tree string) (VerificationEvidence, []byte, error) {
+	if ctx == nil || commit == "" || tree == "" || len(argv) == 0 || len(argv) > 128 || strings.TrimSpace(argv[0]) == "" {
+		return VerificationEvidence{ExitCode: 1}, nil, &VerificationPolicyError{Reason: "structured verification descriptor required"}
+	}
+	total := 0
+	for _, arg := range argv {
+		total += len(arg)
+		if strings.ContainsAny(arg, "\x00\r\n") {
+			return VerificationEvidence{ExitCode: 1}, nil, &VerificationPolicyError{Reason: "invalid verification argument"}
+		}
+	}
+	if total > 16384 {
+		return VerificationEvidence{ExitCode: 1}, nil, &VerificationPolicyError{Reason: "verification argument limit exceeded"}
+	}
+	if _, err := verificationExecutionDirectory(dir, cwd); err != nil {
+		return VerificationEvidence{ExitCode: 1}, nil, err
+	}
+	return runVerificationExecution(ctx, dir, verifier, "", true, true, commit, tree, append([]string(nil), argv...), cwd)
+}
+func verificationExecutionDirectory(root, relative string) (string, error) {
+	denied := func() (string, error) {
+		return "", &VerificationPolicyError{Reason: "verification cwd must be a real directory inside the checkout"}
+	}
+	if relative == "" || len(relative) > 4096 || filepath.IsAbs(relative) || filepath.Clean(relative) != relative || relative == ".." || strings.HasPrefix(relative, "../") || strings.ContainsAny(relative, "\\\x00\r\n") {
+		return denied()
+	}
+	absolute, e := filepath.Abs(root)
+	if e != nil {
+		return denied()
+	}
+	physical, e := filepath.EvalSymlinks(absolute)
+	if e != nil || physical != absolute {
+		return denied()
+	}
+	target := filepath.Join(absolute, relative)
+	actual, e := filepath.EvalSymlinks(target)
+	if e != nil || actual != target {
+		return denied()
+	}
+	info, e := os.Lstat(target)
+	if e != nil || !info.IsDir() {
+		return denied()
+	}
+	rel, e := filepath.Rel(absolute, target)
+	if e != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return denied()
+	}
+	return target, nil
+}
+
+// VerificationEnvironment excludes authority/session secrets and Git overrides.
+// This is cooperative hygiene, not isolation from a hostile local OS user.
+func VerificationEnvironment() []string {
+	var env []string
+	for _, e := range os.Environ() {
+		key, _, _ := strings.Cut(e, "=")
+		upper := strings.ToUpper(key)
+		if strings.HasPrefix(upper, "DACLI_") || strings.HasPrefix(upper, "MCP_") || strings.HasPrefix(upper, "GIT_") || strings.Contains(upper, "TOKEN") || strings.Contains(upper, "SECRET") || strings.Contains(upper, "CREDENTIAL") {
+			continue
+		}
+		env = append(env, e)
+	}
+	return append(env, "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_TERMINAL_PROMPT=0")
+}
+
+// Native evidence retains its merged raw prefix. Diagnostic streams instead
+// sanitize bounded complete lines before keeping their safe trailing text.
+type nativeVerificationCapture struct {
+	mu             sync.Mutex
+	output         []byte
+	command        *exec.Cmd
+	workspace      string
+	stdout, stderr nativeDiagnosticStream
+}
+type nativeDiagnosticStream struct {
+	pending []byte
+	// Keep a bounded suffix of complete raw lines; redact only after eviction.
+	rawTail  []byte
+	safeTail string
+	overlong bool
+}
+
+const nativeDiagnosticOmission = "[diagnostic line omitted: bounded capture exceeded]"
+
+func (s *nativeDiagnosticStream) flush(cmd *exec.Cmd, workspace string) {
+	if s.overlong {
+		s.appendLine([]byte(nativeDiagnosticOmission + "\n"))
+	} else if len(s.pending) > 0 {
+		s.appendLine(s.pending)
+	}
+	s.pending = nil
+	s.overlong = false
+	// Sanitize only after whole-line eviction so pipe-drain work does not scale
+	// with the number of diagnostic lines and no raw line is cut at a secret.
+	s.safeTail = commandresult.SanitizeCommandTail(cmd, string(s.rawTail), workspace)
+}
+
+func (s *nativeDiagnosticStream) appendLine(line []byte) {
+	if len(line) > maxVerificationArtifact {
+		line = []byte(nativeDiagnosticOmission + "\n")
+	}
+	if len(s.rawTail)+len(line) > maxVerificationArtifact {
+		remove := len(s.rawTail) + len(line) - maxVerificationArtifact
+		if remove > 0 && s.rawTail[remove-1] != '\n' {
+			if newline := bytes.IndexByte(s.rawTail[remove:], '\n'); newline >= 0 {
+				remove += newline + 1
+			} else {
+				// rawTail contains only complete lines; an oversized incoming line
+				// is represented by an omission marker above.
+				remove = len(s.rawTail)
+			}
+		}
+		s.rawTail = s.rawTail[remove:]
+	}
+	s.rawTail = append(s.rawTail, line...)
+}
+func (s *nativeDiagnosticStream) write(p []byte) {
+	for len(p) > 0 {
+		end := bytes.IndexByte(p, '\n')
+		complete := end >= 0
+		if !complete {
+			end = len(p)
+		} else {
+			end++
+		}
+		part := p[:end]
+		p = p[end:]
+		if !s.overlong {
+			if len(s.pending)+len(part) > maxVerificationArtifact {
+				s.pending = nil
+				s.overlong = true
+			} else {
+				s.pending = append(s.pending, part...)
+			}
+		}
+		if complete {
+			if s.overlong {
+				s.appendLine([]byte(nativeDiagnosticOmission + "\n"))
+			} else {
+				s.appendLine(s.pending)
+			}
+			s.pending = nil
+			s.overlong = false
+		}
+	}
+}
+
+type nativeVerificationStream struct {
+	capture *nativeVerificationCapture
+	stderr  bool
+}
+
+func (w nativeVerificationStream) Write(p []byte) (int, error) {
+	c := w.capture
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	n := len(p)
+	remaining := maxVerificationArtifact + 1 - len(c.output)
+	if remaining > 0 {
+		part := p
+		if len(part) > remaining {
+			part = part[:remaining]
+		}
+		c.output = append(c.output, part...)
+	}
+	stream := &c.stdout
+	if w.stderr {
+		stream = &c.stderr
+	}
+	stream.write(p)
+	return n, nil
+}
+func (c *nativeVerificationCapture) diagnosticStreams() ([]byte, []byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.stdout.flush(c.command, c.workspace)
+	c.stderr.flush(c.command, c.workspace)
+	return []byte(strings.TrimSpace(c.stdout.safeTail)), []byte(strings.TrimSpace(c.stderr.safeTail))
+}
 func runVerification(dir, verifier, command string, acceptanceGrade bool) (VerificationEvidence, []byte, error) {
+	return runVerificationWithContext(context.Background(), dir, verifier, command, acceptanceGrade, false, "", "")
+}
+func runVerificationWithContext(ctx context.Context, dir, verifier, command string, acceptanceGrade, native bool, expectedCommit, expectedTree string) (VerificationEvidence, []byte, error) {
+	return runVerificationExecution(ctx, dir, verifier, command, acceptanceGrade, native, expectedCommit, expectedTree, nil, "")
+}
+func runVerificationExecution(ctx context.Context, dir, verifier, command string, acceptanceGrade, native bool, expectedCommit, expectedTree string, argv []string, cwd string) (VerificationEvidence, []byte, error) {
 	absDir, _ := filepath.Abs(dir)
+	// core/597: Git observation may fail before execution. Default to failure
+	// until a real command completes, so an unstarted check cannot appear green.
 	ev := VerificationEvidence{
 		Command: command, Argv: []string{"sh", "-c", command}, WorkingDirectory: absDir,
-		Verifier: verifier, ExitCode: 0,
+		Verifier: verifier, ExitCode: 1,
 		RuntimeVersions: map[string]string{"go": runtime.Version(), "os": runtime.GOOS, "arch": runtime.GOARCH},
-		ToolVersions:    verificationToolVersions(dir),
+		ToolVersions:    map[string]string{},
 	}
-	before, beforeErr := readVerificationTree(dir)
+	if argv != nil {
+		ev.Argv = append([]string(nil), argv...)
+	}
+	readTree := readVerificationTree
+	if !native {
+		ev.ToolVersions = verificationToolVersions(dir)
+	} else {
+		readTree = func(dir string) (verificationTree, error) { return readVerificationTreeContext(ctx, dir) }
+		version, err := runVerificationGit(ctx, dir, "--version")
+		if err != nil {
+			return ev, nil, &VerificationPolicyError{Reason: "git version observation unavailable"}
+		}
+		ev.ToolVersions["git"] = strings.TrimSpace(version)
+	}
+	before, beforeErr := readTree(dir)
 	if beforeErr == nil {
 		ev.Branch, ev.CommitSHA, ev.TreeSHA, ev.Clean = before.Branch, before.Commit, before.Tree, before.Clean
 	}
 	if acceptanceGrade {
 		if beforeErr != nil {
 			return ev, nil, &VerificationPolicyError{Reason: fmt.Sprintf("acceptance-grade verification requires a committed git tree: %v", beforeErr)}
+		}
+		if expectedCommit != "" && (before.Commit != expectedCommit || before.Tree != expectedTree) {
+			return ev, nil, &VerificationPolicyError{Reason: "verification revision changed before execution"}
 		}
 		if !before.Clean {
 			return ev, nil, &VerificationPolicyError{Reason: "acceptance-grade verification refused: working tree is dirty; commit or discard the changes, or use advisory verification explicitly"}
@@ -171,30 +452,85 @@ func runVerification(dir, verifier, command string, acceptanceGrade bool) (Verif
 	started := time.Now()
 	c := exec.Command("sh", "-c", command)
 	c.Dir = dir
-	out, err := commandresult.Run(c, commandresult.RunOptions{
-		Operation: "verification command", WorkspaceRoot: dir,
-	})
+	var out []byte
+	var err error
+	var capture nativeVerificationCapture
+	var processCause error
+	if !native {
+		out, err = commandresult.Run(c, commandresult.RunOptions{Operation: "verification command", WorkspaceRoot: dir})
+	} else {
+		if argv != nil {
+			executionDir, e := verificationExecutionDirectory(dir, cwd)
+			if e != nil {
+				return ev, nil, e
+			}
+			c = exec.CommandContext(ctx, argv[0], argv[1:]...)
+			c.Dir = executionDir
+		} else {
+			c = exec.CommandContext(ctx, "sh", "-c", command)
+			c.Dir = dir
+		}
+		c.Env = VerificationEnvironment()
+		c.WaitDelay = 250 * time.Millisecond
+		capture.command = c
+		capture.workspace = dir
+		c.Stdout = nativeVerificationStream{capture: &capture}
+		c.Stderr = nativeVerificationStream{capture: &capture, stderr: true}
+		ev.NativeTermination, err = runNativeVerificationCommand(c)
+		out = capture.output
+		processCause = err
+		if ctx.Err() != nil && !IsVerificationPolicyError(processCause) {
+			err = ctx.Err()
+		}
+	}
 	out = boundVerificationArtifact(out)
 	ev.DurationMS = time.Since(started).Milliseconds()
 	sum := sha256.Sum256(out)
 	ev.ArtifactHash = "sha256:" + hex.EncodeToString(sum[:])
-	if err != nil {
+	if err == nil {
+		ev.ExitCode = 0
+	} else {
 		ev.ExitCode = 1
 		var ee *exec.ExitError
 		if errors.As(err, &ee) {
 			ev.ExitCode = ee.ExitCode()
 		}
 	}
+	if native && err != nil {
+		err = nativeVerificationCommandError(ctx, c, &capture, dir, processCause)
+	}
 	if acceptanceGrade {
-		after, afterErr := readVerificationTree(dir)
+		postflightReadTree := readTree
+		var cancelPostflight context.CancelFunc
+		if native {
+			// Cancellation belongs to the verifier command. The final tree check
+			// still needs a bounded chance to preserve policy precedence and the
+			// command's cancellation diagnostic.
+			postflightCtx, cancel := nativeVerificationPostflightContext(ctx)
+			cancelPostflight = cancel
+			postflightReadTree = func(dir string) (verificationTree, error) {
+				return readVerificationTreeContext(postflightCtx, dir)
+			}
+		}
+		after, afterErr := postflightReadTree(dir)
+		if cancelPostflight != nil {
+			cancelPostflight()
+		}
+		if native && ctx.Err() != nil {
+			err = nativeVerificationCancellationFailure(ctx, &ev, c, &capture, dir, processCause)
+		}
 		if afterErr != nil {
-			return ev, out, &VerificationPolicyError{Reason: fmt.Sprintf("verification tree changed or became unreadable after execution: before commit %s tree %s clean=%t; after: %v", before.Commit, before.Tree, before.Clean, afterErr)}
+			return ev, out, verificationFinalPolicyError(&VerificationPolicyError{Reason: fmt.Sprintf("verification tree changed or became unreadable after execution: before commit %s tree %s clean=%t; after: %v", before.Commit, before.Tree, before.Clean, afterErr)}, err)
 		}
 		if after != before {
-			return ev, out, &VerificationPolicyError{Reason: fmt.Sprintf("verification tree changed during execution: before commit %s tree %s clean=%t; after commit %s tree %s clean=%t", before.Commit, before.Tree, before.Clean, after.Commit, after.Tree, after.Clean)}
+			return ev, out, verificationFinalPolicyError(&VerificationPolicyError{Reason: fmt.Sprintf("verification tree changed during execution: before commit %s tree %s clean=%t; after commit %s tree %s clean=%t", before.Commit, before.Tree, before.Clean, after.Commit, after.Tree, after.Clean)}, err)
 		}
 	}
 	return ev, out, err
+}
+
+func nativeVerificationPostflightContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), nativeVerificationPostflightTimeout)
 }
 
 func boundVerificationArtifact(out []byte) []byte {
@@ -552,4 +888,82 @@ func AcceptanceRequiresCommandVerification(t *Task, criterion int) bool {
 	text := boxes[criterion-1].Text
 	start := strings.IndexByte(text, '`')
 	return start >= 0 && strings.IndexByte(text[start+1:], '`') >= 0
+}
+
+// Contextual observations strip the same credential/Git environment as the
+// verifier and disable fsmonitor. Inspect executable repository configuration
+// before status so a caller cannot turn observation into filter execution.
+func readVerificationTreeContext(ctx context.Context, dir string) (verificationTree, error) {
+	run := func(args ...string) (string, error) { return runVerificationGit(ctx, dir, args...) }
+	keys, err := run("config", "--null", "--name-only", "--list")
+	if err != nil {
+		return verificationTree{}, err
+	}
+	for _, key := range strings.Split(keys, "\x00") {
+		key = strings.ToLower(key)
+		if strings.HasPrefix(key, "filter.") && (strings.HasSuffix(key, ".clean") || strings.HasSuffix(key, ".process")) {
+			return verificationTree{}, errors.New("executable clean filter refused")
+		}
+	}
+	entries, err := run("ls-files", "--stage")
+	if err != nil {
+		return verificationTree{}, err
+	}
+	for _, entry := range strings.Split(entries, "\n") {
+		if strings.HasPrefix(entry, "160000 ") {
+			return verificationTree{}, errors.New("indexed submodule refused")
+		}
+	}
+	var got verificationTree
+	if got.Branch, err = run("branch", "--show-current"); err != nil {
+		return got, err
+	}
+	if got.Commit, err = run("rev-parse", "--verify", "HEAD^{commit}"); err != nil {
+		return got, err
+	}
+	if got.Tree, err = run("rev-parse", "--verify", "HEAD^{tree}"); err != nil {
+		return got, err
+	}
+	status, err := run("status", "--porcelain=v1", "--untracked-files=all", "--ignore-submodules=none")
+	if err != nil {
+		return got, err
+	}
+	again, err := run("rev-parse", "--verify", "HEAD^{commit}")
+	if err != nil || again != got.Commit {
+		return got, errors.New("HEAD changed during observation")
+	}
+	got.Branch = strings.TrimSpace(got.Branch)
+	got.Commit = strings.TrimSpace(got.Commit)
+	got.Tree = strings.TrimSpace(got.Tree)
+	got.Clean = strings.TrimSpace(status) == ""
+	return got, nil
+}
+
+type verificationGitBuffer struct{ strings.Builder }
+
+func (b *verificationGitBuffer) Write(p []byte) (int, error) {
+	if b.Len()+len(p) > 1<<20 {
+		return 0, errors.New("git observation output limit exceeded")
+	}
+	return b.Builder.Write(p)
+}
+
+func runVerificationGit(ctx context.Context, dir string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", append([]string{"--no-replace-objects", "--no-optional-locks", "-c", "core.fsmonitor=false"}, args...)...)
+	cmd.Dir = dir
+	cmd.Env = VerificationEnvironment()
+	cmd.WaitDelay = 250 * time.Millisecond
+	var output verificationGitBuffer
+	cmd.Stdout = &output
+	if _, err := runNativeVerificationCommand(cmd); err != nil {
+		return "", err
+	}
+	return output.String(), ctx.Err()
+}
+
+// VerificationInterpreterAvailable reports whether the executor's sh-c interpreter
+// can be resolved. It neither launches the interpreter nor verifies check commands.
+func VerificationInterpreterAvailable() bool {
+	_, err := exec.LookPath("sh")
+	return err == nil
 }

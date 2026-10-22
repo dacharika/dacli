@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import NativeGovernancePanel from '@/components/NativeGovernancePanel.vue'
 import { computed } from 'vue'
 import type { OperatorAttentionResponse, Phase } from '@/types'
 
@@ -108,7 +109,7 @@ function duration(seconds: number): string {
             <p class="mt-2 mb-0 font-mono text-[10px] text-muted-foreground">
               {{ alert.affected.project
               }}<template v-if="alert.affected.task"> / {{ alert.affected.task }}</template
-              ><template v-if="alert.affected.run"> / {{ alert.affected.run }}</template>
+              ><template v-if="alert.affected.run"> / {{ alert.affected.run }} </template>
             </p>
 
             <dl class="mt-3 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">
@@ -167,5 +168,10 @@ function duration(seconds: number): string {
         {{ attention?.ranking_rule }}
       </p>
     </template>
+    <NativeGovernancePanel
+      v-for="snapshot in attention?.native ?? []"
+      :key="snapshot.project"
+      :snapshot="snapshot"
+    />
   </section>
 </template>

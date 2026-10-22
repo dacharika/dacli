@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -49,5 +50,23 @@ func TestRunArgsRejectsInvalidArgumentsBeforeLoadingConfig(t *testing.T) {
 				t.Fatalf("unknown flag error = %v", err)
 			}
 		})
+	}
+}
+
+func TestRunArgsPropagatesCompositionStartupRefusal(t *testing.T) {
+	var loadedPath string
+	err := runArgs(nil, func(path string, _ config.LookupEnv) (config.Config, error) {
+		loadedPath = path
+		// The process can start only with an explicit hosted composition. This
+		// fixture intentionally omits it, so startup stops before any database
+		// connection or external service is attempted.
+		return config.Config{Mode: "development", ListenAddress: "127.0.0.1:0",
+			PublicBaseURL: &url.URL{Scheme: "http", Host: "localhost:8080"}}, nil
+	})
+	if loadedPath != "cloud/config.development.json" {
+		t.Fatalf("default config path = %q", loadedPath)
+	}
+	if err == nil || err.Error() != "hosted composition requires explicit hosted configuration" {
+		t.Fatalf("startup composition error = %v", err)
 	}
 }

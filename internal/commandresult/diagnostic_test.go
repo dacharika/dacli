@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -201,4 +203,289 @@ func TestCapturePreservesTypedCommandFailureWhenResultIsMalformed(t *testing.T) 
 	if !strings.Contains(diagnostic.StderrTail, "authentication failed decisively") {
 		t.Fatalf("actionable stderr was lost: %#v", diagnostic)
 	}
+}
+
+func TestChildEnvironmentSecretsRedacted(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell fixture")
+	}
+	for _, mode := range []string{"Run", "Output", "NewExternalError"} {
+		t.Run(mode, func(t *testing.T) {
+			root := t.TempDir()
+			secret := "synthetic-child-secret-602"
+			cmd := exec.Command("/bin/sh", "-c", `printf '%s\n' "$CHILD_API_TOKEN"; printf 'safe detail %s\n' "$CHILD_API_TOKEN" >&2; exit 17`)
+			cmd.Dir = root
+			cmd.Env = []string{"PATH=/usr/bin:/bin", "CHILD_API_TOKEN=" + secret}
+			var out []byte
+			var err error
+			switch mode {
+			case "Run":
+				out, err = Run(cmd, RunOptions{Operation: "child fixture", WorkspaceRoot: root})
+			case "Output":
+				out, err = Output(cmd, RunOptions{Operation: "child fixture", WorkspaceRoot: root})
+			default:
+				stdout, stderr, cause := output(cmd)
+				out = []byte{}
+				err = NewExternalError(cmd, RunOptions{Operation: "child fixture", WorkspaceRoot: root}, stdout, stderr, cause, false)
+			}
+			assertProtectedFailure(t, out, err, secret)
+		})
+	}
+}
+
+func assertProtectedFailure(t *testing.T, out []byte, err error, protected string) {
+	t.Helper()
+	d, ok := AsDiagnostic(err)
+	if !ok || d.ExitCode == nil || *d.ExitCode != 17 {
+		t.Fatalf("typed process failure lost: %+v %v", d, err)
+	}
+	raw, e := json.Marshal(d)
+	if e != nil {
+		t.Fatal(e)
+	}
+	for name, s := range map[string]string{"compatibility": string(out), "human": err.Error(), "json": string(raw)} {
+		if strings.Contains(s, protected) {
+			t.Errorf("protected material leaked on %s: %s", name, s)
+		}
+	}
+	var cause *exec.ExitError
+	if !errors.As(err, &cause) {
+		t.Fatal("original process cause lost")
+	}
+}
+
+func TestQuotedPathsRedactedWithoutLosingWorkspaceOrURL(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell fixture")
+	}
+	root := t.TempDir()
+	outside := "/private/operator/secret folder/credentials.txt"
+	inside := root + "/safe folder/file.txt"
+	cmd := exec.Command("/bin/sh", "-c", `printf "safe diagnostic\nfatal: cannot open '%s'\n" "$1" >&2; exit 17`, "fixture", outside)
+	cmd.Dir = root
+	out, err := Run(cmd, RunOptions{Operation: "git fixture", WorkspaceRoot: root})
+	assertProtectedFailure(t, out, err, outside)
+	for _, quoted := range []string{"'" + inside + "'", `"` + inside + `"`} {
+		got := Redact(quoted, root)
+		if !strings.Contains(got, "<workspace>/safe folder/file.txt") {
+			t.Fatalf("safe workspace path lost: %q", got)
+		}
+	}
+	for _, quoted := range []string{"'" + outside + "'", `"` + outside + `"`, "'" + outside, `"` + outside} {
+		if got := Redact(quoted, root); strings.Contains(got, outside) || !strings.Contains(got, "<outside-workspace>") {
+			t.Fatalf("quoted or malformed private path leaked: %q", got)
+		}
+	}
+	if got := Redact("https://fixture:synthetic-url-password@example.invalid/safe/path", root); strings.Contains(got, "synthetic-url-password") || !strings.Contains(got, "example.invalid/safe/path") {
+		t.Fatalf("URL credential policy changed: %q", got)
+	}
+	if got := Redact("see https://example.invalid/safe/path for remediation", root); got != "see https://example.invalid/safe/path for remediation" {
+		t.Fatalf("safe URL changed: %q", got)
+	}
+}
+
+func TestCredentialHelperSecretFieldsRedacted(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell fixture")
+	}
+	for _, key := range []string{"password", "token", "access_token", "oauth_token"} {
+		t.Run(key, func(t *testing.T) {
+			root := t.TempDir()
+			secret := "synthetic-helper-secret-602"
+			cmd := exec.Command("/bin/sh", "-c", `printf 'username=fixture\n%s=%s\nsafe actionable line\n' "$1" "$2" >&2; exit 17`, "fixture", key, secret)
+			cmd.Dir = root
+			out, err := Run(cmd, RunOptions{Operation: "credential fixture", WorkspaceRoot: root})
+			assertProtectedFailure(t, out, err, secret)
+			if !strings.Contains(string(out), "username=fixture") || !strings.Contains(err.Error(), "safe actionable line") {
+				t.Fatal("safe helper/actionable context lost")
+			}
+			// Put the helper field last as well: Error() presents that line, so
+			// this exercises human redaction rather than hiding behind safe prose.
+			cmd = exec.Command("/bin/sh", "-c", `printf 'safe context\n%s=%s\n' "$1" "$2" >&2; exit 17`, "fixture", key, secret)
+			cmd.Dir = root
+			out, err = Run(cmd, RunOptions{Operation: "credential fixture", WorkspaceRoot: root})
+			assertProtectedFailure(t, out, err, secret)
+		})
+	}
+}
+
+func TestCommandRedactionPrecedesTailBoundAndSuccessUnchanged(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell fixture")
+	}
+	root := t.TempDir()
+	secret := strings.Repeat("secret-fragment-", 600)
+	cmd := exec.Command("/bin/sh", "-c", `printf '%s' "$CHILD_API_TOKEN" >&2; exit 17`)
+	cmd.Dir = root
+	cmd.Env = []string{"PATH=/usr/bin:/bin", "CHILD_API_TOKEN=" + secret}
+	out, err := Run(cmd, RunOptions{Operation: "tail fixture", WorkspaceRoot: root})
+	assertProtectedFailure(t, out, err, "secret-fragment-")
+	cmd = exec.Command("/bin/sh", "-c", `printf 'successful literal bytes'; printf ' stderr' >&2`)
+	cmd.Dir = root
+	out, err = Run(cmd, RunOptions{Operation: "success", WorkspaceRoot: root})
+	if err != nil || string(out) != "successful literal bytes stderr" {
+		t.Fatalf("successful compatibility changed: %q %v", out, err)
+	}
+}
+
+func TestChildEnvironmentOverlapNeverLeaksSuffix(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell fixture")
+	}
+	parent := "synthetic-prefix-602"
+	child := parent + "-distinct-private-suffix"
+	t.Setenv("PARENT_API_TOKEN", parent)
+	root := t.TempDir()
+	cmd := exec.Command("/bin/sh", "-c", `printf '%s\n' "$CHILD_API_TOKEN"; printf '%s\n' "$CHILD_API_TOKEN" >&2; exit 17`)
+	cmd.Dir = root
+	cmd.Env = []string{"PATH=/usr/bin:/bin", "CHILD_API_TOKEN=" + child}
+	out, err := Run(cmd, RunOptions{Operation: "fixture " + child, WorkspaceRoot: root})
+	assertProtectedFailure(t, out, err, "distinct-private-suffix")
+	d, _ := AsDiagnostic(err)
+	if strings.Contains(d.Operation, "distinct-private-suffix") {
+		t.Fatalf("effective child secret fragment leaked in operation: %s", d.Operation)
+	}
+}
+
+func TestSanitizeCommandTailUsesEffectiveSecretsBeforeBounds(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell fixture")
+	}
+	parent := "synthetic-stream-prefix-602"
+	secret := parent + strings.Repeat("-stream-private-fragment", 400)
+	t.Setenv("PARENT_API_TOKEN", parent)
+	root := t.TempDir()
+	cmd := exec.Command("/bin/sh", "-c", `printf '%s\n' "$CHILD_API_TOKEN"; printf "password=synthetic-stream-helper\n'/private/operator/space folder/file'\nfatal: actionable line\n" >&2; exit 17`)
+	cmd.Dir = root
+	cmd.Env = []string{"PATH=/usr/bin:/bin", "CHILD_API_TOKEN=" + secret}
+	stdout, stderr, cause := output(cmd)
+	if cause == nil {
+		t.Fatal("actual child must fail")
+	}
+	value := string(stdout) + string(stderr)
+	got := SanitizeCommandTail(cmd, value, root)
+	for _, protected := range []string{"stream-private-fragment", "synthetic-stream-helper", "/private/operator/space folder/file"} {
+		if strings.Contains(got, protected) {
+			t.Fatalf("command-aware bounded tail leaked %s: %s", protected, got)
+		}
+	}
+	if !strings.Contains(got, "fatal: actionable line") || len(got) > diagnosticTailBytes+len("[truncated] ") {
+		t.Fatalf("command-aware tail lost actionable bound: %s", got)
+	}
+	_, err := Run(exec.Command("/bin/sh", "-c", "exit 17"), RunOptions{})
+	if _, ok := AsDiagnostic(err); !ok {
+		t.Fatal("typed failure contract changed")
+	}
+	if got := SanitizeCommandTail(cmd, strings.Repeat("safe ", 2000)+"decisive safe end", root); len(got) > diagnosticTailBytes+len("[truncated] ") || !strings.HasSuffix(got, "decisive safe end") {
+		t.Fatal("streaming bound changed")
+	}
+}
+
+func TestSanitizeCommandTailProtectsMultilineSecretComponents(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell fixture")
+	}
+	root := t.TempDir()
+	secret := "synthetic-first-private-line\nsynthetic-second-private-line"
+	cmd := exec.Command("/bin/sh", "-c", `printf '%s\n' "$CHILD_API_TOKEN"; exit 17`)
+	cmd.Dir = root
+	cmd.Env = []string{"PATH=/usr/bin:/bin", "CHILD_API_TOKEN=" + secret}
+	stdout, _, cause := output(cmd)
+	if cause == nil {
+		t.Fatal("actual child must fail")
+	}
+	for _, line := range strings.Split(string(stdout), "\n") {
+		if line == "" {
+			continue
+		}
+		if got := SanitizeCommandTail(cmd, line, root); strings.Contains(got, line) {
+			t.Fatalf("multiline secret component leaked through line sanitizer: %s", got)
+		}
+	}
+	if got := SanitizeCommandTail(cmd, "fatal: safe subsequent line", root); got != "fatal: safe subsequent line" {
+		t.Fatalf("safe subsequent line changed: %s", got)
+	}
+}
+
+func TestKnownSecretsCannotEraseStructuralDisclosure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell fixture")
+	}
+	cases := []struct{ name, secret, raw, protected string }{
+		{"helper", "password", "password=synthetic-distinct-helper-private-value", "synthetic-distinct-helper-private-value"},
+		{"url", "https", "https://fixture:synthetic-private-userinfo@example.invalid/safe/path", "synthetic-private-userinfo"},
+		{"token", "ghp_", "ghp_synthetic_private_token602", "synthetic_private_token602"},
+		{"quoted-path", "/private", "'/private/operator/secret folder/private-file602'", "secret folder/private-file602"},
+		{"unquoted-path", "/private", "/private/operator/private-file602", "operator/private-file602"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			cmd := exec.Command("/bin/sh", "-c", `printf '%s\n' "$1" >&2; exit 17`, "fixture", tc.raw)
+			cmd.Dir = root
+			cmd.Env = []string{"PATH=/usr/bin:/bin", "CHILD_API_TOKEN=" + tc.secret}
+			out, err := Run(cmd, RunOptions{Operation: "structural fixture", WorkspaceRoot: root})
+			assertProtectedFailure(t, out, err, tc.protected)
+			if got := SanitizeCommandTail(cmd, tc.raw, root); strings.Contains(got, tc.protected) {
+				t.Errorf("structural secret leaked through command-tail: %s", got)
+			}
+		})
+	}
+}
+
+func TestCommandDerivedMetadataProtectsKnownSecrets(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell fixture")
+	}
+	root := t.TempDir()
+	secret := "synthetic-private-metadata602"
+	dir := filepath.Join(root, secret)
+	if err := os.Mkdir(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "executable-"+secret)
+	if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 17\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(path)
+	cmd.Dir = dir
+	cmd.Env = []string{"PATH=/usr/bin:/bin", "CHILD_API_TOKEN=" + secret}
+	out, err := Run(cmd, RunOptions{WorkspaceRoot: root})
+	assertProtectedFailure(t, out, err, secret)
+	d, _ := AsDiagnostic(err)
+	for name, value := range map[string]string{"executable": d.Executable, "empty-operation-fallback": d.Operation, "cwd": d.CwdScope} {
+		if strings.Contains(value, secret) {
+			t.Errorf("derived metadata secret leaked in %s: %s", name, value)
+		}
+	}
+}
+
+func TestKnownSecretContainingStructureIsProtectedAsWhole(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell fixture")
+	}
+	root := t.TempDir()
+	secret := "synthetic-outer-private-https://fixture:synthetic-user-info@example.invalid/safe-tail"
+	cmd := exec.Command("/bin/sh", "-c", `printf '%s\n' "$CHILD_API_TOKEN" >&2; exit 17`)
+	cmd.Dir = root
+	cmd.Env = []string{"PATH=/usr/bin:/bin", "CHILD_API_TOKEN=" + secret}
+	out, err := Run(cmd, RunOptions{Operation: "whole secret fixture", WorkspaceRoot: root})
+	assertProtectedFailure(t, out, err, "synthetic-outer-private")
+	if got := SanitizeCommandTail(cmd, secret, root); strings.Contains(got, "synthetic-outer-private") {
+		t.Errorf("known structural secret fragment leaked through command-tail: %s", got)
+	}
+}
+
+func TestKnownSecretsOverlappingAtDifferentOffsets(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell fixture")
+	}
+	t.Setenv("PARENT_API_TOKEN", "parentprefix")
+	child := "prefix-distinct-private-suffix"
+	root := t.TempDir()
+	cmd := exec.Command("/bin/sh", "-c", `printf 'parent%s\n' "$CHILD_API_TOKEN" >&2; exit 17`)
+	cmd.Dir = root
+	cmd.Env = []string{"PATH=/usr/bin:/bin", "CHILD_API_TOKEN=" + child}
+	out, err := Run(cmd, RunOptions{Operation: "overlap offset fixture", WorkspaceRoot: root})
+	assertProtectedFailure(t, out, err, "distinct-private-suffix")
 }

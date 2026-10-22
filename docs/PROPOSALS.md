@@ -1,5 +1,9 @@
 # Feature proposals — ranked by value
 
+> Historical design/evidence record: launcher behavior below describes earlier versions.
+> Current source removes coding-agent wrappers; follow [the native operator playbook](OPERATOR_PLAYBOOK.md).
+
+
 **Status: proposals. Nothing here is accepted until it graduates into a spec doc.** Each entry says what it exploits, what it costs, and how we'd know it worked — INVEST's *Testable* applied to our own roadmap.
 
 ---

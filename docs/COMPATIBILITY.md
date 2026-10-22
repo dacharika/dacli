@@ -39,6 +39,15 @@ codes, command paths, `--json` shapes, and the MCP tool surface.
 
 ---
 
+## Native migration and removed launchers
+
+This source checkout intentionally removes coding-agent launch, runtime adapters,
+supervision and provider-driven orchestration commands. Their absence is a product
+boundary, not an optional fallback. Historical records remain readable. The native
+plugin requires explicit scoped enrollment and has no generic CLI escape; older
+v0.3.1 archives do not implement that preview. Inspect the live capability manifest
+rather than assuming an old command remains available.
+
 ## 1. What is stable
 
 ### Exit codes

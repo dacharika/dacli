@@ -1,12 +1,24 @@
 package cli
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 )
+
+// Host agents own execution. Reintroducing the removed launcher slices would
+// restore a second agent lifecycle even if no public command advertised it.
+func TestLegacyLaunchSlicesRemainAbsent(t *testing.T) {
+	for _, name := range []string{"execution", "orchestration"} {
+		_, err := os.Stat(filepath.Join("..", "features", name))
+		if !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("removed provider launcher slice %s exists or cannot be observed: %v", name, err)
+		}
+	}
+}
 
 // The feature-sliced design's load-bearing rule: SLICES NEVER IMPORT EACH
 // OTHER. Shared behavior belongs in clikit or the entity/engine layers;
@@ -67,14 +79,12 @@ func TestAppLayerStaysThin(t *testing.T) {
 func TestLargeFeatureCoordinatorsStayDecomposed(t *testing.T) {
 	featuresDir := filepath.Join("..", "features")
 	components := map[string][]string{
-		"execution":     {"runtime_adapters.go", "provider_runtime.go", "observability.go", "lifecycle.go", "behavioral_preflight.go"},
-		"orchestration": {"preflight.go", "scheduling.go", "delivery_tail.go", "recovery.go", "phase_journal.go"},
-		"ghmirror":      {"transport.go", "adoption.go", "publication.go", "project.go"},
+		"history":   {"history.go", "replay.go", "handoff.go"},
+		"reviewing": {"reviewing.go"},
+		"ghmirror":  {"transport.go", "adoption.go", "publication.go", "project.go"},
 	}
 	coordinators := map[string]int{
-		"execution/execution.go":         2250,
-		"orchestration/orchestration.go": 2500,
-		"ghmirror/ghmirror.go":           1100,
+		"ghmirror/ghmirror.go": 1100,
 		// The next shared collision points after #901. These ceilings are close
 		// to the reviewed trunk size on purpose: new persistence policy belongs
 		// in a focused store component, and new GitHub/Git effects belong beside

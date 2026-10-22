@@ -15,7 +15,7 @@ import (
 	"github.com/mlnomadpy/dacli/cloud/internal/tenant"
 )
 
-const SchemaVersion = 9
+const SchemaVersion = 11
 
 var (
 	ErrNotFound          = errors.New("tenant resource not found")

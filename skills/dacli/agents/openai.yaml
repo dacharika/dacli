@@ -1,4 +1,4 @@
 interface:
   display_name: "dacli"
-  short_description: "Operate bounded coding-agent product loops"
-  default_prompt: "Use $dacli to inspect this repository, choose the smallest bounded workflow, keep the selected harness, and land evidence-backed work through GitHub."
+  short_description: "Govern native coding-agent work and evidence"
+  default_prompt: "Use $dacli to inspect canonical work, use native host agents with explicit scoped governance, and preserve exact revision evidence and owner authority."

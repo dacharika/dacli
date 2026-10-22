@@ -110,8 +110,8 @@ func printGettingStarted(ctx *clikit.Ctx) {
 		{`dacli project add "<title>"`, "create your first project"},
 		{`dacli task add "<title>" --project <slug> --accept <criterion>`, "add a task with acceptance criteria"},
 		{"dacli next", "see what's ready to work on"},
-		{"dacli runtime add <name> --preset <harness>", "connect the coding-agent CLI you selected (see `runtime presets`)"},
-		{"dacli spawn --task <ref> --runtime <name> --grant ro", "launch your first agent inside that harness"},
+		{"dacli native enroll --help", "inspect explicit owner enrollment for the native host plugin"},
+		{"dacli context <ref> --budget 4000", "prepare canonical context for your native host agent"},
 		{"dacli overview", "a human-first summary, any time"},
 	}
 	width := 0

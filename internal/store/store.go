@@ -1351,7 +1351,7 @@ func OwnerTaskHasRecoveryLease(w *workspace.Workspace, ownerID, taskID string) (
 			continue
 		}
 		runDir := w.RunDir(e.Name())
-		rec, err := procmon.ReadRecord(filepath.Join(runDir, "proc.txt"))
+		rec, err := procmon.ReadRetainedRecord(filepath.Join(runDir, "proc.txt"))
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue
@@ -2204,7 +2204,11 @@ func stageTaskMove(w *workspace.Workspace, src, dst string) {
 	_, _ = gitx.Run(w.Root, "add", "--", src, dst)
 }
 
-// ClaimHints is PathHints narrowed to tokens that name an existing repository
+// ClaimHints returns validated explicit claims without adding inferred scope.
+// A declared empty or malformed list grants no inferred paths. Explicit claims
+// may name new repository paths, including new top-level directories; unlike
+// prose, a reviewed declaration does not need an existing path to prove intent.
+// Legacy tasks without a declaration use PathHints narrowed to an existing repository
 // path or an unambiguous new descendant of one, for the one caller that turns
 // hints into an enforcement boundary rather than a ranking signal.
 //
@@ -2230,6 +2234,27 @@ func stageTaskMove(w *workspace.Workspace, src, dst string) {
 func ClaimHints(root string, t *Task) []string {
 	seen := map[string]bool{}
 	var out []string
+	if t.Doc != nil {
+		if _, declared := t.Doc.Front.GetText("claims"); declared {
+			for _, raw := range t.Claims() {
+				p := strings.TrimSpace(raw)
+				if filepath.IsAbs(p) || strings.Contains(p, "\\") || strings.Contains("/"+p+"/", "/../") || strings.IndexFunc(raw, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 {
+					continue
+				}
+				paths, err := normalizeClaimList([]string{p})
+				if err != nil {
+					continue
+				}
+				p = paths[0]
+				if p == ".git" || strings.HasPrefix(p, ".git/") || seen[p] {
+					continue
+				}
+				seen[p] = true
+				out = append(out, p)
+			}
+			return out
+		}
+	}
 	explicitNew := false
 	add := func(p string, allowNew bool) {
 		clean := strings.Trim(strings.TrimSpace(p), "/")

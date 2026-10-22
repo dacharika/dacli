@@ -196,9 +196,9 @@ adding browser-side workflow authority.
 ### Agents and spend
 
 The first panel on `#/agents?project=<slug>` is the read-only
-`loop-operation/v1` projection. It reads the same loop status, recovery
+`loop-operation/v1` historical projection. Launcher removal preserves its recorded loop status, recovery
 checkpoint, phase journal, complete-cycle preflight, token-reservation ledger,
-operating profile, and sourced routing evidence as the CLI. It distinguishes
+operating profile, and sourced routing evidence from prior runs. It distinguishes
 **not started**, **running**, **idle**, **sleeping budget**, **waiting review**,
 **waiting CI**, **waiting owner**, **halted policy**, **external unknown**,
 **completed**, and **corrupt**. Fresh, stale, partial, missing, and corrupt are
@@ -223,9 +223,9 @@ only after the named evidence changes.
 This surface polls the selected project every 10 seconds and reads local
 durable records only. It does not launch a worker, refresh GitHub, retry a
 provider, approve a review, change a budget, or resume a loop. Use
-`dacli loop status --project <slug> --json` and
 `dacli explain --project <slug> --json` as the automation contracts; the
-dashboard is their operator-facing projection.
+dashboard is an operator-facing projection of retained evidence. It is not a
+native session authority monitor and cannot resume the removed launcher.
 
 The next panel is the versioned `outcome-analytics/v1` projection from
 `/api/outcomes?project=<slug>&range=7d|30d|90d`. One bounded server-side index
@@ -336,7 +336,7 @@ The dashboard does not replace:
 
 - `dacli explain --project <slug> --json` for sourced routing and next-action
   evidence;
-- `dacli loop status --project <slug> --json` for durable recovery state and
+- Retained historical loop records for prior recovery state and
   the versioned cycle outcome/phase-failure classification;
 - `dacli pr diagnose --task <ref> --json` for current GitHub/CI diagnosis; or
 - the explicit verify, review, accept, and ship gates.

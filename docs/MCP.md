@@ -1,4 +1,11 @@
-# MCP server
+# Administrative MCP server
+
+The current native plugin uses [the separate native transport](GOVERNANCE_NATIVE_MCP.md).
+It has explicit private session authentication and no generic CLI escape. This
+document describes the retained legacy administrative transport; its credentials
+do not grant access to native owner operations. Removed launch commands are
+unavailable through either catalog.
+
 
 The MCP tool registry is also exposed through `dacli capabilities --json`.
 Each `mcp.tool.<name>` entry carries the tool input schema version alongside
@@ -17,7 +24,37 @@ serve. MCP clients can retrieve it through the `cli` escape hatch with argv
 
 - **stdio only.** No network listener, ever. An MCP server with a port is a workspace exposed to whatever finds the port; dacli's threat model is bad enough without that.
 - One server process per agent. The server resolves the workspace exactly as the CLI does (walk up to `.dacli/`) and binds its identity **once, at launch**, from `DACLI_AGENT` in its environment.
-- A parent spawning a child sets the child's token in the child's environment; the child's own MCP config launches its own `dacli mcp serve`. Two agents never share a server.
+- Each legacy administrative caller supplies its own token at server startup. Sharing a server shares that identity; it does not establish independent agents.
+
+### Startup identity and migration
+
+`dacli mcp serve` now requires a valid `DACLI_AGENT` token. Missing, empty,
+or unrecognized credentials refuse startup with exit **3**, before reading any
+JSON-RPC requests. Diagnostics never print the token. Configure each agent's
+server process to inherit its own token through the host's environment or
+credential provisioning; do not put it in command arguments or tool calls.
+The workspace must already exist, and startup validates the token against it.
+
+For a human's local operator server, explicitly opt into root authority:
+
+```sh
+# In an environment where DACLI_AGENT is absent:
+dacli mcp serve --operator
+```
+
+Existing local operator MCP configurations that launched `dacli` with
+`["mcp", "serve"]` and no token must change their arguments to
+`["mcp", "serve", "--operator"]`. Agent configurations should retain
+`["mcp", "serve"]` and supply their own valid token instead.
+
+`--operator` refuses if `DACLI_AGENT` is present, even if its value is empty,
+invalid, or a valid agent token. It cannot override agent identity. The only
+accepted value forms are `--operator=true` and `--operator=false`; false does
+not authorize root. Ordinary CLI commands such as `dacli whoami` retain their
+existing root default when the variable is absent.
+
+This is bootstrap hardening, not authenticated native-subagent enrollment.
+The local cooperative trust model and existing command grant gates still apply.
 
 **The token never appears as a tool parameter.** Tool calls and results land in model transcripts; an identity passed per-call would be an identity leaked to every context window that touches the conversation. Binding at launch keeps the credential out of band entirely.
 
@@ -59,7 +96,7 @@ renaming, or retyping an existing field requires a new version.
 
 Twenty-two schemas, chosen by the same rule as everything else here: what does a working agent touch between claim and done. Reads are deliberately thin — `get_context` *is* the read path; that's the whole thesis. Cleanup and reconciliation retire only proven-dead state while preserving evidence. PR diagnosis classifies blockers; GitHub projection exposes disclosure and closure authority before a remote write.
 
-**Tier 2 — one escape hatch.** `cli` takes `argv: string[]` and runs any other command, returning the same JSON the CLI's `--json` emits. Setup and admin (init, roles, templates, github, runtime doctor, wbs, burndown) live here: agents need them rarely, humans run them mostly, and none deserves a permanent schema slot in every child's context. `spawn`/`supervise` graduate to Tier 1 when L5 lands.
+**Tier 2 — one escape hatch.** `cli` takes `argv: string[]` and runs any other command, returning the same JSON the CLI's `--json` emits. Setup and admin (init, roles, templates, github, wbs, burndown) live here: agents need them rarely, humans run them mostly, and none deserves a permanent schema slot in every child's context. Coding-agent launch commands have been removed.
 
 ## 3. Refusals are results, not errors
 

@@ -199,7 +199,11 @@ func RemoveTask(w *workspace.Workspace, t *Task) error {
 	// with no signal that its own had been deleted (issue #433). This is not
 	// --force-able; stop the agent first, because the alternative is a run
 	// that cannot be made correct.
-	if held := liveClaimants(w, t); len(held) > 0 {
+	held, err := liveClaimants(w, t)
+	if err != nil {
+		return ErrReferenced{Kind: "task", Name: fmt.Sprintf("%03d-%s", t.Seq, t.Slug), By: []string{fmt.Sprintf("recovery evidence is unreadable; refusing removal: %v", err)}}
+	}
+	if len(held) > 0 {
 		return ErrReferenced{
 			Kind: "task",
 			Name: fmt.Sprintf("%03d-%s", t.Seq, t.Slug),
@@ -277,26 +281,44 @@ func TombstoneSeqCeiling(w *workspace.Workspace, project string) int {
 // that is what "something references this" meant when RemoveTask was written.
 // It never looked at .dacli/runs, so a task could be referenced by a running
 // process and read as unreferenced. The sibling condition, missed (issue #433).
-func liveClaimants(w *workspace.Workspace, t *Task) []string {
+func liveClaimants(w *workspace.Workspace, t *Task) ([]string, error) {
 	entries, err := os.ReadDir(w.RunsDir())
 	if err != nil {
-		return nil
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read recovery runs: %w", err)
 	}
-	live := liveChildren(w)
-	var out []string
+	var records []procmon.Record
+	live := map[string]bool{}
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
 		}
-		rec, rerr := procmon.ReadRecord(filepath.Join(w.RunDir(e.Name()), "proc.txt"))
-		if rerr != nil || rec.Child == "" || !live[rec.Child] {
+		rec, rerr := procmon.ReadRetainedRecord(filepath.Join(w.RunDir(e.Name()), "proc.txt"))
+		if rerr != nil {
+			if os.IsNotExist(rerr) {
+				continue
+			}
+			return nil, fmt.Errorf("read recovery run %s: %w", e.Name(), rerr)
+		}
+		records = append(records, rec)
+		if procmon.AliveRecord(rec) {
+			live[rec.Child] = true
+		}
+	}
+	// Preserve the existing agent-level live-claim rule across multiple runs,
+	// but validate the entire snapshot before interpreting any record as safe.
+	var out []string
+	for _, rec := range records {
+		if !live[rec.Child] {
 			continue
 		}
 		if rec.Task == t.ID || rec.Task == fmt.Sprintf("%03d", t.Seq) {
-			out = append(out, fmt.Sprintf("live agent %s (run %s) is working it — stop it first (`dacli kill %s`) or let it finish", rec.Child, rec.RunID, rec.RunID))
+			out = append(out, fmt.Sprintf("live agent %s (run %s) is working it — stop it in its native host or let it finish, then inspect the outcome before audited owner recovery", rec.Child, rec.RunID))
 		}
 	}
-	return out
+	return out, nil
 }
 
 // taskReferrers lists what still names this task: another task's dependency,

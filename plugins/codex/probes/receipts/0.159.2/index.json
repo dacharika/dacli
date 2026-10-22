@@ -1,0 +1,68 @@
+{
+  "schema": "codex-probe-receipt-index/v1",
+  "host_version": "codex-cli 0.159.2",
+  "measured_date": "2026-10-02",
+  "source": "owner-executed native action lab",
+  "receipts": [
+    {
+      "file": "observe-initial.json",
+      "sha256": "96b079d8a10bc8cc02e2ab0bb203f1a4ff52d390c36f79dd17fa94afafe35e1e",
+      "item_diagnostics_present": false,
+      "runner_revision": "initial projection"
+    },
+    {
+      "file": "deny.json",
+      "sha256": "035d214d2774f86cc3a1daf81d094db5e6276e5604a7ec04dcb23a7c48adbb8a",
+      "item_diagnostics_present": false,
+      "runner_revision": "initial projection"
+    },
+    {
+      "file": "malformed.json",
+      "sha256": "c75f06754a55ed423b9312ee925e46a45ac805f6e0322eb3956021e574c49cc6",
+      "item_diagnostics_present": true,
+      "runner_revision": "diagnostic projection; no exact source digest captured at execution"
+    },
+    {
+      "file": "error.json",
+      "sha256": "68768e26b96f571d1d4a0bebe113f5015e5dcdba1dea329cb1f7c7ef59207087",
+      "item_diagnostics_present": true,
+      "runner_revision": "diagnostic projection; no exact source digest captured at execution"
+    },
+    {
+      "file": "timeout.json",
+      "sha256": "0322a13a0c47e7f0543cf2af622d275cd5b8691a0a08cd0c770e86f64bc4754d",
+      "item_diagnostics_present": true,
+      "runner_revision": "diagnostic projection; no exact source digest captured at execution"
+    },
+    {
+      "file": "disabled.json",
+      "sha256": "2aa076436fa7d2b053ed8914b281d179425d953a648e3f57a90f65fa356bfdcd",
+      "item_diagnostics_present": true,
+      "runner_revision": "diagnostic projection; no exact source digest captured at execution"
+    },
+    {
+      "file": "untrusted.json",
+      "sha256": "ef385a0026efd79de024d6a81f777e41eeeebdef0602310bbf9dbca3b1740f26",
+      "item_diagnostics_present": true,
+      "runner_revision": "diagnostic projection; no exact source digest captured at execution"
+    },
+    {
+      "file": "observe-v2.json",
+      "sha256": "09a6182d79dd5f09610e20e274052da0af894f596257897d919b3e70e1e56ef1",
+      "item_diagnostics_present": true,
+      "runner_revision": "diagnostic projection; no exact source digest captured at execution"
+    },
+    {
+      "file": "observe-v3.json",
+      "sha256": "f654f15cbb7dbd2bf9f36ed6a7a9016e7bea56bddd547ed88a18c472cf38aef3",
+      "item_diagnostics_present": true,
+      "runner_revision": "read-only MCP annotations and isolated feature declarations; no exact source digest captured at execution"
+    },
+    {
+      "file": "observe-persisted.json",
+      "sha256": "32ed98c9f5797f8e3aef0e23feea11b17f8667c54f15acd28e98a8892dd1e79a",
+      "item_diagnostics_present": true,
+      "runner_revision": "persistence opt-in and explicit native delegation prompt; no exact source digest captured at execution"
+    }
+  ]
+}

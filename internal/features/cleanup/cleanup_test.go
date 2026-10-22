@@ -56,7 +56,7 @@ func TestCleanupDryRunRendersSameVersionedPlanInTextAndJSON(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &plan); err != nil {
 		t.Fatalf("JSON plan: %v\n%s", err, out)
 	}
-	if plan.Schema != store.CleanupPlanSchema || plan.Version != 2 || !strings.Contains(text.String(), plan.ID) {
+	if plan.Schema != store.CleanupPlanSchema || plan.Version != 3 || !strings.Contains(text.String(), plan.ID) {
 		t.Fatalf("text/JSON plan identity differs: text=%s json=%+v", text, plan)
 	}
 }

@@ -2,7 +2,7 @@
 
 _Generated from `.dacli/` by `dacli catalog` — do **not** edit this page. It is a one-way read view: to change a role or skill, edit its file under `.dacli/` (via PR), then regenerate. Versions and last-changed come from git history._
 
-A role's **Grant** must agree with its runtime. A `ro` grant is only honest on a runtime that can enforce read-only, so `dacli spawn --grant ro` on a runtime with no read-only sandbox is refused (exit 3), never downgraded to rw — check it with `dacli runtime doctor` (a runtime shown `✗ no read-only mode` cannot back a `ro` role). An `rw` grant is also refused when the runtime's allowlist grants no write tool (`Edit` or `Write`); a runtime with no allowlist makes no such promise and is treated as writable. `--cooperative` explicitly overrides either capability refusal. Runtime and model routing are shown below; the adapter allowlist is in `.dacli/runtimes/<name>.md`.
+Roles describe intended responsibilities; they do not authenticate native sessions or prove reviewer independence. Runtime/model columns retain historical or planning metadata. Native authority comes from separately enrolled scoped credentials; the coding host owns execution and sandbox settings.
 
 ## Roles (18)
 

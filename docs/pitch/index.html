@@ -99,8 +99,8 @@
           <div class="authority-core">
             <b>dacli</b>
             <p>
-              Enforces scope, budgets, state transitions, recovery, and delivery
-              evidence.
+              Governs scoped sessions, fenced leases, committed revisions and
+              explicit evidence. The host controls execution and budgets.
             </p>
           </div>
           <div>
@@ -229,8 +229,8 @@
           </thead>
           <tbody>
             <tr>
-              <td>Codex, Claude Code, Gemini CLI, Copilot CLI</td>
-              <td>Provide the coding-agent runtime.</td>
+              <td>Native coding host (Codex tested first)</td>
+              <td>Runs agents, delegation, models and sandbox.</td>
             </tr>
             <tr>
               <td>GitHub issues, pull requests, and CI</td>
@@ -246,13 +246,13 @@
           </tbody>
         </table>
         <p class="note">
-          A run stays on its selected harness. Cross-harness routing requires an
-          explicit allowlist and hybrid configuration.
+          The plugin uses an explicit private session. Shared MCP connections share
+          one identity; self-reports are not trusted runner evidence.
         </p>
         <footer>
-          Runtime adapters are documented in the repository.<a
+          Coding-agent launchers and runtime adapters have been removed.<a
             href="../RUNTIMES/"
-            >Runtime contracts</a
+            >Native host boundary</a
           >
         </footer>
       </section>
@@ -274,7 +274,7 @@
             </p>
           </div>
           <div>
-            <b>Repeat with a bounded loop</b>
+            <b>Repeat through the native host</b>
             <p>
               Expand only after scope, review, cost, and recovery are
               understood.

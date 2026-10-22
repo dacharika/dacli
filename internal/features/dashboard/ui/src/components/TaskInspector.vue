@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import NativeGovernancePanel from '@/components/NativeGovernancePanel.vue'
 import { computed } from 'vue'
 import {
   DialogClose,
@@ -107,6 +108,7 @@ function onOpenChange(open: boolean): void {
           </section>
 
           <template v-else-if="task">
+            <NativeGovernancePanel :snapshot="task.native" records />
             <div
               v-if="phase === 'error'"
               role="alert"

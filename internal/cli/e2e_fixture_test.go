@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,8 +9,8 @@ import (
 	"testing"
 )
 
-// The self-hosting fixture: dacli takes a repo from EMPTY to SHIPPED with no
-// human in the loop, and the test asserts the outcome rather than the calls
+// The host-owned fixture: a native worker implements a change, and the
+// explicit owner delivery path lands it, and the test asserts the outcome rather than the calls
 // (issue #437 item 5).
 //
 // Why this could not be a unit test. Every guard along this arc was already
@@ -26,7 +25,7 @@ import (
 // instead of running its accept step.
 //
 // Offline and deterministic: the "agent" is a shell script, so there is no
-// model, no network, and no clock dependence. What is being proven is dacli's
+// model, no network, and no clock dependence. What is being proven is explicit owner delivery
 // coordination, and a real agent would only add variance to a question that is
 // not about the agent.
 func TestE2EFixtureRepoGoesFromEmptyToShipped(t *testing.T) {
@@ -61,7 +60,7 @@ func TestE2EFixtureRepoGoesFromEmptyToShipped(t *testing.T) {
 	// through the protocol verbs. It uses `task done`, the verb agents are
 	// actually told to use and the one whose proposals nothing consumed until
 	// task 312.
-	mockRuntime(t, dir, "worker", strings.Join([]string{
+	writeNativeWorkerFixture(t, dir, "worker", strings.Join([]string{
 		`set -e`,
 		`cat > adder.go <<'EOF'`,
 		`package adder`,
@@ -80,7 +79,7 @@ func TestE2EFixtureRepoGoesFromEmptyToShipped(t *testing.T) {
 		`EOF`,
 		`printf 'module adder\n\ngo 1.22\n' > go.mod`,
 		`git add -A`,
-		`dacli commit "implement Add with a test" --task 001 --no-add`,
+		`dacli commit "Implement Add and cover it with a test" --task 001 --no-add`,
 		// `task done`, NOT `task check`: a spawned agent proposes and the
 		// owner applies. Checking its own boxes is refused by design, and
 		// `task done` is the verb whose proposals nothing consumed until
@@ -93,8 +92,7 @@ func TestE2EFixtureRepoGoesFromEmptyToShipped(t *testing.T) {
 	// worktree gives the agent its task branch (dacli commit refuses to commit
 	// on trunk), and the claim is the scope guard. Both refused this fixture
 	// on the way to working, which is the point of driving the real path.
-	runFixtureWorker(t, dir, "spawn", "--task", "001", "--runtime", "worker", "--grant", "rw",
-		"--worktree", "--claim", "adder.go,adder_test.go,go.mod")
+	executeNativeWorkerFixture(t, dir, "001", "worker", "adder.go,adder_test.go,go.mod")
 
 	// --- land -------------------------------------------------------------
 	// The TOOL closes its own loop. The test never runs `accept --force`: a
@@ -159,27 +157,6 @@ exit "$status"
 	if err := os.WriteFile(shim, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
-}
-
-// runFixtureWorker preserves the decisive child output before t.TempDir removes
-// the fixture workspace. The generic run helper can report the transcript path,
-// but that path is already gone by the time a failed test returns (issue #488).
-func runFixtureWorker(t *testing.T, dir string, args ...string) string {
-	t.Helper()
-	var out, errb bytes.Buffer
-	ctx := &Ctx{Stdout: &out, Stderr: &errb, Cwd: dir}
-	cmd, rest := match(args)
-	if cmd == nil {
-		t.Fatalf("no such command: %v", args)
-	}
-	err := invoke(ctx, cmd, rest)
-	combined := out.String() + errb.String()
-	if err == nil {
-		return combined
-	}
-	diagnostic := fixtureWorkerDiagnostic(combined)
-	t.Fatalf("%v: exit %d (err: %v)\nstdout/stderr:\n%s\n%s", args, exitCode(err), err, combined, diagnostic)
-	return ""
 }
 
 func fixtureWorkerDiagnostic(spawnOutput string) string {

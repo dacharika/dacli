@@ -189,6 +189,7 @@ export interface BurnWindow {
  * zero ceiling, and `alert` is false (nothing to compare against).
  */
 export interface Burn {
+  native?: NativeSnapshot[]
   /** What series/ceiling/rate are measured in — `output_tokens`. */
   unit: string
   series: BurnPoint[]
@@ -463,6 +464,7 @@ export interface TaskLogEntry {
 }
 
 export interface TaskDetail extends TaskSummary {
+  native?: NativeSnapshot
   estimate: TaskEstimate | null
   so_that: string
   context: string
@@ -581,6 +583,7 @@ export interface OperatorAttentionItem {
 }
 
 export interface OperatorAttentionResponse {
+  native?: NativeSnapshot[]
   schema: 'operator-attention/v1'
   generated: string
   project?: string
@@ -881,3 +884,49 @@ export function emptyGraph(): Graph {
  * `error` on a failed poll (the last good snapshot is retained, not blanked).
  */
 export type Phase = 'loading' | 'live' | 'partial' | 'error'
+
+export interface NativeRecord {
+  kind: string
+  id: string
+  task_id: string
+  attempt_id?: string
+  lease_id?: string
+  revision_id?: string
+  reviewer_id?: string
+  actor_id?: string
+  decision_id?: string
+  evidence_ids?: string[]
+  commit?: string
+  tree?: string
+  check_id?: string
+  provenance?: string
+  state: string
+  freshness: string
+  observed_at: string
+  expires_at?: string
+  claims?: string[]
+  eligibility?: string
+}
+export interface NativeSnapshot {
+  schema: 'native-dashboard/v1'
+  state: string
+  project: string
+  observed_at: string
+  authority_version: number
+  limited: boolean
+  services: Record<string, string>
+  records: NativeRecord[]
+  attention: { id: string; task_id: string; category: string; summary: string; freshness: string }[]
+  spend: {
+    state: string
+    provenance: string
+    enforcement: string
+    unit: string
+    estimated_spent: number | null
+    estimated_reserved: number | null
+    estimated_limit: number | null
+    provider_tokens: number | null
+    provider_cost_usd: number | null
+    unknown_retained: boolean
+  }
+}

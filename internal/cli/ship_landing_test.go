@@ -36,17 +36,17 @@ func TestShipDoesNotStampAFalseUnlandedRecord(t *testing.T) {
 	// `task done` — the same arc TestWorkerProposedDoneIsLandedByTheToolNotByTheTest
 	// drives, reused here because it is exactly the shape ship's accept step
 	// force-closes: a task proposed by a now-finished agent.
-	mockRuntime(t, dir, "worker", strings.Join([]string{
+	writeNativeWorkerFixture(t, dir, "worker", strings.Join([]string{
 		"cat > /dev/null",
 		"ref=$(git rev-parse --abbrev-ref HEAD | sed 's|dacli/||; s|-.*||')",
 		"echo work > worked.txt",
 		"git add -A -- worked.txt",
-		"git -c user.email=a@b -c user.name=w commit -q -m \"$ref: work\"",
+		"git -c user.email=a@b -c user.name=w commit -q -m \"implement the thing\"",
 		bin + " task claim \"$ref\"",
 		bin + " task done \"$ref\"",
 	}, "\n"))
 
-	run(t, dir, 0, "spawn", "--task", "001", "--runtime", "worker", "--grant", "rw", "--worktree", "--claim", "worked.txt")
+	executeNativeWorkerFixture(t, dir, "001", "worker", "worked.txt")
 	dacliRun(t, bin, dir, "sync")
 	dacliRun(t, bin, dir, "ship", "--project", "p", "--into", "main")
 
@@ -84,7 +84,7 @@ func TestShipRecordsUnlandedTruthfullyOnConflict(t *testing.T) {
 	run(t, dir, 0, "project", "add", "P", "--slug", "p", "--goal", "a real goal for the project")
 	run(t, dir, 0, "task", "add", "edit shared", "--project", "p", "--accept", "a")
 
-	mockRuntime(t, dir, "worker", strings.Join([]string{
+	writeNativeWorkerFixture(t, dir, "worker", strings.Join([]string{
 		"cat > /dev/null",
 		"ref=$(git rev-parse --abbrev-ref HEAD | sed 's|dacli/||; s|-.*||')",
 		"echo branch line > shared.txt",
@@ -94,7 +94,7 @@ func TestShipRecordsUnlandedTruthfullyOnConflict(t *testing.T) {
 		bin + " task done \"$ref\"",
 	}, "\n"))
 
-	run(t, dir, 0, "spawn", "--task", "001", "--runtime", "worker", "--grant", "rw", "--worktree", "--claim", "shared.txt")
+	executeNativeWorkerFixture(t, dir, "001", "worker", "shared.txt")
 
 	// main edits the SAME file differently, so integrate hits a real conflict
 	// instead of a clean merge.

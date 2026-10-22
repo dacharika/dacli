@@ -300,14 +300,11 @@ func cmdWorktreePrune(ctx *clikit.Ctx, args []string) error {
 	}
 
 	removed, err := store.PruneWorktrees(w, into, cwd)
-	if err != nil {
-		return err
-	}
 	for _, c := range removed {
 		fmt.Fprintf(ctx.Stdout, "pruned %s (%s — %s)\n", c.Path, clikit.OrDash(c.Branch), c.Reason)
 	}
 	fmt.Fprintf(ctx.Stdout, "reclaimed %d worktree(s)\n", len(removed))
-	return nil
+	return err
 }
 
 func cmdPush(ctx *clikit.Ctx, args []string) error {

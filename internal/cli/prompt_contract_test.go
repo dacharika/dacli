@@ -46,19 +46,19 @@ func TestAutonomousPromptCommandsMatchRegistry(t *testing.T) {
 	}
 }
 
-func TestAutonomousPromptNamesNoDefaultProvider(t *testing.T) {
+func TestNativePromptStatesAuthorityAndHostBoundaries(t *testing.T) {
 	contract, err := prompts.AutonomousContract("")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, runtime := range []string{"Codex", "Claude Code", "Gemini", "Copilot", "generic"} {
-		if !strings.Contains(contract.Text, runtime) {
-			t.Errorf("contract omits runtime class %q", runtime)
+	for _, want := range []string{"native host runs agents", "does not launch a coding", "shared MCP connection shares one session identity", "Self-reports remain assertions", "owner-issued", "does not select fallbacks"} {
+		if !strings.Contains(contract.Text, want) {
+			t.Errorf("native contract omits boundary %q", want)
 		}
 	}
-	for _, forbidden := range []string{"default provider", "preferred provider", "fallback to Codex", "fallback to Claude"} {
+	for _, forbidden := range []string{"`dacli spawn", "`dacli supervise", "`dacli loop", "`dacli start", "`dacli verify --task"} {
 		if strings.Contains(contract.Text, forbidden) {
-			t.Errorf("contract establishes provider default via %q", forbidden)
+			t.Errorf("native contract recommends removed launcher %q", forbidden)
 		}
 	}
 }

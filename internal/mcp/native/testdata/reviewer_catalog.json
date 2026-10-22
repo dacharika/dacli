@@ -1,0 +1,1430 @@
+{
+  "tools": [
+    {
+      "name": "identity",
+      "description": "Scoped independent review proposal or fresh observation; no acceptance authority.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "properties": {
+                  "expires_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "scope": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "Actions": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": [
+                          "array",
+                          "null"
+                        ]
+                      },
+                      "Resources": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": [
+                          "array",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "Actions",
+                      "Resources"
+                    ],
+                    "type": "object"
+                  },
+                  "session_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "session_id",
+                  "scope",
+                  "expires_at"
+                ],
+                "type": "object"
+              },
+              "error": {
+                "type": "null"
+              },
+              "ok": {
+                "const": true,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "type": "object"
+              },
+              "error": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "exit_code": {
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "exit_code",
+                  "message"
+                ],
+                "type": "object"
+              },
+              "ok": {
+                "const": false,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "workspace_status",
+      "description": "Scoped independent review proposal or fresh observation; no acceptance authority.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "project"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "properties": {
+                  "pending_events": {
+                    "type": "integer"
+                  },
+                  "project_filter": {
+                    "type": "string"
+                  },
+                  "projects": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "active": {
+                          "type": "integer"
+                        },
+                        "blocked": {
+                          "type": "integer"
+                        },
+                        "done": {
+                          "type": "integer"
+                        },
+                        "implemented_unlanded": {
+                          "type": "integer"
+                        },
+                        "open": {
+                          "type": "integer"
+                        },
+                        "slug": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "slug",
+                        "title",
+                        "open",
+                        "active",
+                        "blocked",
+                        "done",
+                        "implemented_unlanded"
+                      ],
+                      "type": "object"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
+                  "schema": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "schema",
+                  "projects",
+                  "pending_events"
+                ],
+                "type": "object"
+              },
+              "error": {
+                "type": "null"
+              },
+              "ok": {
+                "const": true,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "type": "object"
+              },
+              "error": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "exit_code": {
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "exit_code",
+                  "message"
+                ],
+                "type": "object"
+              },
+              "ok": {
+                "const": false,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "task_list",
+      "description": "Scoped independent review proposal or fresh observation; no acceptance authority.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "project",
+          "status"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "properties": {
+                  "tasks": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "project": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "project",
+                        "title",
+                        "status"
+                      ],
+                      "type": "object"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "tasks"
+                ],
+                "type": "object"
+              },
+              "error": {
+                "type": "null"
+              },
+              "ok": {
+                "const": true,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "type": "object"
+              },
+              "error": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "exit_code": {
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "exit_code",
+                  "message"
+                ],
+                "type": "object"
+              },
+              "ok": {
+                "const": false,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "task_get",
+      "description": "Scoped independent review proposal or fresh observation; no acceptance authority.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          },
+          "task": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "task"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "properties": {
+                  "task": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "project": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "project",
+                      "title",
+                      "status"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "task"
+                ],
+                "type": "object"
+              },
+              "error": {
+                "type": "null"
+              },
+              "ok": {
+                "const": true,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "type": "object"
+              },
+              "error": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "exit_code": {
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "exit_code",
+                  "message"
+                ],
+                "type": "object"
+              },
+              "ok": {
+                "const": false,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_policy_status",
+      "description": "Scoped independent review proposal or fresh observation; no acceptance authority.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "decision_id": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          },
+          "task": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "project",
+          "task"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "properties": {
+                  "current_policy": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "allow": {
+                            "type": "boolean"
+                          },
+                          "digest": {
+                            "type": "string"
+                          },
+                          "expires_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "require_approval": {
+                            "type": "boolean"
+                          },
+                          "revision": {
+                            "type": "string"
+                          },
+                          "stopped": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "revision",
+                          "digest",
+                          "allow",
+                          "require_approval",
+                          "stopped",
+                          "expires_at"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
+                  "decision": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "action_digest": {
+                            "type": "string"
+                          },
+                          "approval": {
+                            "oneOf": [
+                              {
+                                "type": "null"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "current": {
+                                    "type": "boolean"
+                                  },
+                                  "expires_at": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "expires_at",
+                                  "current"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "consumption": {
+                            "oneOf": [
+                              {
+                                "type": "null"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "canonical_outcome_digest": {
+                                    "type": "string"
+                                  },
+                                  "consumed_at": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "operation_key": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "operation_key",
+                                  "consumed_at",
+                                  "canonical_outcome_digest"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "expires_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "historical": {
+                            "type": "boolean"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "matches_current_policy": {
+                            "type": "boolean"
+                          },
+                          "outcome": {
+                            "oneOf": [
+                              {
+                                "type": "null"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "expected_outcome_digest": {
+                                    "type": "string"
+                                  },
+                                  "observed_at": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "observed_outcome_digest": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "state",
+                                  "expected_outcome_digest",
+                                  "observed_outcome_digest",
+                                  "observed_at"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "policy_digest": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "action_digest",
+                          "policy_digest",
+                          "historical",
+                          "matches_current_policy",
+                          "expires_at",
+                          "approval",
+                          "consumption",
+                          "outcome"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
+                  "effect_authorized": {
+                    "const": false,
+                    "type": "boolean"
+                  },
+                  "observed_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "project": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string"
+                  },
+                  "task": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "project",
+                  "task",
+                  "state",
+                  "effect_authorized",
+                  "observed_at",
+                  "current_policy",
+                  "decision"
+                ],
+                "type": "object"
+              },
+              "error": {
+                "type": "null"
+              },
+              "ok": {
+                "const": true,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "type": "object"
+              },
+              "error": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "exit_code": {
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "exit_code",
+                  "message"
+                ],
+                "type": "object"
+              },
+              "ok": {
+                "const": false,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "propose_review",
+      "description": "Scoped independent review proposal or fresh observation; no acceptance authority.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "request": {
+            "additionalProperties": false,
+            "properties": {
+              "attempt_id": {
+                "type": "string"
+              },
+              "evidence_ids": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "expected_fence": {
+                "type": "integer"
+              },
+              "lease_id": {
+                "type": "string"
+              },
+              "operation_key": {
+                "type": "string"
+              },
+              "outcome": {
+                "type": "string"
+              },
+              "rationale": {
+                "type": "string"
+              },
+              "revision_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "operation_key",
+              "attempt_id",
+              "lease_id",
+              "revision_id",
+              "expected_fence",
+              "outcome",
+              "rationale",
+              "evidence_ids"
+            ],
+            "type": "object"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "request"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "properties": {
+                  "CreatedAt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "ID": {
+                    "type": "string"
+                  },
+                  "IssuerSession": {
+                    "type": "string"
+                  },
+                  "Observation": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "ChecklistDigest": {
+                        "type": "string"
+                      },
+                      "Checks": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "CommandDigest": {
+                              "type": "string"
+                            },
+                            "ID": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "ID",
+                            "CommandDigest"
+                          ],
+                          "type": "object"
+                        },
+                        "type": [
+                          "array",
+                          "null"
+                        ]
+                      },
+                      "PolicyRevision": {
+                        "type": "string"
+                      },
+                      "RequiredSet": {
+                        "oneOf": [
+                          {
+                            "type": "null"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "BaseCommit": {
+                                "type": "string"
+                              },
+                              "Checks": {
+                                "items": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "CommandDigest": {
+                                      "type": "string"
+                                    },
+                                    "ID": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "ID",
+                                    "CommandDigest"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": [
+                                  "array",
+                                  "null"
+                                ]
+                              },
+                              "GrantIDs": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": [
+                                  "array",
+                                  "null"
+                                ]
+                              },
+                              "PlanDigest": {
+                                "type": "string"
+                              },
+                              "PolicyBytesDigest": {
+                                "type": "string"
+                              },
+                              "PolicyDigest": {
+                                "type": "string"
+                              },
+                              "RevisionCommit": {
+                                "type": "string"
+                              },
+                              "RevisionID": {
+                                "type": "string"
+                              },
+                              "RevisionTree": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "PolicyDigest",
+                              "PolicyBytesDigest",
+                              "BaseCommit",
+                              "RevisionID",
+                              "RevisionCommit",
+                              "RevisionTree",
+                              "PlanDigest",
+                              "Checks",
+                              "GrantIDs"
+                            ],
+                            "type": "object"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "ChecklistDigest",
+                      "PolicyRevision",
+                      "Checks"
+                    ],
+                    "type": "object"
+                  },
+                  "Request": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "AttemptID": {
+                        "type": "string"
+                      },
+                      "EvidenceIDs": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": [
+                          "array",
+                          "null"
+                        ]
+                      },
+                      "ExpectedFence": {
+                        "type": "integer"
+                      },
+                      "GrantID": {
+                        "type": "string"
+                      },
+                      "LeaseID": {
+                        "type": "string"
+                      },
+                      "OperationKey": {
+                        "type": "string"
+                      },
+                      "Outcome": {
+                        "type": "string"
+                      },
+                      "Rationale": {
+                        "type": "string"
+                      },
+                      "RevisionID": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "OperationKey",
+                      "GrantID",
+                      "AttemptID",
+                      "LeaseID",
+                      "RevisionID",
+                      "ExpectedFence",
+                      "Outcome",
+                      "Rationale",
+                      "EvidenceIDs"
+                    ],
+                    "type": "object"
+                  },
+                  "Revision": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "AttemptID": {
+                        "type": "string"
+                      },
+                      "Fence": {
+                        "type": "integer"
+                      },
+                      "ID": {
+                        "type": "string"
+                      },
+                      "LeaseID": {
+                        "type": "string"
+                      },
+                      "Observation": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "Commit": {
+                            "type": "string"
+                          },
+                          "Locator": {
+                            "type": "string"
+                          },
+                          "ObservedAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "Repository": {
+                            "type": "string"
+                          },
+                          "Tree": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "Locator",
+                          "Repository",
+                          "Commit",
+                          "Tree",
+                          "ObservedAt"
+                        ],
+                        "type": "object"
+                      },
+                      "PublishedAt": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "Sequence": {
+                        "type": "integer"
+                      },
+                      "SessionID": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "ID",
+                      "AttemptID",
+                      "SessionID",
+                      "LeaseID",
+                      "Sequence",
+                      "Fence",
+                      "Observation",
+                      "PublishedAt"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "ID",
+                  "IssuerSession",
+                  "Request",
+                  "Revision",
+                  "Observation",
+                  "CreatedAt"
+                ],
+                "type": "object"
+              },
+              "error": {
+                "type": "null"
+              },
+              "ok": {
+                "const": true,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "type": "object"
+              },
+              "error": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "exit_code": {
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "exit_code",
+                  "message"
+                ],
+                "type": "object"
+              },
+              "ok": {
+                "const": false,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "evaluate_review",
+      "description": "Scoped independent review proposal or fresh observation; no acceptance authority.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "review_id": {
+            "type": "string"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "review_id"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "properties": {
+                  "Assurance": {
+                    "type": "string"
+                  },
+                  "Eligible": {
+                    "type": "boolean"
+                  },
+                  "Reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "Eligible",
+                  "Reason",
+                  "Assurance"
+                ],
+                "type": "object"
+              },
+              "error": {
+                "type": "null"
+              },
+              "ok": {
+                "const": true,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assurance": {
+                "const": "cooperative-session",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": false,
+                "type": "object"
+              },
+              "error": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "exit_code": {
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "exit_code",
+                  "message"
+                ],
+                "type": "object"
+              },
+              "ok": {
+                "const": false,
+                "type": "boolean"
+              },
+              "schema_version": {
+                "const": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema_version",
+              "ok",
+              "assurance",
+              "data",
+              "error"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      }
+    }
+  ]
+}

@@ -220,55 +220,32 @@ func TestDoctorFlagsBrokenCalibrationSpan(t *testing.T) {
 	}
 }
 
-// TestDoctorUsesRuntimeDoctorReadOnlyVerdict covers the cross-command sequence
-// that produced contradictory operator guidance: runtime doctor verified the
-// installed sandbox and cached that evidence, then doctor ignored the cache and
-// claimed every role using the runtime would be refused. The cache's adapter +
-// binary fingerprint remains the trust boundary: stale and failed evidence must
-// still warn.
-func TestDoctorUsesRuntimeDoctorReadOnlyVerdict(t *testing.T) {
-	w, ctx := doctorEnv(t)
-	bin := filepath.Join(t.TempDir(), "agent-cli")
-	if err := os.WriteFile(bin, []byte("verified binary"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	rt := store.Runtime{Name: "verified-ro", Binary: bin, SandboxRO: []string{"--sandbox", "read-only"}}
-	if err := store.CreateRuntime(w, "a-root", rt, ""); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.CreateRole(w, "a-root", team.Role{
-		Name: "reviewer", Summary: "review code", Scope: []string{"internal/**"},
-		Grant: string(model.GrantRO), Runtime: rt.Name,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.SaveRuntimeROProbe(w, rt, bin, store.RuntimeROVerified, "verified by runtime doctor"); err != nil {
-		t.Fatal(err)
-	}
-
-	out := doctorOut(t, ctx)
-	if strings.Contains(out, "grant-runtime-mismatch") {
-		t.Fatalf("doctor ignored runtime doctor's verified cache:\n%s", out)
-	}
-
-	// Changing the installed binary invalidates the cached fingerprint. Doctor
-	// must not carry the old verdict across that change.
-	if err := os.WriteFile(bin, []byte("different binary"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	ctx.Stdout.(*bytes.Buffer).Reset()
-	out = doctorOut(t, ctx)
-	if !strings.Contains(out, "grant-runtime-mismatch") {
-		t.Fatalf("doctor trusted a stale runtime probe:\n%s", out)
-	}
-
-	// A current, explicit failed verdict is equally non-authorizing.
-	if err := store.SaveRuntimeROProbe(w, rt, bin, store.RuntimeROFailed, "write was not refused"); err != nil {
-		t.Fatal(err)
-	}
-	ctx.Stdout.(*bytes.Buffer).Reset()
-	out = doctorOut(t, ctx)
-	if !strings.Contains(out, "grant-runtime-mismatch") {
-		t.Fatalf("doctor trusted a failed runtime probe:\n%s", out)
+// Historical adapter declarations and probe caches cannot establish native
+// session authority, and must not grade the current governance health report.
+func TestDoctorDoesNotGradeHistoricalLauncherReadiness(t *testing.T) {
+	for _, grant := range []model.Grant{model.GrantRO, model.GrantRW} {
+		t.Run(string(grant), func(t *testing.T) {
+			w, ctx := doctorEnv(t)
+			rt := store.Runtime{Name: "archived", Binary: filepath.Join(t.TempDir(), "missing-provider-cli")}
+			if err := store.CreateRuntime(w, "a-root", rt, "historical declaration"); err != nil {
+				t.Fatal(err)
+			}
+			if err := store.CreateRole(w, "a-root", team.Role{Name: "reviewer", Summary: "review code", Kind: "reviewer", Scope: []string{"internal/**"}, Grant: string(grant), Runtime: rt.Name,
+				OutOfScope: []string{"generated/**"}, EscalateTo: []string{"human"}, Skills: []string{"evidence"},
+				Profile: team.ModelProfile{ID: "planned-model", CostTier: 1, MaxTaskPoints: 5, ContextLimit: 100000, CapabilityTags: []string{"review"}}}); err != nil {
+				t.Fatal(err)
+			}
+			out := doctorOut(t, ctx)
+			if !strings.Contains(out, "no anti-patterns detected") {
+				t.Fatalf("historical launcher readiness changed current health:\n%s", out)
+			}
+			if strings.Contains(out, "spawn") || strings.Contains(out, "grant-runtime-mismatch") {
+				t.Fatalf("obsolete launcher authority leaked into health:\n%s", out)
+			}
+			got, err := store.LoadRuntime(w, rt.Name)
+			if err != nil || got.Binary != rt.Binary {
+				t.Fatalf("historical metadata was not preserved: %#v, %v", got, err)
+			}
+		})
 	}
 }

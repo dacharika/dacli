@@ -17,7 +17,17 @@ import (
 // capabilityRegistryGolden is the digest of the complete deterministic
 // registry projection below. A command/flag/tool addition or removal must be
 // reviewed as a compatibility-surface change and deliberately update it.
-const capabilityRegistryGolden = "eda9612c853838df6b7086076a6df3a3b2ffabe63aa9a1620bae5782aa37a29a"
+// This projection includes owner migration and excludes legacy provider launchers.
+// Seven controller commands add explicit owner enrollment/start and scoped CAS operations.
+// The six checkpoint commands preserve owner/controller mutation boundaries;
+// configure, record, reconcile and status emit typed JSON.
+// Native acceptance adds owner-only upgrade/apply and reviewer candidate export;
+// candidate/apply emit typed JSON, with no legacy or MCP write fallback.
+// Dashboard adds the explicit optional private reader connection flag; no new mutation.
+// Three native storage commands add owner-only observation, isolated projection and retention dry-run.
+// Seven device-auth/project-sync commands add six mutations and seven typed JSON outputs.
+// Digest generated from the assembled CLI artifact; behavioral verification remains pending.
+const capabilityRegistryGolden = "bb35fc0932851f60a67067d16aaf0fe653567d013940687988a100ceeaa9eb2b"
 
 func TestCapabilityRegistryGolden(t *testing.T) {
 	m := capabilityManifest()
@@ -34,6 +44,26 @@ func TestCapabilityRegistryGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := fmt.Sprintf("%x", sha256.Sum256(raw))
+	// Explicit source generation only. Normal runs retain strict equality and
+	// never rewrite a mismatch into acceptance. The owner regenerates once on
+	// the actual combined registry after all producers have been assembled.
+	if os.Getenv("DACLI_WRITE_CAPABILITY_GOLDEN") == "1" {
+		const path = "capabilities_test.go"
+		source, e := os.ReadFile(path)
+		if e != nil {
+			t.Fatal(e)
+		}
+		old := `const capabilityRegistryGolden = "` + capabilityRegistryGolden + `"`
+		if strings.Count(string(source), old) != 1 {
+			t.Fatal("capability generation requires exact prior constant")
+		}
+		updated := strings.Replace(string(source), old, `const capabilityRegistryGolden = "`+got+`"`, 1)
+		if e = os.WriteFile(path, []byte(updated), 0644); e != nil {
+			t.Fatal(e)
+		}
+		t.Logf("generated capability registry digest %s; generation is not behavioral verification", got)
+		return
+	}
 	if got != capabilityRegistryGolden {
 		t.Fatalf("capability registry golden = %s, want %s", got, capabilityRegistryGolden)
 	}
@@ -117,8 +147,11 @@ func TestCapabilitiesJSONIsDeterministicAndIncludesBinaryIdentity(t *testing.T) 
 	if m.SchemaVersion != 1 || m.Binary.Path == "" || m.Binary.Version == "" {
 		t.Fatalf("manifest identity incomplete: %#v", m.Binary)
 	}
-	if len(m.Commands) == 0 || len(m.MCP.Tools) == 0 || len(m.Runtime.Capabilities) == 0 {
+	if len(m.Commands) == 0 || len(m.MCP.Tools) == 0 {
 		t.Fatal("manifest registry sections must not be empty")
+	}
+	if len(m.Runtime.Capabilities) != 0 {
+		t.Fatal("native governance must not advertise removed CLI runtime adapters")
 	}
 }
 

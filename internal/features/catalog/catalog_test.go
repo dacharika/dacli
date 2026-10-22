@@ -159,13 +159,15 @@ func TestRenderCatalog(t *testing.T) {
 	if !strings.Contains(md, "do **not** edit") {
 		t.Errorf("catalog must warn against editing the generated view:\n%s", md)
 	}
-	// The preamble must state that grant and runtime have to agree and how to
-	// check, so a reader never files a ro role onto a runtime that cannot back it.
-	// It must also state the rw allowlist refusal and the explicit cooperative
-	// escape hatch so the generated page cannot regress to the old one-way claim.
-	for _, want := range []string{"must agree with its runtime", "dacli runtime doctor", "grants no write tool", "--cooperative"} {
+	// A role projection must not imply native authentication or independent review.
+	for _, want := range []string{"do not authenticate native sessions", "reviewer independence", "historical or planning metadata", "separately enrolled scoped credentials", "host owns execution"} {
 		if !strings.Contains(md, want) {
-			t.Errorf("catalog preamble missing grant/runtime note %q:\n%s", want, md)
+			t.Errorf("catalog preamble missing native authority boundary %q:\n%s", want, md)
+		}
+	}
+	for _, removed := range []string{"dacli runtime doctor", "dacli spawn", "--cooperative"} {
+		if strings.Contains(md, removed) {
+			t.Errorf("catalog advertises removed launcher guidance %q", removed)
 		}
 	}
 	// A pipe inside a cell must be escaped, never left to split the row.

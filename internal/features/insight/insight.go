@@ -4,14 +4,15 @@
 package insight
 
 import (
+	"errors"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 	"unicode"
 
 	"github.com/mlnomadpy/dacli/internal/agentid"
+	"github.com/mlnomadpy/dacli/internal/application"
 	"github.com/mlnomadpy/dacli/internal/clikit"
 	"github.com/mlnomadpy/dacli/internal/eventlog"
 	"github.com/mlnomadpy/dacli/internal/model"
@@ -45,72 +46,30 @@ func cmdStatus(ctx *clikit.Ctx, args []string) error {
 		return err
 	}
 	project := f.Get("project")
-	w, _, err := clikit.OpenWorkspace(ctx)
+	w, id, err := clikit.OpenWorkspace(ctx)
 	if err != nil {
 		return err
 	}
-	if project != "" {
-		if _, err := store.LoadProject(w, project); err != nil {
-			return err
-		}
-	}
-	// pal is a no-op (Palette{}) unless ctx.Stdout is a real terminal, so
-	// this is byte-identical to the old output for --json, the MCP
-	// executor, and every test harness — see clikit.NewPalette.
-	pal := clikit.NewPalette(ctx)
-	ps, err := store.ListProjects(w)
+	r, err := application.NewCooperativeContext(w, id)
 	if err != nil {
 		return err
 	}
-	type projectStatus struct {
-		Slug                string `json:"slug"`
-		Title               string `json:"title"`
-		Open                int    `json:"open"`
-		Active              int    `json:"active"`
-		Blocked             int    `json:"blocked"`
-		Done                int    `json:"done"`
-		ImplementedUnlanded int    `json:"implemented_unlanded"`
+	result, err := application.Status(r, project)
+	if err != nil {
+		return err
 	}
-	var statuses []projectStatus
-	for _, p := range ps {
-		if project != "" && p.Slug != project {
-			continue
-		}
-		counts := map[model.Status]int{}
-		implemented := 0
-		ts, _ := store.ListTasks(w, p.Slug, "")
-		for _, t := range ts {
-			counts[t.Status]++
-			if t.CompletionState() == "implemented-unlanded" {
-				implemented++
-			}
-		}
-		statuses = append(statuses, projectStatus{Slug: p.Slug, Title: p.Title, Open: counts[model.StatusOpen], Active: counts[model.StatusActive], Blocked: counts[model.StatusBlocked], Done: counts[model.StatusDone], ImplementedUnlanded: implemented})
-		if ctx.JSON {
-			continue
-		}
-		slug := pal.Bold(fmt.Sprintf("%-16s", p.Slug)) // pad THEN color: escape codes must never count toward column width
-		fmt.Fprintf(ctx.Stdout, "%s open:%s active:%s blocked:%s done:%s implemented-unlanded:%s  %s\n",
-			slug,
-			pal.Dim(fmt.Sprint(counts[model.StatusOpen])),
-			pal.Yellow(fmt.Sprint(counts[model.StatusActive])),
-			pal.Red(fmt.Sprint(counts[model.StatusBlocked])),
-			pal.Green(fmt.Sprint(counts[model.StatusDone])),
-			pal.Yellow(fmt.Sprint(implemented)),
-			p.Title)
-	}
-	pending, _ := eventlog.List(w, eventlog.Query{Pending: true})
 	if ctx.JSON {
-		return clikit.EmitJSON(ctx, struct {
-			Schema        string          `json:"schema"`
-			ProjectFilter string          `json:"project_filter,omitempty"`
-			Projects      []projectStatus `json:"projects"`
-			PendingEvents int             `json:"pending_events"`
-		}{Schema: "workspace-status/v1", ProjectFilter: project, Projects: statuses, PendingEvents: len(pending)})
+		return clikit.EmitJSON(ctx, result)
 	}
-	if len(pending) > 0 {
-		fmt.Fprintf(ctx.Stdout, "%s\n", pal.Yellow(fmt.Sprintf("pending events: %d (run `dacli sync` as the owner to materialize)", len(pending))))
+	pal := clikit.NewPalette(ctx)
+	for _, p := range result.Projects {
+		slug := pal.Bold(fmt.Sprintf("%-16s", p.Slug))
+		fmt.Fprintf(ctx.Stdout, "%s open:%s active:%s blocked:%s done:%s implemented-unlanded:%s  %s\n", slug, pal.Dim(fmt.Sprint(p.Open)), pal.Yellow(fmt.Sprint(p.Active)), pal.Red(fmt.Sprint(p.Blocked)), pal.Green(fmt.Sprint(p.Done)), pal.Yellow(fmt.Sprint(p.ImplementedUnlanded)), p.Title)
 	}
+	if result.PendingEvents > 0 {
+		fmt.Fprintf(ctx.Stdout, "%s\n", pal.Yellow(fmt.Sprintf("pending events: %d (run `dacli sync` as the owner to materialize)", result.PendingEvents)))
+	}
+
 	return nil
 }
 
@@ -173,6 +132,116 @@ func cmdLint(ctx *clikit.Ctx, args []string) error {
 	return nil
 }
 
+// cpmProjection separates implementation work from derived completion events.
+// Dropping aggregate nodes also dropped downstream FS constraints (core 601).
+// Their zero-work milestones remain in CPM, but never in assignment/output rows.
+type cpmProjection struct {
+	nodes   []spm.Node
+	edges   []spm.Edge
+	work    []*store.Task
+	unsized []string
+}
+
+func projectCPM(all, tasks []*store.Task) (cpmProjection, error) {
+	p := cpmProjection{}
+	global := store.NewTaskIndex(all)
+	localTasks := map[string][]*store.Task{}
+	for _, task := range all {
+		localTasks[task.Project] = append(localTasks[task.Project], task)
+	}
+	locals := map[string]*store.TaskIndex{}
+	for project, group := range localTasks {
+		locals[project] = store.NewTaskIndex(group)
+	}
+	resolve := func(task *store.Task, ref string) (*store.Task, error) {
+		dep, err := locals[task.Project].Find(ref)
+		var missing store.ErrNotFound
+		if err != nil && errors.As(err, &missing) {
+			return global.Find(ref)
+		}
+		return dep, err
+	}
+	scheduled := map[string]bool{}
+	for _, task := range tasks {
+		if task.Status == model.StatusDone || task.Status == model.StatusBlocked || task.IsLoopAnchor() {
+			continue
+		}
+		scheduled[task.ID] = true
+		duration := 0.0
+		if !task.IsAggregate() {
+			p.work = append(p.work, task)
+			estimate, ok := task.Estimate()
+			if !ok {
+				p.unsized = append(p.unsized, fmt.Sprintf("%03d-%s", task.Seq, task.Slug))
+			} else {
+				duration = estimate.Expected()
+			}
+		}
+		p.nodes = append(p.nodes, spm.Node{ID: task.ID, Duration: duration})
+	}
+	seenEdges := map[spm.Edge]bool{}
+	add := func(from, to string, typ spm.DepType) {
+		edge := spm.Edge{From: from, To: to, Type: typ}
+		if !seenEdges[edge] {
+			p.edges = append(p.edges, edge)
+			seenEdges[edge] = true
+		}
+	}
+	for _, task := range tasks {
+		if !scheduled[task.ID] {
+			continue
+		}
+		for _, dep := range task.Deps() {
+			predecessor, err := resolve(task, dep.Ref)
+			// ReadyFrontier reports malformed ordinary refs; preserve that diagnostic
+			// and do not invent an edge to a nonexistent scheduling node.
+			if err == nil && predecessor.IsAggregate() && predecessor.Status != model.StatusDone && !scheduled[predecessor.ID] {
+				return p, fmt.Errorf("task %s depends on aggregate %s (%s, project %s) whose completion cannot be represented in this schedule", task.ID, predecessor.ID, predecessor.Status, predecessor.Project)
+			}
+			if err == nil && scheduled[predecessor.ID] {
+				add(predecessor.ID, task.ID, spm.DepType(dep.Type))
+			}
+		}
+		if !task.IsAggregate() {
+			continue
+		}
+		children := task.AggregateChildren()
+		if len(children) == 0 {
+			return p, fmt.Errorf("aggregate %s has no required children for completion scheduling", task.ID)
+		}
+		seenChildren := map[string]bool{}
+		for _, id := range children {
+			if seenChildren[id] {
+				return p, fmt.Errorf("aggregate %s repeats required child %s", task.ID, id)
+			}
+			seenChildren[id] = true
+			child, err := global.Find(id)
+			if err != nil {
+				return p, fmt.Errorf("aggregate %s required child %s cannot be resolved for completion scheduling: %w", task.ID, id, err)
+			}
+			// Required child identity follows canonical aggregate progress: only
+			// children in the aggregate's project qualify. Cross-project dependencies
+			// remain explicit typed edges, not hierarchy or required-child shortcuts.
+			if child.Project != task.Project {
+				return p, fmt.Errorf("aggregate %s required child %s belongs to project %s instead of %s", task.ID, id, child.Project, task.Project)
+			}
+			if child.ID != id {
+				return p, fmt.Errorf("aggregate %s required child %s is not a stable task ID", task.ID, id)
+			}
+			if child.Status == model.StatusDone {
+				continue
+			}
+			if !scheduled[child.ID] {
+				return p, fmt.Errorf("aggregate %s required child %s (%s, project %s) cannot be represented in this completion schedule", task.ID, id, child.Status, child.Project)
+			}
+			// Aggregate start and finish coincide at child completion. Optional
+			// descriptive children outside this stable list add no barrier edge.
+			add(child.ID, task.ID, spm.FS)
+		}
+	}
+	return p, nil
+}
+
 // cmdNext: MoSCoW first, then the critical path — which tasks to spawn
 // children on FIRST; fanning out onto slack tasks while the critical path
 // idles is the default agent failure.
@@ -197,27 +266,11 @@ func cmdNext(ctx *clikit.Ctx, args []string) error {
 		return err
 	}
 	tasks := projectTasks(allTasks, project)
-	// byRef/openIDs/open build the CPM SCHEDULING set — every unfinished,
-	// unblocked task, including work already in flight, because in-flight work
-	// still occupies the schedule. Which of them may be RECOMMENDED is a
-	// different and narrower question, answered once by store.ReadyFrontier
-	// below. Done-ness no longer needs a map here: the frontier owns it.
-	byRef := map[string]*store.Task{}
-	openIDs := map[string]bool{}
-	var open []*store.Task
-	for _, t := range tasks {
-		for _, ref := range []string{t.ID, strings.TrimPrefix(t.ID, "t-"), t.Slug, fmt.Sprintf("%03d", t.Seq)} {
-			byRef[ref] = t
-		}
-		if t.Status != model.StatusDone && t.Status != model.StatusBlocked && !t.IsLoopAnchor() && !t.IsAggregate() {
-			// The standing continuous-improvement task is the loop's
-			// review-phase anchor, not implementer work — the readiness
-			// predicate excludes it from the build frontier, so it must not
-			// occupy the schedule this view is drawn from either.
-			open = append(open, t)
-			openIDs[t.ID] = true
-		}
+	projection, err := projectCPM(allTasks, tasks)
+	if err != nil {
+		return err
 	}
+	open := projection.work
 	if len(open) == 0 {
 		if ctx.JSON {
 			return clikit.EmitJSON(ctx, map[string]any{"schema": "next/v1", "project": project, "ordering": "empty", "recommendations": []any{}, "blocked": []any{}, "problems": []any{}})
@@ -247,27 +300,8 @@ func cmdNext(ctx *clikit.Ctx, args []string) error {
 	// CPM needs durations; degrade to MoSCoW-then-sequence when estimates
 	// are missing, and SAY SO.
 	slack := map[string]float64{}
-	haveCPM := true
-	var nodes []spm.Node
-	var edges []spm.Edge
-	for _, t := range open {
-		est, ok := t.Estimate()
-		if !ok {
-			haveCPM = false
-			break
-		}
-		nodes = append(nodes, spm.Node{ID: t.ID, Duration: est.Expected()})
-		for _, d := range t.Deps() {
-			// Only edge to a dep that is itself a scheduled node. A done dep
-			// imposes no scheduling constraint; a BLOCKED dep is not a node
-			// (both readouts exclude blocked), and edging to it would make
-			// ComputeCPM fail "edge references unknown task". Readiness against
-			// a blocked dep is still enforced by ready() below.
-			if dep, ok := byRef[d.Ref]; ok && openIDs[dep.ID] {
-				edges = append(edges, spm.Edge{From: dep.ID, To: t.ID, Type: spm.DepType(d.Type)})
-			}
-		}
-	}
+	haveCPM := len(projection.unsized) == 0
+	nodes, edges := projection.nodes, projection.edges
 	if haveCPM {
 		net, err := spm.ComputeCPM(nodes, edges)
 		if err != nil {
@@ -626,37 +660,16 @@ func cmdCriticalPath(ctx *clikit.Ctx, args []string) error {
 			return fmt.Errorf("project critical path has unfinished external prerequisites whose duration is outside this schedule: %s", strings.Join(externalBlockers, "; "))
 		}
 	}
-	byRef := map[string]*store.Task{}
-	done := map[string]bool{}
-	openIDs := map[string]bool{}
-	var open []*store.Task
-	for _, t := range tasks {
-		for _, ref := range []string{t.ID, strings.TrimPrefix(t.ID, "t-"), t.Slug, fmt.Sprintf("%03d", t.Seq)} {
-			byRef[ref] = t
-		}
-		// Exclude blocked from the schedule, exactly as `dacli next` does, so
-		// the two readouts agree on what is runnable and neither stars a
-		// blocked task as the thing to spawn on first.
-		if t.Status == model.StatusDone {
-			done[t.ID] = true
-		} else if t.Status != model.StatusBlocked && !t.IsAggregate() {
-			open = append(open, t)
-			openIDs[t.ID] = true
-		}
+	projection, err := projectCPM(allTasks, tasks)
+	if err != nil {
+		return err
 	}
-	var nodes []spm.Node
-	var edges []spm.Edge
+	nodes, edges := projection.nodes, projection.edges
 	labels := map[string]string{}
-	// Collect EVERY unsized task before refusing. Returning on the first one
-	// made acting on the refusal an N-round-trip loop — fix one, re-run, learn
-	// about the next — when the whole list was already in hand. A refusal is
-	// only useful if one reading of it is enough to act.
-	var unsized []string
-	for _, t := range open {
-		if _, ok := t.Estimate(); !ok {
-			unsized = append(unsized, fmt.Sprintf("%03d-%s", t.Seq, t.Slug))
-		}
+	for _, task := range projection.work {
+		labels[task.ID] = fmt.Sprintf("%03d-%s", task.Seq, task.Slug)
 	}
+	unsized := projection.unsized
 	if len(unsized) > 0 {
 		// Name the remedy, not just the fault — the standard doctor's findings
 		// already hold (`dacli accept --force` is spelled out there). CPM
@@ -665,18 +678,6 @@ func cmdCriticalPath(ctx *clikit.Ctx, args []string) error {
 		// is the honest fallback and is named so the caller has somewhere to go.
 		return fmt.Errorf("%d open task(s) have no estimate — CPM needs durations, so this command refuses rather than invent them: %s\nsize them with `dacli task estimate <ref> --estimate o,m,p`, or use `dacli next` which degrades to MoSCoW-then-sequence order",
 			len(unsized), strings.Join(unsized, ", "))
-	}
-	for _, t := range open {
-		est, _ := t.Estimate()
-		nodes = append(nodes, spm.Node{ID: t.ID, Duration: est.Expected()})
-		labels[t.ID] = fmt.Sprintf("%03d-%s", t.Seq, t.Slug)
-		for _, d := range t.Deps() {
-			// Edge only to a scheduled node — skip done and blocked deps so a
-			// blocked predecessor never triggers "edge references unknown task".
-			if dep, ok := byRef[d.Ref]; ok && openIDs[dep.ID] {
-				edges = append(edges, spm.Edge{From: dep.ID, To: t.ID, Type: spm.DepType(d.Type)})
-			}
-		}
 	}
 	if len(nodes) == 0 {
 		if ctx.JSON {
@@ -694,7 +695,9 @@ func cmdCriticalPath(ctx *clikit.Ctx, args []string) error {
 	}
 	ordered := make([]spm.Schedule, 0, len(net.Schedules))
 	for _, s := range net.Schedules {
-		ordered = append(ordered, s)
+		if _, implementation := labels[s.ID]; implementation {
+			ordered = append(ordered, s)
+		}
 	}
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i].EarlyStart < ordered[j].EarlyStart })
 	for _, s := range ordered {
@@ -1348,37 +1351,6 @@ func cmdDoctor(ctx *clikit.Ctx, args []string) error {
 		if r.WIP > 0 {
 			if n, _ := store.ActiveInRole(w, r.Name); n > r.WIP {
 				report("wip-exceeded", fmt.Sprintf("role %s has %d active agents against a limit of %d", r.Name, n, r.WIP))
-			}
-		}
-		// A role couples a grant (what the workspace permits) with a runtime
-		// (what the process can actually do), and nothing else cross-checks them:
-		// the role file reads fine on its own. When they disagree the spawn is
-		// wasted before it starts — an rw grant on a runtime whose allowlist has
-		// no write tool burns a run when the child cannot edit (dacli 250), and a
-		// ro grant on a runtime with no read-only sandbox is refused outright
-		// (§ 8). Name every such role so the coupling is visible without opening
-		// two files by hand. A runtime the role names but the workspace has not
-		// defined makes no checkable claim, so it is skipped rather than guessed.
-		if r.Runtime != "" {
-			if rt, err := store.LoadRuntime(w, r.Runtime); err == nil {
-				// runtime doctor records its verdict against the exact adapter and
-				// installed binary. LoadRuntime deliberately returns declaration-only
-				// state, so hydrate that local evidence here just as spawn does before
-				// deciding whether an ro grant is enforceable. A missing binary leaves
-				// the verdict unknown and therefore safely reports the mismatch.
-				if path, lookErr := exec.LookPath(rt.Binary); lookErr == nil {
-					rt = store.HydrateRuntimeROProbe(w, rt, path)
-				}
-				grant := model.Grant(r.Grant)
-				if grant == "" {
-					grant = model.GrantRO // spawn's default when a role sets none
-				}
-				switch {
-				case grant == model.GrantRW && !store.RuntimeWritable(rt):
-					report("grant-runtime-mismatch", fmt.Sprintf("role %s declares grant rw but runtime %s grants no write tool — a spawn here burns a run when the child cannot edit; give it a write-capable runtime or correct the grant", r.Name, rt.Name))
-				case grant == model.GrantRO && !store.RuntimeEnforcesRO(rt):
-					report("grant-runtime-mismatch", fmt.Sprintf("role %s declares grant ro but runtime %s cannot enforce read-only — the spawn is refused unless --cooperative; give it a runtime with a read-only sandbox or correct the grant", r.Name, rt.Name))
-				}
 			}
 		}
 	}

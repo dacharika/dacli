@@ -3,9 +3,12 @@ package config
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/mlnomadpy/dacli/cloud/internal/tenant"
 	"io"
 	"net"
 	"net/url"
@@ -20,6 +23,7 @@ const maxConfigBytes = 64 << 10
 
 // File is the non-secret configuration persisted by operators.
 type File struct {
+	Hosted           *HostedFile   `json:"hosted,omitempty"`
 	Mode             string        `json:"mode"`
 	ListenAddress    string        `json:"listen_address"`
 	PublicBaseURL    string        `json:"public_base_url"`
@@ -55,6 +59,7 @@ type RateLimits struct {
 
 // Config is the validated runtime configuration. Secrets remain private.
 type Config struct {
+	hosted          *HostedRuntime
 	Mode            string
 	ListenAddress   string
 	PublicBaseURL   *url.URL
@@ -184,7 +189,11 @@ func validate(f File, lookup LookupEnv) (Config, error) {
 			return Config{}, errors.New("production database credential is missing, too short, or a known default")
 		}
 	}
-	return Config{
+	hosted, err := validateHosted(f.Hosted, f.Mode, lookup)
+	if err != nil {
+		return Config{}, err
+	}
+	return Config{hosted: hosted,
 		Mode: f.Mode, ListenAddress: f.ListenAddress, PublicBaseURL: base,
 		RequestTimeout: requestTimeout, ShutdownTimeout: shutdownTimeout,
 		MaxRequestBytes: f.MaxRequestBytes, WorkerInterval: workerInterval,
@@ -284,4 +293,259 @@ func (c Config) SafeSummary() map[string]any {
 
 func safeLimit(value ratelimit.Policy) map[string]any {
 	return map[string]any{"capacity": value.Capacity, "refill_interval": value.RefillInterval.String(), "max_keys": value.MaxKeys, "idle_ttl": value.IdleTTL.String()}
+}
+
+// HostedFile selects hosted composition, opt-in in configuration but mandatory for these
+// production entrypoints. The legacy config parser remains compatible.
+type HostedFile struct {
+	DeviceOAuth    *DeviceOAuthFile   `json:"device_oauth,omitempty"`
+	SyncBindings   []SyncBinding      `json:"sync_bindings,omitempty"`
+	PolicyRevision uint64             `json:"policy_revision"`
+	Tenants        []HostedTenantFile `json:"tenants"`
+}
+type HostedTenantFile struct {
+	TenantID       string          `json:"tenant_id"`
+	DestinationURL string          `json:"destination_url,omitempty"`
+	CredentialEnv  string          `json:"credential_env,omitempty"`
+	TrustedKeys    []HostedKeyFile `json:"trusted_keys"`
+}
+type HostedKeyFile struct {
+	ProjectID string `json:"project_id"`
+	KeyID     string `json:"key_id"`
+	PublicKey string `json:"public_key"`
+}
+type HostedTenant struct {
+	Tenant      tenant.OrganizationID
+	Destination string
+	Keys        map[tenant.ProjectID]map[string]ed25519.PublicKey
+}
+type HostedRuntime struct {
+	device         *DeviceOAuthRuntime
+	bindings       []SyncBinding
+	PolicyRevision uint64
+	tenants        []HostedTenant
+	credentials    map[tenant.OrganizationID]string
+}
+
+func validateHosted(f *HostedFile, mode string, lookup LookupEnv) (*HostedRuntime, error) {
+	if f == nil {
+		return nil, nil
+	}
+	if f.PolicyRevision == 0 || len(f.Tenants) == 0 || len(f.Tenants) > 100 {
+		return nil, errors.New("hosted requires a policy revision and 1..100 explicit tenants")
+	}
+	out := &HostedRuntime{PolicyRevision: f.PolicyRevision, credentials: map[tenant.OrganizationID]string{}}
+	seen := map[tenant.OrganizationID]bool{}
+	for _, v := range f.Tenants {
+		id, e := tenant.NewOrganizationID(v.TenantID)
+		if e != nil || seen[id] {
+			return nil, errors.New("hosted tenant invalid or repeated")
+		}
+		seen[id] = true
+		t := HostedTenant{Tenant: id, Keys: map[tenant.ProjectID]map[string]ed25519.PublicKey{}}
+		if len(v.TrustedKeys) == 0 || len(v.TrustedKeys) > 1000 {
+			return nil, errors.New("hosted tenant requires bounded explicit project signing keys")
+		}
+		for _, k := range v.TrustedKeys {
+			project, e := tenant.NewProjectID(k.ProjectID)
+			key, e2 := base64.StdEncoding.DecodeString(k.PublicKey)
+			if e != nil || e2 != nil || len(key) != ed25519.PublicKeySize || k.KeyID == "" || len(k.KeyID) > 128 {
+				return nil, errors.New("hosted signing key invalid")
+			}
+			if t.Keys[project] == nil {
+				t.Keys[project] = map[string]ed25519.PublicKey{}
+			}
+			if _, ok := t.Keys[project][k.KeyID]; ok {
+				return nil, errors.New("hosted signing key repeated")
+			}
+			t.Keys[project][k.KeyID] = ed25519.PublicKey(append([]byte(nil), key...))
+		}
+		if v.DestinationURL != "" {
+			u, e := url.Parse(v.DestinationURL)
+			if e != nil || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Scheme != "https" && (mode != "development" || u.Scheme != "http" || (u.Hostname() != "localhost" && u.Hostname() != "127.0.0.1" && u.Hostname() != "::1"))) {
+				return nil, errors.New("hosted delivery requires an explicit credential-free HTTPS destination (loopback HTTP only in development)")
+			}
+			credential, e := secretFromEnv("hosted delivery credential", v.CredentialEnv, lookup)
+			if e != nil || len(credential) > 4096 || strings.ContainsAny(credential, "\r\n") {
+				return nil, errors.New("hosted delivery credential unavailable or invalid")
+			}
+			t.Destination = u.String()
+			out.credentials[id] = credential
+		} else if v.CredentialEnv != "" {
+			return nil, errors.New("delivery credential requires an explicit destination")
+		}
+		out.tenants = append(out.tenants, t)
+	}
+	if f.DeviceOAuth != nil {
+		v := f.DeviceOAuth
+		for _, raw := range []string{v.Issuer, v.DeviceURL, v.TokenURL, v.IdentityURL} {
+			u, e := url.Parse(raw)
+			if e != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.Fragment != "" {
+				return nil, errors.New("device OAuth requires explicit HTTPS endpoints")
+			}
+		}
+		if v.ClientID == "" || v.Scope == "" || len(v.Subjects) == 0 || len(v.Subjects) > 1000 {
+			return nil, errors.New("device OAuth requires bounded explicit subject bindings")
+		}
+		secret := ""
+		if v.ClientSecretEnv != "" {
+			var e error
+			secret, e = secretFromEnv("OAuth client secret", v.ClientSecretEnv, lookup)
+			if e != nil {
+				return nil, e
+			}
+		}
+		subjects := append([]DeviceSubject(nil), v.Subjects...)
+		seenSubjects := map[string]bool{}
+		for _, b := range subjects {
+			org, e := tenant.NewOrganizationID(b.TenantID)
+			_, e2 := tenant.NewAccountID(b.AccountID)
+			key := b.TenantID + ":" + b.Subject
+			if e != nil || e2 != nil || !seen[org] || b.Subject == "" || len(b.Subject) > 256 || seenSubjects[key] {
+				return nil, errors.New("device OAuth subject binding invalid")
+			}
+			seenSubjects[key] = true
+		}
+		serverKeys := map[string]string{}
+		if len(v.ServerSigningKeys) < 1 || len(v.ServerSigningKeys) > 100 {
+			return nil, errors.New("device OAuth requires explicit server public keys")
+		}
+		for _, k := range v.ServerSigningKeys {
+			pub, e := base64.StdEncoding.DecodeString(k.PublicKey)
+			if e != nil || len(pub) != 32 || k.KeyID == "" || len(k.KeyID) > 128 || serverKeys[k.KeyID] != "" {
+				return nil, errors.New("server public key invalid")
+			}
+			serverKeys[k.KeyID] = k.PublicKey
+		}
+		out.device = &DeviceOAuthRuntime{ServerSigningKeys: serverKeys, Issuer: v.Issuer, DeviceURL: v.DeviceURL, TokenURL: v.TokenURL, IdentityURL: v.IdentityURL, ClientID: v.ClientID, ClientSecret: secret, Scope: v.Scope, Subjects: subjects}
+	}
+	if len(f.SyncBindings) > 0 && out.device == nil {
+		return nil, errors.New("sync bindings require device OAuth configuration")
+	}
+	if len(f.SyncBindings) > 1000 {
+		return nil, errors.New("sync binding limit")
+	}
+	seenBindings := map[string]bool{}
+	for _, b := range f.SyncBindings {
+		org, e := tenant.NewOrganizationID(b.TenantID)
+		project, e2 := tenant.NewProjectID(b.ProjectID)
+		_, e3 := tenant.NewEnvironmentID(b.EnvironmentID)
+		u, e4 := url.Parse(b.RepositoryURL)
+		key := b.TenantID + ":" + b.ProjectID + ":" + b.EnvironmentID + ":" + b.RepositoryID
+		if e != nil || e2 != nil || e3 != nil || e4 != nil || !seen[org] || b.WorkspaceID == "" || len(b.WorkspaceID) > 128 || b.RepositoryID == "" || len(b.RepositoryID) > 128 || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || b.DefaultBranch == "" || strings.ContainsAny(b.DefaultBranch, " \r\n") || b.Version == 0 || b.MinimumSchemaVersion < 1 || b.MaximumSchemaVersion < b.MinimumSchemaVersion || seenBindings[key] {
+			return nil, errors.New("sync binding invalid")
+		}
+		var projectKeys map[string]ed25519.PublicKey
+		for _, configured := range out.tenants {
+			if configured.Tenant == org {
+				projectKeys = configured.Keys[project]
+				break
+			}
+		}
+		if len(projectKeys) == 0 {
+			return nil, errors.New("sync binding requires static server project keys")
+		}
+		for id, pub := range projectKeys {
+			approved, e := base64.StdEncoding.DecodeString(out.device.ServerSigningKeys[id])
+			if e != nil || !bytes.Equal(approved, pub) {
+				return nil, errors.New("sync binding project keys must match device OAuth server keys")
+			}
+		}
+		seenBindings[key] = true
+		out.bindings = append(out.bindings, b)
+	}
+	return out, nil
+}
+func (c Config) HostedRuntime() (*HostedRuntime, error) {
+	if c.hosted == nil {
+		return nil, errors.New("hosted composition requires explicit hosted configuration")
+	}
+	copy := &HostedRuntime{PolicyRevision: c.hosted.PolicyRevision, credentials: map[tenant.OrganizationID]string{}, bindings: append([]SyncBinding(nil), c.hosted.bindings...)}
+	if c.hosted.device != nil {
+		v := *c.hosted.device
+		v.Subjects = append([]DeviceSubject(nil), v.Subjects...)
+		v.ServerSigningKeys = cloneServerKeys(v.ServerSigningKeys)
+		copy.device = &v
+	}
+	for _, t := range c.hosted.tenants {
+		v := HostedTenant{Tenant: t.Tenant, Destination: t.Destination, Keys: map[tenant.ProjectID]map[string]ed25519.PublicKey{}}
+		for project, keys := range t.Keys {
+			v.Keys[project] = map[string]ed25519.PublicKey{}
+			for id, key := range keys {
+				v.Keys[project][id] = append(ed25519.PublicKey(nil), key...)
+			}
+		}
+		copy.tenants = append(copy.tenants, v)
+		copy.credentials[t.Tenant] = c.hosted.credentials[t.Tenant]
+	}
+	return copy, nil
+}
+func (h *HostedRuntime) Tenants() []HostedTenant                           { return append([]HostedTenant(nil), h.tenants...) }
+func (h *HostedRuntime) DeliveryCredential(t tenant.OrganizationID) string { return h.credentials[t] }
+func (h HostedRuntime) String() string                                     { return "HostedRuntime" }
+func (h HostedRuntime) GoString() string                                   { return "HostedRuntime" }
+
+// DeviceSubject binds an owner-selected provider subject; secrets never enter safe config.
+type DeviceSubject struct {
+	TenantID  string `json:"tenant_id"`
+	Subject   string `json:"subject"`
+	AccountID string `json:"account_id"`
+}
+type DeviceOAuthFile struct {
+	Issuer            string             `json:"issuer"`
+	DeviceURL         string             `json:"device_url"`
+	TokenURL          string             `json:"token_url"`
+	IdentityURL       string             `json:"identity_url"`
+	ClientID          string             `json:"client_id"`
+	ClientSecretEnv   string             `json:"client_secret_env,omitempty"`
+	Scope             string             `json:"scope"`
+	Subjects          []DeviceSubject    `json:"subjects"`
+	ServerSigningKeys []ServerSigningKey `json:"server_signing_keys"`
+}
+type DeviceOAuthRuntime struct {
+	Issuer, DeviceURL, TokenURL, IdentityURL, ClientID, ClientSecret, Scope string
+	Subjects                                                                []DeviceSubject
+	ServerSigningKeys                                                       map[string]string
+}
+
+func (DeviceOAuthRuntime) String() string   { return "DeviceOAuthRuntime" }
+func (DeviceOAuthRuntime) GoString() string { return "DeviceOAuthRuntime" }
+
+type SyncBinding struct {
+	WorkspaceID          string `json:"workspace_id"`
+	TenantID             string `json:"tenant_id"`
+	ProjectID            string `json:"project_id"`
+	EnvironmentID        string `json:"environment_id"`
+	RepositoryID         string `json:"repository_id"`
+	RepositoryURL        string `json:"repository_url"`
+	DefaultBranch        string `json:"default_branch"`
+	Version              uint64 `json:"version"`
+	MinimumSchemaVersion int    `json:"minimum_schema_version"`
+	MaximumSchemaVersion int    `json:"maximum_schema_version"`
+}
+
+func (h *HostedRuntime) DeviceOAuth() *DeviceOAuthRuntime {
+	if h == nil || h.device == nil {
+		return nil
+	}
+	copy := *h.device
+	copy.Subjects = append([]DeviceSubject(nil), h.device.Subjects...)
+	copy.ServerSigningKeys = cloneServerKeys(h.device.ServerSigningKeys)
+	return &copy
+}
+func (h *HostedRuntime) SyncBindings() []SyncBinding {
+	return append([]SyncBinding(nil), h.bindings...)
+}
+
+type ServerSigningKey struct {
+	KeyID     string `json:"key_id"`
+	PublicKey string `json:"public_key"`
+}
+
+func cloneServerKeys(in map[string]string) map[string]string {
+	out := map[string]string{}
+	for id, pub := range in {
+		out[id] = pub
+	}
+	return out
 }

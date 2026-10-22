@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/mlnomadpy/dacli/internal/mdstore"
-	"github.com/mlnomadpy/dacli/internal/store"
 	"github.com/mlnomadpy/dacli/internal/team"
 	"github.com/mlnomadpy/dacli/internal/workspace"
 )
@@ -87,9 +86,6 @@ func rosterProblems(w *workspace.Workspace, roles []team.Role) []rosterProblem {
 			out = append(out, rosterProblem{"task-specific-role", fmt.Sprintf("role %s is tied to one task/issue; use a reusable responsibility role", r.Name)})
 		} else if taskRoleSummary.MatchString(r.Summary) {
 			out = append(out, rosterProblem{"task-specific-role", fmt.Sprintf("role %s summary is tied to one task/issue; use a reusable responsibility role", r.Name)})
-		}
-		if rt, err := store.LoadRuntime(w, r.Runtime); err == nil && r.ModelID() != "" && rt.ModelFlag == "" {
-			out = append(out, rosterProblem{"unsupported-role-model", fmt.Sprintf("role %s selects model %s but runtime %s has no model flag", r.Name, r.ModelID(), r.Runtime)})
 		}
 		if model := strings.TrimSpace(r.ModelID()); model != "" {
 			models[model]++

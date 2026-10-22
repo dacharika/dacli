@@ -33,6 +33,9 @@ type ReadinessFunc func(context.Context) error
 func (f ReadinessFunc) Ready(ctx context.Context) error { return f(ctx) }
 
 type API struct {
+	devices         *deviceHTTP
+	sync            *syncHTTP
+	envelopes       *envelopeHTTP
 	config          config.Config
 	readiness       Readiness
 	logger          *slog.Logger
@@ -103,6 +106,19 @@ func (a *API) Handler() http.Handler {
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"status": "ready", "contract_version": domain.ContractVersion})
 	})
+	if a.devices != nil {
+		for _, path := range []string{"/v1/auth/device", "/v1/auth/token", "/v1/auth/revoke", "/v1/auth/whoami"} {
+			mux.HandleFunc(path, a.devices.handle)
+		}
+	}
+	if a.sync != nil {
+		mux.HandleFunc("/v1/sync/binding", a.sync.binding)
+		mux.HandleFunc("/v1/sync/exchange", a.sync.exchange)
+	}
+	if a.envelopes != nil {
+		mux.HandleFunc("/v1/sync/envelopes", a.envelopes.receive)
+		mux.HandleFunc("/v1/sync/jobs", a.envelopes.jobs)
+	}
 	if a.tenant != nil {
 		mux.HandleFunc("/v1/projects", a.tenant.projects)
 		mux.HandleFunc("/v1/projects/", a.tenant.project)

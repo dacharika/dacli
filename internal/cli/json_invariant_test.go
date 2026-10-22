@@ -6,11 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
-
-	"github.com/mlnomadpy/dacli/internal/procmon"
-	"github.com/mlnomadpy/dacli/internal/store"
-	"github.com/mlnomadpy/dacli/internal/workspace"
 )
 
 // jsonHonoringCommands is the recorded set of command paths that honor the
@@ -25,15 +20,38 @@ import (
 // so no command can quietly claim --json support. Adding an entry is the
 // deliberate act that says "I checked: this command honors --json."
 var jsonHonoringCommands = map[string]bool{
-	"accept":                  true,
-	"accept apply":            true,
+	"auth login": true, "auth logout": true, "auth whoami": true,
+	"project connect": true, "project disconnect": true, "project sync": true, "project status": true,
+	"native external configure": true, "native external inspect": true, "native external apply": true, "native external reconcile": true,
+	"native model-routing configure": true,
+	"native integration configure":   true, "native integration inspect": true, "native integration apply": true, "native integration reconcile": true,
+	"native verifier inspect": true,
+	"native storage observe":  true, "native storage experiment": true, "native storage retention": true,
+	"native budget configure": true, "native budget quote": true, "native budget status": true, "native budget settle": true,
+	"native checkpoint configure": true, "native checkpoint record": true, "native checkpoint reconcile": true, "native checkpoint status": true,
+	"native preflight configure": true, "native preflight override": true, "native preflight check": true,
+	"native recovery configure":   true,
+	"native recovery preview":     true,
+	"native recovery apply":       true,
+	"native lifecycle observe":    true,
+	"native lifecycle cancel":     true,
+	"native lifecycle cancel-ack": true,
+	"native lifecycle status":     true,
+
+	"native dispatch request":     true,
+	"native dispatch correlate":   true,
+	"native dispatch acknowledge": true,
+	"native dispatch status":      true,
+
+	"accept":                      true,
+	"accept apply":                true,
+	"native controller configure": true, "native controller start": true, "native controller step": true, "native controller reconcile": true, "native controller status": true, "native controller refresh-review": true, "native policy evaluate": true, "native policy approve": true, "native policy status": true, "accept apply-native": true, "native acceptance candidate": true,
 	"accept propose":          true,
 	"agents":                  true,
 	"capabilities":            true,
 	"cleanup":                 true,
 	"branches audit":          true,
 	"branches prune":          true,
-	"claim expand":            true,
 	"commit":                  true,
 	"events reconcile":        true,
 	"explain":                 true,
@@ -49,6 +67,11 @@ var jsonHonoringCommands = map[string]bool{
 	"whoami":                  true,
 	"status":                  true,
 	"next":                    true,
+	"native swarm plan":       true,
+	"native swarm reserve":    true,
+	"native swarm admit":      true,
+	"native swarm handoff":    true,
+	"native verify":           true,
 	"critical-path":           true,
 	"doctor":                  true,
 	"project show":            true,
@@ -58,9 +81,7 @@ var jsonHonoringCommands = map[string]bool{
 	"release train":           true,
 	"release train authority": true,
 	"review projection":       true,
-	"runtime doctor":          true,
 	"slice reconcile":         true,
-	"start":                   true,
 	"task list":               true,
 	"task show":               true,
 	"task status":             true,
@@ -69,7 +90,6 @@ var jsonHonoringCommands = map[string]bool{
 	"task decompose":          true,
 	"init":                    true,
 	"logs":                    true,
-	"loop status":             true,
 	"new":                     true,
 	"version":                 true,
 }
@@ -156,36 +176,11 @@ func TestJSONHonoringCommandsEmitOrAdapt(t *testing.T) {
 		t.Fatal(err)
 	}
 	run(t, dir, 0, "adopt", "--project", "p")
-	run(t, dir, 0, "start", "--project", "p", "--profile", "task", "--configure")
 	run(t, dir, 0, "task", "add", "a task", "--project", "p", "--accept", "it works")
 	run(t, dir, 0, "task", "add", "aggregate parent", "--project", "p", "--accept", "children complete")
 	run(t, dir, 0, "task", "add", "aggregate child one", "--project", "p", "--parent", "002", "--accept", "internal/a/a.go complete")
 	run(t, dir, 0, "task", "add", "render the UI", "--project", "p", "--parent", "002", "--accept", "internal/b/b.go complete")
 	run(t, dir, 0, "task", "add", "oversized leaf", "--project", "p", "--estimate", "8,13,21", "--accept", "internal/c/c.go complete", "--accept", "internal/d/d.go complete")
-	run(t, dir, 0, "runtime", "add", "fixture", "--preset", "generic-exec", "--binary", "true")
-	w, err := workspace.Find(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	claimTask, err := store.FindTask(w, "001")
-	if err != nil {
-		t.Fatal(err)
-	}
-	claimTask.Doc.Front.SetList("claims", []string{"src"})
-	if err := store.SaveTask(claimTask); err != nil {
-		t.Fatal(err)
-	}
-	const claimRun = "01JSONCLAIMEXPAND00000001"
-	if err := os.MkdirAll(w.RunDir(claimRun), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	claimRec := procmon.Record{RunID: claimRun, Task: claimTask.ID, Child: "a-worker", Claims: []string{"src"}, Started: time.Unix(10, 0)}
-	if err := procmon.WriteRecord(filepath.Join(w.RunDir(claimRun), "proc.txt"), claimRec); err != nil {
-		t.Fatal(err)
-	}
-	if err := procmon.CompleteRecord(filepath.Join(w.RunDir(claimRun), "proc.txt"), claimRec, "failed"); err != nil {
-		t.Fatal(err)
-	}
 
 	for _, tc := range []struct {
 		name string
@@ -198,9 +193,6 @@ func TestJSONHonoringCommandsEmitOrAdapt(t *testing.T) {
 		{"doctor", []string{"doctor"}},
 		{"metrics", []string{"metrics"}},
 		{"project show", []string{"project", "show", "p"}},
-		{"runtime doctor", []string{"runtime", "doctor", "--runtime", "fixture", "--grant", "rw"}},
-		{"claim expand", []string{"claim", "expand", "--task", "001", "--run", claimRun, "--add", "tests", "--reason", "JSON contract fixture"}},
-		{"start", []string{"start", "--project", "p", "--show"}},
 		{"task list", []string{"task", "list", "--project", "p"}},
 		{"task show", []string{"task", "show", "001"}},
 		{"task aggregate", []string{"task", "aggregate", "002", "--dry-run"}},

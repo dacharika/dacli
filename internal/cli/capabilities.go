@@ -74,18 +74,9 @@ func capabilityManifest() capabilities.Manifest {
 			{ID: "state.role-skill", SchemaVersion: 1},
 			{ID: "state.root-handoff", SchemaVersion: 1},
 		},
-		MCP:    capabilities.MCP{ProtocolVersion: mcp.ProtocolVersion(), ServerVersion: mcp.ServerVersion(), ToolSchema: mcp.ToolSchemaVersion(), Tools: []capabilities.VersionedCapability{}},
-		Prompt: capabilities.Prompt{Schema: prompts.Schema, Version: prompts.Version},
-		Runtime: capabilities.RuntimeAdapters{SchemaVersion: 1, Capabilities: []capabilities.VersionedCapability{
-			{ID: "runtime.adapter.behavioral-preflight", SchemaVersion: 1},
-			{ID: "runtime.adapter.context-isolation", SchemaVersion: 1},
-			{ID: "runtime.adapter.execution.local-coordination-socket", SchemaVersion: 1},
-			{ID: "runtime.adapter.hard-token-limit", SchemaVersion: 1},
-			{ID: "runtime.adapter.model-selection", SchemaVersion: 1},
-			{ID: "runtime.adapter.native-skills", SchemaVersion: 1},
-			{ID: "runtime.adapter.read-only-sandbox", SchemaVersion: 1},
-			{ID: "runtime.adapter.usage-stream", SchemaVersion: 1},
-		}},
+		MCP:     capabilities.MCP{ProtocolVersion: mcp.ProtocolVersion(), ServerVersion: mcp.ServerVersion(), ToolSchema: mcp.ToolSchemaVersion(), Tools: []capabilities.VersionedCapability{}},
+		Prompt:  capabilities.Prompt{Schema: prompts.Schema, Version: prompts.Version},
+		Runtime: capabilities.RuntimeAdapters{SchemaVersion: 1, Capabilities: []capabilities.VersionedCapability{}},
 	}
 	for _, c := range manifestCommandTable() {
 		m.Commands = append(m.Commands, commandCapability(c))
