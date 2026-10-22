@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -179,7 +180,8 @@ esac
 	}
 	outputBytes, err := cmd.CombinedOutput()
 	result := syntheticQualificationResult{output: string(outputBytes), timedOut: ctx.Err() != nil}
-	if exitErr, ok := err.(*exec.ExitError); ok {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
 		result.exitCode = exitErr.ExitCode()
 	} else if err != nil {
 		t.Fatalf("run synthetic qualification: %v; output=%s", err, result.output)
