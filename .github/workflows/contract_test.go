@@ -219,6 +219,60 @@ func TestReleaseRetainsNarrowNativeMacOSValidation(t *testing.T) {
 	if !strings.Contains(jobBlock(t, workflow, "goreleaser"), "needs: macos-native") {
 		t.Fatal("release publication must wait for native macOS validation")
 	}
+	if !strings.Contains(jobBlock(t, workflow, "goreleaser"), "runs-on: macos-latest") {
+		t.Fatal("native release packaging must run on macOS for Security.framework linking")
+	}
+}
+
+func TestTagReleaseIsManualAndPortableSnapshotCannotPublish(t *testing.T) {
+	workflow := readNamedWorkflow(t, "release.yml")
+	if got := strings.TrimSpace(yamlSection(workflow, "on")); got != "on:\n  push:\n    tags:\n      - \"v*\"" {
+		t.Fatalf("release triggers = %q, want only a manually pushed v* tag", got)
+	}
+	ci := readNamedWorkflow(t, "ci.yml")
+	if !strings.Contains(jobBlock(t, ci, "release-snapshot"), "./scripts/verify-release-artifacts.sh --portable-snapshot") {
+		t.Fatal("manual Ubuntu validation must select the explicit portable snapshot profile")
+	}
+	portable := readNamedFile(t, ".goreleaser.portable-snapshot.yaml")
+	if !strings.Contains(yamlSection(portable, "release"), "disable: true") {
+		t.Fatal("portable snapshot config must disable release publication")
+	}
+}
+
+func TestPortableAndNativeArtifactConfigsStayEquivalent(t *testing.T) {
+	native := readNamedFile(t, ".goreleaser.yaml")
+	portable := readNamedFile(t, ".goreleaser.portable-snapshot.yaml")
+
+	for _, section := range []string{"archives", "checksum", "sboms"} {
+		if got, want := strings.TrimSpace(stripYAMLComments(yamlSection(portable, section))), strings.TrimSpace(stripYAMLComments(yamlSection(native, section))); got != want {
+			t.Errorf("portable %s config drifted from native config\nportable:\n%s\nnative:\n%s", section, got, want)
+		}
+	}
+	nativeBuilds := stripYAMLComments(yamlSection(native, "builds"))
+	portableBuilds := stripYAMLComments(yamlSection(portable, "builds"))
+	nativeBuilds = regexp.MustCompile(`(?m)^    env:\n(?:      .*\n)+`).ReplaceAllString(nativeBuilds, "")
+	portableBuilds = regexp.MustCompile(`(?m)^    env:\n(?:      .*\n)+`).ReplaceAllString(portableBuilds, "")
+	if nativeBuilds != portableBuilds {
+		t.Fatalf("portable build matrix or flags drifted from native config\nportable:\n%s\nnative:\n%s", portableBuilds, nativeBuilds)
+	}
+	if !strings.Contains(yamlSection(native, "builds"), `CGO_ENABLED={{ if eq .Os "darwin" }}1{{ else }}0{{ end }}`) {
+		t.Fatal("native config must enable cgo only for Darwin artifacts")
+	}
+	if !strings.Contains(yamlSection(portable, "builds"), "CGO_ENABLED=0") {
+		t.Fatal("portable snapshot config must explicitly disable cgo for all targets")
+	}
+}
+
+func TestNativeAndPortableReleaseBuildsIncludeVCSMetadata(t *testing.T) {
+	flags := regexp.MustCompile(`(?m)^    flags:\n      - -buildvcs=true$`)
+	for _, name := range []string{".goreleaser.yaml", ".goreleaser.portable-snapshot.yaml"} {
+		t.Run(name, func(t *testing.T) {
+			builds := yamlSection(readNamedFile(t, name), "builds")
+			if !flags.MatchString(builds) {
+				t.Fatalf("%s builds must explicitly enable Go VCS stamping", name)
+			}
+		})
+	}
 }
 
 func TestReleaseInstallsPinnedSyftBeforeGoReleaser(t *testing.T) {
@@ -250,6 +304,47 @@ func readNamedWorkflow(t *testing.T, name string) string {
 		t.Fatalf("read %s: %v", path, err)
 	}
 	return string(b)
+}
+
+func readNamedFile(t *testing.T, name string) string {
+	t.Helper()
+	path := filepath.Join("..", "..", name)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", name, err)
+	}
+	return string(data)
+}
+
+func yamlSection(source, name string) string {
+	var lines []string
+	found := false
+	for _, line := range strings.Split(source, "\n") {
+		if !found {
+			if line == name+":" {
+				found = true
+				lines = append(lines, line)
+			}
+			continue
+		}
+		if line != "" && !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "#") {
+			break
+		}
+		lines = append(lines, line)
+	}
+	return strings.TrimRight(strings.Join(lines, "\n"), "\n")
+}
+
+func stripYAMLComments(source string) string {
+	lines := strings.Split(source, "\n")
+	kept := lines[:0]
+	for _, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, "\n")
 }
 
 func jobBlock(t *testing.T, workflow, name string) string {

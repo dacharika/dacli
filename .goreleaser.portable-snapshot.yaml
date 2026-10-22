@@ -1,0 +1,60 @@
+# Portable CI snapshots are built on Ubuntu with cgo disabled for every
+# target. Their Darwin binaries are explicitly unsupported for device login.
+# This config is verification-only and cannot publish to a release repository.
+version: 2
+
+project_name: dacli
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: dacli
+    main: ./cmd/dacli
+    binary: dacli
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -buildvcs=true
+    ldflags:
+      - -s -w -X github.com/mlnomadpy/dacli/internal/buildinfo.Version={{ .Version }}
+
+archives:
+  - id: dacli
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+
+sboms:
+  - id: archive
+    artifacts: archive
+    documents:
+      - "${artifact}.sbom.json"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ship:"
+
+release:
+  disable: true

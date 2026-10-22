@@ -28,7 +28,9 @@ jobs:
 
   goreleaser:
     needs: macos-native
-    runs-on: ubuntu-latest
+    # Darwin+cgo artifacts need the native Apple SDK. GoReleaser uses cgo only
+    # for Darwin targets; Linux and Windows remain CGO_ENABLED=0.
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
         with:
@@ -36,7 +38,9 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: "1.22"
+          # Package the released Go binary with the patched toolchain. The
+          # Ubuntu compatibility suite separately retains the Go 1.22 floor.
+          go-version: "1.26.10"
 
       # Build the dashboard SPA before tests and goreleaser: goreleaser's builds
       # embed internal/features/dashboard/ui/dist (go:embed all:ui/dist), so the

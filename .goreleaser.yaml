@@ -14,8 +14,12 @@ builds:
   - id: dacli
     main: ./cmd/dacli
     binary: dacli
+    # The Security.framework Keychain adapter is selected only for darwin+cgo.
+    # GoReleaser runs on macOS so Clang and the local SDK can build both Darwin
+    # architectures; every other target stays pure Go and cross-compilable.
     env:
-      - CGO_ENABLED=0
+      - >-
+        CGO_ENABLED={{ if eq .Os "darwin" }}1{{ else }}0{{ end }}
     goos:
       - darwin
       - linux
@@ -23,6 +27,8 @@ builds:
     goarch:
       - amd64
       - arm64
+    flags:
+      - -buildvcs=true
     ldflags:
       - -s -w -X github.com/mlnomadpy/dacli/internal/buildinfo.Version={{ .Version }}
 
@@ -80,7 +86,7 @@ changelog:
 
 release:
   github:
-    owner: mlnomadpy
+    owner: dacharika
     name: dacli
   draft: false
   prerelease: auto
