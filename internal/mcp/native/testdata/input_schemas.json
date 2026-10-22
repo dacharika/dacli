@@ -797,6 +797,29 @@
     ],
     "type": "object"
   },
+  "ready_frontier": {
+    "additionalProperties": false,
+    "properties": {
+      "limit": {
+        "type": "integer"
+      },
+      "project": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1,
+        "type": "integer"
+      },
+      "task": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "schema_version",
+      "limit"
+    ],
+    "type": "object"
+  },
   "reconcile_loop": {
     "additionalProperties": false,
     "properties": {
@@ -1161,6 +1184,26 @@
     "required": [
       "schema_version",
       "request"
+    ],
+    "type": "object"
+  },
+  "task_brief": {
+    "additionalProperties": false,
+    "properties": {
+      "budget_tokens": {
+        "type": "integer"
+      },
+      "schema_version": {
+        "const": 1,
+        "type": "integer"
+      },
+      "task": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "schema_version",
+      "task"
     ],
     "type": "object"
   },

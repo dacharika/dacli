@@ -35,6 +35,19 @@ func TestNativeFoundationSchemasMatchFixedWireFixtures(t *testing.T) {
 		t.Log("reviewer contract generated; behavioral verification not executed")
 		return
 	}
+	if os.Getenv("DACLI_WRITE_NATIVE_SCHEMAS") == "1" {
+		for filename, value := range foundationFixtures() {
+			raw, err := json.MarshalIndent(value, "", "  ")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join("testdata", filename), append(raw, '\n'), 0644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		t.Log("native schema fixtures generated; behavioral verification not executed")
+		return
+	}
 	for filename, current := range foundationFixtures() {
 		raw, e := os.ReadFile(filepath.Join("testdata", filename))
 		if e != nil {
@@ -57,7 +70,7 @@ func TestNativeFoundationSchemasMatchFixedWireFixtures(t *testing.T) {
 	}
 }
 func TestNativeFoundationCatalogRolesAndRefusalSchemas(t *testing.T) {
-	counts := map[string]int{"worker_catalog.json": 11, "runner_catalog.json": 14, "reviewer_catalog.json": 7}
+	counts := map[string]int{"worker_catalog.json": 13, "runner_catalog.json": 16, "reviewer_catalog.json": 7}
 	fixtures := foundationFixtures()
 	for filename, want := range counts {
 		list := fixtures[filename].(map[string]any)["tools"].([]tool)

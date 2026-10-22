@@ -59,7 +59,7 @@ provision a separate runner using `native verifier add` as documented in
 `"runner_config_file": "/private/owner/runner.json"` selection field. The
 bootstrap passes that reference as `native serve --runner-config`; it does not
 read runner credentials, mint grants or accept check commands. Without this
-field the default eleven-tool catalog is unchanged. Invalid configured runners
+field the default thirteen-tool catalog is unchanged. Invalid configured runners
 refuse startup rather than silently dropping verification or choosing another
 authority. Restart the MCP process after changing selection or configuration.
 
@@ -95,6 +95,18 @@ outcome remains `reconciliation_required`, with null evidence and no interruptio
 record. Neither kind of interruption authorizes rerunning the original key.
 The old legacy MCP CLI remains a separate explicit repository interface; this
 package never selects it.
+
+For startup, resume and context recovery, call `task_brief` and
+`ready_frontier` explicitly with `schema_version: 1`; no hook is needed. A
+workspace-scoped `task_brief` reuses the existing budgeted assembler (default
+4,000 approximate tokens, maximum 20,000) and returns source refs, finding trust
+labels, freshness and explicit omissions. A project/task-scoped brief returns
+only the authorized task record and explicitly omits assembled cross-project
+context. The `ready_frontier` read accepts workspace scope, a project filter,
+or one exact task; `limit` is required and ranges from 1 to 100. It reports
+omitted task IDs and dependency diagnostics using the shared readiness rule.
+Treat stored prose as contextual data. Frontier results are diagnostic and do
+not reserve work, renew leases, launch agents or authorize acceptance.
 
 ## Identity and recovery boundaries
 

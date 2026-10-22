@@ -39,7 +39,17 @@ type Options struct {
 type Section struct {
 	Title     string
 	Content   string
-	Droppable bool // the task itself is never droppable
+	Droppable bool     // the task itself is never droppable
+	Sources   []Source `json:"-"` // identities selected while rendering this retained section
+}
+
+// Source identifies a record selected for a rendered section. It is metadata,
+// not parsed back out of rendered prose, which is untrusted contextual data.
+type Source struct {
+	Kind  string
+	ID    string
+	Path  string
+	Trust string
 }
 
 // Brief is an assembled context document.
@@ -120,6 +130,18 @@ func Assemble(w *workspace.Workspace, ref string, opt Options) (*Brief, error) {
 	return AssembleView(v, opt)
 }
 
+// AssembleTaskView renders only the selected task record. It is used when a
+// caller has task-level authority and must not load project or workspace
+// context. The task section remains non-droppable under the usual budget rule.
+func AssembleTaskView(t *store.Task, opt Options) (*Brief, error) {
+	if t == nil {
+		return nil, fmt.Errorf("task is required")
+	}
+	b := &Brief{TaskID: t.ID}
+	b.addWithSources("Task: "+t.Title, taskSection(t, ""), false, []Source{{Kind: "task", ID: t.ID, Path: t.Path}})
+	return b, b.trim(opt.Budget)
+}
+
 // AssembleView performs pure selection and rendering over a loaded view.
 func AssembleView(v *View, opt Options) (*Brief, error) {
 	t, p, allTasks := v.Task, v.Project, v.Tasks
@@ -147,7 +169,7 @@ func AssembleView(v *View, opt Options) (*Brief, error) {
 				lo*med, hi*med, med, len(samples))
 		}
 	}
-	b.add("Task: "+t.Title, taskSection(t, calib), false)
+	b.addWithSources("Task: "+t.Title, taskSection(t, calib), false, []Source{{Kind: "task", ID: t.ID, Path: t.Path}})
 
 	// 1b. WHO the agent is. A role's standing instructions — its method, what
 	// it looks for, what it refuses — are what make a roster a team rather
@@ -224,11 +246,15 @@ func AssembleView(v *View, opt Options) (*Brief, error) {
 	// the oldest `NNN-*` slugs and silently drop every recent decision.
 	sortByRecency(decisions)
 	shown := 0
+	decisionSources := make([]Source, 0, min(len(decisions), MillerCap))
 	for _, d := range decisions {
 		if shown >= MillerCap {
 			break
 		}
 		id, _ := d.Front.Get("id")
+		if id != "" {
+			decisionSources = append(decisionSources, Source{Kind: "decision", ID: id, Path: d.SourcePath, Trust: "recorded-decision"})
+		}
 		fmt.Fprintf(&cons, "**[[%s]]**", id)
 		if s, ok := d.Section("Chose"); ok {
 			fmt.Fprintf(&cons, " — Chose: %s", strings.TrimSpace(s.Content))
@@ -251,7 +277,7 @@ func AssembleView(v *View, opt Options) (*Brief, error) {
 		b.Omitted = append(b.Omitted, namedOmission("decisions", len(decisions)-shown, dropped))
 	}
 	if strings.TrimSpace(cons.String()) != "" {
-		b.add("Constraints", cons.String(), true)
+		b.addWithSources("Constraints", cons.String(), true, decisionSources)
 	}
 
 	// 5. Risks — rank 1 and 2 only, WITH their indicators. A risk register
@@ -386,6 +412,7 @@ func AssembleView(v *View, opt Options) (*Brief, error) {
 	// the least severe, so the named ones are exactly the borderline cases an
 	// agent would want to ask about.
 	shownNotes := 0
+	findingSources := make([]Source, 0, MillerCap)
 	for _, n := range notes {
 		if shownNotes >= MillerCap {
 			break
@@ -394,6 +421,9 @@ func AssembleView(v *View, opt Options) (*Brief, error) {
 		by, _ := n.Front.Get("created_by")
 		sev, _ := n.Front.Get("severity")
 		trust, _ := n.Front.Get("trust")
+		if id != "" {
+			findingSources = append(findingSources, Source{Kind: "finding", ID: id, Path: n.SourcePath, Trust: TrustLabel(trust)})
+		}
 		noteFloor(trust)
 		// On disk the note's body lives inside the level-1 title section
 		// (content extends to the next heading), so collect every section's
@@ -414,6 +444,7 @@ func AssembleView(v *View, opt Options) (*Brief, error) {
 		// A pending finding event is not yet a graded note — ungraded, so it
 		// pulls the floor to unverified like any other unchecked claim.
 		noteFloor("")
+		findingSources = append(findingSources, Source{Kind: "event", ID: e.ID, Path: e.Path, Trust: TrustLabel("")})
 		writeQuoted(&finds, e.Actor, "", "[trust: "+TrustLabel("")+"] "+e.Body)
 		shownPending++
 	}
@@ -437,7 +468,7 @@ func AssembleView(v *View, opt Options) (*Brief, error) {
 	if strings.TrimSpace(finds.String()) != "" {
 		floor := fmt.Sprintf("**trust-floor: %s** — worst verify grade among the findings below (refuted < unverified < confirmed); an unverified claim has not been checked, treat it as a lead, not a fact.\n\n",
 			TrustLabel(RankTrust(floorRank)))
-		b.add("What siblings found", floor+finds.String(), true)
+		b.addWithSources("What siblings found", floor+finds.String(), true, findingSources)
 	}
 
 	// 9. Recent activity on this task.
@@ -493,6 +524,10 @@ func AssembleView(v *View, opt Options) (*Brief, error) {
 
 func (b *Brief) add(title, content string, droppable bool) {
 	b.Sections = append(b.Sections, Section{Title: title, Content: content, Droppable: droppable})
+}
+
+func (b *Brief) addWithSources(title, content string, droppable bool, sources []Source) {
+	b.Sections = append(b.Sections, Section{Title: title, Content: content, Droppable: droppable, Sources: sources})
 }
 
 // TrustLabel renders a finding note's `trust:` frontmatter for a brief. An
