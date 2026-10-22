@@ -79,7 +79,7 @@ class Host:
         self.proc.stdin.close(); self.proc.stdout.close()
 
 
-def smoke(codex, dacli, schema5_dacli=None):
+def smoke(codex, dacli, schema5_dacli=None, expected_codex_version='codex-cli 0.159.2'):
     from datetime import datetime, timedelta, timezone
     import zipfile
     with tempfile.TemporaryDirectory(prefix='dacli-plugin-native-') as tmp:
@@ -90,8 +90,8 @@ def smoke(codex, dacli, schema5_dacli=None):
         env = {k: os.environ[k] for k in ('PATH', 'TMPDIR', 'SystemRoot') if k in os.environ}
         env.update(HOME=str(home), CODEX_HOME=str(codex_home), GIT_CONFIG_NOSYSTEM='1')
         version = subprocess.check_output([codex, '--version'], env=env, cwd=workspace, stderr=subprocess.DEVNULL, text=True, timeout=10).strip()
-        if version != 'codex-cli 0.159.2':
-            raise RuntimeError('this measured harness requires Codex 0.159.2')
+        if version != expected_codex_version:
+            raise RuntimeError('Codex version mismatch: expected ' + expected_codex_version + ', got ' + version)
         def run(args):
             return command(args, workspace, env, decode=False)
         def git(*args):
@@ -169,8 +169,8 @@ def smoke(codex, dacli, schema5_dacli=None):
             status = server.call('mcpServerStatus/list', {})['data']
             assert len(status) == 1 and not status[0]['toolsError'], 'native discovery unavailable'
             names = sorted(status[0]['tools'])
-            assert installed['version'] == '0.4.0'
-            assert names == sorted(['identity','workspace_status','task_list','task_get','register_attempt',
+            assert installed['version'] == '0.5.0'
+            assert names == sorted(['get_policy_status','identity','workspace_status','task_list','task_get','register_attempt',
                                     'acquire_lease','renew_lease','release_lease','publish_revision','submit_evidence'])
             skills = server.call('skills/list', {'cwds':[str(workspace)], 'forceReload':True})
             assert 'governance-workflow' in json.dumps(skills)
@@ -309,7 +309,7 @@ def smoke(codex, dacli, schema5_dacli=None):
                 review_status = review_server.call('mcpServerStatus/list',{})['data']
                 assert len(review_status)==1 and not review_status[0]['toolsError']
                 review_names = sorted(review_status[0]['tools'])
-                assert review_names == sorted(['identity','workspace_status','task_list','task_get',
+                assert review_names == sorted(['get_policy_status','identity','workspace_status','task_list','task_get',
                                                'propose_review','evaluate_review'])
                 review_thread = review_server.call('thread/start',{'cwd':str(workspace),'ephemeral':True,
                     'approvalPolicy':'never','sandbox':'read-only'})['thread']['id']
@@ -547,6 +547,8 @@ def orchestration_smoke(selection, role):
 if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--codex'); p.add_argument('--dacli')
+    p.add_argument('--expected-codex-version', default='codex-cli 0.159.2',
+                   help='exact output expected from codex --version (default: codex-cli 0.159.2)')
     p.add_argument('--orchestration-selection'); p.add_argument('--orchestration-role', choices=sorted(ORCHESTRATION_TOOLS))
     p.add_argument('--schema5-dacli', help='genuine schema-5 binary for explicit owner migration smoke')
     a = p.parse_args()
@@ -558,4 +560,5 @@ if __name__ == '__main__':
     if not a.codex or not a.dacli:
         p.error('--codex and --dacli are required for installation smoke')
     print(json.dumps(smoke(str(Path(a.codex).resolve()), str(Path(a.dacli).resolve()),
-        str(Path(a.schema5_dacli).resolve()) if a.schema5_dacli else None), indent=2))
+        str(Path(a.schema5_dacli).resolve()) if a.schema5_dacli else None,
+        a.expected_codex_version), indent=2))

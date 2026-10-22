@@ -503,8 +503,17 @@ root-controller scope with private exclusive files. `native controller start`
 fixes invocation bounds and independent producer routes. `native controller step`
 atomically records bounded transitions; `native controller reconcile` records
 safe late observations without new effects. `native controller status` reads
-scoped historical knowledge and never supplies a host permit. Refusal receipts
-preserve their original exit3/exit1 classification on immutable replay. Pending
+scoped historical knowledge and never supplies a host permit.
+`native controller refresh-review` is a separate owner-authenticated operation that refreshes one
+exact independent review grant after canonical checklist progress. It requires
+the old private reviewer profile and a new, exclusive private output path; the
+bound request names the project, invocation and sequence, task, old grant,
+reviewer and worker, repository, attempt, revision, lease, fence and expected
+checklist digest. It preserves actors, selected checks, evidence, producer
+references and budget allocations, and appends its grant and status receipt
+without rewriting prior history. Exact replay is historical: it mints nothing
+new and never supplies a host-action permit. Refusal receipts preserve their
+original exit3/exit1 classification on immutable replay. Pending
 host/command/integration knowledge is not completion, and only explicit owner
 recovery can release retained protection. See
 [native controller](GOVERNANCE_NATIVE_CONTROLLER.md).

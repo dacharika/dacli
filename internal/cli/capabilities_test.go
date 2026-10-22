@@ -27,7 +27,7 @@ import (
 // Three native storage commands add owner-only observation, isolated projection and retention dry-run.
 // Seven device-auth/project-sync commands add six mutations and seven typed JSON outputs.
 // Digest generated from the assembled CLI artifact; behavioral verification remains pending.
-const capabilityRegistryGolden = "113fda9b48d657bfa73d6fff667e47297aec0ca10bf8118652ee3d73897ae3c5"
+const capabilityRegistryGolden = "bb35fc0932851f60a67067d16aaf0fe653567d013940687988a100ceeaa9eb2b"
 
 func TestCapabilityRegistryGolden(t *testing.T) {
 	m := capabilityManifest()

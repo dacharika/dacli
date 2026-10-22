@@ -138,7 +138,7 @@ func TestEveryCommandDeclaresItsCapability(t *testing.T) {
 		"native integration upgrade": true, "native integration configure": true, "native integration apply": true, "native integration reconcile": true,
 		"native verifier review-policy": true,
 		"native storage experiment":     true,
-		"native controller upgrade":     true, "native controller configure": true, "native controller start": true, "native controller step": true, "native controller reconcile": true, "native controller enroll": true, "native policy upgrade": true, "native policy configure": true, "native policy evaluate": true, "native policy approve": true, "accept apply": true, "accept apply-native": true, "native acceptance upgrade": true, "adopt": true, "agent retire": true, "agent spawn": true, "cleanup": true, "branches prune": true, "events reconcile": true,
+		"native controller upgrade":     true, "native controller configure": true, "native controller start": true, "native controller step": true, "native controller reconcile": true, "native controller enroll": true, "native controller refresh-review": true, "native policy upgrade": true, "native policy configure": true, "native policy evaluate": true, "native policy approve": true, "accept apply": true, "accept apply-native": true, "native acceptance upgrade": true, "adopt": true, "agent retire": true, "agent spawn": true, "cleanup": true, "branches prune": true, "events reconcile": true,
 		"catalog": true, "commit": true, "escalate": true, "github codeowners": true,
 		"github link": true, "github project": true, "github pull": true,
 		"github push": true, "github release": true, "github sync": true,

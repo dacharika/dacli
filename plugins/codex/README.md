@@ -165,7 +165,9 @@ A live server checks revocation on subsequent requests. Uninstall with
 `codex plugin marketplace remove dacli-local`. Revoke separately; uninstalling
 must preserve workspace records and authority history. No global installation,
 account upload, web/mobile deployment or public submission is part of this
-preview. Other host versions and Windows are unverified.
+preview. The current-source smoke observes Codex 0.163.0-alpha.11 only; that
+single run does not establish general host support. Other versions and Windows
+remain unverified.
 
 ## Verify and export
 
@@ -175,12 +177,27 @@ python3 plugins/codex/scripts/smoke.py --codex /absolute/path/to/codex --dacli /
 python3 plugins/codex/scripts/package.py /absolute/output/dacli-governance.zip
 ```
 
-The smoke requires Codex 0.159.2 and uses disposable OS/Codex homes, a public real
-Git fixture and genuine owner bootstrap/enrollment. No model turn, production
-credential or dacli agent spawn is requested. It exercises installed tool/skill
-discovery, native identity and task reads, attempt/lease/revision/self-report,
-then live refusal after the owner revokes. It exports only bounded observations,
-never tokens, local paths, task contents or raw host responses. The receipt at
+By default, the smoke requires the exact output `codex-cli 0.159.2`; pass
+`--expected-codex-version` to select another exact host version. This current
+source reproduction was run against Codex `0.163.0-alpha.11`:
+
+```sh
+go build -o /tmp/dacli-current-host ./cmd/dacli
+python3 plugins/codex/scripts/smoke.py \
+  --codex /Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex \
+  --dacli /tmp/dacli-current-host \
+  --expected-codex-version 'codex-cli 0.163.0-alpha.11'
+```
+
+This is a no-model fixture using disposable OS/Codex homes, a synthetic
+workspace and owner authority, and actual Codex app-server diagnostic calls. It
+checks installed tool/skill discovery, native identity and task reads, a scoped
+attempt/lease/revision/self-report, and the configured local runner/reviewer
+cases exercised by this harness. It requests no model turn, production
+credential or dacli agent spawn. This one host observation does not qualify a
+full model or swarm workflow or establish general host support. The harness
+exports bounded observations, never tokens, local paths, task contents or raw
+host responses. The receipt at
 `receipts/native-install-0.159.2.json` preserves the historical 0.4.0 native run, including exact live authorization refusal
 after owner revocation. The optional `--schema5-dacli` path must point to a genuine
 old binary: it creates the old profile, verifies new-server refusal before

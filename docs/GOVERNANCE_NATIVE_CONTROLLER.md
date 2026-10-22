@@ -38,6 +38,47 @@ The actors must be independent enrolled roots with current exact repository,
 task, checkout, grant and claim bindings. A new caller ID cannot reset bounds
 while an earlier invocation retains uncertain producers or protections.
 
+## Refreshing a review observation
+
+`native controller refresh-review --config OWNER --review-config OLD_REVIEW
+--request REQUEST --out NEW_REVIEW --json` is a separate, explicit owner
+operation. OWNER supplies the private owner credential for the same durable
+authority as OLD_REVIEW. OLD_REVIEW must be the existing private reviewer profile
+for that workspace, project and task; its separately enrolled reviewer credential
+is authenticated but never returned or copied into another authority. NEW_REVIEW
+must be an absolute path that does not already exist. The command reserves it
+exclusively with mode `0600`; it writes a refreshed profile derived from the old
+profile only after the owner operation returns the replacement grant. A policy
+refusal before issuance leaves OLD_REVIEW and the authority unchanged and removes
+any unissued output. If issuance succeeds but writing the output fails, preserve
+the authority and replay the identical owner request to a new private path to
+recover the already-issued grant profile.
+
+REQUEST is a private JSON file and binds all of these exact values:
+
+`OperationKey`, `ProjectID`, `InvocationID`, `ExpectedSequence`, `TaskID`,
+`ExpectedGrantID`, `ReviewerSessionID`, `WorkerSessionID`, `Repository`,
+`AttemptID`, `RevisionID`, `LeaseID`, `ExpectedFence` and
+`ExpectedChecklistDigest`.
+
+The request must match the current nonterminal invocation and its exact pending
+independent-review action. The invocation sequence, project/task route, old grant,
+reviewer and worker sessions, repository, current attempt and revision, lease and
+fence are all rechecked. The canonical task must still be open or active and its
+observed checklist digest must have changed. The current policy and selected
+checks, producer evidence, clean revision, and reviewer/worker independence must
+remain the same and valid. A refresh cannot change any actor, check, evidence ID,
+revision, policy, producer reference or budget allocation. It adds one replacement
+grant, updates only that task's live route, advances the controller sequence and
+appends a status/operation receipt; existing grants, producer records and history
+are preserved.
+
+Reuse the original operation key only with the identical request. Exact replay
+returns a historical receipt and the same grant identity without minting another
+grant, advancing state or providing a host-action permit. A changed request under
+that key is refused. This operation does not run a review or start a host action;
+the reviewer must use its refreshed private profile for a later review proposal.
+
 ## Advancing and inspecting
 
 `native controller step --connection CONNECTION --capability-file CAPABILITY
