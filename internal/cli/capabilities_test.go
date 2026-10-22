@@ -26,8 +26,9 @@ import (
 // Dashboard adds the explicit optional private reader connection flag; no new mutation.
 // Three native storage commands add owner-only observation, isolated projection and retention dry-run.
 // Seven device-auth/project-sync commands add six mutations and seven typed JSON outputs.
+// Native doctor adds one read-only JSON command with bounded explicit input flags; MCP tool capabilities remain projected only from mcp.ToolCapabilities(), not command briefs.
 // Digest generated from the assembled CLI artifact; behavioral verification remains pending.
-const capabilityRegistryGolden = "bb35fc0932851f60a67067d16aaf0fe653567d013940687988a100ceeaa9eb2b"
+const capabilityRegistryGolden = "1d73b8166dc64fecd7b3059b50d80a6f067f8316a557d8b002f6f11c36829041"
 
 func TestCapabilityRegistryGolden(t *testing.T) {
 	m := capabilityManifest()
