@@ -16,7 +16,7 @@ func ReadMetadata(path string, limit int64) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return readPrivateBytes(f, limit)
 }
 
@@ -27,7 +27,7 @@ func InspectExecutableMetadata(path string, limit int64) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	info, err := f.Stat()
 	if err != nil || info.Mode().Perm()&0o111 == 0 {
 		return ErrDenied

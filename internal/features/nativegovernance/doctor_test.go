@@ -70,7 +70,9 @@ func TestNativeDoctorKeepsUnsupportedAuthoritySchemaUnknown(t *testing.T) {
 	artifact := filepath.Join(t.TempDir(), "plugin.zip")
 	writeDoctorPackage(t, manifest, artifact)
 	var state map[string]any
-	privateJSON(f.worker.Authority, &state)
+	if err := privateJSON(f.worker.Authority, &state); err != nil {
+		t.Fatal(err)
+	}
 	state["Version"] = float64(maximumAuthoritySchema + 1)
 	verificationJSON(t, f.worker.Authority, state)
 	var out bytes.Buffer
@@ -96,20 +98,23 @@ func TestNativeDoctorDistinguishesMissingRevokedAndExpiredEnrollment(t *testing.
 			verificationJSON(t, manifest, map[string]string{"name": "fixture", "version": "0.4.0"})
 			artifact := filepath.Join(t.TempDir(), "plugin.zip")
 			writeDoctorPackage(t, manifest, artifact)
-			if status == "missing_enrollment" {
+			switch status {
+			case "missing_enrollment":
 				var connection map[string]any
 				if err := privateJSON(f.connection, &connection); err != nil {
 					t.Fatal(err)
 				}
 				connection["session_id"] = "unissued-session"
 				verificationJSON(t, f.connection, connection)
-			} else if status == "revoked_actor" {
+			case "revoked_actor":
 				if err := f.authority.Revoke(f.owner, f.worker.SessionID); err != nil {
 					t.Fatal(err)
 				}
-			} else {
+			case "expired_enrollment":
 				var state map[string]any
-				privateJSON(f.worker.Authority, &state)
+				if err := privateJSON(f.worker.Authority, &state); err != nil {
+					t.Fatal(err)
+				}
 				sessions := state["Sessions"].(map[string]any)
 				record := sessions[f.worker.SessionID].(map[string]any)
 				record["ExpiresAt"] = time.Now().Add(-time.Minute).UTC().Format(time.RFC3339Nano)
