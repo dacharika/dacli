@@ -213,7 +213,7 @@ jobs:
           go build ./cmd/dacli
           go test ./internal/features/dashboard/ ./internal/cli/
 
-  # The RELEASE PATH, proven on every push without publishing anything.
+  # The portable snapshot path, proven on explicitly dispatched CI runs.
   #
   # A release path that is only exercised when a tag is pushed is discovered to
   # be broken at the worst possible moment. This builds a snapshot and checks
@@ -222,9 +222,9 @@ jobs:
   # issue #437 names — the binary the README's install commands yield actually
   # runs.
   #
-  # Nothing here creates or pushes a tag. Publishing stays a deliberate human
-  # act; this job is the evidence that when the maintainer does push one, the
-  # path works.
+  # This Linux profile keeps all six archives, checksums and SBOMs verifiable.
+  # Its Darwin artifacts are intentionally cgo-off and cannot be published;
+  # the tagged release workflow builds native Keychain artifacts on macOS.
   release-snapshot:
     needs: test-matrix
     runs-on: ubuntu-latest
@@ -258,7 +258,7 @@ jobs:
           version: "~> v2"
       - uses: anchore/sbom-action/download-syft@v0
       - name: verify release artifacts (snapshot, publishes nothing)
-        run: ./scripts/verify-release-artifacts.sh
+        run: ./scripts/verify-release-artifacts.sh --portable-snapshot
 
   cross-compile:
     needs: test-matrix
