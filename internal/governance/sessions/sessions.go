@@ -239,16 +239,11 @@ func (a *Authority) transaction(create bool, write bool, fn func(*state) error) 
 	if a.version >= 7 {
 		initializeSwarms(&s)
 	}
-	data, err := os.ReadFile(a.path)
-	if create {
-		if !os.IsNotExist(err) {
-			return ErrDenied
-		}
-	} else {
-		s = state{}
-		if err != nil {
-			return ErrStorage
-		}
+	data, err := readAuthority(a.path, create)
+	if err != nil {
+		return err
+	}
+	if !create {
 		s, err = decodeAuthorityState(data, a.binding, a.version)
 		if err != nil {
 			return err
@@ -267,7 +262,7 @@ func (a *Authority) transaction(create bool, write bool, fn func(*state) error) 
 		return ErrStorage
 	}
 	data, err = json.Marshal(s)
-	if err != nil {
+	if err != nil || int64(len(data)) > MaxAuthorityBytes {
 		return ErrStorage
 	}
 	if a.persistOverride != nil {
@@ -277,6 +272,9 @@ func (a *Authority) transaction(create bool, write bool, fn func(*state) error) 
 }
 
 func (a *Authority) persist(data []byte) error {
+	if int64(len(data)) > MaxAuthorityBytes {
+		return ErrStorage
+	}
 	tmp, err := os.CreateTemp(filepath.Dir(a.path), ".sessions-*")
 	if err != nil {
 		return ErrStorage

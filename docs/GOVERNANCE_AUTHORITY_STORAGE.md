@@ -52,8 +52,13 @@ authority. Enrolled worker credentials cannot substitute. Public observations
 contain actual schema, collection IDs/counts/digests, output-digest references and
 retained protections; credential hashes, command bodies and raw private state are
 excluded. The source aggregate is observed under its existing cooperative lock.
-Its existing transaction loader is not a bounded whole-file I/O contract; the
-additional snapshot read has its own size bound.
+Authority transaction reads and serialized replacements are bounded by
+`sessions.MaxAuthorityBytes` (32 MiB). The owner observation uses the same cap.
+An authority already over the cap, or a write whose full serialized result
+would exceed it, is refused before replacement; the file is left intact. This
+is a refusal boundary, not a retention policy. DACLI never prunes, expires, or
+truncates operation, replay, accepted, consumption, or other audit histories to
+fit the cap.
 
 The experiment reads the complete bounded canonical task graph, verifies exact
 raw task-body digests and imports into private files outside the live workspace.
@@ -70,6 +75,64 @@ fixtures interrupt after authority snapshot, task snapshot, projection and
 manifest publication, then reopen and resume the same source without changing
 live authority or canonical task bytes. Temporary publication hardlinks remain
 for observation; the experiment never automatically deletes them.
+
+## Aggregate size and owner response
+
+The 32 MiB maximum is a hard read/write boundary for the complete private
+aggregate, including its JSON encoding. It does not promise that every aggregate
+at or below the cap has the same latency on every disk or host. To reproduce the
+fixture-only size and I/O measurements on the current Go toolchain, run:
+
+```bash
+go test -run '^$' -bench '^BenchmarkAuthorityGrowth' -benchtime=1x -count=1 ./internal/governance/sessions
+```
+
+The benchmark explicitly upgrades a temporary schema-6 authority to the current
+schema and seeds receipt-bound pending-operation records with synthetic IDs and
+repository data. It reports retained operation counts, serialized bytes,
+owner-authenticated bounded-read cost, read-only transaction cost, no-op durable
+write cost, and cooperative lock contention. Fixture setup and record creation
+are excluded from timed measurements. It reads no owner profile or live
+authority and performs no external actions. The table records one fixture-only
+sample from Darwin arm64 (Apple M5 Pro), Go 1.26.5, source HEAD
+`eea7e31c66b66fdd7db926974b52bd14dce31c80`, with a dirty-source manifest
+SHA-256 of
+`22cad5d620046a5f92cddec97fbbd1910823c6d1a0a991961c4cf2438a87f242`. The
+manifest binds the benchmark and authority read, snapshot, and persistence
+sources. The exact command, component digests, and raw output are preserved in a
+local measurement receipt. These are descriptive single-run observations, not
+a latency guarantee or a cross-host comparison.
+
+| Retained synthetic operations | Serialized authority bytes | Authenticated read | Read-only transaction | No-op write/persist | Host / Go / source |
+|---:|---:|---:|---:|---:|---|
+| 100 | 405,221 | 6.628 ms | 2.180 ms | 15.815 ms | Darwin arm64; Go 1.26.5; manifest above |
+| 1,000 | 4,037,621 | 57.245 ms | 22.948 ms | 36.103 ms | Darwin arm64; Go 1.26.5; manifest above |
+| 5,000 | 20,181,621 | 275.039 ms | 104.342 ms | 148.711 ms | Darwin arm64; Go 1.26.5; manifest above |
+
+A 10,000-operation fixture seed was also attempted. Its write transaction
+returned the storage-unavailable refusal while adding the synthetic history;
+the seed was not persisted and no timing or aggregate size is claimed for that
+case. The exact failed run is kept separately in the measurement receipt. This
+is consistent with the size cap, but it does not establish a universal maximum
+record count: serialized size depends on retained history content.
+
+At 1,000 retained operations, the custom interval from starting the second
+transaction through its completion was 30.142 ms; the full serialized pair
+benchmark iteration took 53.631 ms. Each benchmark used one iteration, so these
+are reproducibility observations only. They do not qualify throughput or the
+worst-case lock wait on other hosts.
+
+When a real owner aggregate approaches or reaches the cap, stop operations that
+would grow it and preserve the original private file byte-for-byte. Before any
+owner-directed investigation or recovery, retain a separate immutable private
+backup with restrictive permissions and verify its digest without publishing
+the contents. Keep uncertain operations, replay receipts, accepted outcomes,
+and consumption records in both copies. Do not edit JSON by hand, remove old
+records, truncate the file, or retry a refused growth operation. There is no
+general-purpose recovery command that safely shrinks this aggregate. A future
+resolution must use a separately reviewed owner-approved design that preserves
+the histories and recovery evidence; the current cap itself does not authorize
+a migration or a new writer.
 
 ## Cooperative concurrency and writer boundaries
 

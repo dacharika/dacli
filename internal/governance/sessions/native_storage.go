@@ -4,10 +4,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"io"
-	"os"
 	"reflect"
 	"sort"
+	"strings"
+
+	"github.com/mlnomadpy/dacli/internal/governance/nativeconfig"
 )
 
 // StorageSnapshot is an owner-only observation, never a writer activation or
@@ -16,11 +17,25 @@ type StorageSnapshot struct {
 	SchemaVersion    int                          `json:"schema_version"`
 	AuthorityVersion int                          `json:"authority_version"`
 	Digest           string                       `json:"digest"`
+	Growth           StorageGrowthSummary         `json:"growth"`
 	Collections      map[string]StorageCollection `json:"collections"`
 	References       []StorageReference           `json:"references"`
 	Holds            []StorageHold                `json:"holds"`
 	PrivateBytes     []byte                       `json:"-"`
 }
+
+// StorageGrowthSummary exposes only bounded aggregate size and fixed-schema
+// counts. Map keys are Go state collection names, never stored IDs or records.
+// Histories count retained entries, including every nested revision or snapshot.
+// These observations do not authorize pruning, expiry, migration or a writer.
+type StorageGrowthSummary struct {
+	AggregateBytes     int64          `json:"aggregate_bytes"`
+	MaxAllowedBytes    int64          `json:"max_allowed_bytes"`
+	CollectionCounts   map[string]int `json:"collection_counts"`
+	OperationCounts    map[string]int `json:"operation_counts"`
+	HistoryEntryCounts map[string]int `json:"history_entry_counts"`
+}
+
 type StorageCollection struct {
 	Count  int      `json:"count"`
 	IDs    []string `json:"ids"`
@@ -46,13 +61,10 @@ func (a *Authority) ObserveStorage(owner string) (StorageSnapshot, error) {
 		if len(owner) != 64 || hash(owner) != s.OwnerHash {
 			return ErrDenied
 		}
-		file, e := os.Open(a.path)
+		// Re-reading for the exact private snapshot uses the same descriptor-safe
+		// bound as transaction admission; a path stat is not a read boundary.
+		raw, e := nativeconfig.ReadPrivate(a.path, MaxAuthorityBytes)
 		if e != nil {
-			return ErrStorage
-		}
-		raw, e := io.ReadAll(io.LimitReader(file, 33554433))
-		_ = file.Close()
-		if e != nil || len(raw) > 33554432 {
 			return ErrStorage
 		}
 		var current state
@@ -62,6 +74,7 @@ func (a *Authority) ObserveStorage(owner string) (StorageSnapshot, error) {
 		out.PrivateBytes = append([]byte(nil), raw...)
 		out.Digest = storageDigest(raw)
 		out.AuthorityVersion = s.Version
+		out.Growth = StorageGrowthSummary{AggregateBytes: int64(len(raw)), MaxAllowedBytes: MaxAuthorityBytes, CollectionCounts: map[string]int{}, OperationCounts: map[string]int{}, HistoryEntryCounts: map[string]int{}}
 		value := reflect.ValueOf(*s)
 		typ := value.Type()
 		for n := 0; n < value.NumField(); n++ {
@@ -78,7 +91,23 @@ func (a *Authority) ObserveStorage(owner string) (StorageSnapshot, error) {
 			if e != nil {
 				return ErrStorage
 			}
-			out.Collections[typ.Field(n).Name] = StorageCollection{len(ids), ids, storageDigest(b)}
+			name := typ.Field(n).Name
+			out.Collections[name] = StorageCollection{len(ids), ids, storageDigest(b)}
+			out.Growth.CollectionCounts[name] = field.Len()
+			if strings.HasSuffix(name, "Operations") {
+				out.Growth.OperationCounts[name] = field.Len()
+			}
+			kind := field.Type().Elem().Kind()
+			if strings.HasSuffix(name, "History") || kind == reflect.Slice {
+				entries := field.Len()
+				if kind == reflect.Map || kind == reflect.Slice {
+					entries = 0
+					for _, key := range field.MapKeys() {
+						entries += field.MapIndex(key).Len()
+					}
+				}
+				out.Growth.HistoryEntryCounts[name] = entries
+			}
 		}
 		for _, ev := range s.Evidence {
 			at, e := reviewAttempt(s, ev.Revision.AttemptID)
