@@ -1,10 +1,7 @@
 name: quality
 on:
-  # Randomized fuzzing protects against novel inputs without charging every
-  # pull request for campaigns whose committed regression corpus is already
-  # replayed by ci.yml's go test ./... step.
-  schedule:
-    - cron: "0 6 * * 1"
+  # Randomized campaigns run only when explicitly requested; local and manual
+  # CI tests continue to replay their committed regression corpus.
   workflow_dispatch:
 
 jobs:

@@ -20,8 +20,8 @@ go build ./cmd/dacli
 
 That works from a clean checkout — `ui/dist/.gitkeep` is tracked, so the
 `go:embed all:ui/dist` in the dashboard slice always has a directory to read,
-and `go test ./...` passes without Node installed at all. CI proves this on
-every push (the `clean-checkout` job).
+and `go test ./...` passes without Node installed at all. Manually dispatched
+CI verifies this in the `clean-checkout` job.
 
 What you get without the frontend build is the dashboard's fallback page rather
 than the real SPA. Build it when you are working ON the dashboard:

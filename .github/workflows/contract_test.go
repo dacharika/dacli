@@ -66,7 +66,50 @@ func TestGovulncheckIsPinnedToCompatibleToolchain(t *testing.T) {
 	}
 }
 
-func TestRoutineCIIsLinuxOnlyAndPRTriggered(t *testing.T) {
+// Validation is opt-in; deployment and tagged release workflows are separate.
+// Read the event mapping so a new automatic event cannot bypass a blacklist.
+func TestValidationWorkflowsAreManualOnly(t *testing.T) {
+	for _, name := range []string{"ci.yml", "quality.yml", "dashboard-evidence.yml"} {
+		t.Run(name, func(t *testing.T) {
+			workflow := readNamedWorkflow(t, name)
+			lines := strings.Split(workflow, "\n")
+			inEvents, found, manual := false, false, false
+			for _, line := range lines {
+				if !inEvents {
+					if line == "on:" {
+						inEvents, found = true, true
+					}
+					continue
+				}
+				if strings.TrimSpace(line) == "" || strings.HasPrefix(strings.TrimSpace(line), "#") {
+					continue
+				}
+				if !strings.HasPrefix(line, " ") {
+					break
+				}
+				if strings.HasPrefix(line, "  ") && !strings.HasPrefix(line, "   ") {
+					match := regexp.MustCompile(`^  ([a-z_]+):\s*(?:#.*)?$`).FindStringSubmatch(line)
+					if len(match) != 2 {
+						t.Fatalf("validation trigger must use an explicit event mapping: %q", line)
+					}
+					switch match[1] {
+					case "workflow_dispatch":
+						manual = true
+					case "workflow_call":
+						// Reusable APIs may be invoked by an explicitly selected caller.
+					default:
+						t.Fatalf("validation workflow must be manual-only; found event %q", match[1])
+					}
+				}
+			}
+			if !found || !manual {
+				t.Fatal("validation workflow must retain an explicit workflow_dispatch mapping")
+			}
+		})
+	}
+}
+
+func TestCIIsLinuxOnlyAndManuallyTriggered(t *testing.T) {
 	workflow := readWorkflow(t)
 	testJob := jobBlock(t, workflow, "test-matrix")
 
@@ -79,18 +122,12 @@ func TestRoutineCIIsLinuxOnlyAndPRTriggered(t *testing.T) {
 	if !strings.Contains(testJob, "runs-on: ubuntu-latest") {
 		t.Fatal("routine test job must run on ubuntu-latest")
 	}
-	if regexp.MustCompile(`(?m)^  push:`).MatchString(workflow) {
-		t.Fatal("routine ci must not duplicate pull-request verification on pushes")
-	}
-	if !strings.Contains(workflow, "  pull_request:\n") {
-		t.Fatal("routine ci must run for pull requests")
-	}
 	if !strings.Contains(workflow, "  workflow_dispatch:\n") {
-		t.Fatal("routine ci must retain workflow_dispatch recovery")
+		t.Fatal("CI must retain explicit workflow_dispatch validation")
 	}
 	if !strings.Contains(workflow, "group: ci-${{ github.event.pull_request.number || github.ref }}") ||
 		!strings.Contains(workflow, "cancel-in-progress: true") {
-		t.Fatal("routine ci must cancel a superseded run for the same pull request or ref")
+		t.Fatal("CI must retain its existing explicit-run concurrency contract")
 	}
 }
 
@@ -113,8 +150,8 @@ func TestFuzzCampaignsRunOnlyInQualityWorkflow(t *testing.T) {
 			t.Errorf("quality workflow is missing fuzz target %q", target)
 		}
 	}
-	if !strings.Contains(quality, "  schedule:\n") || !strings.Contains(quality, "  workflow_dispatch:\n") {
-		t.Fatal("quality workflow must support scheduled and manual fuzz campaigns")
+	if !strings.Contains(quality, "  workflow_dispatch:\n") {
+		t.Fatal("quality workflow must retain explicitly requested fuzz campaigns")
 	}
 }
 
