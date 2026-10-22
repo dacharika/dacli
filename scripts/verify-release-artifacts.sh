@@ -18,7 +18,8 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-verifier_tmp=$(mktemp -d /private/tmp/dacli-release-artifacts.XXXXXX)
+verifier_tmp=$(mktemp -d "${TMPDIR:-/tmp}/dacli-release-artifacts.XXXXXX")
+verifier_tmp=$(cd "$verifier_tmp" && pwd -P)
 cleanup() {
   status=$?
   trap - EXIT INT TERM
