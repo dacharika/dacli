@@ -22,6 +22,8 @@ builds:
     goarch:
       - amd64
       - arm64
+    flags:
+      - -buildvcs=true
     ldflags:
       - -s -w -X github.com/mlnomadpy/dacli/internal/buildinfo.Version={{ .Version }}
 

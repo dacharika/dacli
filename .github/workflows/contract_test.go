@@ -263,6 +263,18 @@ func TestPortableAndNativeArtifactConfigsStayEquivalent(t *testing.T) {
 	}
 }
 
+func TestNativeAndPortableReleaseBuildsIncludeVCSMetadata(t *testing.T) {
+	flags := regexp.MustCompile(`(?m)^    flags:\n      - -buildvcs=true$`)
+	for _, name := range []string{".goreleaser.yaml", ".goreleaser.portable-snapshot.yaml"} {
+		t.Run(name, func(t *testing.T) {
+			builds := yamlSection(readNamedFile(t, name), "builds")
+			if !flags.MatchString(builds) {
+				t.Fatalf("%s builds must explicitly enable Go VCS stamping", name)
+			}
+		})
+	}
+}
+
 func TestReleaseInstallsPinnedSyftBeforeGoReleaser(t *testing.T) {
 	workflow := readNamedWorkflow(t, "release.yml")
 
