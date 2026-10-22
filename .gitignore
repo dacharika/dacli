@@ -10,6 +10,10 @@ site/
 *.test
 *.out
 
+# Python test and helper imports write bytecode beside the source tree.
+__pycache__/
+*.py[cod]
+
 # Editors
 .DS_Store
 .idea/
