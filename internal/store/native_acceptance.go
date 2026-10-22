@@ -188,6 +188,17 @@ func PrepareNativeAcceptanceTask(t *Task, receipt, reviewer, summary string, at 
 // CloseTaskWithNativeAcceptance saves only the kernel-bound prepared outcome then moves.
 // An exact own partial marker can move again; it never checks a changed task anew.
 func CloseTaskWithNativeAcceptance(w *workspace.Workspace, t *Task, receipt, body, digest string) error {
+	return closeTaskWithNativeAcceptance(w, t, receipt, body, digest, nil)
+}
+
+// CloseTaskWithNativeAcceptanceAfterSave exposes the durable-save/move boundary
+// to the application crash-recovery fixture. Normal producers should use
+// CloseTaskWithNativeAcceptance; this observer cannot alter the saved outcome.
+func CloseTaskWithNativeAcceptanceAfterSave(w *workspace.Workspace, t *Task, receipt, body, digest string, afterSave func()) error {
+	return closeTaskWithNativeAcceptance(w, t, receipt, body, digest, afterSave)
+}
+
+func closeTaskWithNativeAcceptance(w *workspace.Workspace, t *Task, receipt, body, digest string, afterSave func()) error {
 	if t.Status == model.StatusDone {
 		return Refusedf("native task already done")
 	}
@@ -204,6 +215,9 @@ func CloseTaskWithNativeAcceptance(w *workspace.Workspace, t *Task, receipt, bod
 		t.Doc = doc
 		if e = SaveTask(t); e != nil {
 			return e
+		}
+		if afterSave != nil {
+			afterSave()
 		}
 	} else {
 		observed, e := ReadNativeAcceptanceOutcomeDigest(w, t.ID, t.Project)

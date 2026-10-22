@@ -52,7 +52,10 @@ func (p *NativeIntegrationOwner) run(ctx context.Context, input sessions.NativeI
 			return integrationObservation(observed), nil
 		}
 		effect := func(rec sessions.NativeIntegrationRecord, final func() error) (sessions.NativeIntegrationObservation, error) {
-			observed, e := store.ApplyNativeIntegrationFastForward(ctx, integrationTarget(rec.Policy, candidate), func() error {
+			if p.testBeforeGitEffect != nil {
+				p.testBeforeGitEffect()
+			}
+			observed, e := store.ApplyNativeIntegrationFastForwardWithRefObserver(ctx, integrationTarget(rec.Policy, candidate), func() error {
 				// Owner profile changes after Git observations cannot reach the effect.
 				// Reading selected private bytes does not reacquire the authority lock.
 				var current sessions.NativeIntegrationPolicy
@@ -63,9 +66,12 @@ func (p *NativeIntegrationOwner) run(ctx context.Context, input sessions.NativeI
 					return e
 				}
 				return final()
-			})
+			}, p.testAfterRefCAS)
 			if e != nil {
 				return sessions.NativeIntegrationObservation{}, e
+			}
+			if p.testAfterGitEffect != nil {
+				p.testAfterGitEffect()
 			}
 			return integrationObservation(observed), nil
 		}

@@ -12,6 +12,11 @@ type NativeAcceptanceOwner struct {
 	owner      *NativeRecoveryAccess
 	policyPath string
 	policy     NativeReviewPolicy
+
+	// Set only by process-death tests at canonical side-effect boundaries.
+	testBeforeCanonicalClose func()
+	testAfterTaskSave        func()
+	testAfterCanonicalClose  func()
 }
 
 func OpenNativeAcceptanceOwner(configPath, policyPath string) (*NativeAcceptanceOwner, error) {
@@ -27,7 +32,7 @@ func OpenNativeAcceptanceOwner(configPath, policyPath string) (*NativeAcceptance
 	if e != nil || w.ID != p.WorkspaceID {
 		return nil, sessions.ErrDenied
 	}
-	return &NativeAcceptanceOwner{owner, policyPath, p}, nil
+	return &NativeAcceptanceOwner{owner: owner, policyPath: policyPath, policy: p}, nil
 }
 func (p *NativeAcceptanceOwner) Upgrade() error {
 	if p == nil {

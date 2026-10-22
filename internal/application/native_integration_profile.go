@@ -14,6 +14,11 @@ type NativeIntegrationOwner struct {
 	acceptance *NativeAcceptanceOwner
 	policyPath string
 	policy     sessions.NativeIntegrationPolicy
+
+	// Process-death hooks are private and are set only by application tests.
+	testBeforeGitEffect func()
+	testAfterRefCAS     func()
+	testAfterGitEffect  func()
 }
 
 func (NativeIntegrationOwner) String() string   { return "NativeIntegrationOwner" }

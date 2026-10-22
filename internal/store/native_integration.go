@@ -136,6 +136,15 @@ func ObserveNativeIntegrationTarget(parent context.Context, t NativeIntegrationT
 // a safe two-tree index/worktree transition. A crash between them is unknown;
 // callers must not rerun it. No commit, remote, hook, deployment or release runs.
 func ApplyNativeIntegrationFastForward(parent context.Context, t NativeIntegrationTarget, finalCurrent func() error) (NativeIntegrationGitObservation, error) {
+	return ApplyNativeIntegrationFastForwardWithRefObserver(parent, t, finalCurrent, nil)
+}
+
+// ApplyNativeIntegrationFastForwardWithRefObserver is the producer variant used
+// to observe the boundary after the durable ref CAS and before the worktree
+// update. The callback cannot authorize or alter the Git command; production
+// callers pass nil. It exists so process-death recovery tests can exercise the
+// real split side effect instead of simulating an Authority callback.
+func ApplyNativeIntegrationFastForwardWithRefObserver(parent context.Context, t NativeIntegrationTarget, finalCurrent func() error, afterRefCAS func()) (NativeIntegrationGitObservation, error) {
 	if parent == nil || finalCurrent == nil || !nativeIntegrationObject(t.Commit) || !nativeIntegrationObject(t.Tree) {
 		return NativeIntegrationGitObservation{}, Refusedf("reviewed native integration revision required")
 	}
@@ -162,6 +171,9 @@ func ApplyNativeIntegrationFastForward(parent context.Context, t NativeIntegrati
 	}
 	if _, e = run("update-ref", "--no-deref", t.Ref, t.Commit, t.ExpectedCommit); e != nil {
 		return NativeIntegrationGitObservation{}, errors.Join(Refusedf("native integration ref CAS refused"), e)
+	}
+	if afterRefCAS != nil {
+		afterRefCAS()
 	}
 	if _, e = run("read-tree", "-u", "-m", t.ExpectedCommit, t.Commit); e != nil {
 		return NativeIntegrationGitObservation{}, errors.Join(Refusedf("native integration partial effect; owner reconciliation required"), e)

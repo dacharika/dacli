@@ -132,7 +132,22 @@ func (p *NativeAcceptanceOwner) ApplyWithPolicy(input sessions.NativeAcceptanceI
 			return false, nil
 		}
 		closeTask := func(rec sessions.NativeAcceptanceRecord) error {
-			return store.CloseTaskWithNativeAcceptance(observer.workspace, t, rec.CanonicalReceiptDigest, prepared, rec.CanonicalOutcomeDigest)
+			if p.testBeforeCanonicalClose != nil {
+				p.testBeforeCanonicalClose()
+			}
+			var closeErr error
+			if p.testAfterTaskSave != nil {
+				closeErr = store.CloseTaskWithNativeAcceptanceAfterSave(observer.workspace, t, rec.CanonicalReceiptDigest, prepared, rec.CanonicalOutcomeDigest, p.testAfterTaskSave)
+			} else {
+				closeErr = store.CloseTaskWithNativeAcceptance(observer.workspace, t, rec.CanonicalReceiptDigest, prepared, rec.CanonicalOutcomeDigest)
+			}
+			if closeErr != nil {
+				return closeErr
+			}
+			if p.testAfterCanonicalClose != nil {
+				p.testAfterCanonicalClose()
+			}
+			return nil
 		}
 		out, e = a.ContinueNativeAcceptance(owner, input, inspect, closeTask)
 		if exactPartial && errors.Is(e, sessions.ErrDenied) {
