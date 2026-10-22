@@ -19,17 +19,20 @@ import (
 )
 
 type acceptanceFixture struct {
-	w                                 *workspace.Workspace
-	a                                 *sessions.Authority
-	owner, workerToken, reviewerToken string
-	worker, reviewer                  sessions.Session
-	at                                sessions.Attempt
-	lease                             sessions.Lease
-	revision                          sessions.AttemptRevision
-	grant                             sessions.ReviewGrant
-	input                             sessions.NativeAcceptanceInput
-	access                            *NativeAcceptanceOwner
-	task                              *store.Task
+	w                                          *workspace.Workspace
+	a                                          *sessions.Authority
+	owner, workerToken, reviewerToken          string
+	worker, reviewer                           sessions.Session
+	at                                         sessions.Attempt
+	lease                                      sessions.Lease
+	revision                                   sessions.AttemptRevision
+	grant                                      sessions.ReviewGrant
+	input                                      sessions.NativeAcceptanceInput
+	access                                     *NativeAcceptanceOwner
+	task                                       *store.Task
+	runnerToken, runnerID, verificationGrantID string
+	check                                      sessions.CheckDescriptor
+	marker                                     string
 }
 
 func acceptanceSetup(t *testing.T) acceptanceFixture { return acceptanceSetupMode(t, false) }
@@ -161,7 +164,7 @@ func acceptanceSetupMode(t *testing.T, tracked bool) acceptanceFixture {
 	if e != nil {
 		t.Fatalf("setup/read line 156: %v", e)
 	}
-	return acceptanceFixture{w, a, owner, wt, rvt, worker, reviewer, at, lease, rev, rg, input, access, task}
+	return acceptanceFixture{w: w, a: a, owner: owner, workerToken: wt, reviewerToken: rvt, worker: worker, reviewer: reviewer, at: at, lease: lease, revision: rev, grant: rg, input: input, access: access, task: task, runnerToken: rt, runnerID: runner.ID, verificationGrantID: vg.ID, check: check, marker: marker}
 }
 func acceptanceJSON(t *testing.T, path string, v any) {
 	t.Helper()
