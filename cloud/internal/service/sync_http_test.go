@@ -21,6 +21,7 @@ import (
 type syncLimitDependencies struct {
 	identity                                                                  tenant.VerifiedIdentity
 	authErr                                                                   error
+	resolveErr, deviceKeyErr, publicKeyErr, pullErr                           error
 	verifies, resolves, deviceKeys, publicKeys, pulls, confirms, keys, writes int
 	scopes                                                                    []tenant.Scope
 }
@@ -35,19 +36,31 @@ func (d *syncLimitDependencies) VerifyWork(ctx context.Context, credential strin
 func (d *syncLimitDependencies) Resolve(_ context.Context, id tenant.VerifiedIdentity, route cloudsync.SyncRoute) (cloudsync.ProjectBindingResponse, error) {
 	d.resolves++
 	d.scopes = append(d.scopes, id.Scope)
+	if d.resolveErr != nil {
+		return cloudsync.ProjectBindingResponse{}, d.resolveErr
+	}
 	return cloudsync.ProjectBindingResponse{SchemaVersion: 1, Route: route, BindingVersion: 1}, nil
 }
 func (d *syncLimitDependencies) DeviceKey(context.Context, tenant.VerifiedIdentity) (string, error) {
 	d.deviceKeys++
+	if d.deviceKeyErr != nil {
+		return "", d.deviceKeyErr
+	}
 	return "device-key", nil
 }
 func (d *syncLimitDependencies) DevicePublicKey(context.Context, tenant.VerifiedIdentity) ([]byte, error) {
 	d.publicKeys++
+	if d.publicKeyErr != nil {
+		return nil, d.publicKeyErr
+	}
 	return make([]byte, ed25519.PublicKeySize), nil
 }
 func (d *syncLimitDependencies) Pull(_ context.Context, scope tenant.Scope, _ tenant.ProjectID, _, _ uint64, _ []string) (envelopeworker.PullPage, error) {
 	d.pulls++
 	d.scopes = append(d.scopes, scope)
+	if d.pullErr != nil {
+		return envelopeworker.PullPage{}, d.pullErr
+	}
 	return envelopeworker.PullPage{}, nil
 }
 func (d *syncLimitDependencies) Confirmed(context.Context, tenant.Scope, cloudsync.Envelope) (bool, error) {
@@ -206,6 +219,63 @@ func TestSyncIngestionLimitReturns429BeforePersistenceOrPull(t *testing.T) {
 				t.Fatalf("ingestion limit proceeded or became 503: %+v", d)
 			}
 		})
+	}
+}
+
+func TestSyncExchangePreservesBindingCursorAndPullFailureBoundaries(t *testing.T) {
+	request := func(api *API, binding uint64, cursor string) *httptest.ResponseRecorder {
+		body, err := json.Marshal(cloudsync.ExchangeRequest{SchemaVersion: 1, Route: cloudsync.SyncRoute{TenantID: "tenant-a", ProjectID: "project-a", DeviceID: "device-a"}, BindingVersion: binding, DeliveryCursor: cursor})
+		if err != nil {
+			t.Fatal(err)
+		}
+		r := httptest.NewRequest(http.MethodPost, "/v1/sync/exchange", bytes.NewReader(body))
+		r.RemoteAddr = "192.0.2.8:1234"
+		r.Header.Set("Authorization", "Bearer test-device")
+		w := httptest.NewRecorder()
+		api.Handler().ServeHTTP(w, r)
+		return w
+	}
+	api, d := syncLimitFixture(t, 20, 20)
+	wrongMethod := httptest.NewRecorder()
+	api.Handler().ServeHTTP(wrongMethod, httptest.NewRequest(http.MethodGet, "/v1/sync/exchange", nil))
+	if wrongMethod.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("exchange method=%d", wrongMethod.Code)
+	}
+	malformed := httptest.NewRequest(http.MethodPost, "/v1/sync/exchange", strings.NewReader(`{} trailing`))
+	malformed.RemoteAddr = "192.0.2.9:1234"
+	malformedResponse := httptest.NewRecorder()
+	api.Handler().ServeHTTP(malformedResponse, malformed)
+	if malformedResponse.Code != http.StatusForbidden || d.verifies != 0 {
+		t.Fatalf("malformed exchange=%d verifies=%d", malformedResponse.Code, d.verifies)
+	}
+	d.resolveErr = errors.New("binding unavailable")
+	if got := request(api, 1, ""); got.Code != http.StatusForbidden || d.deviceKeys != 0 {
+		t.Fatalf("binding failure=%d deps=%+v", got.Code, d)
+	}
+	d.resolveErr = nil
+	if got := request(api, 2, ""); got.Code != http.StatusForbidden || d.deviceKeys != 0 {
+		t.Fatalf("binding revision mismatch=%d deps=%+v", got.Code, d)
+	}
+	d.deviceKeyErr = errors.New("device key unavailable")
+	if got := request(api, 1, ""); got.Code != http.StatusForbidden {
+		t.Fatalf("device key failure=%d", got.Code)
+	}
+	d.deviceKeyErr = nil
+	if got := request(api, 1, "malformed"); got.Code != http.StatusForbidden || d.pulls != 0 {
+		t.Fatalf("cursor failure=%d pulls=%d", got.Code, d.pulls)
+	}
+	d.pullErr = envelopeworker.ErrPullTooLarge
+	if got := request(api, 1, ""); got.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("large pull=%d %s", got.Code, got.Body.String())
+	}
+	d.pullErr = errors.New("storage unavailable")
+	if got := request(api, 1, ""); got.Code != http.StatusServiceUnavailable {
+		t.Fatalf("pull outage=%d", got.Code)
+	}
+	d.pullErr = nil
+	d.publicKeyErr = errors.New("key unavailable")
+	if got := request(api, 1, ""); got.Code != http.StatusForbidden {
+		t.Fatalf("public key failure=%d", got.Code)
 	}
 }
 
