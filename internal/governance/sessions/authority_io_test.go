@@ -61,7 +61,7 @@ func TestAuthorityReadExactBoundaryAndOversize(t *testing.T) {
 	}
 	called = false
 	err = a.transaction(false, false, func(*state) error { called = true; return nil })
-	if err != ErrStorage || called {
+	if !errors.Is(err, ErrStorage) || err.Error() != ErrStorage.Error() || called {
 		t.Fatalf("oversize authority reached operation: called=%v err=%v", called, err)
 	}
 }
@@ -105,17 +105,17 @@ func TestAuthorityReadRejectsUnsafeFilesAndPreservesCreateOnce(t *testing.T) {
 			}
 			called := false
 			err := a.transaction(false, false, func(*state) error { called = true; return nil })
-			if err != ErrStorage || called {
+			if !errors.Is(err, ErrStorage) || err.Error() != ErrStorage.Error() || called {
 				t.Fatalf("unsafe %s read: called=%v err=%v", kind, called, err)
 			}
-			if token, err := a.Bootstrap(); token != "" || (err != ErrStorage && err != ErrDenied) {
+			if token, err := a.Bootstrap(); token != "" || (!errors.Is(err, ErrStorage) || err.Error() != ErrStorage.Error()) && (!errors.Is(err, ErrDenied) || err.Error() != ErrDenied.Error()) {
 				t.Fatalf("unsafe %s adopted as absent: token=%q err=%v", kind, token, err)
 			}
 		})
 	}
 	a, _ := setup(t)
 	before := authorityBytes(t, a)
-	if token, err := a.Bootstrap(); err != ErrDenied || token != "" {
+	if token, err := a.Bootstrap(); !errors.Is(err, ErrDenied) || err.Error() != ErrDenied.Error() || token != "" {
 		t.Fatalf("existing authority overwritten: token=%q err=%v", token, err)
 	}
 	if !bytes.Equal(before, authorityBytes(t, a)) {
@@ -124,7 +124,7 @@ func TestAuthorityReadRejectsUnsafeFilesAndPreservesCreateOnce(t *testing.T) {
 	if err := os.Remove(a.path); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.transaction(false, false, func(*state) error { t.Fatal("missing authority reached operation"); return nil }); err != ErrStorage {
+	if err := a.transaction(false, false, func(*state) error { t.Fatal("missing authority reached operation"); return nil }); !errors.Is(err, ErrStorage) || err.Error() != ErrStorage.Error() {
 		t.Fatalf("missing read not sanitized: %v", err)
 	}
 	if token, err := a.Bootstrap(); err != nil || token == "" {
@@ -167,7 +167,7 @@ func TestAuthorityWriteRefusalPreservesPermanentRecords(t *testing.T) {
 			return nil
 		})
 		f.a.persistOverride = nil
-		if err != ErrStorage || called {
+		if !errors.Is(err, ErrStorage) || err.Error() != ErrStorage.Error() || called {
 			t.Fatalf("oversize write reached persistence (override=%v): called=%v err=%v", override, called, err)
 		}
 		if !bytes.Equal(before, authorityBytes(t, f.a)) || !reflect.DeepEqual(entries, authorityEntries(t, f.a)) {
