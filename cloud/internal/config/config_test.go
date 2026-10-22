@@ -261,7 +261,6 @@ func TestHostedConfigurationValidatesAndReturnsDefensiveCopies(t *testing.T) {
 	}
 	copyTenants := hosted.Tenants()
 	copyTenants[0].Tenant = tenant.OrganizationID("changed")
-	copyTenants = append(copyTenants, HostedTenant{})
 	if got := hosted.Tenants(); len(got) != 1 || got[0].Tenant != tenant.OrganizationID("org_alpha") {
 		t.Fatal("tenant slice copy mutated hosted runtime")
 	}
