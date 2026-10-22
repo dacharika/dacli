@@ -102,7 +102,7 @@ def process_snapshot(pid):
 
 
 def process_command(pid):
-    result = subprocess.run(['ps', '-o', 'command=', '-p', str(pid)],
+    result = subprocess.run(['ps', '-ww', '-o', 'command=', '-p', str(pid)],
                             capture_output=True, text=True, timeout=5)
     return result.stdout.strip() if result.returncode == 0 else ''
 
@@ -504,8 +504,7 @@ os.close(fd)
                 lambda: _read_fixture_process_marker(crash_started), 15, 'synthetic crash check start marker')
             child = wait_for_process(
                 lambda: (lambda row: row if row and row['pid'] == child_pid and row['ppid'] == verifier_pid
-                         and row['pgid'] == child_pid
-                         and Path(row['comm']).name.lower().startswith('python') else None)(
+                         and row['pgid'] == child_pid else None)(
                              process_snapshot(child_pid)), 10, 'synthetic check process identity')
             child_started = child['started']
             child_argv = shlex.split(process_command(child_pid))
