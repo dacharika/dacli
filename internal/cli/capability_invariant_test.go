@@ -131,7 +131,8 @@ func TestUserSuppliedNamesCannotEscapeTheWorkspace(t *testing.T) {
 func TestEveryCommandDeclaresItsCapability(t *testing.T) {
 	// Commands that change state a read-only agent must not change.
 	wantMutating := map[string]bool{
-		"auth login": true, "auth logout": true, "auth whoami": true,
+		"native doctor": false,
+		"auth login":    true, "auth logout": true, "auth whoami": true,
 		"project connect": true, "project disconnect": true, "project sync": true,
 		"native external upgrade": true, "native external configure": true, "native external apply": true, "native external reconcile": true,
 		"native model-routing upgrade": true, "native model-routing configure": true,

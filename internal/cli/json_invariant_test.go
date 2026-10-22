@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -23,6 +24,7 @@ var jsonHonoringCommands = map[string]bool{
 	"auth login": true, "auth logout": true, "auth whoami": true,
 	"project connect": true, "project disconnect": true, "project sync": true, "project status": true,
 	"native external configure": true, "native external inspect": true, "native external apply": true, "native external reconcile": true,
+	"native doctor":                  true,
 	"native model-routing configure": true,
 	"native integration configure":   true, "native integration inspect": true, "native integration apply": true, "native integration reconcile": true,
 	"native verifier inspect": true,
@@ -206,5 +208,77 @@ func TestJSONHonoringCommandsEmitOrAdapt(t *testing.T) {
 		if !json.Valid([]byte(out)) {
 			t.Errorf("%s --json did not emit valid JSON:\n%s", tc.name, out)
 		}
+	}
+}
+
+func TestNativeDoctorEmitsVersionedJSONForSelectedPackage(t *testing.T) {
+	dir := t.TempDir()
+	manifest := filepath.Join(dir, "plugin.json")
+	if err := os.WriteFile(manifest, []byte(`{"name":"fixture-plugin","version":"1.2.3"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	artifact := filepath.Join(dir, "plugin.zip")
+	file, err := os.Create(artifact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive := zip.NewWriter(file)
+	entry, err := archive.Create("plugin.json")
+	if err == nil {
+		_, err = entry.Write([]byte(`{"name":"fixture-plugin","version":"1.2.3"}`))
+	}
+	if closeErr := archive.Close(); err == nil {
+		err = closeErr
+	}
+	if closeErr := file.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtimeArtifact := filepath.Join(dir, "host-runtime")
+	if err := os.WriteFile(runtimeArtifact, []byte("synthetic executable artifact"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Schema  string `json:"schema"`
+		Runtime struct {
+			Version                 string `json:"version"`
+			Availability            string `json:"availability"`
+			HostRuntimeAvailability string `json:"host_runtime_availability"`
+			SelectedArtifact        string `json:"selected_runtime_artifact"`
+		} `json:"runtime"`
+		Package struct {
+			Version        string `json:"version"`
+			ManifestDigest string `json:"manifest_digest"`
+			ArtifactDigest string `json:"artifact_digest"`
+		} `json:"package"`
+		Observations struct {
+			AuthenticatedStartup string `json:"authenticated_startup"`
+			ToolDiscovery        string `json:"tool_discovery"`
+			HostExecution        string `json:"host_execution"`
+		} `json:"observations"`
+	}
+	for _, tc := range []struct {
+		name, runtimePath, want string
+	}{
+		{"metadata only", runtimeArtifact, "metadata_available"},
+		{"missing runtime", filepath.Join(dir, "missing-runtime"), "unavailable"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out, msg, code := executor(dir)([]string{"native", "doctor", "--plugin-manifest", manifest, "--package-artifact", artifact, "--runtime-artifact", tc.runtimePath}, true)
+			if code != 0 {
+				t.Fatalf("native doctor --json: exit %d: %s", code, msg)
+			}
+			if !json.Valid([]byte(out)) || json.Unmarshal([]byte(out), &got) != nil {
+				t.Fatalf("native doctor did not emit JSON: %s", out)
+			}
+			if got.Schema != "native-doctor/v1" || got.Runtime.Availability != "running" || got.Runtime.HostRuntimeAvailability != "unknown" || got.Runtime.SelectedArtifact != tc.want || got.Package.Version != "1.2.3" || got.Runtime.Version == "" || got.Runtime.Version == got.Package.Version || got.Package.ManifestDigest == "" || got.Package.ArtifactDigest == "" || got.Observations.AuthenticatedStartup != "not_attempted" || got.Observations.ToolDiscovery != "unknown" || got.Observations.HostExecution != "unknown" {
+				t.Fatalf("native doctor conflated selected package and runtime observations: %+v", got)
+			}
+			if strings.Contains(out, tc.runtimePath) || strings.Contains(out, "synthetic executable artifact") {
+				t.Fatal("native doctor disclosed selected runtime path or contents")
+			}
+		})
 	}
 }
