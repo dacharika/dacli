@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise real native governance through an isolated Codex app-server; no model turn."""
 import argparse
+import errno
 import hashlib
 import json
 import os
@@ -79,6 +80,66 @@ class Host:
         self.proc.stdin.close(); self.proc.stdout.close()
 
 
+def process_snapshot(pid):
+    result = subprocess.run(['ps', '-o', 'pid=', '-o', 'ppid=', '-o', 'pgid=',
+                             '-o', 'state=', '-o', 'comm=', '-o', 'lstart=', '-p', str(pid)],
+                            capture_output=True, text=True, timeout=5)
+    if result.returncode == 1 and not result.stdout.strip() and not result.stderr.strip():
+        return None
+    if result.returncode != 0 or not result.stdout.strip():
+        raise RuntimeError('could not inspect fixture-owned process')
+    fields = result.stdout.strip().split(maxsplit=5)
+    if len(fields) != 6 or not fields[3] or not fields[4] or not fields[5]:
+        raise RuntimeError('could not inspect fixture-owned process')
+    try:
+        process_id, parent_id, group_id = map(int, fields[:3])
+    except ValueError as error:
+        raise RuntimeError('could not inspect fixture-owned process') from error
+    if process_id <= 1 or parent_id < 1 or group_id <= 1:
+        raise RuntimeError('could not inspect fixture-owned process')
+    return {'pid':process_id, 'ppid':parent_id, 'pgid':group_id,
+            'state':fields[3], 'comm':fields[4], 'started':fields[5]}
+
+
+def process_command(pid):
+    result = subprocess.run(['ps', '-ww', '-o', 'command=', '-p', str(pid)],
+                            capture_output=True, text=True, timeout=5)
+    return result.stdout.strip() if result.returncode == 0 else ''
+
+
+def _open_fixture_fifo(path):
+    try:
+        return os.open(path, os.O_WRONLY | os.O_NONBLOCK)
+    except OSError as error:
+        if error.errno in (errno.ENXIO, errno.ENOENT):
+            return None
+        raise
+
+
+def _process_gone(pid, started):
+    row = process_snapshot(pid)
+    return row is None or row['started'] != started or row['state'][0] == 'Z'
+
+
+def _read_fixture_process_marker(path):
+    try:
+        pid, parent = map(int, path.read_text().split())
+    except (ValueError, OSError):
+        return None
+    return pid, parent
+
+
+def wait_for_process(predicate, timeout, description):
+    deadline = time.monotonic() + timeout
+    while True:
+        value = predicate()
+        if value is not None and value is not False:
+            return value
+        if time.monotonic() >= deadline:
+            raise RuntimeError('timed out waiting for ' + description)
+        time.sleep(0.05)
+
+
 def smoke(codex, dacli, schema5_dacli=None, expected_codex_version='codex-cli 0.159.2'):
     from datetime import datetime, timedelta, timezone
     import zipfile
@@ -87,6 +148,7 @@ def smoke(codex, dacli, schema5_dacli=None, expected_codex_version='codex-cli 0.
         codex_home = base / 'codex-home'; codex_home.mkdir()
         workspace = base / 'workspace'; workspace.mkdir()
         private = base / 'private'; private.mkdir(mode=0o700)
+        authority = private / 'authority.json'
         env = {k: os.environ[k] for k in ('PATH', 'TMPDIR', 'SystemRoot') if k in os.environ}
         env.update(HOME=str(home), CODEX_HOME=str(codex_home), GIT_CONFIG_NOSYSTEM='1')
         version = subprocess.check_output([codex, '--version'], env=env, cwd=workspace, stderr=subprocess.DEVNULL, text=True, timeout=10).strip()
@@ -250,16 +312,48 @@ def smoke(codex, dacli, schema5_dacli=None, expected_codex_version='codex-cli 0.
              '--path', 'src', '--verification'])
         run([dacli, 'task', 'claim', 'fixture/001'])
         started = private / 'public-check-started'
+        crash_started = private / 'public-crash-started'
+        crash_count = private / 'public-crash-count'
+        crash_fifo = private / 'public-crash-release'
+        crash_ack = private / 'public-crash-released'
+        os.mkfifo(crash_fifo, 0o600)
+        crash_helper = private / 'public-crash-check.py'
+        crash_helper.write_text('''import os, select, sys, time
+started, count, fifo, ack = sys.argv[1:]
+fd = os.open(fifo, os.O_RDONLY | os.O_NONBLOCK)
+with open(count, 'a', encoding='ascii') as stream:
+    stream.write('started\\n')
+with open(started, 'w', encoding='ascii') as stream:
+    stream.write(f'{os.getpid()} {os.getppid()}\\n')
+deadline = time.monotonic() + 120
+while time.monotonic() < deadline:
+    readable, _, _ = select.select([fd], [], [], min(0.1, deadline - time.monotonic()))
+    if readable and os.read(fd, 1):
+        break
+else:
+    os.close(fd)
+    raise SystemExit(2)
+with open(ack, 'w', encoding='ascii') as stream:
+    stream.write('released\\n')
+os.close(fd)
+''')
+        crash_helper.chmod(0o600)
+        crash_command = 'exec ' + shlex.quote(sys.executable) + ' ' + ' '.join(shlex.quote(str(path)) for path in
+            (crash_helper, crash_started, crash_count, crash_fifo, crash_ack))
         checks = private / 'checks.json'
         checks.write_text(json.dumps({'schema_version':1,'checks':[
             {'id':'public-complete','command':'printf public-configured-check','deadline':'10s'},
-            {'id':'public-cancel','command':'printf started > '+shlex.quote(str(started))+'; sleep 60','deadline':'1m'}]}))
+            {'id':'public-cancel','command':'printf started > '+shlex.quote(str(started))+'; sleep 60','deadline':'1m'},
+            {'id':'public-crash','command':crash_command,'deadline':'1m'}]}))
         checks.chmod(0o600)
         runner = private / 'runner.json'
         run([dacli, 'native', 'verifier', 'add', '--config', str(owner), '--task', 'fixture/001',
              '--checks-file', str(checks), '--out', str(runner), '--credential', str(private / 'runner.token')])
         selection.write_text(json.dumps({'schema_version':1,'binary':dacli,
             'connection_file':str(async_profile),'runner_config_file':str(runner)}))
+        crash_writer = None
+        child_pid = child_started = None
+        crash_helper_cleaned = False
         server = Host(codex, workspace, env)
         try:
             status = server.call('mcpServerStatus/list', {})['data']
@@ -402,10 +496,123 @@ def smoke(codex, dacli, schema5_dacli=None, expected_codex_version='codex-cli 0.
             assert len(interruption['ResultDigest']) == 64 and all(c in '0123456789abcdef' for c in interruption['ResultDigest'])
             interrupted_replay = call('request_verification', request=cancelling)
             assert interrupted_replay == cancelled
+
+            crashing = dict(request, operation_key='public-configured-crash', check_id='public-crash')
+            crash_initial = call('request_verification', request=crashing)
+            assert crash_initial['state'] in ('admitting', 'reserved')
+            child_pid, verifier_pid = wait_for_process(
+                lambda: _read_fixture_process_marker(crash_started), 15, 'synthetic crash check start marker')
+            child = wait_for_process(
+                lambda: (lambda row: row if row and row['pid'] == child_pid and row['ppid'] == verifier_pid
+                         and row['pgid'] == child_pid else None)(
+                             process_snapshot(child_pid)), 10, 'synthetic check process identity')
+            child_started = child['started']
+            child_argv = shlex.split(process_command(child_pid))
+            expected_helper_args = [str(crash_helper), str(crash_started), str(crash_count),
+                                    str(crash_fifo), str(crash_ack)]
+            assert len(child_argv) == len(expected_helper_args) + 1 \
+                and Path(child_argv[0]).resolve() == Path(sys.executable).resolve() \
+                and child_argv[1:] == expected_helper_args, 'check PID is not the fixture helper'
+            verifier = process_snapshot(verifier_pid)
+            assert verifier and verifier['ppid'] == server.proc.pid and verifier['state'][0] != 'Z'
+            verifier_started = verifier['started']
+            verifier_argv = shlex.split(process_command(verifier_pid))
+            expected_server_args = ['native', 'serve', '--connection', str(async_profile),
+                                    '--runner-config', str(runner)]
+            assert len(verifier_argv) == len(expected_server_args) + 1 \
+                and Path(verifier_argv[0]).resolve() == Path(dacli).resolve() \
+                and verifier_argv[1:] == expected_server_args, \
+                'crash target is not this fixture native verifier process'
+            crash_running = call('get_verification_status', request=crashing)
+            assert crash_running['state'] in ('admitting', 'reserved')
+            authority_before_crash = authority.read_bytes()
+            pending_record = json.loads(authority_before_crash)['Operations'].get(crashing['operation_key'])
+            assert pending_record and pending_record['Pending'] is True \
+                and not pending_record.get('Evidence') and not pending_record.get('ResultDigest'), \
+                'fixture authority lacks the exact durable unknown reservation'
+            crash_writer = wait_for_process(lambda: _open_fixture_fifo(crash_fifo), 10,
+                                            'fixture crash-check release FIFO')
+            # The check is now durably reserved and demonstrably running. Kill
+            # only its exact verifier parent; leave the check blocked on the
+            # private FIFO until the restarted server has observed unknown state.
+            current_verifier = process_snapshot(verifier_pid)
+            assert current_verifier and current_verifier['started'] == verifier_started \
+                and current_verifier['ppid'] == server.proc.pid
+            current_child = process_snapshot(child_pid)
+            current_child_argv = shlex.split(process_command(child_pid))
+            assert current_child and current_child['started'] == child_started \
+                and current_child['ppid'] == verifier_pid and current_child['pgid'] == child_pid \
+                and current_child['state'][0] != 'Z' \
+                and len(current_child_argv) == len(expected_helper_args) + 1 \
+                and Path(current_child_argv[0]).resolve() == Path(sys.executable).resolve() \
+                and current_child_argv[1:] == expected_helper_args
+            current_verifier_argv = shlex.split(process_command(verifier_pid))
+            assert len(current_verifier_argv) == len(expected_server_args) + 1 \
+                and Path(current_verifier_argv[0]).resolve() == Path(dacli).resolve() \
+                and current_verifier_argv[1:] == expected_server_args
+            os.kill(verifier_pid, signal.SIGKILL)
+            wait_for_process(lambda: _process_gone(verifier_pid, verifier_started), 10,
+                             'fixture native verifier process death')
+            orphan = process_snapshot(child_pid)
+            assert orphan and orphan['started'] == child_started and orphan['pgid'] == child_pid \
+                and orphan['state'][0] != 'Z', 'blocked check did not survive verifier crash'
+
+            server.close(); server = None
+            server = Host(codex, workspace, env)
+            status = server.call('mcpServerStatus/list', {})['data']
+            assert len(status) == 1 and not status[0]['toolsError']
+            thread = server.call('thread/start', {'cwd':str(workspace),'ephemeral':True,
+                                                 'approvalPolicy':'never','sandbox':'read-only'})
+            tid = thread['thread']['id']
+            unknown = call('get_verification_status', request=crashing)
+            assert unknown['operation_key'] == crashing['operation_key']
+            assert unknown['state'] == 'reconciliation_required'
+            assert unknown['evidence'] is None and unknown.get('interruption') is None
+            assert authority.read_bytes() == authority_before_crash
+            unknown_cancel = call('cancel_verification', request=crashing)
+            assert unknown_cancel == unknown
+            assert authority.read_bytes() == authority_before_crash
+            unknown_replay = call('request_verification', request=crashing)
+            assert unknown_replay == unknown
+            assert authority.read_bytes() == authority_before_crash
+            recovered_interrupted = call('get_verification_status', request=cancelling)
+            assert recovered_interrupted == cancelled
+            assert authority.read_bytes() == authority_before_crash
+            recovered_complete = call('get_verification_status', request=request)
+            assert recovered_complete == completed
+            assert authority.read_bytes() == authority_before_crash
+            assert crash_count.read_text() == 'started\n', 'unknown operation was reexecuted after restart'
+            os.write(crash_writer, b'x')
+            os.close(crash_writer); crash_writer = None
+            wait_for_process(lambda: crash_ack.exists(), 10, 'fixture crash-check cleanup acknowledgement')
+            wait_for_process(lambda: _process_gone(child_pid, child_started), 10,
+                             'fixture crash-check process exit')
+            assert crash_count.read_text() == 'started\n'
+            crash_helper_cleaned = True
             call('release_lease', request={'OperationKey':'public-async-release','AttemptID':attempt['ID'],
                 'LeaseID':lease['ID'],'ExpectedFence':lease['Fence']})
         finally:
-            server.close()
+            try:
+                if child_pid is not None and not crash_helper_cleaned:
+                    if not crash_ack.exists():
+                        if crash_writer is None:
+                            crash_writer = wait_for_process(lambda: _open_fixture_fifo(crash_fifo), 10,
+                                                            'fixture crash-check cleanup FIFO')
+                        if crash_writer is not None:
+                            try:
+                                os.write(crash_writer, b'x')
+                            except BrokenPipeError:
+                                pass
+                            finally:
+                                os.close(crash_writer)
+                                crash_writer = None
+                    wait_for_process(lambda: crash_ack.exists(), 10,
+                                     'fixture crash-check cleanup acknowledgement')
+                    wait_for_process(lambda: _process_gone(child_pid, child_started), 10,
+                                     'fixture crash-check process exit')
+            finally:
+                if server is not None:
+                    server.close()
         # A historical proposal remains replayable after release, but fresh
         # review eligibility must no longer authorize this worker revision.
         selection.write_text(json.dumps(reviewer_selection))
@@ -466,6 +673,8 @@ def smoke(codex, dacli, schema5_dacli=None, expected_codex_version='codex-cli 0.
             'configured_async_cancel_has_no_evidence':True,
             'configured_async_cancel_has_exact_interruption':True,
             'configured_async_restart_preserves_interrupted_and_completed':True,
+            'configured_async_crash_restart_remains_pending':True,
+            'configured_async_crash_check_ran_once':True,
             'configured_review_tool_names':review_names,
             'configured_review_separate_credentials':True,
             'configured_review_exact_trusted_evidence_eligible':True,
