@@ -347,6 +347,9 @@ type Section struct {
 type Doc struct {
 	Front    Front
 	Sections []Section
+	// SourcePath is populated by ReadFile for provenance consumers. It is not
+	// rendered or serialized as part of the document contents.
+	SourcePath string `json:"-"`
 }
 
 // Section returns the first section with the given title, case-insensitively.
@@ -613,6 +616,7 @@ func ReadFile(path string) (*Doc, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
+	d.SourcePath = path
 	return d, nil
 }
 

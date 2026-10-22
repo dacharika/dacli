@@ -170,7 +170,8 @@ def smoke(codex, dacli, schema5_dacli=None, expected_codex_version='codex-cli 0.
             assert len(status) == 1 and not status[0]['toolsError'], 'native discovery unavailable'
             names = sorted(status[0]['tools'])
             assert installed['version'] == '0.5.0'
-            assert names == sorted(['get_policy_status','identity','workspace_status','task_list','task_get','register_attempt',
+            assert names == sorted(['get_policy_status','identity','workspace_status','task_list','task_get','task_brief',
+                                    'ready_frontier','register_attempt',
                                     'acquire_lease','renew_lease','release_lease','publish_revision','submit_evidence'])
             skills = server.call('skills/list', {'cwds':[str(workspace)], 'forceReload':True})
             assert 'governance-workflow' in json.dumps(skills)
@@ -193,6 +194,21 @@ def smoke(codex, dacli, schema5_dacli=None, expected_codex_version='codex-cli 0.
             task = call('task_get', task='fixture/001')
             task_id = task['task']['id']
             assert any(t['id'] == task_id for t in tasks['tasks'])
+            task_brief = call('task_brief', task=task_id, budget_tokens=10000)
+            assert task_brief['task_id'] == task_id and task_brief['title'] == task['task']['title']
+            assert any(section['title'] == 'Task: ' + task['task']['title'] for section in task_brief['sections'])
+            assert any(source['kind'] == 'task' and source['id'] == task_id for source in task_brief['source_refs'])
+            assert task_brief['trust_notice'], 'task brief omitted its contextual trust notice'
+            brief_observed_at = datetime.fromisoformat(task_brief['observed_at'].replace('Z', '+00:00'))
+            brief_fresh = abs((datetime.now(timezone.utc) - brief_observed_at).total_seconds()) < 30
+            assert brief_fresh, 'task brief observation timestamp is stale'
+            frontier = call('ready_frontier', task=task_id, limit=10)
+            assert frontier['schema'] == 'native-ready-frontier/v1'
+            assert frontier['project'] == task['task']['project'] and frontier['task'] == task_id
+            assert frontier['scope'] == 'task' and frontier['diagnostic_only'] is True
+            frontier_observed_at = datetime.fromisoformat(frontier['observed_at'].replace('Z', '+00:00'))
+            assert abs((datetime.now(timezone.utc) - frontier_observed_at).total_seconds()) < 30
+            assert any(item['id'] == task_id for item in frontier['ready']), 'task missing from diagnostic ready frontier'
             attempt = call('register_attempt', request={'RequestID':'public-attempt', 'TaskID':task_id,
                 'Checkout':str(workspace), 'HostLabel':'public-untrusted-label'})
             expiry = (datetime.now(timezone.utc)+timedelta(minutes=10)).isoformat().replace('+00:00','Z')
@@ -459,6 +475,12 @@ def smoke(codex, dacli, schema5_dacli=None, expected_codex_version='codex-cli 0.
             'configured_review_request_changes_ineligible':True,
             'configured_review_preserves_task_status':True,
             'configured_review_live_reviewer_revocation_refused':True,
+            'native_task_brief_matches_task':True,
+            'native_task_brief_has_own_section_and_source':True,
+            'native_task_brief_trust_notice_present':bool(task_brief['trust_notice']),
+            'native_task_brief_freshness_observed':brief_fresh,
+            'native_ready_frontier_diagnostic_only':frontier['diagnostic_only'],
+            'native_ready_frontier_contains_task':True,
             'native_owner_bootstrap_and_enrollment':True, 'native_identity_matches_enrollment':True,
             'canonical_task_reads':True, 'external_git_attempt_registered':True,
             'lease_acquired_and_released':True, 'committed_revision_published':True,

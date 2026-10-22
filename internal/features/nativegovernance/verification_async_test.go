@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -284,9 +285,41 @@ func TestAsyncNativeProtocolResponsiveAndStrict(t *testing.T) {
 			Name string `json:"name"`
 		} `json:"tools"`
 	}
-	_ = json.Unmarshal(r["result"], &listing)
-	if len(listing.Tools) != 14 {
-		t.Fatal("explicit runner catalog absent", string(r["result"]))
+	if err := json.Unmarshal(r["result"], &listing); err != nil {
+		t.Fatalf("decode explicit runner catalog: %v", err)
+	}
+	wantTools := map[string]struct{}{
+		"get_policy_status": {}, "identity": {}, "workspace_status": {}, "task_list": {},
+		"task_get": {}, "task_brief": {}, "ready_frontier": {}, "register_attempt": {},
+		"acquire_lease": {}, "renew_lease": {}, "release_lease": {}, "publish_revision": {},
+		"submit_evidence": {}, "request_verification": {}, "get_verification_status": {}, "cancel_verification": {},
+	}
+	gotTools := make([]string, 0, len(listing.Tools))
+	seenTools := make(map[string]struct{}, len(listing.Tools))
+	for _, tool := range listing.Tools {
+		if _, exists := seenTools[tool.Name]; exists {
+			t.Fatalf("duplicate tool in explicit runner catalog: %q", tool.Name)
+		}
+		seenTools[tool.Name] = struct{}{}
+		gotTools = append(gotTools, tool.Name)
+	}
+	sort.Strings(gotTools)
+	missingTools := make([]string, 0)
+	for name := range wantTools {
+		if _, exists := seenTools[name]; !exists {
+			missingTools = append(missingTools, name)
+		}
+	}
+	sort.Strings(missingTools)
+	unexpectedTools := make([]string, 0)
+	for name := range seenTools {
+		if _, exists := wantTools[name]; !exists {
+			unexpectedTools = append(unexpectedTools, name)
+		}
+	}
+	sort.Strings(unexpectedTools)
+	if len(missingTools) != 0 || len(unexpectedTools) != 0 {
+		t.Fatalf("explicit runner catalog mismatch: got=%v missing=%v unexpected=%v", gotTools, missingTools, unexpectedTools)
 	}
 	request := map[string]any{"operation_key": f.request.OperationKey, "attempt_id": f.request.AttemptID, "lease_id": f.request.LeaseID, "revision_id": f.request.RevisionID, "check_id": f.request.CheckID, "expected_fence": f.request.ExpectedFence}
 	params := func(name string) any {

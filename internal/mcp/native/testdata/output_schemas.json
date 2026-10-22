@@ -7171,6 +7171,205 @@
     ],
     "type": "object"
   },
+  "ready_frontier": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "properties": {
+              "blocked": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "project": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "project",
+                    "title",
+                    "status"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "diagnostic_only": {
+                "type": "boolean"
+              },
+              "observed_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "omitted_count": {
+                "type": "integer"
+              },
+              "omitted_task_ids": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "problems": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "project": {
+                "type": "string"
+              },
+              "ready": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "project": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "project",
+                    "title",
+                    "status"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "schema": {
+                "type": "string"
+              },
+              "scope": {
+                "type": "string"
+              },
+              "task": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "schema",
+              "observed_at",
+              "scope",
+              "ready",
+              "blocked",
+              "problems",
+              "omitted_count",
+              "omitted_task_ids",
+              "diagnostic_only"
+            ],
+            "type": "object"
+          },
+          "error": {
+            "type": "null"
+          },
+          "ok": {
+            "const": true,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "exit_code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  },
   "reconcile_loop": {
     "oneOf": [
       {
@@ -12775,6 +12974,188 @@
               "OutputDigest",
               "ExitCode",
               "RecordedAt"
+            ],
+            "type": "object"
+          },
+          "error": {
+            "type": "null"
+          },
+          "ok": {
+            "const": true,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "exit_code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  },
+  "task_brief": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "properties": {
+              "budget_tokens": {
+                "type": "integer"
+              },
+              "observed_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "omissions": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "project": {
+                "type": "string"
+              },
+              "schema": {
+                "type": "string"
+              },
+              "sections": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "content": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "content"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "source_refs": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "trust": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id",
+                    "path"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "task_id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "trust_notice": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "schema",
+              "task_id",
+              "project",
+              "title",
+              "observed_at",
+              "budget_tokens",
+              "sections",
+              "omissions",
+              "source_refs",
+              "trust_notice"
             ],
             "type": "object"
           },

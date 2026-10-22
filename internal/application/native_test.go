@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/mlnomadpy/dacli/internal/clikit"
+	"github.com/mlnomadpy/dacli/internal/eventlog"
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
+	"github.com/mlnomadpy/dacli/internal/model"
 	"github.com/mlnomadpy/dacli/internal/store"
 )
 
@@ -85,6 +87,59 @@ func TestNativeReadContexts(t *testing.T) {
 	task, err := store.CreateTask(w, "a-root", "p", "Read", store.TaskOpts{})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if _, err = store.CreateProject(w, "a-root", "Foreign", "q", "foreign goal", ""); err != nil {
+		t.Fatal(err)
+	}
+	foreignTask, err := store.CreateTask(w, "a-root", "q", "Foreign task", store.TaskOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := eventlog.Append(w, "a-root", model.EventFinding, foreignTask.ID, "", "foreign event"); err != nil {
+		t.Fatal(err)
+	}
+	projectSession, projectToken := issue(sessions.Scope{Actions: []string{"read"}, Resources: []string{"project:p"}})
+	projectRead, err := NewNativeReadContext(w, a, projectToken, projectSession.ID, "project:p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = Status(projectRead, ""); err == nil {
+		t.Fatal("project scope read workspace status")
+	}
+	if status, err := Status(projectRead, "p"); err != nil || len(status.Projects) != 1 || status.Projects[0].Slug != "p" || status.PendingEvents != 0 {
+		t.Fatalf("project status scope: %+v %v", status, err)
+	}
+	if _, err = Status(projectRead, "q"); err == nil {
+		t.Fatal("project scope read foreign status")
+	}
+	if _, err = ListTasks(projectRead, "", ""); err == nil {
+		t.Fatal("project scope listed whole workspace")
+	}
+	if tasks, err := ListTasks(projectRead, "p", ""); err != nil || len(tasks) != 1 || tasks[0].ID != task.ID {
+		t.Fatalf("project task list scope: %v %v", tasks, err)
+	}
+	if _, err = ListTasks(projectRead, "q", ""); err == nil {
+		t.Fatal("project scope listed foreign tasks")
+	}
+	if _, err = GetTask(projectRead, foreignTask.ID); err == nil {
+		t.Fatal("project scope read foreign task")
+	}
+	taskSession, taskToken := issue(sessions.Scope{Actions: []string{"read"}, Resources: []string{"task:" + task.ID}})
+	taskRead, err := NewNativeReadContext(w, a, taskToken, taskSession.ID, "task:"+task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = Status(taskRead, "p"); err == nil {
+		t.Fatal("task scope read project status")
+	}
+	if _, err = ListTasks(taskRead, "p", ""); err == nil {
+		t.Fatal("task scope listed project siblings")
+	}
+	if _, err = GetTask(taskRead, foreignTask.ID); err == nil {
+		t.Fatal("task scope read foreign task")
+	}
+	if got, err := GetTask(taskRead, task.ID); err != nil || got.ID != task.ID {
+		t.Fatalf("task scope could not read bound task: %v %v", got, err)
 	}
 	t.Setenv("DACLI_AGENT", "poisoned-ambient-identity")
 	for _, pair := range [][2]string{{s.ID, token}, {independent.ID, other}} {

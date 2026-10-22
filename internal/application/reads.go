@@ -3,6 +3,9 @@ package application
 
 import (
 	"errors"
+	"strings"
+
+	"github.com/mlnomadpy/dacli/internal/clikit"
 	"github.com/mlnomadpy/dacli/internal/eventlog"
 	"github.com/mlnomadpy/dacli/internal/model"
 	"github.com/mlnomadpy/dacli/internal/store"
@@ -28,18 +31,33 @@ func Status(r RequestContext, project string) (WorkspaceStatus, error) {
 	if err := r.validate(); err != nil {
 		return WorkspaceStatus{}, err
 	}
+	if r.resource != "workspace:"+r.workspace.ID && (project == "" || r.resource != "project:"+project) {
+		return WorkspaceStatus{}, clikit.Refusedf("read scope does not cover workspace status request")
+	}
 	w := &r.workspace
-	if project != "" {
-		if _, err := store.LoadProject(w, project); err != nil {
+	narrow := r.resource != "workspace:"+w.ID
+	var ps []*store.Project
+	if narrow {
+		p, err := store.LoadProject(w, project)
+		if err != nil {
+			return WorkspaceStatus{}, clikit.Refusedf("read scope does not cover workspace status request")
+		}
+		ps = []*store.Project{p}
+	} else {
+		if project != "" {
+			if _, err := store.LoadProject(w, project); err != nil {
+				return WorkspaceStatus{}, err
+			}
+		}
+		var err error
+		ps, err = store.ListProjects(w)
+		if err != nil {
 			return WorkspaceStatus{}, err
 		}
 	}
-	ps, err := store.ListProjects(w)
-	if err != nil {
-		return WorkspaceStatus{}, err
-	}
 
 	var statuses []ProjectStatus
+	projectTaskIDs := map[string]bool{}
 	for _, p := range ps {
 		if project != "" && p.Slug != project {
 			continue
@@ -48,9 +66,16 @@ func Status(r RequestContext, project string) (WorkspaceStatus, error) {
 		implemented := 0
 		ts, err := store.ListTasks(w, p.Slug, "")
 		if err != nil {
+			if narrow {
+				return WorkspaceStatus{}, clikit.Refusedf("read scope does not cover workspace status request")
+			}
 			return WorkspaceStatus{}, err
 		}
 		for _, t := range ts {
+			if p.Slug == project {
+				projectTaskIDs[t.ID] = true
+				projectTaskIDs[strings.TrimPrefix(t.ID, "t-")] = true
+			}
 			counts[t.Status]++
 			if t.CompletionState() == "implemented-unlanded" {
 				implemented++
@@ -61,22 +86,66 @@ func Status(r RequestContext, project string) (WorkspaceStatus, error) {
 
 	pending, holes, err := eventlog.ListReport(w, eventlog.Query{Pending: true})
 	if err != nil {
+		if narrow {
+			return WorkspaceStatus{}, clikit.Refusedf("read scope does not cover workspace status request")
+		}
 		return WorkspaceStatus{}, err
 	}
 	if len(holes) != 0 {
 		return WorkspaceStatus{}, errors.New("workspace status unavailable: incomplete event log")
 	}
-	return WorkspaceStatus{Schema: "workspace-status/v1", ProjectFilter: project, Projects: statuses, PendingEvents: len(pending)}, nil
+	pendingCount := len(pending)
+	if r.resource == "project:"+project && project != "" {
+		pendingCount = 0
+		for _, event := range pending {
+			if projectTaskIDs[event.About] || projectTaskIDs[strings.TrimPrefix(event.About, "t-")] {
+				pendingCount++
+			}
+		}
+	}
+	return WorkspaceStatus{Schema: "workspace-status/v1", ProjectFilter: project, Projects: statuses, PendingEvents: pendingCount}, nil
 }
 func ListTasks(r RequestContext, project string, status model.Status) ([]*store.Task, error) {
 	if err := r.validate(); err != nil {
 		return nil, err
 	}
-	return store.ListTasks(&r.workspace, project, status)
+	if r.resource != "workspace:"+r.workspace.ID && (project == "" || r.resource != "project:"+project) {
+		return nil, clikit.Refusedf("read scope does not cover task list request")
+	}
+	tasks, err := store.ListTasks(&r.workspace, project, status)
+	if err != nil && r.resource != "workspace:"+r.workspace.ID {
+		return nil, clikit.Refusedf("read scope does not cover task list request")
+	}
+	return tasks, err
 }
 func GetTask(r RequestContext, ref string) (*store.Task, error) {
 	if err := r.validate(); err != nil {
 		return nil, err
 	}
-	return store.FindTask(&r.workspace, ref)
+	switch {
+	case r.resource == "workspace:"+r.workspace.ID:
+		return store.FindTask(&r.workspace, ref)
+	case strings.HasPrefix(r.resource, "project:"):
+		project := strings.TrimPrefix(r.resource, "project:")
+		tasks, err := store.ListTasks(&r.workspace, project, "")
+		if err != nil {
+			return nil, clikit.Refusedf("read scope does not cover task request")
+		}
+		t, err := store.NewTaskIndex(tasks).Find(ref)
+		if err != nil || t.Project != project {
+			return nil, clikit.Refusedf("read scope does not cover task request")
+		}
+		return t, nil
+	case strings.HasPrefix(r.resource, "task:"):
+		if ref != strings.TrimPrefix(r.resource, "task:") {
+			return nil, clikit.Refusedf("read scope does not cover task request")
+		}
+		t, err := store.FindTask(&r.workspace, ref)
+		if err != nil || t.ID != ref || r.resource != "task:"+t.ID {
+			return nil, clikit.Refusedf("read scope does not cover task request")
+		}
+		return t, nil
+	default:
+		return nil, clikit.Refusedf("read scope does not cover task request")
+	}
 }
