@@ -6,7 +6,7 @@
 
 <p align="center"><strong>The control plane for autonomous coding-agent swarms.</strong></p>
 
-![release: v0.3.1](https://img.shields.io/badge/release-v0.3.1-blue) ![status: alpha](https://img.shields.io/badge/status-alpha-orange) ![go 1.22+](https://img.shields.io/badge/go-1.22%2B-00ADD8) ![deps: stdlib only](https://img.shields.io/badge/deps-stdlib_only-success) ![license: BSD--3--Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue) ![surfaces: CLI · MCP](https://img.shields.io/badge/surfaces-CLI_·_MCP-6f42c1)
+![release: v0.3.1](https://img.shields.io/badge/release-v0.3.1-blue) ![status: alpha](https://img.shields.io/badge/status-alpha-orange) ![go 1.22+](https://img.shields.io/badge/go-1.22%2B-00ADD8) ![license: BSD--3--Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue) ![surfaces: CLI · MCP](https://img.shields.io/badge/surfaces-CLI_·_MCP-6f42c1)
 
 dacli is a governance layer for agents running in their own coding host. Codex
 is the first tested plugin integration: its native agents use a scoped MCP
@@ -14,7 +14,7 @@ session to read canonical tasks, register Git checkout attempts, acquire fenced
 leases, publish committed revisions and submit revision-bound self-reports.
 Humans provision authority and retain control over exceptions and releases.
 
-Start with the [Codex plugin 0.2.0 setup](plugins/codex/README.md) and
+Start with the [Codex plugin setup](plugins/codex/README.md) and
 [native governance transport](docs/GOVERNANCE_NATIVE_MCP.md). The plugin runs a
 local dacli MCP server; Codex runs the agents. It does not launch a nested Codex
 CLI, invoke `dacli spawn`, or expose a CLI escape tool. The governance kernel and
@@ -23,10 +23,12 @@ runtime testing before support can be claimed.
 
 This is a **cooperative local preview**. Agents sharing an MCP connection share
 one session identity. Self-reports are not trusted execution evidence, and direct
-host filesystem or shell actions are outside these gates. Trusted verification
-and independent review primitives exist in the kernel; native final acceptance, hosted management and second-host conformance
-remain roadmap work. Owner-bound publication decisions can be recorded and
-consumed once; they do not publish anything themselves. See the [plugin's boundaries](plugins/codex/README.md#identity-and-recovery-boundaries).
+host filesystem or shell actions are outside these gates. Native acceptance and
+the hosted control-plane service are implemented in source; qualification and
+support claims are versioned separately from those source changes. Second-host
+conformance remains unqualified. Owner-bound publication decisions can be
+recorded and consumed once; they do not publish anything themselves. See the
+[plugin's boundaries](plugins/codex/README.md#identity-and-recovery-boundaries).
 
 Coding-agent launchers, runtime adapters, supervision and provider-driven loops
 have been removed from this checkout. The native host owns delegation, model
@@ -51,7 +53,7 @@ flowchart LR
   D -->|current state + refusals| O
 ```
 
-> Canonical tasks are Markdown on disk; native session authority and receipts use private durable state. The Go server uses the standard library; the local plugin bootstrap requires Python 3.
+> Canonical tasks are Markdown on disk; native session authority and receipts use private durable state. The Go module includes PostgreSQL and platform support dependencies; the local plugin bootstrap requires Python 3.
 
 An agent that spawns subagents has one hard problem: **each child starts blind.** It re-reads the codebase, re-derives decisions its siblings already made, and re-attempts work that already failed. `dacli` is the shared workspace that fixes this — a durable, human-readable project state that any agent in the tree can query, and that the parent can slice down to exactly the context a given child needs.
 
@@ -85,7 +87,7 @@ You hand that to a subagent instead of the whole repo. That is the product. Task
 ## Status
 
 **Alpha — native plugin preview.** Codex is the first measured host integration.
-The Go server uses the standard library; the plugin bootstrap requires Python 3.
+The Go module includes PostgreSQL and platform support dependencies; the plugin bootstrap requires Python 3.
 A shared MCP connection identifies one enrolled session, not every native child.
 The current implementation does not certify independent reviewers from host
 labels, role names or transcripts.
@@ -116,8 +118,8 @@ go build -o ./dacli ./cmd/dacli
 ```
 
 Use the absolute path of that binary in the
-[plugin connection setup](plugins/codex/README.md). The 0.2.0 plugin source and
-native commands must both be present in your checkout. Version v0.3.1 does not
+[plugin connection setup](plugins/codex/README.md). The plugin source and native
+commands must both be present in your checkout. Version v0.3.1 does not
 contain them; neither its archive nor the following released-version install is
 an installation of this native preview.
 
