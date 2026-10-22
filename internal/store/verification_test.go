@@ -406,6 +406,87 @@ func assertNativeArtifactDigest(t *testing.T, ev VerificationEvidence, out []byt
 		t.Fatal("raw evidence digest changed")
 	}
 }
+
+func TestNativeVerificationCaptureSanitizesBoundedWholeLineTails(t *testing.T) {
+	secret := "capture-secret-component-4921"
+	cmd := exec.Command("sh")
+	cmd.Env = append(os.Environ(), "SERVICE_TOKEN="+secret)
+	capture := nativeVerificationCapture{command: cmd, workspace: t.TempDir()}
+	filler := []byte(strings.Repeat("harmless filler line with enough bytes\n", 3000))
+	stdout := append(append([]byte(nil), filler...), []byte("SERVICE_TOKEN="+secret+"\nfatal: stdout actionable condition\n")...)
+	stderr := append(append([]byte(nil), filler...), []byte("fatal: stderr actionable condition\n")...)
+	if _, err := (nativeVerificationStream{capture: &capture}).Write(stdout); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := (nativeVerificationStream{capture: &capture, stderr: true}).Write(stderr); err != nil {
+		t.Fatal(err)
+	}
+	safeOut, safeErr := capture.diagnosticStreams()
+	if !strings.Contains(string(safeOut), "fatal: stdout actionable condition") || !strings.Contains(string(safeErr), "fatal: stderr actionable condition") {
+		t.Fatalf("bounded raw-tail sanitization lost late actionable lines: stdout=%q stderr=%q", safeOut, safeErr)
+	}
+	if strings.Contains(string(safeOut), secret) || len(safeOut) > 4110 || len(safeErr) > 4110 {
+		t.Fatalf("tail redaction or size bound changed: stdout=%q stderr=%q", safeOut, safeErr)
+	}
+	if len(capture.stdout.rawTail) > maxVerificationArtifact || len(capture.stderr.rawTail) > maxVerificationArtifact || !bytes.HasPrefix(capture.stdout.rawTail, []byte("harmless filler line")) {
+		t.Fatal("diagnostic raw retention exceeded its bound or evicted a partial line")
+	}
+	if len(capture.output) != maxVerificationArtifact+1 {
+		t.Fatalf("merged raw artifact capture bound changed: %d", len(capture.output))
+	}
+}
+
+func TestNativeVerificationPostflightContextSurvivesCommandCancellation(t *testing.T) {
+	parent, cancel := context.WithCancel(context.Background())
+	cancel()
+	postflight, cancelPostflight := nativeVerificationPostflightContext(parent)
+	defer cancelPostflight()
+	if postflight.Err() != nil {
+		t.Fatalf("postflight inherited command cancellation: %v", postflight.Err())
+	}
+	deadline, ok := postflight.Deadline()
+	if !ok || time.Until(deadline) <= 0 || time.Until(deadline) > nativeVerificationPostflightTimeout {
+		t.Fatalf("postflight must have a fresh bounded deadline: %v %t", deadline, ok)
+	}
+}
+
+func TestNativeVerificationCancellationDuringPostflightCannotCertifySuccess(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	cmd := exec.Command("sh")
+	capture := nativeVerificationCapture{command: cmd, workspace: t.TempDir()}
+	_, _ = (nativeVerificationStream{capture: &capture}).Write([]byte("safe late command output\n"))
+	ev := VerificationEvidence{ExitCode: 0}
+	err := nativeVerificationCancellationFailure(ctx, &ev, cmd, &capture, capture.workspace, nil)
+	var policy *VerificationPolicyError
+	diagnostic, ok := commandresult.AsDiagnostic(err)
+	if ev.ExitCode == 0 || !errors.As(err, &policy) || !errors.Is(err, context.Canceled) || !ok || diagnostic.Timeout || diagnostic.ExitCode != nil || !strings.Contains(diagnostic.StdoutTail, "safe late command output") {
+		t.Fatalf("postflight cancellation certified success or lost diagnostic: evidence=%+v diagnostic=%+v error=%v", ev, diagnostic, err)
+	}
+	if err.Error() != policy.Error() || strings.Contains(err.Error(), "safe late command output") {
+		t.Fatalf("cancellation policy message exposed command output: %v", err)
+	}
+}
+
+func TestNativeVerificationCleanupPolicyRemainsOpaqueWithDiagnostic(t *testing.T) {
+	const secret = "cleanup-secret-component-8251"
+	cmd := exec.Command("sh")
+	cmd.Env = append(os.Environ(), "SERVICE_TOKEN="+secret)
+	workspace := t.TempDir()
+	capture := nativeVerificationCapture{command: cmd, workspace: workspace}
+	_, _ = (nativeVerificationStream{capture: &capture, stderr: true}).Write([]byte("safe cleanup detail " + secret + "\n"))
+	policy := &VerificationPolicyError{Reason: "native verification process cleanup unavailable"}
+	err := nativeVerificationCommandError(context.Background(), cmd, &capture, workspace, policy)
+	var gotPolicy *VerificationPolicyError
+	diagnostic, ok := commandresult.AsDiagnostic(err)
+	if !errors.As(err, &gotPolicy) || gotPolicy != policy || !ok || !strings.Contains(diagnostic.StderrTail, "safe cleanup detail") || strings.Contains(diagnostic.StderrTail, secret) {
+		t.Fatalf("cleanup refusal lost its safe typed diagnostic: diagnostic=%+v error=%v", diagnostic, err)
+	}
+	if err.Error() != policy.Error() || strings.Contains(err.Error(), "safe cleanup detail") || strings.Contains(err.Error(), secret) {
+		t.Fatalf("cleanup policy message became operational output: %v", err)
+	}
+}
+
 func TestNativeVerificationTypedExitAndSeparateStreams(t *testing.T) {
 	dir := nativeDiagnosticGit(t)
 	ev, out, e := RunAcceptanceVerificationContext(context.Background(), dir, "runner", "printf 'stdout-first\\nstdout-last\\n'; printf 'stderr-first\\nstderr-last ghp_example_secret_123456\\n' >&2; exit 17")

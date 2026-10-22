@@ -26,6 +26,7 @@ import (
 
 const verificationSection = "Verification Evidence"
 const maxVerificationArtifact = 64 << 10
+const nativeVerificationPostflightTimeout = 5 * time.Second
 
 // NativeVerificationTermination is an executor-local observation, not check
 // evidence. It certifies only the owned cooperative process boundary (core627).
@@ -121,6 +122,35 @@ func verificationFinalPolicyError(policy *VerificationPolicyError, command error
 		return &verificationCommandPolicyError{policy: policy, command: command}
 	}
 	return policy
+}
+
+func nativeVerificationCommandError(ctx context.Context, cmd *exec.Cmd, capture *nativeVerificationCapture, workspace string, processCause error) error {
+	cause := processCause
+	if ctx.Err() != nil {
+		cause = errors.Join(cause, ctx.Err())
+	}
+	stdout, stderr := capture.diagnosticStreams()
+	diagnostic := commandresult.NewExternalError(cmd, commandresult.RunOptions{Operation: "verification command", WorkspaceRoot: workspace}, stdout, stderr, cause, errors.Is(ctx.Err(), context.DeadlineExceeded))
+	var policy *VerificationPolicyError
+	if errors.As(processCause, &policy) {
+		return verificationFinalPolicyError(policy, diagnostic)
+	}
+	return diagnostic
+}
+
+func nativeVerificationCancellationFailure(ctx context.Context, ev *VerificationEvidence, cmd *exec.Cmd, capture *nativeVerificationCapture, workspace string, processCause error) error {
+	if ctx.Err() == nil {
+		return nil
+	}
+	if ev.ExitCode == 0 {
+		ev.ExitCode = 1
+	}
+	commandErr := nativeVerificationCommandError(ctx, cmd, capture, workspace, processCause)
+	var policy *VerificationPolicyError
+	if errors.As(processCause, &policy) {
+		return commandErr
+	}
+	return verificationFinalPolicyError(&VerificationPolicyError{Reason: "verification command canceled before completion"}, commandErr)
 }
 
 // RunVerification is the legacy advisory entry point. It remains for source
@@ -270,31 +300,48 @@ type nativeVerificationCapture struct {
 	stdout, stderr nativeDiagnosticStream
 }
 type nativeDiagnosticStream struct {
-	pending  []byte
+	pending []byte
+	// Keep a bounded suffix of complete raw lines; redact only after eviction.
+	rawTail  []byte
 	safeTail string
 	overlong bool
 }
 
 const nativeDiagnosticOmission = "[diagnostic line omitted: bounded capture exceeded]"
-const nativeDiagnosticTailLimit = 4096
 
 func (s *nativeDiagnosticStream) flush(cmd *exec.Cmd, workspace string) {
-	var safe string
 	if s.overlong {
-		safe = nativeDiagnosticOmission
+		s.appendLine([]byte(nativeDiagnosticOmission + "\n"))
 	} else if len(s.pending) > 0 {
-		safe = commandresult.SanitizeCommandTail(cmd, string(s.pending), workspace)
-	}
-	if safe != "" {
-		s.safeTail += safe + "\n"
-		if len(s.safeTail) > nativeDiagnosticTailLimit {
-			s.safeTail = s.safeTail[len(s.safeTail)-nativeDiagnosticTailLimit:]
-		}
+		s.appendLine(s.pending)
 	}
 	s.pending = nil
 	s.overlong = false
+	// Sanitize only after whole-line eviction so pipe-drain work does not scale
+	// with the number of diagnostic lines and no raw line is cut at a secret.
+	s.safeTail = commandresult.SanitizeCommandTail(cmd, string(s.rawTail), workspace)
 }
-func (s *nativeDiagnosticStream) write(p []byte, cmd *exec.Cmd, workspace string) {
+
+func (s *nativeDiagnosticStream) appendLine(line []byte) {
+	if len(line) > maxVerificationArtifact {
+		line = []byte(nativeDiagnosticOmission + "\n")
+	}
+	if len(s.rawTail)+len(line) > maxVerificationArtifact {
+		remove := len(s.rawTail) + len(line) - maxVerificationArtifact
+		if remove > 0 && s.rawTail[remove-1] != '\n' {
+			if newline := bytes.IndexByte(s.rawTail[remove:], '\n'); newline >= 0 {
+				remove += newline + 1
+			} else {
+				// rawTail contains only complete lines; an oversized incoming line
+				// is represented by an omission marker above.
+				remove = len(s.rawTail)
+			}
+		}
+		s.rawTail = s.rawTail[remove:]
+	}
+	s.rawTail = append(s.rawTail, line...)
+}
+func (s *nativeDiagnosticStream) write(p []byte) {
 	for len(p) > 0 {
 		end := bytes.IndexByte(p, '\n')
 		complete := end >= 0
@@ -314,7 +361,13 @@ func (s *nativeDiagnosticStream) write(p []byte, cmd *exec.Cmd, workspace string
 			}
 		}
 		if complete {
-			s.flush(cmd, workspace)
+			if s.overlong {
+				s.appendLine([]byte(nativeDiagnosticOmission + "\n"))
+			} else {
+				s.appendLine(s.pending)
+			}
+			s.pending = nil
+			s.overlong = false
 		}
 	}
 }
@@ -341,7 +394,7 @@ func (w nativeVerificationStream) Write(p []byte) (int, error) {
 	if w.stderr {
 		stream = &c.stderr
 	}
-	stream.write(p, c.command, c.workspace)
+	stream.write(p)
 	return n, nil
 }
 func (c *nativeVerificationCapture) diagnosticStreams() ([]byte, []byte) {
@@ -443,16 +496,29 @@ func runVerificationExecution(ctx context.Context, dir, verifier, command string
 			ev.ExitCode = ee.ExitCode()
 		}
 	}
-	if native && err != nil && !IsVerificationPolicyError(processCause) {
-		cause := processCause
-		if ctx.Err() != nil {
-			cause = errors.Join(cause, ctx.Err())
-		}
-		stdout, stderr := capture.diagnosticStreams()
-		err = commandresult.NewExternalError(c, commandresult.RunOptions{Operation: "verification command", WorkspaceRoot: dir}, stdout, stderr, cause, errors.Is(ctx.Err(), context.DeadlineExceeded))
+	if native && err != nil {
+		err = nativeVerificationCommandError(ctx, c, &capture, dir, processCause)
 	}
 	if acceptanceGrade {
-		after, afterErr := readTree(dir)
+		postflightReadTree := readTree
+		var cancelPostflight context.CancelFunc
+		if native {
+			// Cancellation belongs to the verifier command. The final tree check
+			// still needs a bounded chance to preserve policy precedence and the
+			// command's cancellation diagnostic.
+			postflightCtx, cancel := nativeVerificationPostflightContext(ctx)
+			cancelPostflight = cancel
+			postflightReadTree = func(dir string) (verificationTree, error) {
+				return readVerificationTreeContext(postflightCtx, dir)
+			}
+		}
+		after, afterErr := postflightReadTree(dir)
+		if cancelPostflight != nil {
+			cancelPostflight()
+		}
+		if native && ctx.Err() != nil {
+			err = nativeVerificationCancellationFailure(ctx, &ev, c, &capture, dir, processCause)
+		}
 		if afterErr != nil {
 			return ev, out, verificationFinalPolicyError(&VerificationPolicyError{Reason: fmt.Sprintf("verification tree changed or became unreadable after execution: before commit %s tree %s clean=%t; after: %v", before.Commit, before.Tree, before.Clean, afterErr)}, err)
 		}
@@ -461,6 +527,10 @@ func runVerificationExecution(ctx context.Context, dir, verifier, command string
 		}
 	}
 	return ev, out, err
+}
+
+func nativeVerificationPostflightContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), nativeVerificationPostflightTimeout)
 }
 
 func boundVerificationArtifact(out []byte) []byte {
