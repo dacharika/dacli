@@ -41,7 +41,7 @@ func (p *NativeLifecycleAccess) authenticate() (*sessions.Authority, string, err
 	if e != nil {
 		return nil, "", sessions.ErrDenied
 	}
-	a, e := sessions.Open(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID})
+	a, e := sessions.OpenCurrent(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID})
 	if e != nil {
 		return nil, "", e
 	}

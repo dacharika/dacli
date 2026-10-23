@@ -62,7 +62,7 @@ func (s *Server) authenticate() (*workspace.Workspace, *sessions.Authority, stri
 	if e != nil {
 		return deny()
 	}
-	a, e := sessions.Open(c.Authority, sessions.Binding{Workspace: c.WorkspaceID, Installation: c.InstallationID}, admission)
+	a, e := sessions.OpenCurrent(c.Authority, sessions.Binding{Workspace: c.WorkspaceID, Installation: c.InstallationID}, admission)
 	if e != nil {
 		return deny()
 	}

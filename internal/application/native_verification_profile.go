@@ -165,7 +165,7 @@ func (selected *NativeVerificationProfile) Authenticate() (*NativeVerificationAc
 	if e != nil {
 		return nil, sessions.ErrDenied
 	}
-	a, e := sessions.Open(authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID}, admission)
+	a, e := sessions.OpenCurrent(authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID}, admission)
 	if e != nil {
 		return nil, sessions.ErrDenied
 	}

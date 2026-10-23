@@ -414,6 +414,83 @@
                   "ReviewRole": {
                     "type": "string"
                   },
+                  "RoleRegistry": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "ContentDigest": {
+                          "type": "string"
+                        },
+                        "LifecycleDigest": {
+                          "type": "string"
+                        },
+                        "LifecycleExpiresAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "LifecycleGeneration": {
+                          "type": "integer"
+                        },
+                        "PinGeneration": {
+                          "type": "integer"
+                        },
+                        "PolicyReferences": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "Digest": {
+                                "type": "string"
+                              },
+                              "Kind": {
+                                "type": "string"
+                              },
+                              "Version": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "Kind",
+                              "Version",
+                              "Digest"
+                            ],
+                            "type": "object"
+                          },
+                          "type": [
+                            "array",
+                            "null"
+                          ]
+                        },
+                        "ProjectGeneration": {
+                          "type": "integer"
+                        },
+                        "PublisherKeyID": {
+                          "type": "string"
+                        },
+                        "RoleID": {
+                          "type": "string"
+                        },
+                        "Version": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "RoleID",
+                        "Version",
+                        "ContentDigest",
+                        "PublisherKeyID",
+                        "LifecycleDigest",
+                        "LifecycleExpiresAt",
+                        "LifecycleGeneration",
+                        "PinGeneration",
+                        "ProjectGeneration"
+                      ],
+                      "type": "object"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
                   "Routing": {
                     "oneOf": [
                       {
@@ -577,6 +654,83 @@
                           },
                           "RoleID": {
                             "type": "string"
+                          },
+                          "RoleRegistry": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "ContentDigest": {
+                                  "type": "string"
+                                },
+                                "LifecycleDigest": {
+                                  "type": "string"
+                                },
+                                "LifecycleExpiresAt": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "LifecycleGeneration": {
+                                  "type": "integer"
+                                },
+                                "PinGeneration": {
+                                  "type": "integer"
+                                },
+                                "PolicyReferences": {
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "Digest": {
+                                        "type": "string"
+                                      },
+                                      "Kind": {
+                                        "type": "string"
+                                      },
+                                      "Version": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "Kind",
+                                      "Version",
+                                      "Digest"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": [
+                                    "array",
+                                    "null"
+                                  ]
+                                },
+                                "ProjectGeneration": {
+                                  "type": "integer"
+                                },
+                                "PublisherKeyID": {
+                                  "type": "string"
+                                },
+                                "RoleID": {
+                                  "type": "string"
+                                },
+                                "Version": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "RoleID",
+                                "Version",
+                                "ContentDigest",
+                                "PublisherKeyID",
+                                "LifecycleDigest",
+                                "LifecycleExpiresAt",
+                                "LifecycleGeneration",
+                                "PinGeneration",
+                                "ProjectGeneration"
+                              ],
+                              "type": "object"
+                            },
+                            "type": [
+                              "array",
+                              "null"
+                            ]
                           },
                           "Route": {
                             "additionalProperties": false,
@@ -1676,6 +1830,83 @@
                   "ReviewRole": {
                     "type": "string"
                   },
+                  "RoleRegistry": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "ContentDigest": {
+                          "type": "string"
+                        },
+                        "LifecycleDigest": {
+                          "type": "string"
+                        },
+                        "LifecycleExpiresAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "LifecycleGeneration": {
+                          "type": "integer"
+                        },
+                        "PinGeneration": {
+                          "type": "integer"
+                        },
+                        "PolicyReferences": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "Digest": {
+                                "type": "string"
+                              },
+                              "Kind": {
+                                "type": "string"
+                              },
+                              "Version": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "Kind",
+                              "Version",
+                              "Digest"
+                            ],
+                            "type": "object"
+                          },
+                          "type": [
+                            "array",
+                            "null"
+                          ]
+                        },
+                        "ProjectGeneration": {
+                          "type": "integer"
+                        },
+                        "PublisherKeyID": {
+                          "type": "string"
+                        },
+                        "RoleID": {
+                          "type": "string"
+                        },
+                        "Version": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "RoleID",
+                        "Version",
+                        "ContentDigest",
+                        "PublisherKeyID",
+                        "LifecycleDigest",
+                        "LifecycleExpiresAt",
+                        "LifecycleGeneration",
+                        "PinGeneration",
+                        "ProjectGeneration"
+                      ],
+                      "type": "object"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
                   "Routing": {
                     "oneOf": [
                       {
@@ -1839,6 +2070,83 @@
                           },
                           "RoleID": {
                             "type": "string"
+                          },
+                          "RoleRegistry": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "ContentDigest": {
+                                  "type": "string"
+                                },
+                                "LifecycleDigest": {
+                                  "type": "string"
+                                },
+                                "LifecycleExpiresAt": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "LifecycleGeneration": {
+                                  "type": "integer"
+                                },
+                                "PinGeneration": {
+                                  "type": "integer"
+                                },
+                                "PolicyReferences": {
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "Digest": {
+                                        "type": "string"
+                                      },
+                                      "Kind": {
+                                        "type": "string"
+                                      },
+                                      "Version": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "Kind",
+                                      "Version",
+                                      "Digest"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": [
+                                    "array",
+                                    "null"
+                                  ]
+                                },
+                                "ProjectGeneration": {
+                                  "type": "integer"
+                                },
+                                "PublisherKeyID": {
+                                  "type": "string"
+                                },
+                                "RoleID": {
+                                  "type": "string"
+                                },
+                                "Version": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "RoleID",
+                                "Version",
+                                "ContentDigest",
+                                "PublisherKeyID",
+                                "LifecycleDigest",
+                                "LifecycleExpiresAt",
+                                "LifecycleGeneration",
+                                "PinGeneration",
+                                "ProjectGeneration"
+                              ],
+                              "type": "object"
+                            },
+                            "type": [
+                              "array",
+                              "null"
+                            ]
                           },
                           "Route": {
                             "additionalProperties": false,
@@ -2725,6 +3033,83 @@
               "RoleID": {
                 "type": "string"
               },
+              "RoleRegistry": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "ContentDigest": {
+                      "type": "string"
+                    },
+                    "LifecycleDigest": {
+                      "type": "string"
+                    },
+                    "LifecycleExpiresAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "LifecycleGeneration": {
+                      "type": "integer"
+                    },
+                    "PinGeneration": {
+                      "type": "integer"
+                    },
+                    "PolicyReferences": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "Digest": {
+                            "type": "string"
+                          },
+                          "Kind": {
+                            "type": "string"
+                          },
+                          "Version": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "Kind",
+                          "Version",
+                          "Digest"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
+                    "ProjectGeneration": {
+                      "type": "integer"
+                    },
+                    "PublisherKeyID": {
+                      "type": "string"
+                    },
+                    "RoleID": {
+                      "type": "string"
+                    },
+                    "Version": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "RoleID",
+                    "Version",
+                    "ContentDigest",
+                    "PublisherKeyID",
+                    "LifecycleDigest",
+                    "LifecycleExpiresAt",
+                    "LifecycleGeneration",
+                    "PinGeneration",
+                    "ProjectGeneration"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
               "Route": {
                 "additionalProperties": false,
                 "properties": {
@@ -3126,6 +3511,83 @@
                   "ReviewRole": {
                     "type": "string"
                   },
+                  "RoleRegistry": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "ContentDigest": {
+                          "type": "string"
+                        },
+                        "LifecycleDigest": {
+                          "type": "string"
+                        },
+                        "LifecycleExpiresAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "LifecycleGeneration": {
+                          "type": "integer"
+                        },
+                        "PinGeneration": {
+                          "type": "integer"
+                        },
+                        "PolicyReferences": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "Digest": {
+                                "type": "string"
+                              },
+                              "Kind": {
+                                "type": "string"
+                              },
+                              "Version": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "Kind",
+                              "Version",
+                              "Digest"
+                            ],
+                            "type": "object"
+                          },
+                          "type": [
+                            "array",
+                            "null"
+                          ]
+                        },
+                        "ProjectGeneration": {
+                          "type": "integer"
+                        },
+                        "PublisherKeyID": {
+                          "type": "string"
+                        },
+                        "RoleID": {
+                          "type": "string"
+                        },
+                        "Version": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "RoleID",
+                        "Version",
+                        "ContentDigest",
+                        "PublisherKeyID",
+                        "LifecycleDigest",
+                        "LifecycleExpiresAt",
+                        "LifecycleGeneration",
+                        "PinGeneration",
+                        "ProjectGeneration"
+                      ],
+                      "type": "object"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
                   "Routing": {
                     "oneOf": [
                       {
@@ -3289,6 +3751,83 @@
                           },
                           "RoleID": {
                             "type": "string"
+                          },
+                          "RoleRegistry": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "ContentDigest": {
+                                  "type": "string"
+                                },
+                                "LifecycleDigest": {
+                                  "type": "string"
+                                },
+                                "LifecycleExpiresAt": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "LifecycleGeneration": {
+                                  "type": "integer"
+                                },
+                                "PinGeneration": {
+                                  "type": "integer"
+                                },
+                                "PolicyReferences": {
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "Digest": {
+                                        "type": "string"
+                                      },
+                                      "Kind": {
+                                        "type": "string"
+                                      },
+                                      "Version": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "Kind",
+                                      "Version",
+                                      "Digest"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": [
+                                    "array",
+                                    "null"
+                                  ]
+                                },
+                                "ProjectGeneration": {
+                                  "type": "integer"
+                                },
+                                "PublisherKeyID": {
+                                  "type": "string"
+                                },
+                                "RoleID": {
+                                  "type": "string"
+                                },
+                                "Version": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "RoleID",
+                                "Version",
+                                "ContentDigest",
+                                "PublisherKeyID",
+                                "LifecycleDigest",
+                                "LifecycleExpiresAt",
+                                "LifecycleGeneration",
+                                "PinGeneration",
+                                "ProjectGeneration"
+                              ],
+                              "type": "object"
+                            },
+                            "type": [
+                              "array",
+                              "null"
+                            ]
                           },
                           "Route": {
                             "additionalProperties": false,
@@ -4214,6 +4753,83 @@
                             },
                             "RoleDigest": {
                               "type": "string"
+                            },
+                            "RoleRegistry": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "ContentDigest": {
+                                    "type": "string"
+                                  },
+                                  "LifecycleDigest": {
+                                    "type": "string"
+                                  },
+                                  "LifecycleExpiresAt": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "LifecycleGeneration": {
+                                    "type": "integer"
+                                  },
+                                  "PinGeneration": {
+                                    "type": "integer"
+                                  },
+                                  "PolicyReferences": {
+                                    "items": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "Digest": {
+                                          "type": "string"
+                                        },
+                                        "Kind": {
+                                          "type": "string"
+                                        },
+                                        "Version": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "Kind",
+                                        "Version",
+                                        "Digest"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": [
+                                      "array",
+                                      "null"
+                                    ]
+                                  },
+                                  "ProjectGeneration": {
+                                    "type": "integer"
+                                  },
+                                  "PublisherKeyID": {
+                                    "type": "string"
+                                  },
+                                  "RoleID": {
+                                    "type": "string"
+                                  },
+                                  "Version": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "RoleID",
+                                  "Version",
+                                  "ContentDigest",
+                                  "PublisherKeyID",
+                                  "LifecycleDigest",
+                                  "LifecycleExpiresAt",
+                                  "LifecycleGeneration",
+                                  "PinGeneration",
+                                  "ProjectGeneration"
+                                ],
+                                "type": "object"
+                              },
+                              "type": [
+                                "array",
+                                "null"
+                              ]
                             },
                             "RosterDigest": {
                               "type": "string"
@@ -5725,6 +6341,83 @@
               "ProjectID": {
                 "type": "string"
               },
+              "RoleRegistry": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "ContentDigest": {
+                      "type": "string"
+                    },
+                    "LifecycleDigest": {
+                      "type": "string"
+                    },
+                    "LifecycleExpiresAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "LifecycleGeneration": {
+                      "type": "integer"
+                    },
+                    "PinGeneration": {
+                      "type": "integer"
+                    },
+                    "PolicyReferences": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "Digest": {
+                            "type": "string"
+                          },
+                          "Kind": {
+                            "type": "string"
+                          },
+                          "Version": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "Kind",
+                          "Version",
+                          "Digest"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
+                    "ProjectGeneration": {
+                      "type": "integer"
+                    },
+                    "PublisherKeyID": {
+                      "type": "string"
+                    },
+                    "RoleID": {
+                      "type": "string"
+                    },
+                    "Version": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "RoleID",
+                    "Version",
+                    "ContentDigest",
+                    "PublisherKeyID",
+                    "LifecycleDigest",
+                    "LifecycleExpiresAt",
+                    "LifecycleGeneration",
+                    "PinGeneration",
+                    "ProjectGeneration"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
               "SchemaVersion": {
                 "type": "integer"
               },
@@ -6226,6 +6919,83 @@
                             "RoleDigest": {
                               "type": "string"
                             },
+                            "RoleRegistry": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "ContentDigest": {
+                                    "type": "string"
+                                  },
+                                  "LifecycleDigest": {
+                                    "type": "string"
+                                  },
+                                  "LifecycleExpiresAt": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "LifecycleGeneration": {
+                                    "type": "integer"
+                                  },
+                                  "PinGeneration": {
+                                    "type": "integer"
+                                  },
+                                  "PolicyReferences": {
+                                    "items": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "Digest": {
+                                          "type": "string"
+                                        },
+                                        "Kind": {
+                                          "type": "string"
+                                        },
+                                        "Version": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "Kind",
+                                        "Version",
+                                        "Digest"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": [
+                                      "array",
+                                      "null"
+                                    ]
+                                  },
+                                  "ProjectGeneration": {
+                                    "type": "integer"
+                                  },
+                                  "PublisherKeyID": {
+                                    "type": "string"
+                                  },
+                                  "RoleID": {
+                                    "type": "string"
+                                  },
+                                  "Version": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "RoleID",
+                                  "Version",
+                                  "ContentDigest",
+                                  "PublisherKeyID",
+                                  "LifecycleDigest",
+                                  "LifecycleExpiresAt",
+                                  "LifecycleGeneration",
+                                  "PinGeneration",
+                                  "ProjectGeneration"
+                                ],
+                                "type": "object"
+                              },
+                              "type": [
+                                "array",
+                                "null"
+                              ]
+                            },
                             "RosterDigest": {
                               "type": "string"
                             },
@@ -6469,6 +7239,83 @@
                             },
                             "RoleID": {
                               "type": "string"
+                            },
+                            "RoleRegistry": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "ContentDigest": {
+                                    "type": "string"
+                                  },
+                                  "LifecycleDigest": {
+                                    "type": "string"
+                                  },
+                                  "LifecycleExpiresAt": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "LifecycleGeneration": {
+                                    "type": "integer"
+                                  },
+                                  "PinGeneration": {
+                                    "type": "integer"
+                                  },
+                                  "PolicyReferences": {
+                                    "items": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "Digest": {
+                                          "type": "string"
+                                        },
+                                        "Kind": {
+                                          "type": "string"
+                                        },
+                                        "Version": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "Kind",
+                                        "Version",
+                                        "Digest"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": [
+                                      "array",
+                                      "null"
+                                    ]
+                                  },
+                                  "ProjectGeneration": {
+                                    "type": "integer"
+                                  },
+                                  "PublisherKeyID": {
+                                    "type": "string"
+                                  },
+                                  "RoleID": {
+                                    "type": "string"
+                                  },
+                                  "Version": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "RoleID",
+                                  "Version",
+                                  "ContentDigest",
+                                  "PublisherKeyID",
+                                  "LifecycleDigest",
+                                  "LifecycleExpiresAt",
+                                  "LifecycleGeneration",
+                                  "PinGeneration",
+                                  "ProjectGeneration"
+                                ],
+                                "type": "object"
+                              },
+                              "type": [
+                                "array",
+                                "null"
+                              ]
                             },
                             "Route": {
                               "additionalProperties": false,
@@ -8065,6 +8912,83 @@
                             },
                             "RoleDigest": {
                               "type": "string"
+                            },
+                            "RoleRegistry": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "ContentDigest": {
+                                    "type": "string"
+                                  },
+                                  "LifecycleDigest": {
+                                    "type": "string"
+                                  },
+                                  "LifecycleExpiresAt": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "LifecycleGeneration": {
+                                    "type": "integer"
+                                  },
+                                  "PinGeneration": {
+                                    "type": "integer"
+                                  },
+                                  "PolicyReferences": {
+                                    "items": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "Digest": {
+                                          "type": "string"
+                                        },
+                                        "Kind": {
+                                          "type": "string"
+                                        },
+                                        "Version": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "Kind",
+                                        "Version",
+                                        "Digest"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": [
+                                      "array",
+                                      "null"
+                                    ]
+                                  },
+                                  "ProjectGeneration": {
+                                    "type": "integer"
+                                  },
+                                  "PublisherKeyID": {
+                                    "type": "string"
+                                  },
+                                  "RoleID": {
+                                    "type": "string"
+                                  },
+                                  "Version": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "RoleID",
+                                  "Version",
+                                  "ContentDigest",
+                                  "PublisherKeyID",
+                                  "LifecycleDigest",
+                                  "LifecycleExpiresAt",
+                                  "LifecycleGeneration",
+                                  "PinGeneration",
+                                  "ProjectGeneration"
+                                ],
+                                "type": "object"
+                              },
+                              "type": [
+                                "array",
+                                "null"
+                              ]
                             },
                             "RosterDigest": {
                               "type": "string"
@@ -10002,6 +10926,83 @@
                             "RoleDigest": {
                               "type": "string"
                             },
+                            "RoleRegistry": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "ContentDigest": {
+                                    "type": "string"
+                                  },
+                                  "LifecycleDigest": {
+                                    "type": "string"
+                                  },
+                                  "LifecycleExpiresAt": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "LifecycleGeneration": {
+                                    "type": "integer"
+                                  },
+                                  "PinGeneration": {
+                                    "type": "integer"
+                                  },
+                                  "PolicyReferences": {
+                                    "items": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "Digest": {
+                                          "type": "string"
+                                        },
+                                        "Kind": {
+                                          "type": "string"
+                                        },
+                                        "Version": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "Kind",
+                                        "Version",
+                                        "Digest"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": [
+                                      "array",
+                                      "null"
+                                    ]
+                                  },
+                                  "ProjectGeneration": {
+                                    "type": "integer"
+                                  },
+                                  "PublisherKeyID": {
+                                    "type": "string"
+                                  },
+                                  "RoleID": {
+                                    "type": "string"
+                                  },
+                                  "Version": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "RoleID",
+                                  "Version",
+                                  "ContentDigest",
+                                  "PublisherKeyID",
+                                  "LifecycleDigest",
+                                  "LifecycleExpiresAt",
+                                  "LifecycleGeneration",
+                                  "PinGeneration",
+                                  "ProjectGeneration"
+                                ],
+                                "type": "object"
+                              },
+                              "type": [
+                                "array",
+                                "null"
+                              ]
+                            },
                             "RosterDigest": {
                               "type": "string"
                             },
@@ -11185,6 +12186,83 @@
                             "RoleDigest": {
                               "type": "string"
                             },
+                            "RoleRegistry": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "ContentDigest": {
+                                    "type": "string"
+                                  },
+                                  "LifecycleDigest": {
+                                    "type": "string"
+                                  },
+                                  "LifecycleExpiresAt": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "LifecycleGeneration": {
+                                    "type": "integer"
+                                  },
+                                  "PinGeneration": {
+                                    "type": "integer"
+                                  },
+                                  "PolicyReferences": {
+                                    "items": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "Digest": {
+                                          "type": "string"
+                                        },
+                                        "Kind": {
+                                          "type": "string"
+                                        },
+                                        "Version": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "Kind",
+                                        "Version",
+                                        "Digest"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": [
+                                      "array",
+                                      "null"
+                                    ]
+                                  },
+                                  "ProjectGeneration": {
+                                    "type": "integer"
+                                  },
+                                  "PublisherKeyID": {
+                                    "type": "string"
+                                  },
+                                  "RoleID": {
+                                    "type": "string"
+                                  },
+                                  "Version": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "RoleID",
+                                  "Version",
+                                  "ContentDigest",
+                                  "PublisherKeyID",
+                                  "LifecycleDigest",
+                                  "LifecycleExpiresAt",
+                                  "LifecycleGeneration",
+                                  "PinGeneration",
+                                  "ProjectGeneration"
+                                ],
+                                "type": "object"
+                              },
+                              "type": [
+                                "array",
+                                "null"
+                              ]
+                            },
                             "RosterDigest": {
                               "type": "string"
                             },
@@ -12367,6 +13445,83 @@
                             },
                             "RoleDigest": {
                               "type": "string"
+                            },
+                            "RoleRegistry": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "ContentDigest": {
+                                    "type": "string"
+                                  },
+                                  "LifecycleDigest": {
+                                    "type": "string"
+                                  },
+                                  "LifecycleExpiresAt": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "LifecycleGeneration": {
+                                    "type": "integer"
+                                  },
+                                  "PinGeneration": {
+                                    "type": "integer"
+                                  },
+                                  "PolicyReferences": {
+                                    "items": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "Digest": {
+                                          "type": "string"
+                                        },
+                                        "Kind": {
+                                          "type": "string"
+                                        },
+                                        "Version": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "Kind",
+                                        "Version",
+                                        "Digest"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": [
+                                      "array",
+                                      "null"
+                                    ]
+                                  },
+                                  "ProjectGeneration": {
+                                    "type": "integer"
+                                  },
+                                  "PublisherKeyID": {
+                                    "type": "string"
+                                  },
+                                  "RoleID": {
+                                    "type": "string"
+                                  },
+                                  "Version": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "RoleID",
+                                  "Version",
+                                  "ContentDigest",
+                                  "PublisherKeyID",
+                                  "LifecycleDigest",
+                                  "LifecycleExpiresAt",
+                                  "LifecycleGeneration",
+                                  "PinGeneration",
+                                  "ProjectGeneration"
+                                ],
+                                "type": "object"
+                              },
+                              "type": [
+                                "array",
+                                "null"
+                              ]
                             },
                             "RosterDigest": {
                               "type": "string"
