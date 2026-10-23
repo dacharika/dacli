@@ -15,8 +15,6 @@ import (
 	"github.com/mlnomadpy/dacli/internal/workspace"
 )
 
-const nativeStorageMaxSnapshotBytes = 64 << 20
-
 type NativeStorageTask struct {
 	ID, Project, Status, Digest string
 	Body                        []byte
@@ -139,12 +137,10 @@ func nativeStorageProjection(w *workspace.Workspace, s NativeStorageSource, dest
 		name string
 		body []byte
 	}{{"authority.snapshot", envelope}, {"tasks.snapshot", tasks}, {"projection.json", projection}}
-	expectedFiles := make(map[string][]byte, len(files))
 	for _, file := range files {
 		if e = writeNativeStorageImmutable(destination, file.name, file.body); e != nil {
 			return out, e
 		}
-		expectedFiles[file.name] = file.body
 		out.FileDigests[file.name] = nativeStorageDigest(file.body)
 		if after != nil {
 			if e = after(file.name); e != nil {
@@ -154,10 +150,15 @@ func nativeStorageProjection(w *workspace.Workspace, s NativeStorageSource, dest
 	}
 	// Reparse the actual imported files instead of declaring the in-memory
 	// input reconciled. Interrupted imports resume only against identical bytes.
-	imported, e := readNativeStoragePrivateFile(destination, "tasks.snapshot")
-	if e != nil {
-		return out, e
+	actualFiles := make(map[string][]byte, len(files))
+	for _, file := range files {
+		actual, readErr := readNativeStoragePrivateFile(destination, file.name, len(file.body))
+		if readErr != nil || nativeStorageDigest(actual) != out.FileDigests[file.name] || !bytes.Equal(actual, file.body) {
+			return out, Refusedf("storage imported file mismatch")
+		}
+		actualFiles[file.name] = actual
 	}
+	imported := actualFiles["tasks.snapshot"]
 	var restored []NativeStorageTask
 	if json.Unmarshal(imported, &restored) != nil || len(restored) != len(s.Tasks) {
 		return out, Refusedf("storage imported task count mismatch")
@@ -168,38 +169,13 @@ func nativeStorageProjection(w *workspace.Workspace, s NativeStorageSource, dest
 			return out, Refusedf("storage imported task identity mismatch")
 		}
 	}
-	actual, e := readNativeStoragePrivateFile(destination, "authority.snapshot")
 	var recovered struct {
 		Schema        string
 		Authoritative bool
 		Source        []byte
 	}
-	if e != nil || json.Unmarshal(actual, &recovered) != nil || recovered.Schema != "native-authority-snapshot/v1" || recovered.Authoritative || !bytes.Equal(recovered.Source, s.Authority) {
+	if json.Unmarshal(actualFiles["authority.snapshot"], &recovered) != nil || recovered.Schema != "native-authority-snapshot/v1" || recovered.Authoritative || !bytes.Equal(recovered.Source, s.Authority) {
 		return out, Refusedf("storage imported authority mismatch")
-	}
-	actual, e = readNativeStoragePrivateFile(destination, "projection.json")
-	if e != nil || nativeStorageDigest(actual) != out.FileDigests["projection.json"] || !bytes.Equal(actual, expectedFiles["projection.json"]) {
-		return out, Refusedf("storage imported projection mismatch")
-	}
-	var recoveredProjection struct {
-		Schema, SourceDigest string
-		Authoritative        bool
-		Tasks                []NativeStorageTask
-	}
-	if json.Unmarshal(actual, &recoveredProjection) != nil || recoveredProjection.Schema != "native-storage-projection/v1" || recoveredProjection.SourceDigest != out.SourceDigest || recoveredProjection.Authoritative || len(recoveredProjection.Tasks) != len(s.Tasks) {
-		return out, Refusedf("storage imported projection mismatch")
-	}
-	for n, task := range recoveredProjection.Tasks {
-		want := s.Tasks[n]
-		if task.ID != want.ID || task.Project != want.Project || task.Status != want.Status || task.Digest != want.Digest || !bytes.Equal(task.Body, want.Body) || nativeStorageDigest(task.Body) != task.Digest {
-			return out, Refusedf("storage imported projection task mismatch")
-		}
-	}
-	for name, expected := range expectedFiles {
-		actual, e = readNativeStoragePrivateFile(destination, name)
-		if e != nil || nativeStorageDigest(actual) != out.FileDigests[name] || !bytes.Equal(actual, expected) {
-			return out, Refusedf("storage imported file mismatch")
-		}
 	}
 	out.Reconciled = true
 	receipt, e := json.Marshal(out)
@@ -217,21 +193,21 @@ func nativeStorageProjection(w *workspace.Workspace, s NativeStorageSource, dest
 	return out, nil
 }
 
-func readNativeStoragePrivateFile(dir, name string) ([]byte, error) {
+func readNativeStoragePrivateFile(dir, name string, maxBytes int) ([]byte, error) {
 	path := filepath.Join(dir, name)
 	info, e := os.Lstat(path)
-	if e != nil || !info.Mode().IsRegular() || info.Mode().Perm() != 0600 || info.Size() > nativeStorageMaxSnapshotBytes {
+	if e != nil || !info.Mode().IsRegular() || info.Mode().Perm() != 0600 || info.Size() > int64(maxBytes) {
 		return nil, Refusedf("private bounded storage file required")
 	}
 	f, e := os.Open(path)
 	if e != nil {
 		return nil, e
 	}
-	body, readErr := io.ReadAll(io.LimitReader(f, nativeStorageMaxSnapshotBytes+1))
+	body, readErr := io.ReadAll(io.LimitReader(f, int64(maxBytes)+1))
 	after, statErr := f.Stat()
 	closeErr := f.Close()
 	current, pathErr := os.Lstat(path)
-	if readErr != nil || statErr != nil || closeErr != nil || pathErr != nil || len(body) > nativeStorageMaxSnapshotBytes || !os.SameFile(info, after) || !os.SameFile(info, current) || !current.Mode().IsRegular() || current.Mode().Perm() != 0600 || after.Size() != info.Size() || !after.ModTime().Equal(info.ModTime()) || len(body) != int(info.Size()) {
+	if readErr != nil || statErr != nil || closeErr != nil || pathErr != nil || len(body) > maxBytes || !os.SameFile(info, after) || !os.SameFile(info, current) || !current.Mode().IsRegular() || current.Mode().Perm() != 0600 || after.Size() != info.Size() || !after.ModTime().Equal(info.ModTime()) || len(body) != int(info.Size()) {
 		return nil, Refusedf("private bounded storage file changed during observation")
 	}
 	return body, nil
@@ -243,7 +219,7 @@ func writeNativeStorageImmutable(dir, name string, body []byte) error {
 		if !info.Mode().IsRegular() || info.Mode().Perm() != 0600 {
 			return Refusedf("private immutable storage file required")
 		}
-		old, e := readNativeStoragePrivateFile(dir, name)
+		old, e := readNativeStoragePrivateFile(dir, name, len(body))
 		if e != nil || !bytes.Equal(old, body) {
 			return Refusedf("storage projection source or file changed")
 		}

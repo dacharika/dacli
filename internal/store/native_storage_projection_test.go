@@ -160,7 +160,7 @@ func TestNativeStorageProjectionActualCrashResumePreservesSource(t *testing.T) {
 }
 
 func TestNativeStorageProjectionRefusesImportedDrift(t *testing.T) {
-	for _, drift := range []string{"project", "status", "projection"} {
+	for _, drift := range []string{"project", "status", "projection", "mode", "symlink", "oversized"} {
 		t.Run(drift, func(t *testing.T) {
 			w, source, authorityPath, _ := storageProjectionFixture(t)
 			beforeAuthority, e := os.ReadFile(authorityPath)
@@ -173,7 +173,25 @@ func TestNativeStorageProjectionRefusesImportedDrift(t *testing.T) {
 				if name != "projection.json" {
 					return nil
 				}
-				if drift == "projection" {
+				if drift == "mode" {
+					return os.Chmod(filepath.Join(destination, "projection.json"), 0644)
+				}
+				if drift == "symlink" {
+					path := filepath.Join(destination, "projection.json")
+					backing := filepath.Join(filepath.Dir(destination), "projection.backing")
+					body, readErr := os.ReadFile(path)
+					if readErr != nil {
+						return readErr
+					}
+					if readErr = os.WriteFile(backing, body, 0600); readErr != nil {
+						return readErr
+					}
+					if readErr = os.Remove(path); readErr != nil {
+						return readErr
+					}
+					return os.Symlink(backing, path)
+				}
+				if drift == "projection" || drift == "oversized" {
 					path := filepath.Join(destination, "projection.json")
 					body, readErr := os.ReadFile(path)
 					if readErr != nil {
