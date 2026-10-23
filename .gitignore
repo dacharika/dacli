@@ -19,6 +19,10 @@ __pycache__/
 .idea/
 *.swp
 
+# Machine-local agent configuration must stay private and be ignored even when
+# native checkout observation runs without HOME or the user's global ignores.
+/.claude/settings.local.json
+
 # Local text and investigation scratch space. Keep the directory and its usage
 # contract in Git; ignore every personal artifact placed inside it.
 .scratch/*
