@@ -192,6 +192,12 @@ func (s *Service) Begin(ctx context.Context, r BeginRequest) (BeginResponse, err
 	if e != nil {
 		return out, e
 	}
+	if !validChallenge(challenge) {
+		return out, ErrDenied
+	}
+	if challenge.Interval == 0 {
+		challenge.Interval = 5
+	}
 	if challenge.ExpiresIn > 900 {
 		challenge.ExpiresIn = 900
 	}
@@ -330,13 +336,13 @@ func (s *Service) Token(ctx context.Context, r TokenRequest) (TokenResponse, err
 		for key, pub := range keys {
 			out.ServerSigningKeys = append(out.ServerSigningKeys, SigningKey{key, pub})
 		}
-		if len(f.Responses) >= 32 {
-			return nil, nil, ErrDenied
-		}
-		f.Responses[r.RequestID] = tokenReplay{requestDigest, out}
+		// Keep only the response that can still be replayed with a valid
+		// credential. Every earlier refresh credential has been rotated away,
+		// and its session is revoked in this same transaction.
+		f.Responses = map[string]tokenReplay{r.RequestID: {requestDigest, out}}
 		f.RefreshDigest = sha256.Sum256([]byte(nextRefresh))
 		change := &SessionChange{Device: d, Session: record, RevokeSessionIDs: append([]devicesession.ID(nil), f.Sessions...), CorrelationID: authCorrelation(id, r.RequestID), ExpectedMembershipVersion: membership.Version}
-		f.Sessions = append(f.Sessions, record.ID)
+		f.Sessions = []devicesession.ID{record.ID}
 		sealed, se := s.seal(scope, id, f)
 		return sealed, change, se
 	})
