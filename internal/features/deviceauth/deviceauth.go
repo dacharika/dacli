@@ -82,6 +82,15 @@ func login(ctx *clikit.Ctx, args []string) error {
 	return emit(ctx, public(m))
 }
 func selected(args []string) (*deviceidentity.Client, error) {
+	return selectedUsing(args, deviceidentity.Open)
+}
+func selectedLogout(args []string) (*deviceidentity.Client, error) {
+	return selectedLogoutWith(args, deviceidentity.OpenForLogout)
+}
+func selectedLogoutWith(args []string, open func(string, string, string) (*deviceidentity.Client, error)) (*deviceidentity.Client, error) {
+	return selectedUsing(args, open)
+}
+func selectedUsing(args []string, open func(string, string, string) (*deviceidentity.Client, error)) (*deviceidentity.Client, error) {
 	f, parseErr := clikit.ParseFlags(args, "provider", "tenant", "device")
 	if parseErr != nil {
 		return nil, parseErr
@@ -93,11 +102,11 @@ func selected(args []string) (*deviceidentity.Client, error) {
 	if len(f.Pos) != 0 || f.Get("provider") == "" || f.Get("tenant") == "" || f.Get("device") == "" {
 		return nil, clikit.Usagef("auth device operation requires --provider, --tenant and --device with no positional arguments")
 	}
-	c, e := deviceidentity.Open(f.Get("provider"), f.Get("tenant"), f.Get("device"))
+	c, e := open(f.Get("provider"), f.Get("tenant"), f.Get("device"))
 	return c, typed(e)
 }
 func logout(ctx *clikit.Ctx, args []string) error {
-	c, e := selected(args)
+	c, e := selectedLogout(args)
 	if e != nil {
 		return e
 	}

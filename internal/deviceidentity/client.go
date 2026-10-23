@@ -20,6 +20,7 @@ import (
 	"runtime"
 	"strings"
 	"time"
+	"unicode"
 )
 
 type Error struct {
@@ -108,6 +109,37 @@ func Open(provider, tenant, device string) (*Client, error) {
 		return nil, e
 	}
 	return &Client{p, m, store, httpClient()}, nil
+}
+
+// OpenForLogout needs only the exact selector. Metadata may be absent or
+// damaged after credentials were stored, and must not prevent local removal.
+func OpenForLogout(provider, tenant, device string) (*Client, error) {
+	p, e := providerBase(provider)
+	if e != nil {
+		return nil, e
+	}
+	if !opaqueID(tenant) || !opaqueID(device) {
+		return nil, failure("identity_required", false, "select exact provider, tenant and device")
+	}
+	store, e := credentialstore.Open()
+	if e != nil {
+		return nil, storeFailure(e)
+	}
+	return newLogoutClient(p, tenant, device, store, httpClient())
+}
+
+func newLogoutClient(provider, tenant, device string, store credentialstore.Store, client *http.Client) (*Client, error) {
+	p, e := providerBase(provider)
+	if e != nil {
+		return nil, e
+	}
+	if !opaqueID(tenant) || !opaqueID(device) {
+		return nil, failure("identity_required", false, "select exact provider, tenant and device")
+	}
+	if store == nil || client == nil {
+		return nil, failure("invalid_request", false, "select valid logout dependencies")
+	}
+	return &Client{provider: p, metadata: Metadata{Provider: p, TenantID: tenant, DeviceID: device}, store: store, http: client}, nil
 }
 func requestID() string {
 	var id [16]byte
@@ -388,11 +420,63 @@ func Login(ctx context.Context, provider, tenant, name string, show func(Challen
 	if e != nil {
 		return Metadata{}, storeFailure(e)
 	}
+	return loginWithStore(ctx, p, tenant, name, show, store, httpClient(), waitForPoll)
+}
+
+func waitForPoll(ctx context.Context, interval time.Duration) error {
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func hasControl(value string) bool {
+	for _, r := range value {
+		if unicode.IsControl(r) {
+			return true
+		}
+	}
+	return false
+}
+
+func revealsDeviceCode(value, deviceCode string) bool {
+	if strings.Contains(value, deviceCode) {
+		return true
+	}
+	for _, decode := range []func(string) (string, error){url.QueryUnescape, url.PathUnescape} {
+		decoded := value
+		for range 2 {
+			next, err := decode(decoded)
+			if err != nil {
+				return true
+			}
+			if next == decoded {
+				break
+			}
+			if strings.Contains(next, deviceCode) {
+				return true
+			}
+			decoded = next
+		}
+	}
+	return false
+}
+
+// loginWithStore keeps the provider flow testable without replacing the
+// process-wide native credential-store boundary.
+func loginWithStore(ctx context.Context, p, tenant, name string, show func(Challenge) error, store credentialstore.Store, client *http.Client, wait func(context.Context, time.Duration) error) (Metadata, error) {
+	if ctx == nil || store == nil || client == nil || wait == nil {
+		return Metadata{}, failure("invalid_request", false, "select valid device login dependencies")
+	}
 	public, private, e := ed25519.GenerateKey(rand.Reader)
 	if e != nil {
 		return Metadata{}, failure("entropy_unavailable", false, "repair system random source")
 	}
-	c := &Client{provider: p, metadata: Metadata{TenantID: tenant}, store: store, http: httpClient()}
+	c := &Client{provider: p, metadata: Metadata{TenantID: tenant}, store: store, http: client}
 	id := requestID()
 	if id == "" {
 		return Metadata{}, failure("entropy_unavailable", false, "repair system random source")
@@ -417,7 +501,7 @@ func Login(ctx context.Context, provider, tenant, name string, show func(Challen
 		return Metadata{}, e
 	}
 	uri, e := url.Parse(begun.VerificationURI)
-	if e != nil || uri.Hostname() == "" || uri.User != nil || uri.Fragment != "" || (uri.Scheme != "https" && !(uri.Scheme == "http" && (uri.Hostname() == "localhost" || uri.Hostname() == "127.0.0.1" || uri.Hostname() == "::1"))) || begun.DeviceCode == "" || len(begun.DeviceCode) > 4096 || begun.UserCode == "" || len(begun.UserCode) > 128 || begun.DeviceCode == begun.UserCode || strings.Contains(begun.VerificationURI, begun.DeviceCode) || begun.ExpiresIn < 1 || begun.ExpiresIn > 900 || begun.Interval < 1 || begun.Interval > 60 || begun.ServerTime.IsZero() {
+	if e != nil || uri.Hostname() == "" || uri.User != nil || uri.Fragment != "" || (uri.Scheme != "https" && !(uri.Scheme == "http" && (uri.Hostname() == "localhost" || uri.Hostname() == "127.0.0.1" || uri.Hostname() == "::1"))) || begun.DeviceCode == "" || len(begun.DeviceCode) > 4096 || hasControl(begun.DeviceCode) || begun.UserCode == "" || len(begun.UserCode) > 128 || hasControl(begun.UserCode) || len(begun.VerificationURI) > 2048 || hasControl(begun.VerificationURI) || revealsDeviceCode(begun.UserCode, begun.DeviceCode) || revealsDeviceCode(begun.VerificationURI, begun.DeviceCode) || begun.ExpiresIn < 1 || begun.ExpiresIn > 900 || begun.Interval < 1 || begun.Interval > 60 || begun.ServerTime.IsZero() {
 		return Metadata{}, failure("malformed_response", false, "provider returned an unsafe or unsupported device challenge")
 	}
 	if e = show(Challenge{begun.VerificationURI, begun.UserCode, begun.ExpiresIn, begun.Interval}); e != nil {
@@ -431,15 +515,14 @@ func Login(ctx context.Context, provider, tenant, name string, show func(Challen
 		return Metadata{}, failure("entropy_unavailable", false, "repair system random source")
 	}
 	for {
-		timer := time.NewTimer(interval)
-		select {
-		case <-bounded.Done():
-			timer.Stop()
+		if e = wait(bounded, interval); e != nil {
 			if ctx.Err() != nil {
 				return Metadata{}, failure("cancelled", false, "device authorization cancelled; start a fresh login when ready")
 			}
-			return Metadata{}, failure("expired_token", false, "device authorization expired or was cancelled; start a fresh login")
-		case <-timer.C:
+			if bounded.Err() != nil {
+				return Metadata{}, failure("expired_token", false, "device authorization expired; start a fresh login")
+			}
+			return Metadata{}, failure("cancelled", false, "device authorization wait was interrupted; start a fresh login")
 		}
 		var token tokenResponse
 		sent := time.Now()
@@ -449,6 +532,12 @@ func Login(ctx context.Context, provider, tenant, name string, show func(Challen
 			RequestID  string `json:"request_id"`
 		}{"urn:ietf:params:oauth:grant-type:device_code", begun.DeviceCode, pollID}, "", &token)
 		if e != nil {
+			if bounded.Err() != nil {
+				if ctx.Err() != nil {
+					return Metadata{}, failure("cancelled", false, "device authorization cancelled; start a fresh login when ready")
+				}
+				return Metadata{}, failure("expired_token", false, "device authorization expired; start a fresh login")
+			}
 			var state *Error
 			if errors.As(e, &state) && state.Code == "authorization_pending" {
 				continue
