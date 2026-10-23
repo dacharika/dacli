@@ -47,10 +47,12 @@ Codex CLI or use `dacli spawn` to establish identity.
    An unknown restart remains pending (`reconciliation_required`) without an
    interruption record; never infer cleanup or change its key to reexecute uncertain
    work. These tools accept no command, credential, grant or directory overrides.
-6. Keep the worker lease current while a separately provisioned reviewer checks
-   the revision. Release with `release_lease` after review or when abandoning the
-   work. Leave reviewer/runner enrollment and final acceptance to the owner;
-   these authority-granting operations are not plugin tools.
+6. Keep the worker lease current through independent review, owner integration
+   and canonical acceptance. Review approval alone is not a release condition.
+   After acceptance retires the worker, the owner explicitly recovers protection
+   using the authenticated terminal observation. Report abandoned or uncertain
+   work for owner reconciliation. Enrollment and final acceptance are owner
+   operations, not plugin tools.
 
 For a separately owner-provisioned reviewer connection, inspect `identity` and
 the canonical task using the read tools. Do not register an implementation
@@ -82,6 +84,11 @@ worker-handshake profile through `orchestration_config_file`. First call
 role's `tools/list`. A profile or child label never grants authority. Requests
 cannot override credentials, routes, grants, commands or models.
 
+Inspect `tools/list` on that exact selected stdio connection. The current chat's
+shared catalog and a default installation receipt do not describe a separately
+selected child profile. A missing tool there does not prove it is missing from
+the child's connection.
+
 Use `plan_swarm`, `start_loop` and one bounded `step_loop` at a time. Preserve the
 operation key, invocation, checkpoint and expected sequence. Only a fresh
 `HostActionAuthorized` receipt permits its specific native host instruction.
@@ -90,6 +97,11 @@ tool for an authorized child action, with owner-provisioned independent private
 connections; do not wrap or spawn coding CLIs. The bridge correlates the actual
 child through `correlate_dispatch`. The child uses its own connection to register
 its attempt and `acknowledge_dispatch`; shared sessions cannot impersonate it.
+The correlated handoff's `ID` is the intent ID, distinct from `DispatchID`.
+Use a new acknowledgement operation key, not the handoff's existing producer
+key. A null lease before acknowledgement is expected; require the returned
+authenticated lease before editing. For owner integration, preserve the exact
+`integration_checkpoint` operation key and producer tuple from the controller.
 Runner and reviewer connections continue their independent named-check and
 review workflows. `reconcile_loop` observes durable facts before advancing.
 `pending_local_integration` requires the separate integration producer and never

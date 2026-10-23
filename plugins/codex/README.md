@@ -353,7 +353,9 @@ status/recovery use their original durable operation identities. Review and
 owner integration require the full selected required successful set for that exact
 revision. Failed, missing, pending or historical checks are not substitutes.
 
-Version 0.5.0 is the assembled source update. Its combined service checks,
-current catalog/schema generation and actual host packaging/reload proof remain
-pending in this implementation handoff. The bundled historical 0.4.0 receipt is
-unchanged and makes no 0.5.0 installation or verification claim.
+Version 0.5.0 has an actual [Codex 0.163 installation receipt](receipts/native-install-0.163.0-alpha.11.md)
+and an [owner-operated native swarm qualification](receipts/native-swarm-0.163.0-alpha.11.md).
+The latter records three Luna workers across two dependent waves, independent
+review, trusted checks, exact local integration and canonical acceptance, with
+cooperative limits stated explicitly. The historical 0.159.2 receipt remains
+unchanged and does not stand in for current host evidence.

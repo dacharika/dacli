@@ -1,17 +1,6 @@
 name: docs
 on:
-  push:
-    branches: [main]
-    paths:
-      - "docs/**"
-      - "overrides/**"
-      - "internal/features/dashboard/ui/evidence.html"
-      - "internal/features/dashboard/ui/package-lock.json"
-      - "internal/features/dashboard/ui/package.json"
-      - "internal/features/dashboard/ui/src/**"
-      - "internal/features/dashboard/ui/vite.evidence.config.ts"
-      - "mkdocs.yml"
-      - ".github/workflows/docs.yml"
+  # Publish only when explicitly requested; source changes do not spend CI credits.
   workflow_dispatch:
 
 permissions:

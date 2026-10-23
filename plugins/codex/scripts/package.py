@@ -9,7 +9,13 @@ SOURCE_FILES = ('plugin.json', 'mcp.json', '.mcp.json', '.codex-plugin/plugin.js
 
 # Kept byte-for-byte as historical observations, not evidence for this release.
 HISTORICAL_RECEIPTS = ('receipts/native-install-0.159.2.json',)
-FILES = SOURCE_FILES + HISTORICAL_RECEIPTS
+CURRENT_RECEIPTS = (
+    'receipts/native-install-0.163.0-alpha.11.json',
+    'receipts/native-install-0.163.0-alpha.11.md',
+    'receipts/native-swarm-0.163.0-alpha.11.json',
+    'receipts/native-swarm-0.163.0-alpha.11.md',
+)
+FILES = SOURCE_FILES + HISTORICAL_RECEIPTS + CURRENT_RECEIPTS
 
 
 def build(output, root=None):

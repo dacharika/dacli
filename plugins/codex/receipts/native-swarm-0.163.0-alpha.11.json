@@ -1,0 +1,246 @@
+{
+  "schema": "dacli-native-swarm-qualification/v1",
+  "run_name": "core594-codex-0.163.0-alpha.11-luna-qualified",
+  "recorded_at": "2026-10-23T00:26:29.503140+00:00",
+  "runtime_source_revision": "808802158e4cbc3bce10eb5fb3dc77ec9b440bc4",
+  "runtime_sha256": "56b24fb590ac5cf08dbf27d4d4610084fc5d28fb8fe39d0ec712f14c2b9b5603",
+  "native_dispatch": "actual Codex collaboration.spawn_agent/followup_task; no coding CLI wrapper",
+  "child_authentication": "owner-manual private profile selection; independent stdio MCP process per actor connection",
+  "tasks": [
+    {
+      "task_id": "t-01M5K1JDTJ87CY14AR5EMECCW4",
+      "key": "a",
+      "wave": 1,
+      "depends_on": [],
+      "claim": "alpha",
+      "changed_paths": [
+        "alpha/labels.py"
+      ],
+      "requested_model": "gpt-6-luna",
+      "host_agent_id": "/root/qualified_worker_a",
+      "worker_session": "174cfc5127e6d9ba6361eba503a6e0ad00fe62b5fa7b4dbcd6f562e1c364b816",
+      "runner_session": "a1ba171e6eed0fd6b1ce807d195829bc40f2c1c3adadeae4c31fade4625cefae",
+      "reviewer_session": "b1d0525adca62479d1a6188360d32bcac9a82459905b7950334f8a2db6cea228",
+      "attempt_id": "c6ec483399537572bc540eade9bec7acff0d41c6032fd541e1bbef2a764ea8fe",
+      "lease_fence": 3,
+      "revision_id": "cff45bb08879c682f74a9ebed57e842cbd55f80e9edcb581e16a58e97096fabb",
+      "commit": "11451e3548c1b8a32b989e9125110c918f002699",
+      "tree": "fc9fd3a37289f50bb1e9fe83ef17b3355b5b1961",
+      "verification": {
+        "id": "6778ab52691e574449c8c71878626fb9e2b12735784312f6be7a32a38651cc2f",
+        "exit_code": 0,
+        "provenance": "trusted-local-runner",
+        "same_key_replay_command_count": 1
+      },
+      "review": {
+        "id": "85c1f532d71b8836ee08bceda4c383b89c336709dcf6b517ef36d268b7e3b4d8",
+        "independently_evaluated": true
+      },
+      "integration": {
+        "operation_key": "d26ccaa38fe7fcfcae3e8b5be335869907d665d2991b1d209353168c9c87cdc2",
+        "state": "integrated",
+        "receipt_digest": "d192aeb4e549839d2f10f45451dfe38c0e7cdfe67bbfeb52cc866e21c9aa7a85"
+      },
+      "acceptance": {
+        "operation_key": "accept-a",
+        "state": "closed",
+        "canonical_status": "done",
+        "approved_policy_consumed": true,
+        "observed_outcome_digest": "sha256:07ad8ab64d3dd1f04c040675d6a132093a99959f80733e38485add340d2d5c7b"
+      },
+      "release": {
+        "mode": "authenticated-terminal",
+        "global_fence": 5
+      }
+    },
+    {
+      "task_id": "t-01M5K1JDV3H27AJTVDBDJVEFG3",
+      "key": "b",
+      "wave": 1,
+      "depends_on": [],
+      "claim": "beta",
+      "changed_paths": [
+        "beta/statuses.py"
+      ],
+      "requested_model": "gpt-6-luna",
+      "host_agent_id": "/root/qualified_worker_b",
+      "worker_session": "d73482601b8e75cbfd8c27cb34bffb85e92e611ef81e5a51f5ec40b709a4f4ba",
+      "runner_session": "158ad560f316786d1506139cbd1cd1d4c94ffc93838239dd86dddd73c165484f",
+      "reviewer_session": "8842e3f904844c9c9bf35d882dd3b0e1c1379bc1e9e074875206d5f6ab222ecf",
+      "attempt_id": "8ed044479b7f3ed5680e707248dacb8d37dafcd65fae60b01a917222aae52d18",
+      "lease_fence": 4,
+      "revision_id": "fcd95c15a7916ac8ee3e6398467582e074cbe72236665d361d811566949557e2",
+      "commit": "9a04c95a49579a0d0ff7603189063c0cea55fb76",
+      "tree": "ad30a31b1fcca8b568b7f40079bb970359a0f95e",
+      "verification": {
+        "id": "da004b9ea61b2fbd3933cf7f535408966c7b21ba7cf174c2366b08b7b08e27d0",
+        "exit_code": 0,
+        "provenance": "trusted-local-runner",
+        "same_key_replay_command_count": 1
+      },
+      "review": {
+        "id": "aa45502223cf1ed3205d04d0d31db3594cdd54ce7c642b0f2193526786987c1b",
+        "independently_evaluated": true
+      },
+      "integration": {
+        "operation_key": "3ce2a1905396a69c9e7ca772d27606da358c630a8acd7f9a5f2cc71b88ee8cb5",
+        "state": "integrated",
+        "receipt_digest": "c3d60ac236c4503631fbd351edd4150871086380ffa4167bf19d604b4000a197"
+      },
+      "acceptance": {
+        "operation_key": "accept-b",
+        "state": "closed",
+        "canonical_status": "done",
+        "approved_policy_consumed": true,
+        "observed_outcome_digest": "sha256:7bc1f733eae1031ee8a154253930901eb808869473b7ebbf65149a818d7341a2"
+      },
+      "release": {
+        "mode": "authenticated-terminal",
+        "global_fence": 6
+      }
+    },
+    {
+      "task_id": "t-01M5K1JDVNJJAT5MQ5608H4XMK",
+      "key": "c",
+      "wave": 2,
+      "depends_on": [
+        "a",
+        "b"
+      ],
+      "claim": "combined",
+      "changed_paths": [
+        "combined/report.py"
+      ],
+      "requested_model": "gpt-6-luna",
+      "host_agent_id": "/root/qualified_worker_c",
+      "worker_session": "fa27b58b96e8d254d8b639672b67bb4ac526c2ccec5c483912c1439a756da06e",
+      "runner_session": "4a6dc68314aeb545e7c30b61d7bd1d02f1b8170c47cd42e3b3aac7e4c25c3fc7",
+      "reviewer_session": "e5c7dc9a5cf08c8d5ecf192fd36c30c25398485c9d4410b99e6d1f529c3677ca",
+      "attempt_id": "4216d1f7be5b48d53718cac8c3de14188cfdc68d5dcc2382dff8fed587a8870e",
+      "lease_fence": 8,
+      "revision_id": "d793bebacad8ddf20bf6bd1c7e82ad74e94b7904f861413408b0ea454f65e4f3",
+      "commit": "4c98f91dee721b1f5ec3f2ca173ad81838944306",
+      "tree": "8bce9308e733fb104a7c5b7d27e13ea085a71824",
+      "verification": {
+        "id": "d95f7c1c76d81461816b86096b8091840eadb266edaee8dd5d99d16a97d460bb",
+        "exit_code": 0,
+        "provenance": "trusted-local-runner",
+        "same_key_replay_command_count": 1
+      },
+      "review": {
+        "id": "48c22efb72f84de895baedfb39f2718f45f996203257b75fbe5ecd1396ee5a9a",
+        "independently_evaluated": true
+      },
+      "integration": {
+        "operation_key": "12dba6b866d41dc5e3f654e48ad311e80ef907741eee0e4c0a089d02f1e4162f",
+        "state": "integrated",
+        "receipt_digest": "48ff0a1a047d639ae3670234581befffe5c7107d27bf3d68b591562ad634b174"
+      },
+      "acceptance": {
+        "operation_key": "accept-c",
+        "state": "closed",
+        "canonical_status": "done",
+        "approved_policy_consumed": true,
+        "observed_outcome_digest": "sha256:98850426feebac52cd9281cfe1ad02a65aa2b0ef99a8a60c32655871bbce6248"
+      },
+      "release": {
+        "mode": "authenticated-terminal",
+        "global_fence": 9
+      }
+    }
+  ],
+  "terminal": {
+    "Sequence": 18,
+    "Phase": "completed",
+    "HaltClass": "empty_backlog",
+    "Waves": 2,
+    "Terminal": true,
+    "RetainedConcurrency": 0,
+    "NoProgress": 0
+  },
+  "source_sha256": {
+    "internal/application/native_host_producer_crash_test.go": "1a8103defdf663f15c92c4f9e08c34b37f721de7269f08f987fb94f2c4632196",
+    "internal/qualification594/budget.go": "fe63939529e7f30a801a0944b1d5043dee66a9f44265997c9b1c8749317dc7b0",
+    "internal/qualification594/controller.go": "05cff3cd84446d494a02edcc7574edac62214a8297d5e24bf8a0116553e78ba4",
+    "internal/qualification594/finish.go": "55fa2dc3b6f950baca26027e3240fd67e7802841c6e1a9715bc812347ceac797",
+    "internal/qualification594/main.go": "9460d5d6908d4d524b1604310619f8a47461634d0f338b1b801dbd9202f4ab1a",
+    "plugins/codex/skills/governance-workflow/SKILL.md": "d10d7e693899f9e987b0989ff879bdc617d59a5be99fbc9199510ff867fda187",
+    ".github/workflows/docs.yml": "9491d4dc851e9d3e24e6d9f9170cec99e923fd957db8d4d344bb502643f6392e",
+    ".github/workflows/contract_test.go": "829d2a8bb1bede41a837a86acc892cc21fc400bbe85bab252a03b215c3184334",
+    "plugins/codex/README.md": "fa12952b1ad28f9eb83221bf07fdd12c8ca7717c173ec6b7dd9a870d8a821a31",
+    "plugins/codex/scripts/package.py": "2c2aaec64fc48e95735316466155d56cf17a14b43800dc666e212d429659cca0",
+    "plugins/codex/tests/test_package.py": "074e259f651eea23a52e93c36635e1521388de0eece1a017eefdb78a71799f9d"
+  },
+  "superseded_attempt": {
+    "retained": true,
+    "state": "explicitly stopped",
+    "reason": "owner driver used a mismatched integration key for A; no historical ref or receipt was rewritten",
+    "counts_as_successful_qualification": false
+  },
+  "limits": [
+    "cooperative same-user governance; direct filesystem/shell access is not contained",
+    "opaque native host IDs are correlation, not cryptographically bound to credentials",
+    "private child profile delivery is explicit and manual, not automatically injected",
+    "provider usage and billing remain unknown; admission uses owner estimates",
+    "running-turn host cancellation and stable host dispatch-key lookup remain unverified",
+    "legacy dacli commit reports root/path_scope_unavailable in this native fixture; attribution comes from authenticated native attempt/revision and independent review",
+    "second actual host (including Antigravity) remains unverified"
+  ],
+  "validation": {
+    "state": "pending final integrated local bar; live qualification and producer mutation checks passed"
+  },
+  "capability_probe": {
+    "schema_version": 1,
+    "probe": "dacli-codex-native-dispatch/v1",
+    "observed_at": "2026-10-22T23:49:54.150447+00:00",
+    "host_version": "codex-cli 0.163.0-alpha.11",
+    "binary_sha256": "8a6dc3938a2f5d30cc19c50b9ccad83a5aa2ca4a2e3411665430bb78a917220a",
+    "client_protocol_sha256": "9ff8dcc6e37782a0d95cddf329e0b29a6f5e834f005cfa4f21c77a564e10e40b",
+    "declared_method_count": 175,
+    "app_server_dispatch": {
+      "agent/spawn": {
+        "declared_in_protocol": false,
+        "unknown_method_refusal_observed": true,
+        "status": "unsupported"
+      },
+      "collaboration/spawn_agent": {
+        "declared_in_protocol": false,
+        "unknown_method_refusal_observed": true,
+        "status": "unsupported"
+      }
+    },
+    "thread_config_schema": {
+      "ThreadStartParams": {
+        "config_field_declared": true,
+        "schema_sha256": "dc8bebec4181a5502fc141b0122cc48e066b3b5c77d9fd2a4de875fcd6d66a68"
+      },
+      "ThreadForkParams": {
+        "config_field_declared": true,
+        "schema_sha256": "3e6e6823df95f8e63f6a5582d20aed54374c099dc6d709b5ce28d0f99dc8e39e"
+      }
+    },
+    "native_collaboration": {
+      "status": "requires-native-host-attestation"
+    },
+    "private_child_profile_delivery": {
+      "status": "unverified"
+    },
+    "stable_dispatch_key_lookup": {
+      "status": "unverified"
+    },
+    "cancellation": {
+      "method_declared": true,
+      "recognized_method_refusal": true,
+      "running_turn_cancellation": "unverified"
+    },
+    "scope": {
+      "isolated_codex_home": true,
+      "thread_created": false,
+      "model_turn_requested": false,
+      "worker_credentials_read": false,
+      "native_child_dispatched": false
+    },
+    "app_server_exit_code": 0
+  },
+  "actual_native_swarm_exercised": true
+}
