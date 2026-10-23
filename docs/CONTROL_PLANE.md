@@ -91,6 +91,11 @@ source tree/diff, compiled test binary, actual PostgreSQL version and stage exit
 The proof covers database crash replay and a restore into a distinct empty
 database; it does not qualify the separate PostgreSQL 17.6 recovery-smoke image.
 
+The qualifier also exercises the [two-project signed-sync lifecycle](PROJECT_SYNC.md)
+through the composed API and a durable client, including paging across runtime
+reopen, exact replay and current device/member revocation. Native CLI/Keychain
+qualification is separate and uses a controlled loopback provider.
+
 The exact persistence, crash, retry, retention, and recovery contract is in the
 [worker boundary](CONTROL_PLANE_WORKER.md). The versioned, executable
 PostgreSQL restore, signing-key rotation, tenant-retention, and incident
