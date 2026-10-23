@@ -290,6 +290,77 @@ func TestLoginChallengeDeadlineWhileWaitingExpiresWithoutPolling(t *testing.T) {
 	}
 }
 
+func TestInstallAndWhoamiKeepServerExpirySeparateFromLocalClock(t *testing.T) {
+	for _, offset := range []time.Duration{-48 * time.Hour, 48 * time.Hour} {
+		t.Run(offset.String(), func(t *testing.T) {
+			const ttl = 10 * time.Minute
+			serverTime := time.Now().UTC().Add(offset).Truncate(time.Second)
+			public, _, err := ed25519.GenerateKey(rand.Reader)
+			if err != nil {
+				t.Fatal(err)
+			}
+			trusted := []Key{{ID: "server-key", PublicKey: base64.StdEncoding.EncodeToString(public)}}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/v1/auth/device":
+					_ = json.NewEncoder(w).Encode(map[string]any{"device_code": "device-secret-marker", "user_code": "human-code", "verification_uri": "https://identity.example/activate", "expires_in": int64(ttl.Seconds()), "interval": 1, "server_time": serverTime})
+				case "/v1/auth/token":
+					_ = json.NewEncoder(w).Encode(tokenResponse{TokenType: "Bearer", AccessToken: "access-secret-marker", RefreshToken: "refresh-secret-marker", ExpiresIn: int64(ttl.Seconds()), ServerTime: serverTime, TenantID: "tenant", AccountID: "account", DeviceID: "device", Scope: "device sync", SigningKeyID: "signing-key", ServerSigningKeys: trusted})
+				case "/v1/auth/whoami":
+					_ = json.NewEncoder(w).Encode(whoResponse{TenantID: "tenant", AccountID: "account", DeviceID: "device", Scope: "device sync", ExpiresAt: serverTime.Add(ttl), ServerTime: serverTime, SigningKeyID: "signing-key", ServerSigningKeys: trusted})
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+
+			store := newLifecycleStore()
+			home := canonicalTestHome(t)
+			t.Setenv("HOME", home)
+			t.Setenv("XDG_CONFIG_HOME", home)
+			started := time.Now()
+			installed, err := loginWithStore(context.Background(), server.URL, "tenant", "test-device", func(Challenge) error { return nil }, store, server.Client(), func(context.Context, time.Duration) error { return nil })
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertLocalExpiry(t, installed.LocalExpiresAt, started, ttl)
+			wantServerExpiry := serverTime.Add(ttl)
+			if !installed.ExpiresAt.Equal(wantServerExpiry) {
+				t.Fatalf("installed server expiry = %s, want %s", installed.ExpiresAt, wantServerExpiry)
+			}
+
+			client := &Client{provider: server.URL, metadata: installed, store: store, http: server.Client()}
+			whoStarted := time.Now()
+			confirmed, err := client.Whoami(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertLocalExpiry(t, confirmed.LocalExpiresAt, whoStarted, ttl)
+			if !confirmed.ExpiresAt.Equal(wantServerExpiry) {
+				t.Fatalf("whoami server expiry = %s, want %s", confirmed.ExpiresAt, wantServerExpiry)
+			}
+
+			metadataBytes, err := os.ReadFile(filepath.Join(mustMetadataDirectory(t), credentialKey(server.URL, "tenant", "device")+".json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, marker := range []string{"access-secret-marker", "refresh-secret-marker", "device-secret-marker"} {
+				if bytes.Contains(metadataBytes, []byte(marker)) {
+					t.Fatalf("public metadata exposed secret marker %q", marker)
+				}
+			}
+		})
+	}
+}
+
+func assertLocalExpiry(t *testing.T, got time.Time, started time.Time, ttl time.Duration) {
+	t.Helper()
+	want := started.Add(ttl - min(30*time.Second, ttl/10))
+	if delta := got.Sub(want); delta < -2*time.Second || delta > 2*time.Second {
+		t.Fatalf("local expiry %s is not relative to local clock (started %s, near %s; delta %s)", got, started, want, delta)
+	}
+}
+
 func TestSessionStringAndJSONRedactCredentials(t *testing.T) {
 	session := Session{access: "access-secret-marker", private: ed25519.NewKeyFromSeed(make([]byte, ed25519.SeedSize))}
 	encoded, err := json.Marshal(session)
@@ -316,16 +387,11 @@ func assertLogoutWithUnusableMetadata(t *testing.T, selectedMetadata []byte) {
 	home := canonicalTestHome(t)
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", home)
-	provider := "https://identity.example"
 	store := newLifecycleStore()
-	selectedKey := credentialKey(provider, "tenant", "device")
-	neighborKey := credentialKey(provider, "tenant", "other-device")
 	secret, err := json.Marshal(credentials{AccessToken: "access-secret-marker", RefreshToken: "refresh-secret-marker", PrivateKey: ed25519.NewKeyFromSeed(make([]byte, ed25519.SeedSize))})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = store.Put(selectedKey, secret)
-	_ = store.Put(neighborKey, []byte("neighbor credential"))
 	dir, err := metadataDirectory()
 	if err != nil {
 		t.Fatal(err)
@@ -333,6 +399,16 @@ func assertLogoutWithUnusableMetadata(t *testing.T, selectedMetadata []byte) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		t.Fatal(err)
 	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = io.WriteString(w, `{"error":"temporarily_unavailable"}`)
+	}))
+	defer server.Close()
+	provider := server.URL
+	selectedKey := credentialKey(provider, "tenant", "device")
+	neighborKey := credentialKey(provider, "tenant", "other-device")
+	_ = store.Put(selectedKey, secret)
+	_ = store.Put(neighborKey, []byte("neighbor credential"))
 	selectedMeta := filepath.Join(dir, selectedKey+".json")
 	neighborMeta := filepath.Join(dir, neighborKey+".json")
 	if selectedMetadata != nil {
@@ -343,11 +419,6 @@ func assertLogoutWithUnusableMetadata(t *testing.T, selectedMetadata []byte) {
 	if err := os.WriteFile(neighborMeta, []byte(`{"neighbor":true}`), 0600); err != nil {
 		t.Fatal(err)
 	}
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		_, _ = io.WriteString(w, `{"error":"temporarily_unavailable"}`)
-	}))
-	defer server.Close()
 	client, err := newLogoutClient(provider, "tenant", "device", store, server.Client())
 	if err != nil {
 		t.Fatal(err)
