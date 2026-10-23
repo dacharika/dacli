@@ -151,3 +151,32 @@ labels or test callbacks for actual native workers.
 
 The receipt's validation field records the final integrated local verification
 outcomes. Hosted CI is manually dispatched; this qualification dispatches none.
+
+## Final local verification
+
+Source `da2968a73e8c0bc659395c64cbb563e5c9237ec1` (tree `3982a8b11c8c2bcba21bbdff9b2d62ecf5cce686`) passed the
+local bar on Darwin arm64 with Go 1.26.10 and golangci-lint 2.12.2. The checkout
+remained clean and unchanged throughout verification. Formatting, vet, pinned
+lint, workflow contracts, actionlint including docs, both release configuration
+checks and shell syntax checks exited zero. All 17 plugin Python tests passed.
+
+The complete `go list ./...` package set passed: 91 packages ran together with
+`go test -p 2`; all 221 session top-level tests ran in four disjoint exhaustive
+partitions (56, 55, 55, 55). All 221 expected top-level tests produced passing terminal events; none failed
+or was skipped. The unpartitioned
+authority package had exceeded this machine's cumulative default ten-minute
+limit. The partitions preserve default timeouts and assertions; this receipt does
+not claim an unpartitioned `go test ./...` pass. The JSON records terminal counts
+and a hash of the complete local test receipt.
+
+Independent authority readback matched each tool receipt, verified separate root
+actor sessions and evidence/review freshness after the integration epoch, and
+found exactly three integrations, three canonical acceptances and three explicit
+recoveries. The dependent task was held in wave one. Provider usage remained
+nullable throughout. Four producer mutations failed at the named semantic
+assertions and the restored source passed; package omission and automatic docs
+trigger regressions also went red before their fixes.
+
+Finalization changes only these receipt notes and JSON metadata after the tested
+source revision. No Go, workflow or Python source changes follow that verified
+revision. Hosted CI remains manual and no hosted workflow was dispatched.

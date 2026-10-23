@@ -187,7 +187,188 @@
     "second actual host (including Antigravity) remains unverified"
   ],
   "validation": {
-    "state": "pending final integrated local bar; live qualification and producer mutation checks passed"
+    "state": "passed",
+    "tested_source_revision": "da2968a73e8c0bc659395c64cbb563e5c9237ec1",
+    "tested_source_tree": "3982a8b11c8c2bcba21bbdff9b2d62ecf5cce686",
+    "platform": "darwin/arm64",
+    "toolchain": "go1.26.10",
+    "golangci_lint": "2.12.2",
+    "source_unchanged_during_verification": true,
+    "finalization_scope": "Only this receipt and its Markdown notes are updated after the tested source revision; Go, workflow and Python sources retain their tested hashes.",
+    "checks": [
+      {
+        "name": "format",
+        "exit_code": 0
+      },
+      {
+        "name": "vet",
+        "exit_code": 0
+      },
+      {
+        "name": "lint",
+        "exit_code": 0
+      },
+      {
+        "name": "workflow-contracts",
+        "exit_code": 0
+      },
+      {
+        "name": "actionlint",
+        "exit_code": 0
+      },
+      {
+        "name": "native-config",
+        "exit_code": 0
+      },
+      {
+        "name": "portable-config",
+        "exit_code": 0
+      },
+      {
+        "name": "shell-syntax",
+        "exit_code": 0
+      },
+      {
+        "name": "docs-actionlint",
+        "exit_code": 0
+      }
+    ],
+    "go_suite": {
+      "result": "passed",
+      "package_count": 92,
+      "other_packages": {
+        "count": 91,
+        "command": "go test -p 2 <all go list ./... packages except internal/governance/sessions>",
+        "exit_code": 0
+      },
+      "session_tests": {
+        "inventory_count": 221,
+        "partition_count": 4,
+        "disjoint_exhaustive_coverage": true,
+        "command": "go test -json ./internal/governance/sessions -run <each exhaustive partition>",
+        "partitions": [
+          {
+            "name": "session-shard-1",
+            "expected": 56,
+            "terminal": {
+              "pass": 56
+            },
+            "exit_code": 0
+          },
+          {
+            "name": "session-shard-2",
+            "expected": 55,
+            "terminal": {
+              "pass": 55
+            },
+            "exit_code": 0
+          },
+          {
+            "name": "session-shard-3",
+            "expected": 55,
+            "terminal": {
+              "pass": 55
+            },
+            "exit_code": 0
+          },
+          {
+            "name": "session-shard-4",
+            "expected": 55,
+            "terminal": {
+              "pass": 55
+            },
+            "exit_code": 0
+          }
+        ]
+      },
+      "assertions_or_timeouts_weakened": false,
+      "partition_reason": "The unpartitioned authority package exceeded the cumulative default ten-minute limit on this machine; four exhaustive partitions retain the default timeout and assertions.",
+      "full_receipt_sha256": "08b7fc650b79b5e374047416f5487934021cee6bd975836e5e86305796067cdc"
+    },
+    "plugin_tests": {
+      "command": "python3 -m unittest discover -s plugins/codex/tests -v",
+      "tests": 17,
+      "exit_code": 0
+    },
+    "producer_mutations": [
+      {
+        "case": "dispatch-lease",
+        "semantic_failure": "acknowledgement replay lost or changed lease authority",
+        "mutated_result": "failed",
+        "restored_result": "passed",
+        "red_log_sha256": "1b37d34504f4f88a23717d96065c2c89c6467c1d00748454a3080d2f7d8bdc5e"
+      },
+      {
+        "case": "lifecycle-byte",
+        "semantic_failure": "lifecycle replay rewrote authority bytes",
+        "mutated_result": "failed",
+        "restored_result": "passed",
+        "red_log_sha256": "c9f8e599f7984d093cac9bc70080e1577dd0bb31c3c2d9fc20a3f19e917dac52"
+      },
+      {
+        "case": "review-eligibility",
+        "semantic_failure": "committed review is not eligible",
+        "mutated_result": "failed",
+        "restored_result": "passed",
+        "red_log_sha256": "73fc4ee374e4a14b341fab96452c227ad8c0869b8f78e30d30c808e461914c74"
+      },
+      {
+        "case": "verification",
+        "semantic_failure": "exact retry failed",
+        "mutated_result": "failed",
+        "restored_result": "passed",
+        "red_log_sha256": "c4ba4d6993c9b4a218e10ba15c2993bb3db22e45bb883a2d5658ec782c455b1e"
+      }
+    ],
+    "package_regression": {
+      "before": "current native-swarm JSON omitted from archive; new test failed",
+      "after": "current receipt files included; all 17 plugin tests passed"
+    },
+    "workflow_regression": {
+      "before": "manual-only contract rejected docs push trigger",
+      "after": "docs workflow_dispatch only; contract and actionlint passed"
+    },
+    "independent_live_readback": {
+      "schema": "dacli-native-qualification-independent-readback/v1",
+      "facts": [
+        {
+          "task": "a",
+          "exact_authority_matches_tool_receipts": true,
+          "independent_root_sessions": true,
+          "fresh_evidence_and_review_after_integration_epoch": true,
+          "canonical_closed_with_released_lease": true
+        },
+        {
+          "task": "b",
+          "exact_authority_matches_tool_receipts": true,
+          "independent_root_sessions": true,
+          "fresh_evidence_and_review_after_integration_epoch": true,
+          "canonical_closed_with_released_lease": true
+        },
+        {
+          "task": "c",
+          "exact_authority_matches_tool_receipts": true,
+          "independent_root_sessions": true,
+          "fresh_evidence_and_review_after_integration_epoch": true,
+          "canonical_closed_with_released_lease": true
+        }
+      ],
+      "actual_integration_count": 3,
+      "actual_acceptance_count": 3,
+      "recovery_count": 3,
+      "provider_usage": "unknown-null",
+      "source": "read-only authority and canonical producer readback; credential hashes excluded"
+    },
+    "dependency_readback": {
+      "dependent_task": "t-01M5K1JDVNJJAT5MQ5608H4XMK",
+      "held_at_first_wave": true,
+      "first_wave_tasks": [
+        "t-01M5K1JDTJ87CY14AR5EMECCW4",
+        "t-01M5K1JDV3H27AJTVDBDJVEFG3"
+      ],
+      "terminal_waves": 2
+    },
+    "hosted_workflows_dispatched": 0
   },
   "capability_probe": {
     "schema_version": 1,
