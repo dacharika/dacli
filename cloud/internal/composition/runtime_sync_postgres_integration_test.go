@@ -38,7 +38,7 @@ func TestHostedPostgresProjectSync(t *testing.T) {
 	const ownerDSN = "postgres://qualification_owner@/qualification_sync?host=/var/run/postgresql&sslmode=disable"
 	const appDSN = "postgres://qualification_app@/qualification_sync?host=/var/run/postgresql&sslmode=disable"
 	owner := pgSyncOpen(t, ctx, ownerDSN)
-	defer owner.Close()
+	defer func() { _ = owner.Close() }()
 	catalog, err := migrations.Load(os.DirFS("/qualification/migrations"))
 	if err != nil || len(catalog) != 11 {
 		t.Fatalf("load schema 11 catalog: count=%d err=%v", len(catalog), err)
@@ -50,7 +50,7 @@ func TestHostedPostgresProjectSync(t *testing.T) {
 		t.Fatal(err)
 	}
 	app := pgSyncOpen(t, ctx, appDSN)
-	defer app.Close()
+	defer func() { _ = app.Close() }()
 	pgSyncSeed(t, ctx, owner)
 	repo, err := tenantrepo.Open(ctx, app)
 	if err != nil {
