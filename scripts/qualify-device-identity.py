@@ -74,6 +74,8 @@ def json_output(result: subprocess.CompletedProcess[bytes], label: str) -> dict[
 class Qualification:
     def __init__(self, binary: Path, arch: str, evidence_dir: Path) -> None:
         self.binary = binary.resolve(strict=True)
+        # None uses the provider's two-second default for lifecycle expiry checks.
+        self.provider_access_ttl: str | None = None
         self.arch = arch
         self.evidence_dir = evidence_dir.resolve()
         self.temp = Path(tempfile.mkdtemp(prefix="dacli-device-identity-", dir="/private/tmp"))
@@ -124,8 +126,11 @@ class Qualification:
             raise QualificationError("synthetic provider build failed")
         self.outputs.extend((built.stdout, built.stderr))
         self._scan()
+        provider_argv = [str(provider_binary)]
+        if self.provider_access_ttl is not None:
+            provider_argv.extend(["--access-ttl", self.provider_access_ttl])
         self.provider = subprocess.Popen(
-            [str(provider_binary)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            provider_argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             env=os.environ.copy(),
         )
         self.processes.append(self.provider)
