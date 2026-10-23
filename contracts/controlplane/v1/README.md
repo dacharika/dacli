@@ -24,6 +24,24 @@ the producer sequence. Gaps and reordered records may be stored and applied
 when their object `base_version` matches. A mismatch is an optimistic-version
 conflict requiring a new proposal; it never overwrites local state.
 
+For local v1 consumers, the verified producer stream is the route tuple
+`(tenant_id, project_id, integrity.key_id)`. Sequence cursors and gaps are
+independent per stream; a project-wide numeric cursor is only a diagnostic
+summary and never sequence identity authority. A duplicate requires exact
+equality of the complete canonical signed envelope. Reuse of an event ID,
+idempotency key, or same-stream sequence with different content is refused.
+Consumers reconstruct per-stream cursors and immutable identity indexes from
+retained inbox rows before recovering state after restart. A conflicting
+historical stream or a bad signature for a currently trusted key refuses
+startup without changing history. An unknown or revoked key's rows remain
+reserved and block that stream without advancing its contiguous cursor, even
+when the retained sequences are consecutive. They remain blocked if the key is
+later configured again, until an explicit history reconciliation. Legacy
+state-only event and idempotency reservations cannot establish exact equality
+and therefore refuse matching new data. The HTTP `delivery_cursor` is an
+independent opaque server continuation;
+it is not a producer sequence cursor.
+
 ## Metadata allowlist
 
 The payload schemas are closed with `additionalProperties: false`; their named

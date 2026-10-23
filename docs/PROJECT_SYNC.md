@@ -56,6 +56,33 @@ ULIDs before they can become inbox paths. Malformed envelopes cannot advance
 cursor state or write outside the inbox. Local acceptance remains a separate,
 owner-authorized action.
 
+Inbound producer streams are scoped to the routed tenant, project and verified
+`integrity.key_id`. Each trusted signing key has its own contiguous sequence and
+gap set, so two signers may both begin at sequence 1 without advancing or
+blocking each other. The local numeric `inbound_cursor` and wire `cursor` keep
+their v1 scalar shape for compatibility; `last_sequence` is the maximum
+contiguous sequence among retained local streams (or the legacy value when no
+inbox history exists). It is diagnostic only and does not identify a producer
+or authorize replay. The server's opaque `delivery_cursor` remains a separate
+transport continuation and is preserved independently.
+
+An inbound retry is a duplicate only when its full canonical signed envelope
+matches retained history. Reusing an event ID, idempotency key, or a producer
+sequence within the same signer stream with different content is refused before
+the inbox or cursor changes. On startup, the client rebuilds indexes and
+per-signer cursors from immutable inbox rows before saving any recovered state;
+this also completes a row persisted just before a process interruption. A
+historical same-stream sequence collision or invalid signature from a currently
+trusted key stops startup without rewriting state or inbox rows. Rows whose key
+is no longer trusted are retained as identity reservations and mark that stream
+untrusted; they do not advance its contiguous sequence cursor even when the
+retained rows are consecutive. If that key is later added to the trust set, new
+events from that stream remain refused pending explicit history
+reconciliation. Legacy cursor event and idempotency lists without matching
+inbox rows remain conservative reservations: a matching new event is refused
+because the old envelope cannot be proven exactly equal. A legacy scalar
+sequence never seeds a signer's replay authority.
+
 Disconnect preserves a local tombstone and immutable generation history. It
 queues a signed disconnect when the local signer is available; a later reconnect
 signs and replays a transition that could not be queued at disconnect, in order. Reconnect accepts only

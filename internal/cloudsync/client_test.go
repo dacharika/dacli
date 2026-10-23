@@ -171,6 +171,17 @@ func TestReceiveFixturesAndSecurityChecks(t *testing.T) {
 			if !fixture.Event.SignatureValid {
 				e.Payload[1] ^= 1
 			}
+			if fixture.Outcome == string(OutcomeDuplicate) && fixture.Event.SignatureValid {
+				// A duplicate is an exact retry of a retained signed envelope. The
+				// legacy fixture's seen-ID list alone cannot prove content equality.
+				if err := client.persistInbound(e); err != nil {
+					t.Fatal(err)
+				}
+				client, err = Open(client.root, cfg)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
 			before, err := stateBytes(client.root)
 			if err != nil {
 				t.Fatal(err)
