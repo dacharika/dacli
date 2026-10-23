@@ -64,12 +64,20 @@ archives, checksums and SBOMs, then exercises extracted Darwin binaries through
 a loopback fixture. The extended lifecycle check is optional and local:
 
 ```sh
-python3 scripts/qualify-device-identity.py --help
+python3 scripts/qualify-device-identity.py \
+  --binary /path/to/extracted/dacli --arch arm64 \
+  --evidence-dir /private/tmp/dacli-device-identity-evidence
 ```
 
-Use its advertised arguments with the extracted executable and a private evidence
-directory. It exercises native Keychain access through the ordinary auth commands
-with controlled identities. The provider fixture is synthetic; it does not log
+Repeat with the corresponding `amd64` executable and a separate evidence
+directory; Apple Silicon needs Rosetta for that architecture. The check exits 77
+when the host cannot execute the selected architecture. It exercises native
+Keychain access through the ordinary auth commands with controlled identities,
+short-lived refresh, revoked/offline outcomes, exact tenant isolation and
+missing/corrupt metadata logout. Its mode-0600 JSON report records sanitized
+results; synthetic secret values remain in process memory and are scanned
+against captured outputs, sampled process arguments and temporary profile files.
+The provider fixture is synthetic; it does not log
 into an external identity service or certify a deployed control plane. Provider
 adapter tests separately exercise the OAuth device/token/UserInfo HTTP boundary,
 and service tests exercise refresh rotation, replay and revocation.
