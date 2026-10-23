@@ -101,17 +101,34 @@ func (p *HTTPProvider) request(ctx context.Context, endpoint string, values url.
 func (p *HTTPProvider) Begin(ctx context.Context) (Challenge, error) {
 	var c Challenge
 	e := p.request(ctx, p.config.DeviceURL, url.Values{"client_id": {p.config.ClientID}, "scope": {p.config.Scope}}, "", &c)
-	u, ue := url.Parse(c.VerificationURI)
 	if e != nil {
 		return c, e
 	}
-	if c.DeviceCode == "" || c.UserCode == "" || c.ExpiresIn < 1 || c.ExpiresIn > 1800 || c.Interval < 0 || c.Interval > 60 || ue != nil || u.Scheme != "https" || u.User != nil {
+	if !validChallenge(c) {
 		return Challenge{}, ErrDenied
 	}
 	if c.Interval == 0 {
 		c.Interval = 5
 	}
 	return c, nil
+}
+
+func validChallenge(c Challenge) bool {
+	u, err := url.Parse(c.VerificationURI)
+	if err != nil || c.DeviceCode == "" || len(c.DeviceCode) > 4096 || c.UserCode == "" || len(c.UserCode) > 128 || c.DeviceCode == c.UserCode || strings.Contains(c.UserCode, c.DeviceCode) || c.ExpiresIn < 1 || c.ExpiresIn > 1800 || c.Interval < 0 || c.Interval > 60 || len(c.VerificationURI) > 2048 || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.Fragment != "" || strings.Contains(c.VerificationURI, c.DeviceCode) {
+		return false
+	}
+	for key, values := range u.Query() {
+		if strings.Contains(key, c.DeviceCode) {
+			return false
+		}
+		for _, value := range values {
+			if strings.Contains(value, c.DeviceCode) {
+				return false
+			}
+		}
+	}
+	return true
 }
 func (p *HTTPProvider) Poll(ctx context.Context, code string) (string, error) {
 	var token struct {
