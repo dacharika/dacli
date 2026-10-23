@@ -177,7 +177,7 @@ func readRoleRegistryFile(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	info, err := file.Stat()
 	if err != nil || !info.Mode().IsRegular() || info.Size() > roleRegistryMaxFile {
 		return nil, ErrRoleRegistry
@@ -304,7 +304,7 @@ func (r *RoleRegistry) storeLifecycleLocked(status rolebundle.LifecycleStatus, n
 		return err
 	}
 	var previous *rolebundle.LifecycleStatus
-	var revoked map[string]bool = map[string]bool{}
+	revoked := map[string]bool{}
 	for i := range history {
 		item := history[i]
 		if item.Verify(r.publishers, item.IssuedAt) != nil {
