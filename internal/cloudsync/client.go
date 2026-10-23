@@ -27,6 +27,8 @@ var (
 	ErrUnsupportedVersion = errors.New("unsupported control-plane schema version")
 	ErrReplay             = errors.New("control-plane event is below the replay floor")
 	ErrInvalidPayload     = errors.New("payload is outside the control-plane metadata allowlist")
+	ErrInboundCollision   = errors.New("inbound event identity collides with different content")
+	ErrUntrustedHistory   = errors.New("inbound producer has untrusted historical data")
 )
 
 type Integrity struct {
@@ -68,17 +70,38 @@ type Config struct {
 }
 
 type persistentState struct {
-	NextSequence         uint64          `json:"next_sequence"`
-	AcknowledgedSequence uint64          `json:"acknowledged_sequence"`
-	Cursor               Cursor          `json:"cursor"`
-	AcceptedSequences    map[uint64]bool `json:"accepted_sequences,omitempty"`
+	NextSequence         uint64                        `json:"next_sequence"`
+	AcknowledgedSequence uint64                        `json:"acknowledged_sequence"`
+	Cursor               Cursor                        `json:"cursor"`
+	AcceptedSequences    map[uint64]bool               `json:"accepted_sequences,omitempty"`
+	InboundStreams       map[string]inboundStreamState `json:"inbound_streams,omitempty"`
+	UntrustedStreams     map[string]bool               `json:"untrusted_streams,omitempty"`
+}
+
+type inboundStreamState struct {
+	LastSequence      uint64          `json:"last_sequence"`
+	AcceptedSequences map[uint64]bool `json:"accepted_sequences,omitempty"`
+}
+
+type inboundIdentity struct {
+	canonical string
+	stream    string
+	sequence  uint64
 }
 
 type Client struct {
-	mu     sync.Mutex
-	root   string
-	config Config
-	state  persistentState
+	mu                      sync.Mutex
+	root                    string
+	config                  Config
+	state                   persistentState
+	inboundByEventID        map[string]inboundIdentity
+	inboundByIdempotency    map[string]inboundIdentity
+	inboundBySequence       map[string]map[uint64]inboundIdentity
+	legacyEventReservations map[string]bool
+	legacyIdemReservations  map[string]bool
+	pendingInbound          map[string]Envelope
+	pendingInboundSave      bool
+	legacyCursorFallback    uint64
 }
 
 func Open(root string, config Config) (*Client, error) {
@@ -96,19 +119,30 @@ func Open(root string, config Config) (*Client, error) {
 			return nil, err
 		}
 	}
-	c := &Client{root: root, config: config, state: persistentState{NextSequence: 1, Cursor: config.Cursor, AcceptedSequences: make(map[uint64]bool)}}
+	c := &Client{
+		root: root, config: config,
+		state:            persistentState{NextSequence: 1, Cursor: config.Cursor, AcceptedSequences: make(map[uint64]bool)},
+		inboundByEventID: make(map[string]inboundIdentity), inboundByIdempotency: make(map[string]inboundIdentity),
+		inboundBySequence:       make(map[string]map[uint64]inboundIdentity),
+		legacyEventReservations: make(map[string]bool), legacyIdemReservations: make(map[string]bool),
+		pendingInbound: make(map[string]Envelope),
+	}
 	path := filepath.Join(root, "state.json")
+	var priorStateBytes []byte
+	stateExists := true
 	if raw, err := os.ReadFile(path); err == nil {
+		priorStateBytes = raw
 		if err := json.Unmarshal(raw, &c.state); err != nil {
 			return nil, fmt.Errorf("read cloudsync state: %w", err)
 		}
 		if c.state.AcceptedSequences == nil {
 			c.state.AcceptedSequences = make(map[uint64]bool)
 		}
-	} else if errors.Is(err, os.ErrNotExist) {
-		if err := writeJSONAtomic(path, c.state); err != nil {
-			return nil, err
+		if c.state.UntrustedStreams == nil {
+			c.state.UntrustedStreams = make(map[string]bool)
 		}
+	} else if errors.Is(err, os.ErrNotExist) {
+		stateExists = false
 	} else {
 		return nil, err
 	}
@@ -136,6 +170,32 @@ func Open(root string, config Config) (*Client, error) {
 	}
 	if c.state.NextSequence != last+1 {
 		c.state.NextSequence = last + 1
+	}
+	if c.state.AcceptedSequences == nil {
+		c.state.AcceptedSequences = make(map[uint64]bool)
+	}
+	if c.state.UntrustedStreams == nil {
+		c.state.UntrustedStreams = make(map[string]bool)
+	}
+	if c.state.InboundStreams == nil {
+		c.state.InboundStreams = make(map[string]inboundStreamState)
+	}
+	if c.state.Cursor.MinimumSchemaVersion == 0 {
+		c.state.Cursor.MinimumSchemaVersion = config.Cursor.MinimumSchemaVersion
+	}
+	if c.state.Cursor.MaximumSchemaVersion == 0 {
+		c.state.Cursor.MaximumSchemaVersion = config.Cursor.MaximumSchemaVersion
+	}
+	if err := c.rebuildInboundIndexes(config.TrustedKeys); err != nil {
+		return nil, err
+	}
+	if len(c.state.InboundStreams) == 0 {
+		// A legacy scalar may classify old cursor-only installations, but once
+		// durable producer streams exist it must not override their summary or
+		// outcome for an independent signer's sequence 1.
+		c.legacyCursorFallback = c.state.Cursor.LastSequence
+	}
+	if !stateExists || !bytes.Equal(bytes.TrimSpace(priorStateBytes), mustJSON(c.state)) {
 		if err := c.save(); err != nil {
 			return nil, err
 		}
@@ -214,6 +274,7 @@ const (
 	OutcomeIncompatible Outcome = "refuse-incompatible"
 	OutcomeReplay       Outcome = "refuse-replay"
 	OutcomeTampered     Outcome = "refuse-tampered"
+	OutcomeCollision    Outcome = "refuse-collision"
 )
 
 func (c *Client) Receive(e Envelope) (Outcome, error) {
@@ -233,34 +294,363 @@ func (c *Client) Receive(e Envelope) (Outcome, error) {
 	if err := validatePayload(e.EventType, e.Payload); err != nil {
 		return OutcomeTampered, err
 	}
-	if contains(c.state.Cursor.SeenEventIDs, e.EventID) || contains(c.state.Cursor.SeenIdempotency, e.IdempotencyKey) {
+	stream := inboundStreamID(e)
+	if c.state.UntrustedStreams[stream] {
+		return OutcomeUntrusted, ErrUntrustedHistory
+	}
+	canonical, err := inboundCanonical(e)
+	if err != nil {
+		return OutcomeTampered, err
+	}
+	identity := inboundIdentity{canonical: canonical, stream: stream, sequence: e.ProducerSequence}
+	if old, ok := c.inboundByEventID[e.EventID]; ok {
+		if old.canonical != canonical {
+			return OutcomeCollision, ErrInboundCollision
+		}
+		if c.pendingInboundSave {
+			if err := c.commitPendingInbound(); err != nil {
+				return "", err
+			}
+		}
 		return OutcomeDuplicate, nil
+	}
+	if old, ok := c.inboundByIdempotency[e.IdempotencyKey]; ok {
+		if old.canonical != canonical {
+			return OutcomeCollision, ErrInboundCollision
+		}
+		if c.pendingInboundSave {
+			if err := c.commitPendingInbound(); err != nil {
+				return "", err
+			}
+		}
+		return OutcomeDuplicate, nil
+	}
+	if old, ok := c.inboundBySequence[stream][e.ProducerSequence]; ok {
+		if old.canonical != canonical {
+			return OutcomeCollision, ErrInboundCollision
+		}
+		if c.pendingInboundSave {
+			if err := c.commitPendingInbound(); err != nil {
+				return "", err
+			}
+		}
+		return OutcomeDuplicate, nil
+	}
+	if c.legacyEventReservations[e.EventID] || c.legacyIdemReservations[e.IdempotencyKey] {
+		return OutcomeCollision, ErrInboundCollision
 	}
 	if e.ProducerSequence < c.state.Cursor.ReplayFloor {
 		return OutcomeReplay, ErrReplay
 	}
+	streamState := c.state.InboundStreams[stream]
+	if e.ProducerSequence <= streamState.LastSequence || streamState.AcceptedSequences[e.ProducerSequence] {
+		// The exact retained envelope checks above are the only way to return a
+		// duplicate. A sequence reservation whose payload expired still refuses
+		// reuse, but cannot claim the new envelope is equal to the old one.
+		return OutcomeReplay, ErrReplay
+	}
+	if c.pendingInboundSave {
+		if err := c.commitPendingInbound(); err != nil {
+			return "", err
+		}
+	}
 	outcome := OutcomeAccepted
-	if e.ProducerSequence <= c.state.Cursor.LastSequence {
+	if streamState.LastSequence == 0 && c.legacyCursorFallback > 0 && e.ProducerSequence <= c.legacyCursorFallback {
 		outcome = OutcomeReordered
 	}
 	if err := c.persistInbound(e); err != nil {
 		return "", err
 	}
-	old := c.state
-	old.Cursor = cloneCursor(c.state.Cursor)
-	old.AcceptedSequences = cloneSequences(c.state.AcceptedSequences)
-	c.state.Cursor.SeenEventIDs = append(c.state.Cursor.SeenEventIDs, e.EventID)
-	c.state.Cursor.SeenIdempotency = append(c.state.Cursor.SeenIdempotency, e.IdempotencyKey)
-	c.state.AcceptedSequences[e.ProducerSequence] = true
-	for c.state.AcceptedSequences[c.state.Cursor.LastSequence+1] {
-		c.state.Cursor.LastSequence++
-		delete(c.state.AcceptedSequences, c.state.Cursor.LastSequence)
-	}
+	c.addInboundIndex(e, identity)
+	c.pendingInbound[e.EventID] = e
+	c.pendingInboundSave = true
+	old := clonePersistentState(c.state)
+	c.applyInbound(e)
 	if err := c.save(); err != nil {
 		c.state = old
 		return "", err
 	}
+	delete(c.pendingInbound, e.EventID)
+	c.pendingInboundSave = len(c.pendingInbound) > 0
+	c.legacyCursorFallback = 0
 	return outcome, nil
+}
+
+const OutcomeUntrusted Outcome = "refuse-untrusted-history"
+
+func (c *Client) rebuildInboundIndexes(keys map[string]ed25519.PublicKey) error {
+	legacyEventIDs := append([]string(nil), c.state.Cursor.SeenEventIDs...)
+	legacyIdempotency := append([]string(nil), c.state.Cursor.SeenIdempotency...)
+	rows, err := c.inbox()
+	if err != nil {
+		return err
+	}
+	// The signed inbox payloads expire, but the durable per-stream cursor and
+	// gaps are replay reservations and outlive those rows. Only import state for
+	// a stream derived from this route; an unknown or revoked key is latched in
+	// quarantine instead of being allowed to seed fresh authority if it returns.
+	untrusted := make(map[string]bool)
+	for stream, blocked := range c.state.UntrustedStreams {
+		if blocked {
+			if _, ok := inboundStreamKeyID(stream, c.config.TenantID, c.config.ProjectID); ok {
+				untrusted[stream] = true
+			}
+		}
+	}
+	for stream := range c.state.InboundStreams {
+		keyID, ok := inboundStreamKeyID(stream, c.config.TenantID, c.config.ProjectID)
+		if !ok {
+			continue
+		}
+		if _, trusted := keys[keyID]; !trusted {
+			untrusted[stream] = true
+		}
+	}
+	streams := make(map[string]inboundStreamState, len(c.state.InboundStreams))
+	for stream, prior := range c.state.InboundStreams {
+		keyID, ok := inboundStreamKeyID(stream, c.config.TenantID, c.config.ProjectID)
+		if !ok {
+			continue
+		}
+		_, trusted := keys[keyID]
+		if !trusted && !untrusted[stream] {
+			continue
+		}
+		prior.AcceptedSequences = cloneSequences(prior.AcceptedSequences)
+		streams[stream] = prior
+	}
+	c.state.UntrustedStreams = untrusted
+	for _, row := range rows {
+		if row.TenantID != c.config.TenantID || row.ProjectID != c.config.ProjectID || validateEnvelopeFields(row) != nil || row.SchemaVersion < c.state.Cursor.MinimumSchemaVersion || row.SchemaVersion > c.state.Cursor.MaximumSchemaVersion || validatePayload(row.EventType, row.Payload) != nil {
+			return fmt.Errorf("invalid immutable inbound history")
+		}
+		signature, signatureErr := base64.StdEncoding.DecodeString(row.Integrity.Signature)
+		if row.Integrity.Algorithm != "Ed25519" || signatureErr != nil || len(signature) != ed25519.SignatureSize {
+			return fmt.Errorf("invalid immutable inbound signature encoding")
+		}
+		if _, trusted := keys[row.Integrity.KeyID]; trusted {
+			if !Verify(row, keys) {
+				return fmt.Errorf("invalid signature in immutable inbound history")
+			}
+		} else {
+			// Retain identities for revoked/unknown signers, but never let their
+			// history authorize new data if the key is later configured again.
+			c.state.UntrustedStreams[inboundStreamID(row)] = true
+		}
+		canonical, err := inboundCanonical(row)
+		if err != nil {
+			return fmt.Errorf("invalid immutable inbound history: %w", err)
+		}
+		identity := inboundIdentity{canonical: canonical, stream: inboundStreamID(row), sequence: row.ProducerSequence}
+		if prior, ok := c.inboundByEventID[row.EventID]; ok && prior.canonical != canonical {
+			return fmt.Errorf("immutable inbound event ID collision: %w", ErrInboundCollision)
+		}
+		if prior, ok := c.inboundByIdempotency[row.IdempotencyKey]; ok && prior.canonical != canonical {
+			return fmt.Errorf("immutable inbound idempotency collision: %w", ErrInboundCollision)
+		}
+		if prior, ok := c.inboundBySequence[identity.stream][identity.sequence]; ok && prior.canonical != canonical {
+			return fmt.Errorf("immutable inbound producer sequence collision: %w", ErrInboundCollision)
+		}
+		c.addInboundIndex(row, identity)
+		streamState := streams[identity.stream]
+		if streamState.AcceptedSequences == nil {
+			streamState.AcceptedSequences = make(map[uint64]bool)
+		}
+		if row.ProducerSequence > streamState.LastSequence {
+			streamState.AcceptedSequences[row.ProducerSequence] = true
+		}
+		streams[identity.stream] = streamState
+	}
+	for key, streamState := range streams {
+		if c.state.UntrustedStreams[key] {
+			// Retained identities from a revoked or unknown key do not grant
+			// sequence progress, even when the quarantined rows are contiguous.
+			continue
+		}
+		for streamState.AcceptedSequences[streamState.LastSequence+1] {
+			streamState.LastSequence++
+			delete(streamState.AcceptedSequences, streamState.LastSequence)
+		}
+		streams[key] = streamState
+	}
+	c.state.InboundStreams = streams
+	c.state.AcceptedSequences = make(map[uint64]bool) // Legacy unscoped sequences carry no producer authority.
+	seenEvent := make(map[string]bool, len(legacyEventIDs))
+	seenIdem := make(map[string]bool, len(legacyIdempotency))
+	for _, id := range legacyEventIDs {
+		if !seenEvent[id] {
+			c.state.Cursor.SeenEventIDs = appendUnique(c.state.Cursor.SeenEventIDs, id)
+			seenEvent[id] = true
+		}
+		if _, found := c.inboundByEventID[id]; !found {
+			c.legacyEventReservations[id] = true
+		}
+	}
+	for _, key := range legacyIdempotency {
+		if !seenIdem[key] {
+			c.state.Cursor.SeenIdempotency = appendUnique(c.state.Cursor.SeenIdempotency, key)
+			seenIdem[key] = true
+		}
+		if _, found := c.inboundByIdempotency[key]; !found {
+			c.legacyIdemReservations[key] = true
+		}
+	}
+	for _, row := range rows {
+		if !seenEvent[row.EventID] {
+			c.state.Cursor.SeenEventIDs = append(c.state.Cursor.SeenEventIDs, row.EventID)
+			seenEvent[row.EventID] = true
+		}
+		if !seenIdem[row.IdempotencyKey] {
+			c.state.Cursor.SeenIdempotency = append(c.state.Cursor.SeenIdempotency, row.IdempotencyKey)
+			seenIdem[row.IdempotencyKey] = true
+		}
+	}
+	if len(streams) > 0 {
+		var max uint64
+		for stream, streamState := range streams {
+			if c.state.UntrustedStreams[stream] {
+				continue
+			}
+			if streamState.LastSequence > max {
+				max = streamState.LastSequence
+			}
+		}
+		c.state.Cursor.LastSequence = max
+	} else if len(rows) > 0 {
+		c.state.Cursor.LastSequence = 0
+	}
+	return nil
+}
+
+func (c *Client) inbox() ([]Envelope, error) {
+	entries, err := os.ReadDir(filepath.Join(c.root, "inbox"))
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]Envelope, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		path := filepath.Join(c.root, "inbox", entry.Name())
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		var row Envelope
+		if err := json.Unmarshal(raw, &row); err != nil {
+			return nil, fmt.Errorf("read immutable inbound history %s: %w", entry.Name(), err)
+		}
+		if entry.Name() != row.EventID+".json" {
+			return nil, fmt.Errorf("immutable inbound history filename does not match event ID")
+		}
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
+func (c *Client) addInboundIndex(e Envelope, identity inboundIdentity) {
+	c.inboundByEventID[e.EventID] = identity
+	c.inboundByIdempotency[e.IdempotencyKey] = identity
+	bySequence := c.inboundBySequence[identity.stream]
+	if bySequence == nil {
+		bySequence = make(map[uint64]inboundIdentity)
+		c.inboundBySequence[identity.stream] = bySequence
+	}
+	bySequence[identity.sequence] = identity
+}
+
+func (c *Client) applyInbound(e Envelope) {
+	// The immutable indexes checked admission, so new rows cannot already be
+	// present in these append-only compatibility lists.
+	c.state.Cursor.SeenEventIDs = append(c.state.Cursor.SeenEventIDs, e.EventID)
+	c.state.Cursor.SeenIdempotency = append(c.state.Cursor.SeenIdempotency, e.IdempotencyKey)
+	stream := inboundStreamID(e)
+	streamState := c.state.InboundStreams[stream]
+	if streamState.AcceptedSequences == nil {
+		streamState.AcceptedSequences = make(map[uint64]bool)
+	}
+	streamState.AcceptedSequences[e.ProducerSequence] = true
+	for streamState.AcceptedSequences[streamState.LastSequence+1] {
+		streamState.LastSequence++
+		delete(streamState.AcceptedSequences, streamState.LastSequence)
+	}
+	c.state.InboundStreams[stream] = streamState
+	if c.legacyCursorFallback > 0 {
+		c.state.Cursor.LastSequence = streamState.LastSequence
+	} else if streamState.LastSequence > c.state.Cursor.LastSequence {
+		c.state.Cursor.LastSequence = streamState.LastSequence
+	}
+}
+
+func (c *Client) commitPendingInbound() error {
+	if len(c.pendingInbound) == 0 {
+		c.pendingInboundSave = false
+		return nil
+	}
+	old := clonePersistentState(c.state)
+	for _, e := range c.pendingInbound {
+		c.applyInbound(e)
+	}
+	if err := c.save(); err != nil {
+		c.state = old
+		return err
+	}
+	c.pendingInbound = make(map[string]Envelope)
+	c.pendingInboundSave = false
+	c.legacyCursorFallback = 0
+	return nil
+}
+
+func inboundCanonical(e Envelope) (string, error) {
+	canonical, err := canonicalEnvelope(e)
+	if err != nil {
+		return "", err
+	}
+	return string(canonical), nil
+}
+
+func inboundStreamID(e Envelope) string {
+	return inboundStreamIDFor(e.TenantID, e.ProjectID, e.Integrity.KeyID)
+}
+
+func inboundStreamIDFor(tenantID, projectID, keyID string) string {
+	key, _ := json.Marshal([]string{tenantID, projectID, keyID})
+	return string(key)
+}
+
+func inboundStreamKeyID(stream, tenantID, projectID string) (string, bool) {
+	var route []string
+	if err := json.Unmarshal([]byte(stream), &route); err != nil || len(route) != 3 || route[0] != tenantID || route[1] != projectID || route[2] == "" {
+		return "", false
+	}
+	if inboundStreamIDFor(route[0], route[1], route[2]) != stream {
+		return "", false
+	}
+	return route[2], true
+}
+
+func appendUnique(values []string, value string) []string {
+	if !contains(values, value) {
+		return append(values, value)
+	}
+	return values
+}
+
+func clonePersistentState(in persistentState) persistentState {
+	out := in
+	out.Cursor = cloneCursor(in.Cursor)
+	out.AcceptedSequences = cloneSequences(in.AcceptedSequences)
+	out.InboundStreams = make(map[string]inboundStreamState, len(in.InboundStreams))
+	for key, stream := range in.InboundStreams {
+		stream.AcceptedSequences = cloneSequences(stream.AcceptedSequences)
+		out.InboundStreams[key] = stream
+	}
+	out.UntrustedStreams = make(map[string]bool, len(in.UntrustedStreams))
+	for key, blocked := range in.UntrustedStreams {
+		out.UntrustedStreams[key] = blocked
+	}
+	return out
 }
 
 // validateEnvelopeFields enforces the required v1 envelope fields before an
@@ -508,8 +898,13 @@ func (c *Client) persistInbound(e Envelope) error {
 		return readErr
 	}
 	var old Envelope
-	if json.Unmarshal(raw, &old) != nil || !bytes.Equal(mustJSON(old), mustJSON(e)) {
-		return errors.New("inbound event id collides with different content")
+	if json.Unmarshal(raw, &old) != nil {
+		return ErrInboundCollision
+	}
+	oldCanonical, oldErr := inboundCanonical(old)
+	newCanonical, newErr := inboundCanonical(e)
+	if oldErr != nil || newErr != nil || oldCanonical != newCanonical {
+		return ErrInboundCollision
 	}
 	return nil
 }

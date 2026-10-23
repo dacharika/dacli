@@ -24,6 +24,31 @@ the producer sequence. Gaps and reordered records may be stored and applied
 when their object `base_version` matches. A mismatch is an optimistic-version
 conflict requiring a new proposal; it never overwrites local state.
 
+For local v1 consumers, the verified producer stream is the route tuple
+`(tenant_id, project_id, integrity.key_id)`. Sequence cursors and gaps are
+independent per stream; a project-wide numeric cursor is only a diagnostic
+summary and never sequence identity authority. A duplicate requires exact
+equality of the complete canonical signed envelope. Reuse of an event ID,
+idempotency key, or same-stream sequence with different content is refused.
+Consumers merge persisted per-stream cursors and gap reservations with verified
+retained inbox rows before recovering state after restart. Exact identity
+indexes are rebuilt from retained rows; the durable sequence reservations
+survive payload expiry. A sequence already covered by a contiguous cursor or a
+reserved gap cannot be reused after expiry. Because its original envelope is
+no longer available for equality comparison, that attempt is refused as replay
+rather than reported as an exact duplicate. Unseen lower gaps remain
+admissible. A conflicting historical stream or a bad signature for a currently
+trusted key refuses startup without changing history. An unknown or revoked
+key's rows remain reserved and block that stream without advancing its
+contiguous cursor, even when the retained sequences are consecutive. Persisted
+state for a route-matching key that is no longer trusted also latches the
+quarantine when its payload rows have expired. Such streams remain blocked if
+the key is later configured again, until an explicit history reconciliation.
+Legacy state-only event and idempotency reservations cannot establish exact
+equality and therefore refuse matching new data. The HTTP `delivery_cursor` is
+an independent opaque server continuation; it is not a producer sequence
+cursor.
+
 ## Metadata allowlist
 
 The payload schemas are closed with `additionalProperties: false`; their named

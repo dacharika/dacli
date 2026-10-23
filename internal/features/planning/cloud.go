@@ -72,7 +72,7 @@ func cloudError(e error) error {
 		return clikit.Refusedf("device identity refused (%s); inspect login/whoami and the OS credential store", safeDeviceFailure(identityError.Code))
 	}
 
-	if errors.Is(e, cloudsync.ErrTransportDenied) || errors.Is(e, cloudsync.ErrBindingConflict) || errors.Is(e, cloudsync.ErrInvalidSignature) || errors.Is(e, cloudsync.ErrUnsupportedVersion) || errors.Is(e, cloudsync.ErrInvalidPayload) {
+	if errors.Is(e, cloudsync.ErrTransportDenied) || errors.Is(e, cloudsync.ErrBindingConflict) || errors.Is(e, cloudsync.ErrInvalidSignature) || errors.Is(e, cloudsync.ErrUnsupportedVersion) || errors.Is(e, cloudsync.ErrInvalidPayload) || errors.Is(e, cloudsync.ErrInboundCollision) || errors.Is(e, cloudsync.ErrUntrustedHistory) || errors.Is(e, cloudsync.ErrReplay) {
 		return clikit.Refusedf("cloud metadata route, schema, signature or authority refused; existing queue preserved")
 	}
 	// Do not echo authentication-provider errors or response bodies into logs.

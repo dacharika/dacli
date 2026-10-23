@@ -16,6 +16,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -52,6 +53,7 @@ type identity struct {
 
 type provider struct {
 	mu                       sync.Mutex
+	accessTTL                time.Duration
 	controlKey               []byte
 	publicKey                string
 	privateKey               ed25519.PrivateKey
@@ -84,6 +86,12 @@ type syncStats struct {
 }
 
 func main() {
+	accessTTL := flag.Duration("access-ttl", 2*time.Second, "synthetic access-token lifetime (whole seconds, 1s through 5m)")
+	flag.Parse()
+	if flag.NArg() != 0 || !validAccessTTL(*accessTTL) {
+		fmt.Fprintln(os.Stderr, "qualification provider access TTL must be whole seconds from 1s through 5m")
+		os.Exit(2)
+	}
 	control, err := bufio.NewReader(os.Stdin).ReadString('\n')
 	if err != nil || len(control) < 33 || len(control) > 257 {
 		fmt.Fprintln(os.Stderr, "qualification provider requires a private control key on stdin")
@@ -102,6 +110,7 @@ func main() {
 	}
 	p := &provider{
 		controlKey: controlKey,
+		accessTTL:  *accessTTL,
 		publicKey:  public,
 		privateKey: private,
 		identities: map[string]*identity{}, deviceCodes: map[string]*identity{},
@@ -260,8 +269,8 @@ func (p *provider) token(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC()
 	// Short expiry makes the artifact's refresh branch deterministic without
 	// waiting for production-duration credentials.
-	i.lastExpiry = now.Add(2 * time.Second)
-	writeJSON(w, p.tokenDocument(i, now, 2))
+	i.lastExpiry = now.Add(p.accessTTL)
+	writeJSON(w, p.tokenDocument(i, now, int64(p.accessTTL/time.Second)))
 }
 
 func (p *provider) whoami(w http.ResponseWriter, r *http.Request) {
@@ -690,6 +699,10 @@ func (p *provider) tokenDocument(i *identity, now time.Time, expires int64) map[
 		"signing_key_id":      i.deviceKeyID,
 		"server_signing_keys": []map[string]string{{"key_id": signingKeyID, "public_key": p.publicKey}},
 	}
+}
+
+func validAccessTTL(value time.Duration) bool {
+	return value >= time.Second && value <= 5*time.Minute && value%time.Second == 0
 }
 
 func validTenant(value string) bool {

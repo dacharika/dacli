@@ -50,6 +50,9 @@ class ProjectSyncQualification(BASE.Qualification):
     def __init__(self, binary: Path, arch: str, evidence_dir: Path) -> None:
         super().__init__(binary, arch, evidence_dir)
         self.workspace_id = ""
+        # Project sync exercises durable retry/replay, not token expiry. Its
+        # bounded protocol retries need more than the lifecycle fixture's 2s.
+        self.provider_access_ttl = "60s"
         self.repository = self.temp / "work"
         self.routes: dict[str, dict[str, str]] = {}
         self.sent_title = SENTINEL_TITLE + self.control_key[:12]
