@@ -66,10 +66,10 @@ func TestGovulncheckIsPinnedToCompatibleToolchain(t *testing.T) {
 	}
 }
 
-// Validation is opt-in; deployment and tagged release workflows are separate.
+// Validation and docs deployment are opt-in; tagged releases remain explicit.
 // Read the event mapping so a new automatic event cannot bypass a blacklist.
 func TestValidationWorkflowsAreManualOnly(t *testing.T) {
-	for _, name := range []string{"ci.yml", "quality.yml", "dashboard-evidence.yml"} {
+	for _, name := range []string{"ci.yml", "quality.yml", "dashboard-evidence.yml", "docs.yml"} {
 		t.Run(name, func(t *testing.T) {
 			workflow := readNamedWorkflow(t, name)
 			lines := strings.Split(workflow, "\n")

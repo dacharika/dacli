@@ -61,6 +61,26 @@ class PackageTests(unittest.TestCase):
         self.assertLessEqual(len(portable['extensions']['com.openai']['interface']['shortDescription']), 30)
         self.assertNotIn('receipts/orchestration-install-0.159.2.json', PACKAGE.FILES)
 
+    def test_current_native_swarm_qualification_receipt_is_packaged(self):
+        receipt_path = 'receipts/native-swarm-0.163.0-alpha.11.json'
+        notes_path = 'receipts/native-swarm-0.163.0-alpha.11.md'
+        receipt = json.loads((ROOT / receipt_path).read_text())
+        terminal = receipt['terminal']
+        self.assertTrue(receipt['actual_native_swarm_exercised'])
+        self.assertEqual((terminal['Phase'], terminal['HaltClass'], terminal['Waves']),
+                         ('completed', 'empty_backlog', 2))
+        self.assertTrue(any('provider usage and billing remain unknown' in limit
+                            for limit in receipt['limits']))
+        with tempfile.TemporaryDirectory() as tmp:
+            archive_path = PACKAGE.build(Path(tmp) / 'qualification.zip')
+            with zipfile.ZipFile(archive_path) as archive:
+                names = set(archive.namelist())
+                self.assertIn('dacli-governance/' + receipt_path, names)
+                self.assertIn('dacli-governance/' + notes_path, names)
+                self.assertEqual(names, {'dacli-governance/' + name for name in PACKAGE.FILES})
+                self.assertFalse(any('/private/' in name or '/probes/' in name or
+                                     name.endswith(('.token', '.pem', '.key')) for name in names))
+
     def test_manifests_and_transport_match(self):
         portable = json.loads((ROOT / 'plugin.json').read_text())
         legacy = json.loads((ROOT / '.codex-plugin/plugin.json').read_text())
