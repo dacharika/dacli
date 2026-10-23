@@ -576,6 +576,10 @@ native OS credential store. `auth logout` requests revocation of the exact devic
 and attempts to remove its exact local credential even if remote revocation is
 offline or unknown. Local removal and remote revocation are reported separately;
 unknown revocation is not successful provider logout.
+Missing or corrupt profile metadata does not block deletion selected by the exact
+provider/tenant/device tuple. No credential scan or neighboring identity deletion
+is used. See the [device identity guide](DEVICE_IDENTITY.md) for diagnostics and
+qualification limits.
 `auth whoami` refreshes and revalidates device identity and can update local
 credential/expiry metadata; it is deliberately a mutating command.
 

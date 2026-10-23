@@ -107,6 +107,10 @@ permission. A local signer can queue offline, but authenticated server binding
 and exact acknowledgment are required before delivery advances. Incoming signed
 records remain proposals under existing local authority.
 
+The [device identity guide](DEVICE_IDENTITY.md) describes exact selectors, native
+storage, refresh/revocation, recovery without profile metadata and local
+qualification boundaries.
+
 The hosted source exposes device authorization, token exchange/refresh, whoami
 and revocation plus exact sync binding and bounded exchange. Activation requires
 explicit owner `hosted.device_oauth` configuration, approved subject mappings,
