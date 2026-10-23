@@ -74,7 +74,7 @@ fi
 # private tmpfs datadir, so pg_ctl immediate/restart retains only this fixture's
 # bytes and needs no existing or named Docker volume.
 container_created=1
-stage create-container docker create --pull never --name "$container_name" --network none --tmpfs /qualification:rw,nosuid,size=1g --entrypoint /bin/sh "$image" -c 'while :; do sleep 3600; done'
+stage create-container docker create --pull never --name "$container_name" --network none --tmpfs /qualification:rw,nosuid,size=1g --tmpfs /var/lib/postgresql/data:rw,nosuid,size=1m --entrypoint /bin/sh "$image" -c 'while :; do sleep 3600; done'
 stage start-container docker start "$container_name"
 stage prepare-fixture-dir docker exec --user root "$container_name" sh -c 'chown postgres:postgres /qualification && chmod 700 /qualification && mkdir -p /qualification/pgdata && chown postgres:postgres /qualification/pgdata && chmod 700 /qualification/pgdata'
 stage prepare-socket-dir docker exec --user root "$container_name" sh -c 'mkdir -p /var/run/postgresql && chown postgres:postgres /var/run/postgresql'
@@ -101,12 +101,14 @@ CREATE DATABASE qualification_restored OWNER qualification_owner;
 SQL
 stage bootstrap docker exec --interactive "$container_name" psql -h /var/run/postgresql -U postgres -d postgres -v ON_ERROR_STOP=1 < "$work_dir/bootstrap.sql"
 
-stage qualify-composition docker exec --env DACLI_QUALIFY_HOSTED_POSTGRES=1 "$container_name" /tmp/composition.test -test.run '^TestHostedPostgresComposition$' -test.v -test.timeout 60s
 stage test-catalog docker exec "$container_name" /tmp/composition.test -test.list .
-if ! grep -qx 'TestHostedPostgresReadinessRequiresOrganizationsRLS' "$receipt_dir/test-catalog.log"; then
-  echo "assembled qualification binary is missing TestHostedPostgresReadinessRequiresOrganizationsRLS" >&2
-  exit 1
-fi
+for required_test in TestHostedPostgresComposition TestHostedPostgresReadinessRequiresOrganizationsRLS TestHostedPostgresRecovery; do
+  if ! grep -qx "$required_test" "$receipt_dir/test-catalog.log"; then
+    echo "assembled qualification binary is missing $required_test" >&2
+    exit 1
+  fi
+done
+stage qualify-composition docker exec --env DACLI_QUALIFY_HOSTED_POSTGRES=1 "$container_name" /tmp/composition.test -test.run '^TestHostedPostgresComposition$' -test.v -test.timeout 60s
 stage qualify-readiness docker exec --env DACLI_QUALIFY_HOSTED_POSTGRES=1 "$container_name" /tmp/composition.test -test.run '^TestHostedPostgresReadinessRequiresOrganizationsRLS$' -test.v -test.timeout 60s
 
 # Phase 1 commits both the authenticated inbox event and an outbox row, then
