@@ -105,7 +105,7 @@ func verifierAdd(ctx *clikit.Ctx, args []string) error {
 	if e != nil {
 		return denied()
 	}
-	a, e := sessions.Open(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID})
+	a, e := sessions.OpenCurrent(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID})
 	if e != nil {
 		return denied()
 	}
@@ -273,7 +273,7 @@ func verifierReviewPolicy(ctx *clikit.Ctx, args []string) error {
 	if e != nil {
 		return denied()
 	}
-	authority, e := sessions.Open(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID})
+	authority, e := sessions.OpenCurrent(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID})
 	if e != nil {
 		return denied()
 	}

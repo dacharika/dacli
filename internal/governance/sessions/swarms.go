@@ -21,8 +21,9 @@ type SwarmCandidate struct {
 	Resources                         []Resource
 }
 type SwarmSnapshot struct {
-	Digest     string
-	Candidates []SwarmCandidate
+	Digest       string
+	Candidates   []SwarmCandidate
+	RoleRegistry []RoleRegistryProvenance `json:",omitempty"`
 }
 type SwarmAdmission interface {
 	ObserveSwarm(workspace, project string) (SwarmSnapshot, error)
@@ -60,6 +61,7 @@ type SwarmPlan struct {
 	ID, SessionID, ProjectID, PolicyRevision, SnapshotDigest string
 	Fence                                                    uint64
 	Verdicts                                                 []SwarmVerdict
+	RoleRegistry                                             []RoleRegistryProvenance `json:",omitempty"`
 }
 type ReserveWaveRequest struct {
 	CheckpointID, InvocationID, ReconciliationDigest string
@@ -79,6 +81,7 @@ type DispatchReservation struct {
 	Reservation                                                                                                       Lease
 	PreflightExpiresAt                                                                                                time.Time
 	PreflightDigest                                                                                                   string
+	RoleRegistry                                                                                                      []RoleRegistryProvenance `json:",omitempty"`
 	Converted                                                                                                         bool
 	WorkerSessionID, AttemptID                                                                                        string
 }
@@ -103,14 +106,17 @@ func initializeSwarms(s *state) {
 	s.SwarmOperations = map[string]SwarmReceipt{}
 }
 
-// OpenSwarm refuses schema6 until an explicit owner migration. Old schema6
-// binaries in turn refuse schema7 rather than silently erasing new reservations.
+// OpenSwarm selects the exact authority schema and refuses schema6 until an
+// explicit owner migration. Legacy Open remains capped at schema19.
 func OpenSwarm(path string, binding Binding, admission LeaseAdmission) (*Authority, error) {
-	a, e := Open(path, binding, admission)
-	if e == nil {
-		a.version = 7
+	a, err := OpenCurrent(path, binding, admission)
+	if err != nil {
+		return nil, err
 	}
-	return a, e
+	if a.version < 7 {
+		return nil, ErrDenied
+	}
+	return a, nil
 }
 func (a *Authority) UpgradeSwarms(owner string) error {
 	old := *a
@@ -232,6 +238,9 @@ func (a *Authority) planSwarmLimited(s *state, token, session, project, action s
 	if e != nil || snap.Digest == "" {
 		return SwarmPlan{}, ErrDenied
 	}
+	if len(snap.RoleRegistry) > 0 && s.Version < 20 {
+		return SwarmPlan{}, ErrDenied
+	}
 	candidates := append([]SwarmCandidate(nil), snap.Candidates...)
 	sort.Slice(candidates, func(i, j int) bool {
 		if candidates[i].Priority != candidates[j].Priority {
@@ -239,7 +248,10 @@ func (a *Authority) planSwarmLimited(s *state, token, session, project, action s
 		}
 		return candidates[i].TaskID < candidates[j].TaskID
 	})
-	plan := SwarmPlan{SchemaVersion: 1, SessionID: session, ProjectID: project, PolicyRevision: policy.Revision, SnapshotDigest: snap.Digest, Fence: s.Fence, Verdicts: []SwarmVerdict{}}
+	if resolveRolePolicyReferences(s, project, snap.RoleRegistry, time.Now().UTC()) != nil {
+		return SwarmPlan{}, ErrDenied
+	}
+	plan := SwarmPlan{SchemaVersion: 1, SessionID: session, ProjectID: project, PolicyRevision: policy.Revision, SnapshotDigest: snap.Digest, Fence: s.Fence, Verdicts: []SwarmVerdict{}, RoleRegistry: append([]RoleRegistryProvenance(nil), snap.RoleRegistry...)}
 	used, occupied, excluded := swarmOccupancy(s, policy, snap)
 	roles := append([]SwarmRole(nil), policy.Roles...)
 	sort.Slice(roles, func(i, j int) bool { return roles[i].ID < roles[j].ID })
@@ -557,6 +569,14 @@ func (a *Authority) admitDispatch(s *state, token, session string, req AdmitDisp
 	if e != nil {
 		return DispatchReservation{}, ErrDenied
 	}
+	if resolveRolePolicyReferences(s, d.ProjectID, snap.RoleRegistry, time.Now().UTC()) != nil || !reflect.DeepEqual(d.RoleRegistry, snap.RoleRegistry) {
+		return DispatchReservation{}, ErrDenied
+	}
+	for _, provenance := range d.RoleRegistry {
+		if provenance.LifecycleExpiresAt.IsZero() || !time.Now().Before(provenance.LifecycleExpiresAt) {
+			return DispatchReservation{}, ErrDenied
+		}
+	}
 	matched := false
 	for _, c := range snap.Candidates {
 		if c.TaskID == d.Reservation.TaskID {
@@ -720,8 +740,13 @@ func (a *Authority) handoffDispatch(s *state, token, worker string, req HandoffD
 		return ErrDenied
 	}
 	snapshot, e := adapter.ObserveSwarm(s.Binding.Workspace, d.ProjectID)
-	if e != nil {
+	if e != nil || !reflect.DeepEqual(d.RoleRegistry, snapshot.RoleRegistry) || resolveRolePolicyReferences(s, d.ProjectID, snapshot.RoleRegistry, time.Now().UTC()) != nil {
 		return ErrDenied
+	}
+	for _, provenance := range snapshot.RoleRegistry {
+		if provenance.LifecycleExpiresAt.IsZero() || !time.Now().Before(provenance.LifecycleExpiresAt) {
+			return ErrDenied
+		}
 	}
 	fresh := false
 	for _, candidate := range snapshot.Candidates {
@@ -797,6 +822,9 @@ func (a *Authority) handoffDispatch(s *state, token, worker string, req HandoffD
 	}
 	if _, _, e := leaseAuth(s, token, worker, req.AttemptID, "lease.acquire", time.Now()); e != nil || !swarmLineageCurrent(s, d.ControllerSessionID, time.Now()) || !time.Now().Before(d.Reservation.ExpiresAt) || !preflightBoundCurrent(s, d) {
 		return ErrDenied
+	}
+	if err := a.currentRoleRegistryMatches(s, d); err != nil {
+		return err
 	}
 	if s.Fence == math.MaxUint64 {
 		return ErrDenied
@@ -957,6 +985,11 @@ func (a *Authority) reserveWaveStateLimited(s *state, token, session string, req
 		if !req.ExpiresAt.After(now) || req.ExpiresAt.After(now.Add(p.TTL)) || req.ExpiresAt.After(r.ExpiresAt) {
 			return ErrDenied
 		}
+		for _, provenance := range fresh.RoleRegistry {
+			if provenance.LifecycleExpiresAt.IsZero() || !now.Before(provenance.LifecycleExpiresAt) || req.ExpiresAt.After(provenance.LifecycleExpiresAt) {
+				return ErrDenied
+			}
+		}
 		id, e := mint()
 		if e != nil {
 			return e
@@ -979,7 +1012,11 @@ func (a *Authority) reserveWaveStateLimited(s *state, token, session string, req
 			}
 			s.Fence++
 			d := DispatchReservation{ID: id, ControllerSessionID: session, ProjectID: p.ProjectID, PolicyRevision: p.Revision, ImplementationRole: v.ImplementationRole, ReviewRole: v.ReviewRole, Harness: p.Harness, BaseCommit: v.BaseCommit, BaseTree: v.BaseTree, Routing: v.Routing, Reservation: Lease{ID: id, SessionID: session, TaskID: v.TaskID, Repository: v.Repository, Checkout: v.Checkout, Resources: v.Resources, Fence: s.Fence, ExpiresAt: req.ExpiresAt}}
+			d.RoleRegistry = append([]RoleRegistryProvenance(nil), fresh.RoleRegistry...)
 			if v.Preflight != nil {
+				if !reflect.DeepEqual(v.Preflight.RoleRegistry, fresh.RoleRegistry) {
+					return ErrDenied
+				}
 				d.PreflightDigest = v.Preflight.ProofDigest
 				d.PreflightExpiresAt = v.Preflight.ExpiresAt
 			}

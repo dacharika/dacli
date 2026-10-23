@@ -70,7 +70,7 @@ func OpenReviewAuthority(path string, binding Binding, observer ReviewObserver, 
 	if observer == nil {
 		return nil, ErrDenied
 	}
-	a, err := Open(path, binding, admission...)
+	a, err := OpenCurrent(path, binding, admission...)
 	if err != nil {
 		return nil, err
 	}

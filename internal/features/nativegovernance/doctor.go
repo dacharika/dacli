@@ -368,7 +368,7 @@ func inspectNativeConnection(path string, result *nativeDoctorResult) {
 		result.Observations.AuthenticatedStartup = "failed"
 		return
 	}
-	authority, openErr := sessions.Open(connection.Authority, sessions.Binding{Workspace: connection.WorkspaceID, Installation: connection.InstallationID})
+	authority, openErr := sessions.OpenCurrent(connection.Authority, sessions.Binding{Workspace: connection.WorkspaceID, Installation: connection.InstallationID})
 	if openErr != nil {
 		result.Authority.Status = "unknown"
 		result.Authority.NextAction = "Ask the authority owner to verify native authority readability, schema and workspace/installation binding; this inspection could not authenticate those observations."

@@ -40,6 +40,7 @@ type NativeModelRoutingSelection struct {
 	ExpiresAt                                                                                   time.Time
 	Explanation                                                                                 team.Explanation
 	WorkerSessionID                                                                             string
+	RoleRegistry                                                                                []RoleRegistryProvenance `json:",omitempty"`
 	NextTurnOnly                                                                                bool
 }
 
@@ -213,6 +214,7 @@ func (a *Authority) selectModelRouting(s *state, project, task string, used map[
 	}
 	obs := observations[selected]
 	report := reports[selected]
+	out.RoleRegistry = append([]RoleRegistryProvenance(nil), report.RoleRegistry...)
 	out.RoleID = selected
 	out.Model = obs.Implementation.ModelID()
 	out.RequiredPoints = obs.Required

@@ -133,6 +133,7 @@ func TestNativeDispatchDurableIntentAndSingleLaunchReplay(t *testing.T) {
 		t.Fatal("altered replay", e)
 	}
 }
+
 func TestNativeDispatchSeparateCredentialsAtomicAcknowledgementAndNoBypass(t *testing.T) {
 	f := dispatchSetup(t)
 	r := requestIntent(t, f)

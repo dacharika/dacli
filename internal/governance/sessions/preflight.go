@@ -62,6 +62,7 @@ type PreflightObservation struct {
 	AuthorityPath, InstallationID                                  string
 	ClaimResources                                                 []string
 	VerificationGrantIDs                                           []string
+	RoleRegistry                                                   []RoleRegistryProvenance
 	Required                                                       float64
 	Sized                                                          bool
 	Implementation, Review, Recovery                               team.Role
@@ -71,6 +72,18 @@ type PreflightObservation struct {
 	Checks                                                         []RequiredCheck
 	Phases                                                         []PreflightPhase
 	ExpiresAt                                                      time.Time
+}
+
+// RoleRegistryProvenance is durable proof of the exact signed role release
+// and current lifecycle/pin generations admitted for this project.
+type RoleRegistryProvenance struct {
+	RoleID, Version, ContentDigest, PublisherKeyID, LifecycleDigest string
+	LifecycleExpiresAt                                              time.Time
+	LifecycleGeneration, PinGeneration, ProjectGeneration           uint64
+	PolicyReferences                                                []RolePolicyReference `json:",omitempty"`
+}
+type RolePolicyReference struct {
+	Kind, Version, Digest string
 }
 
 // PreflightObserver performs bounded pure observations only: no authentication,
@@ -88,6 +101,7 @@ type PreflightReport struct {
 	RoutingRole                                                                                                                           string                   `json:",omitempty"`
 	AuthorityDigest                                                                                                                       string
 	RoleCapacities                                                                                                                        []PreflightRoleCapacity
+	RoleRegistry                                                                                                                          []RoleRegistryProvenance `json:",omitempty"`
 	SchemaVersion                                                                                                                         int
 	Workspace, ProjectID, TaskID, PolicyRevision, Harness, TaskDigest, RoleDigest, RosterDigest, ClaimsDigest, ProfileDigest, ProofDigest string
 	Capacity                                                                                                                              team.TaskCapacityVerdict
@@ -225,10 +239,28 @@ func (a *Authority) preflightSpec(s *state, project, task, impl, review, worker 
 	if !obs.Sized {
 		fail("implementation", "policy_refused", "canonical PERT estimate is required before normal assignment or native allocation")
 	}
+	if len(obs.RoleRegistry) > 0 && s.Version < 20 {
+		fail("schema", "policy_refused", "owner must explicitly migrate the authority to schema 20 before using governed role pins")
+		report.FailureClass = "permanent"
+		completePreflightPhases(&report)
+		report.ProofDigest = preflightDigest(report)
+		return report, nil
+	}
 	report.RequiredSet = obs.RequiredSet
 	report.TaskDigest = obs.TaskDigest
 	report.RoleDigest = roleDigest(obs.Implementation)
 	report.RosterDigest = obs.RosterDigest
+	report.RoleRegistry = append([]RoleRegistryProvenance(nil), obs.RoleRegistry...)
+	for _, provenance := range report.RoleRegistry {
+		if provenance.LifecycleExpiresAt.IsZero() {
+			fail("role-registry", "policy_refused", "refresh the signed lifecycle statement for the pinned role")
+		} else if provenance.LifecycleExpiresAt.Before(report.ExpiresAt) {
+			report.ExpiresAt = provenance.LifecycleExpiresAt.UTC()
+		}
+	}
+	if resolveRolePolicyReferences(s, project, report.RoleRegistry, time.Now().UTC()) != nil {
+		fail("role-policy", "policy_refused", "refresh or explicitly re-pin the exact native policy referenced by the signed role release")
+	}
 	report.ClaimsDigest = obs.ClaimsDigest
 	report.ProfileDigest = obs.ProfileDigest
 	if obs.ExpiresAt.Before(report.ExpiresAt) {
@@ -507,6 +539,9 @@ func (a *Authority) dispatchPreflight(s *state, d DispatchReservation, worker st
 		return preflightReportError(report)
 	}
 	if d.PreflightDigest == "" || d.PreflightDigest != report.ProofDigest {
+		return ErrDenied
+	}
+	if !reflect.DeepEqual(d.RoleRegistry, report.RoleRegistry) {
 		return ErrDenied
 	}
 	return nil

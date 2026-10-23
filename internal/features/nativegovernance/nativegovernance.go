@@ -33,6 +33,7 @@ var Commands = append(append(append(append([]clikit.Command{
 	{Path: "native storage retention", Brief: "Dry-run exact artifacts with native evidence and protection holds", JSON: true, Usage: "dacli native storage retention --config <private-file> --project <id> --json", Run: func(c *clikit.Ctx, a []string) error { return storageCommand(c, a, "retention") }},
 	{Path: "native controller enroll", Brief: "enroll durable bounded native controller", Mutates: true, JSON: false, Usage: "dacli native controller enroll --config <owner> --project <id> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]", Run: controllerEnroll},
 	{Path: "native policy upgrade", Brief: "Explicit owner upgrades native policy", Mutates: true, Usage: "dacli native policy upgrade --config <owner>", Run: nativePolicyUpgrade},
+	{Path: "native role registry upgrade", Brief: "Explicit owner upgrades authority to durable signed role provenance schema 20", Mutates: true, Usage: "dacli native role registry upgrade --config <owner>", Run: nativeRoleRegistryUpgrade},
 	{Path: "native policy configure", Brief: "Owner configures exact native action policy", Mutates: true, Usage: "dacli native policy configure --config <owner> --request <policy>", Run: nativePolicyConfigure},
 	{Path: "native policy evaluate", Brief: "Owner evaluates exact native acceptance without canonical effect", Mutates: true, JSON: true, Usage: "dacli native policy evaluate --config <owner> --review-policy <policy> --request <evaluation>", Run: nativePolicyEvaluate},
 	{Path: "native policy approve", Brief: "Owner records exact decision approval", Mutates: true, JSON: true, Usage: "dacli native policy approve --config <owner> --request <approval>", Run: nativePolicyApprove},
@@ -99,7 +100,7 @@ func AuthenticatesExplicitly(path string) bool {
 	switch path {
 	case "native storage observe", "native storage experiment", "native storage retention":
 		return true
-	case "native controller upgrade", "native controller configure", "native controller start", "native controller step", "native controller reconcile", "native controller status", "native controller enroll", "native policy upgrade", "native policy configure", "native policy evaluate", "native policy approve", "native policy status", "accept apply-native", "native acceptance upgrade", "native acceptance candidate":
+	case "native controller upgrade", "native controller configure", "native controller start", "native controller step", "native controller reconcile", "native controller status", "native controller enroll", "native policy upgrade", "native role registry upgrade", "native policy configure", "native policy evaluate", "native policy approve", "native policy status", "accept apply-native", "native acceptance upgrade", "native acceptance candidate":
 		return true
 	case "native budget upgrade", "native budget configure", "native budget quote", "native budget status", "native budget settle", "native budget controller add":
 		return true
@@ -269,7 +270,7 @@ func enroll(ctx *clikit.Ctx, args []string) error {
 	if e != nil {
 		return denied()
 	}
-	a, e := sessions.Open(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID})
+	a, e := sessions.OpenCurrent(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID})
 	if e != nil {
 		return denied()
 	}
@@ -370,7 +371,7 @@ func revoke(ctx *clikit.Ctx, args []string) error {
 	if e != nil {
 		return denied()
 	}
-	a, e := sessions.Open(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID})
+	a, e := sessions.OpenCurrent(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID})
 	if e != nil {
 		return denied()
 	}

@@ -82,6 +82,11 @@ func (a *LeaseAdmission) ObservePreflight(workspaceID, project, task string, spe
 	if e != nil {
 		return o, e
 	}
+	roleRegistry, e := a.validateRoleRegistry(project, roles, time.Now().UTC())
+	if e != nil {
+		return o, e
+	}
+	o.RoleRegistry = roleRegistry
 	sort.Slice(roles, func(i, j int) bool { return roles[i].Name < roles[j].Name })
 	o.RosterDigest = safeDigest(roles)
 	role := func(name string) team.Role {

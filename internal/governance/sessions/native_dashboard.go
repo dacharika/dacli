@@ -1,7 +1,6 @@
 package sessions
 
 import (
-	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -288,14 +287,7 @@ func dashboardFreshness(observed time.Time, expires *time.Time, now time.Time) s
 // OpenDashboardAuthority canonicalizes the private authority path and selects no
 // observer or writer. Unsupported future schemas fail through the shared decoder.
 func OpenDashboardAuthority(path string, binding Binding) (*Authority, error) {
-	if !filepath.IsAbs(path) || binding.Workspace == "" || binding.Installation == "" {
-		return nil, ErrDenied
-	}
-	parent, e := filepath.EvalSymlinks(filepath.Dir(path))
-	if e != nil {
-		return nil, ErrStorage
-	}
-	return &Authority{path: filepath.Join(parent, filepath.Base(path)), binding: binding, version: 6}, nil
+	return OpenCurrent(path, binding)
 }
 
 func dashboardBudgetScope(s *state, p BudgetPolicy, allowed map[string]bool) bool {
