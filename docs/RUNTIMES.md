@@ -7,12 +7,15 @@ installation retain the legacy CLI and do not contain this preview. See the
 [native migration guide](NATIVE_MIGRATION.md) for the source-versus-release
 boundary and the full removed-command map.
 
-Native hosts create and execute coding turns. dacli supplies canonical task and
-context records, owner-enrolled sessions, attempts, fenced leases, revision
-receipts and bounded controller state. An optional native controller can
-authorize a specific host action through its typed catalog; it does not start a
-provider CLI. The selected host executes that action. These gates are
-cooperative: direct host shell and filesystem work is outside them.
+Coding-agent CLI launchers have been removed from this checkout. There are no
+shipped adapter presets or provider fallbacks. The native agents run in their
+coding host; dacli governs coding-agent lifecycles through scoped attempts,
+fenced leases, revision evidence, controller state and owner decisions. The
+agents do the engineering work in their native host. An optional native
+controller can plan bounded work and authorize specific host actions through
+its typed catalog; the host executes those actions. dacli is not an arbitrary DAG of jobs or a
+cron trigger. Direct host shell and filesystem work remains outside these
+cooperative gates.
 
 ## Current integration and qualification
 
@@ -56,7 +59,7 @@ label or controller receipt cannot make those agents independent reviewers.
 Independent review requires a separately enrolled eligible credential family
 and owner-issued grant; see [native review](GOVERNANCE_NATIVE_REVIEW.md).
 
-## Historical records and recovery
+## Historical state and recovery
 
 Existing `.dacli/runtimes` files, legacy agent/run records, usage reports and
 probe receipts remain available for historical attribution and recovery. The
