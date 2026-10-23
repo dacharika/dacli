@@ -13,7 +13,11 @@ real checkout with `register_attempt`, acquire only permitted resources with
 `acquire_lease`, preserve the returned fence and keep the lease current. Commit
 through the authorized DACLI host workflow. Publish only a clean committed
 revision with `publish_revision`. `submit_evidence` is a bound self-report,
-not trusted execution or independent review. Release when work ends.
+not trusted execution or independent review. Keep the worker lease current through
+independent review, authorized owner integration and canonical acceptance. Review
+approval alone is not a release condition. After the owner retires accepted work,
+the owner explicitly recovers protection using the authenticated terminal state;
+uncertain or abandoned work requires owner reconciliation.
 
 A separately provisioned runner connection advertises named verification tools.
 Request each required check on the exact revision/lease/fence and observe its
