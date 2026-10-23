@@ -19,10 +19,21 @@ import time
 
 MAX_FRAME = 262144
 MAX_CALLS = 128
-TOOLS = {"identity", "register_attempt", "acquire_lease", "release_lease",
-         "publish_revision", "request_verification", "submit_review",
-         "task_get", "get_verification", "controller_status", "controller_step", "start_verification", "poll_verification",
-         "cancel_verification", "get_dispatch_routing"}
+# Closed union of the native stdio catalogs in internal/mcp/native. This is a
+# ceiling only: Broker.tool also requires each name in the selected connection's
+# actual tools/list catalog, preserving role-scoped availability.
+TOOLS = {
+    "identity", "workspace_status", "task_list", "task_get", "task_brief",
+    "ready_frontier", "get_policy_status", "propose_review", "evaluate_review",
+    "register_attempt", "acquire_lease", "renew_lease", "release_lease",
+    "publish_revision", "submit_evidence", "request_verification",
+    "get_verification_status", "cancel_verification",
+    "get_orchestration_host_status", "get_dispatch_routing", "plan_swarm",
+    "start_loop", "get_loop_status", "step_loop", "reconcile_loop", "stop_loop",
+    "cancel_dispatch", "get_dispatch_status", "get_dispatch_lifecycle",
+    "correlate_dispatch", "observe_dispatch", "acknowledge_dispatch",
+    "acknowledge_cancellation",
+}
 
 
 def unique(pairs):

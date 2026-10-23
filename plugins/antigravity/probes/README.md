@@ -58,6 +58,7 @@ entrypoint proves only the same stdio contract after actual execution. A host
 receipt must name measured host version and source receipt digest separately;
 this runner never promotes a transport/unit fixture into that receipt.
 
-Implementation and test sources are assembled; behavioral verification remains
-deferred until the owner permits execution. Existing historical contract fixtures
-and host receipts are unchanged.
+The manually dispatched CI job builds one native binary for the transport and
+missing-credential tests, and runs the Antigravity package/install safety tests.
+These deterministic checks do not launch a coding model or certify a host.
+Existing historical contract fixtures and host receipts remain unchanged.

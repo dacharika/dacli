@@ -64,8 +64,12 @@ jobs:
       - name: CI workflow contract
         run: go test ./.github/workflows
       # Backend-only conformance. No coding host/model/hook certification.
-      - name: shared native governance transport contract
-        run: python3 -m unittest discover -s contracts/governance/v1 -p test_conformance.py -v
+      - name: shared native governance transport and identity contracts
+        run: |
+          go build -o "$RUNNER_TEMP/dacli-conformance" ./cmd/dacli
+          DACLI_CONFORMANCE_BINARY="$RUNNER_TEMP/dacli-conformance" python3 -m unittest discover -s contracts/governance/v1 -p 'test_*.py' -v
+      - name: Antigravity package and explicit-install safety contracts
+        run: python3 -m unittest discover -s plugins/antigravity/tests -v
       - name: real native governance provisioning and recovery contracts
         run: go test ./internal/features/nativegovernance -run 'TestNative(SwarmOwnerProvisioning|DispatchOwnerProvisioning|LifecycleOwnerCLI|RecoveryOwnerCLI)|TestNamedVerificationExecutesTrustedCheckAndReplays|TestAsyncVerificationCancelShutdownAndRestartPending'
       - name: deterministic release-readiness scenarios
