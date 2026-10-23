@@ -61,27 +61,35 @@ Inbound producer streams are scoped to the routed tenant, project and verified
 gap set, so two signers may both begin at sequence 1 without advancing or
 blocking each other. The local numeric `inbound_cursor` and wire `cursor` keep
 their v1 scalar shape for compatibility; `last_sequence` is the maximum
-contiguous sequence among retained local streams (or the legacy value when no
-inbox history exists). It is diagnostic only and does not identify a producer
+contiguous sequence among durable local streams, including streams whose
+payload rows expired (or the legacy value when no stream state exists). It is
+diagnostic only and does not identify a producer
 or authorize replay. The server's opaque `delivery_cursor` remains a separate
 transport continuation and is preserved independently.
 
 An inbound retry is a duplicate only when its full canonical signed envelope
 matches retained history. Reusing an event ID, idempotency key, or a producer
 sequence within the same signer stream with different content is refused before
-the inbox or cursor changes. On startup, the client rebuilds indexes and
-per-signer cursors from immutable inbox rows before saving any recovered state;
-this also completes a row persisted just before a process interruption. A
-historical same-stream sequence collision or invalid signature from a currently
-trusted key stops startup without rewriting state or inbox rows. Rows whose key
-is no longer trusted are retained as identity reservations and mark that stream
-untrusted; they do not advance its contiguous sequence cursor even when the
-retained rows are consecutive. If that key is later added to the trust set, new
-events from that stream remain refused pending explicit history
-reconciliation. Legacy cursor event and idempotency lists without matching
-inbox rows remain conservative reservations: a matching new event is refused
-because the old envelope cannot be proven exactly equal. A legacy scalar
-sequence never seeds a signer's replay authority.
+the inbox or cursor changes. On startup, the client rebuilds exact-identity
+indexes from immutable inbox rows and merges their verified sequences with the
+persisted per-signer contiguous cursors and gap reservations before saving any
+recovered state. The persisted reservations survive payload expiry, so a
+sequence already covered by a cursor or gap cannot be reused after its envelope
+expires. Since the expired envelope is unavailable for equality comparison,
+such a retry is refused as replay rather than reported as an exact duplicate.
+Unseen lower gaps remain admissible and can advance the durable cursor. A row
+persisted just before a process interruption is still recovered from the
+inbox. A historical same-stream sequence collision or invalid signature from a
+currently trusted key stops startup without rewriting state or inbox rows.
+Rows whose key is no longer trusted are retained as identity reservations and
+mark that stream untrusted; its cursor does not advance from quarantined rows.
+Persisted state for a route-matching key that is no longer trusted also latches
+that quarantine, even if its payload rows expired. If the key is later added
+to the trust set, new events from that stream remain refused pending explicit
+history reconciliation. Legacy cursor event and idempotency lists without
+matching inbox rows remain conservative reservations: a matching new event is
+refused because the old envelope cannot be proven exactly equal. A legacy
+scalar sequence never seeds a signer's replay authority.
 
 Disconnect preserves a local tombstone and immutable generation history. It
 queues a signed disconnect when the local signer is available; a later reconnect

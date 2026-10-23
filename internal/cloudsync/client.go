@@ -189,7 +189,10 @@ func Open(root string, config Config) (*Client, error) {
 	if err := c.rebuildInboundIndexes(config.TrustedKeys); err != nil {
 		return nil, err
 	}
-	if len(c.inboundBySequence) == 0 {
+	if len(c.state.InboundStreams) == 0 {
+		// A legacy scalar may classify old cursor-only installations, but once
+		// durable producer streams exist it must not override their summary or
+		// outcome for an independent signer's sequence 1.
 		c.legacyCursorFallback = c.state.Cursor.LastSequence
 	}
 	if !stateExists || !bytes.Equal(bytes.TrimSpace(priorStateBytes), mustJSON(c.state)) {
@@ -339,14 +342,20 @@ func (c *Client) Receive(e Envelope) (Outcome, error) {
 	if e.ProducerSequence < c.state.Cursor.ReplayFloor {
 		return OutcomeReplay, ErrReplay
 	}
+	streamState := c.state.InboundStreams[stream]
+	if e.ProducerSequence <= streamState.LastSequence || streamState.AcceptedSequences[e.ProducerSequence] {
+		// The exact retained envelope checks above are the only way to return a
+		// duplicate. A sequence reservation whose payload expired still refuses
+		// reuse, but cannot claim the new envelope is equal to the old one.
+		return OutcomeReplay, ErrReplay
+	}
 	if c.pendingInboundSave {
 		if err := c.commitPendingInbound(); err != nil {
 			return "", err
 		}
 	}
 	outcome := OutcomeAccepted
-	streamState := c.state.InboundStreams[stream]
-	if e.ProducerSequence <= streamState.LastSequence || (streamState.LastSequence == 0 && c.legacyCursorFallback > 0 && e.ProducerSequence <= c.legacyCursorFallback) {
+	if streamState.LastSequence == 0 && c.legacyCursorFallback > 0 && e.ProducerSequence <= c.legacyCursorFallback {
 		outcome = OutcomeReordered
 	}
 	if err := c.persistInbound(e); err != nil {
@@ -376,7 +385,41 @@ func (c *Client) rebuildInboundIndexes(keys map[string]ed25519.PublicKey) error 
 	if err != nil {
 		return err
 	}
-	streams := make(map[string]inboundStreamState)
+	// The signed inbox payloads expire, but the durable per-stream cursor and
+	// gaps are replay reservations and outlive those rows. Only import state for
+	// a stream derived from this route; an unknown or revoked key is latched in
+	// quarantine instead of being allowed to seed fresh authority if it returns.
+	untrusted := make(map[string]bool)
+	for stream, blocked := range c.state.UntrustedStreams {
+		if blocked {
+			if _, ok := inboundStreamKeyID(stream, c.config.TenantID, c.config.ProjectID); ok {
+				untrusted[stream] = true
+			}
+		}
+	}
+	for stream := range c.state.InboundStreams {
+		keyID, ok := inboundStreamKeyID(stream, c.config.TenantID, c.config.ProjectID)
+		if !ok {
+			continue
+		}
+		if _, trusted := keys[keyID]; !trusted {
+			untrusted[stream] = true
+		}
+	}
+	streams := make(map[string]inboundStreamState, len(c.state.InboundStreams))
+	for stream, prior := range c.state.InboundStreams {
+		keyID, ok := inboundStreamKeyID(stream, c.config.TenantID, c.config.ProjectID)
+		if !ok {
+			continue
+		}
+		_, trusted := keys[keyID]
+		if !trusted && !untrusted[stream] {
+			continue
+		}
+		prior.AcceptedSequences = cloneSequences(prior.AcceptedSequences)
+		streams[stream] = prior
+	}
+	c.state.UntrustedStreams = untrusted
 	for _, row := range rows {
 		if row.TenantID != c.config.TenantID || row.ProjectID != c.config.ProjectID || validateEnvelopeFields(row) != nil || row.SchemaVersion < c.state.Cursor.MinimumSchemaVersion || row.SchemaVersion > c.state.Cursor.MaximumSchemaVersion || validatePayload(row.EventType, row.Payload) != nil {
 			return fmt.Errorf("invalid immutable inbound history")
@@ -413,7 +456,9 @@ func (c *Client) rebuildInboundIndexes(keys map[string]ed25519.PublicKey) error 
 		if streamState.AcceptedSequences == nil {
 			streamState.AcceptedSequences = make(map[uint64]bool)
 		}
-		streamState.AcceptedSequences[row.ProducerSequence] = true
+		if row.ProducerSequence > streamState.LastSequence {
+			streamState.AcceptedSequences[row.ProducerSequence] = true
+		}
 		streams[identity.stream] = streamState
 	}
 	for key, streamState := range streams {
@@ -460,14 +505,19 @@ func (c *Client) rebuildInboundIndexes(keys map[string]ed25519.PublicKey) error 
 			seenIdem[row.IdempotencyKey] = true
 		}
 	}
-	if len(rows) > 0 {
+	if len(streams) > 0 {
 		var max uint64
-		for _, streamState := range streams {
+		for stream, streamState := range streams {
+			if c.state.UntrustedStreams[stream] {
+				continue
+			}
 			if streamState.LastSequence > max {
 				max = streamState.LastSequence
 			}
 		}
 		c.state.Cursor.LastSequence = max
+	} else if len(rows) > 0 {
+		c.state.Cursor.LastSequence = 0
 	}
 	return nil
 }
@@ -561,8 +611,23 @@ func inboundCanonical(e Envelope) (string, error) {
 }
 
 func inboundStreamID(e Envelope) string {
-	key, _ := json.Marshal([]string{e.TenantID, e.ProjectID, e.Integrity.KeyID})
+	return inboundStreamIDFor(e.TenantID, e.ProjectID, e.Integrity.KeyID)
+}
+
+func inboundStreamIDFor(tenantID, projectID, keyID string) string {
+	key, _ := json.Marshal([]string{tenantID, projectID, keyID})
 	return string(key)
+}
+
+func inboundStreamKeyID(stream, tenantID, projectID string) (string, bool) {
+	var route []string
+	if err := json.Unmarshal([]byte(stream), &route); err != nil || len(route) != 3 || route[0] != tenantID || route[1] != projectID || route[2] == "" {
+		return "", false
+	}
+	if inboundStreamIDFor(route[0], route[1], route[2]) != stream {
+		return "", false
+	}
+	return route[2], true
 }
 
 func appendUnique(values []string, value string) []string {
