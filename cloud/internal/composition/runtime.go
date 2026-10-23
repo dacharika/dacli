@@ -193,7 +193,7 @@ func (r *Runtime) Ready(ctx context.Context) error {
 	if e != nil || closeErr != nil || n != 11 {
 		return errors.New("hosted runtime requires the complete schema11 migration catalog")
 	}
-	for _, relation := range []string{"controlplane_device_auth", "controlplane_teams", "controlplane_invitations", "controlplane_project_assignments", "controlplane_environment_assignments", "controlplane_tenant_audit_events", "controlplane_projects", "controlplane_environments", "controlplane_devices", "controlplane_memberships", "controlplane_device_sessions", "controlplane_envelope_streams", "controlplane_envelope_inbox_identities", "controlplane_envelope_inbox_payloads", "controlplane_envelope_outbox", "controlplane_envelope_audit_events", "controlplane_envelope_inbox_jobs", "controlplane_envelope_proposals"} {
+	for _, relation := range []string{"controlplane_device_auth", "controlplane_teams", "controlplane_invitations", "controlplane_project_assignments", "controlplane_environment_assignments", "controlplane_tenant_audit_events", "controlplane_organizations", "controlplane_projects", "controlplane_environments", "controlplane_devices", "controlplane_memberships", "controlplane_device_sessions", "controlplane_envelope_streams", "controlplane_envelope_inbox_identities", "controlplane_envelope_inbox_payloads", "controlplane_envelope_outbox", "controlplane_envelope_audit_events", "controlplane_envelope_inbox_jobs", "controlplane_envelope_proposals"} {
 		var enabled, forced bool
 		if e = r.db.QueryRowContext(ctx, `SELECT relrowsecurity,relforcerowsecurity FROM pg_class WHERE oid=to_regclass($1)`, "public."+relation).Scan(&enabled, &forced); e != nil || !enabled || !forced {
 			return errors.New("hosted schema dependency or tenant isolation unavailable")
