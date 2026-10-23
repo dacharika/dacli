@@ -158,3 +158,60 @@ func TestNativeStorageProjectionActualCrashResumePreservesSource(t *testing.T) {
 		})
 	}
 }
+
+func TestNativeStorageProjectionRefusesImportedDrift(t *testing.T) {
+	for _, drift := range []string{"project", "status", "projection"} {
+		t.Run(drift, func(t *testing.T) {
+			w, source, authorityPath, _ := storageProjectionFixture(t)
+			beforeAuthority, e := os.ReadFile(authorityPath)
+			if e != nil {
+				t.Fatal(e)
+			}
+			beforeSourceDigest := NativeStorageSourceDigest(source)
+			destination := filepath.Join(t.TempDir(), "projection")
+			_, e = nativeStorageProjection(w, source, destination, "projection-only", func(name string) error {
+				if name != "projection.json" {
+					return nil
+				}
+				if drift == "projection" {
+					path := filepath.Join(destination, "projection.json")
+					body, readErr := os.ReadFile(path)
+					if readErr != nil {
+						return readErr
+					}
+					return os.WriteFile(path, append(body, byte(' ')), 0600)
+				}
+				path := filepath.Join(destination, "tasks.snapshot")
+				body, readErr := os.ReadFile(path)
+				if readErr != nil {
+					return readErr
+				}
+				var imported []NativeStorageTask
+				if readErr = json.Unmarshal(body, &imported); readErr != nil {
+					return readErr
+				}
+				if drift == "project" {
+					imported[0].Project += "-changed"
+				} else {
+					imported[0].Status += "-changed"
+				}
+				changed, marshalErr := json.Marshal(imported)
+				if marshalErr != nil {
+					return marshalErr
+				}
+				return os.WriteFile(path, changed, 0600)
+			})
+			if e == nil {
+				t.Fatalf("reconciled after imported %s drift", drift)
+			}
+			afterAuthority, readErr := os.ReadFile(authorityPath)
+			if readErr != nil || !bytes.Equal(beforeAuthority, afterAuthority) {
+				t.Fatal("import drift changed source authority")
+			}
+			fresh, readErr := ReadNativeStorageSource(w, afterAuthority)
+			if readErr != nil || NativeStorageSourceDigest(fresh) != beforeSourceDigest {
+				t.Fatal("import drift changed canonical task bytes")
+			}
+		})
+	}
+}
