@@ -30,16 +30,19 @@ conformance remains unqualified. Owner-bound publication decisions can be
 recorded and consumed once; they do not publish anything themselves. See the
 [plugin's boundaries](plugins/codex/README.md#identity-and-recovery-boundaries).
 
-Coding-agent launchers, runtime adapters, supervision and provider-driven loops
-have been removed from this checkout. The native host owns delegation, model
-selection, budgets and process control. Historical records remain readable for
-audit and recoverable cleanup. The [operator playbook](docs/OPERATOR_PLAYBOOK.md)
-describes the current workflow.
+Coding-agent launchers, their provider runtime adapters and generic supervision
+have been removed from this checkout. The optional native controller records
+bounded work and authorizes specific host actions through scoped sessions; the
+host creates and executes coding turns. Historical records remain readable for
+audit and recoverable cleanup. See the [native migration guide](docs/NATIVE_MIGRATION.md)
+for removed commands and their current workflow, and the
+[operator playbook](docs/OPERATOR_PLAYBOOK.md) for day-to-day operation.
 
-Build the native preview from the reviewed checkout using the [installation](#install)
-section below. Released archives support the legacy CLI; the first public release is
-[v0.3.1](https://github.com/mlnomadpy/dacli/releases/tag/v0.3.1); a Homebrew
-formula is not currently shipped.
+The latest stable published release remains
+[v0.3.1](https://github.com/dacharika/dacli/releases/tag/v0.3.1) and contains the
+legacy CLI; no tagged native release is available. Build the native preview
+from a reviewed source checkout using the [installation](#install) section
+below. A Homebrew formula is not currently shipped.
 
 ```mermaid
 flowchart LR
