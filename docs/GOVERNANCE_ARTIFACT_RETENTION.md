@@ -26,8 +26,11 @@ Fresh native observations further narrow eligibility:
 - Unreleased leases and retained dispatch reservations protect their task even
   after expiry or revocation.
 - Pending operations, uncharged or unknown-retained budget liabilities and
-  unresolved controller outcomes retain protection. An outcome that cannot be
-  bound to a task creates a conservative global hold.
+  unresolved controller outcomes retain protection. Native local integration and
+  external push/PR operations also retain protection until their exact completed
+  outcome is valid. Unknown states and invalid completion receipts remain held.
+  An operation with an absent or inconsistent task binding creates a conservative
+  global hold.
 - Consumed native policy decisions require the exact operation, decision,
   canonical outcome digest and closed acceptance input/receipt. Unknown,
   mismatched or missing outcomes remain held. A genuinely bound closed outcome

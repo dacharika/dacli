@@ -26,11 +26,12 @@ privacy, migration and measured growth must be qualified before any cutover.
 
 ## Versions and current observations
 
-The installed runtime can support native authority through schema16. This is a
+The current runtime supports native authority through schema19. This is a
 maximum supported format, not a claim that every workspace has migrated. The
-owner's production authority remains schema10 during this delivery. Disposable
-tests exercise a real schema6 bootstrap, explicit owner upgrades through16 and
-nonempty session/controller history. No production migration is performed.
+owner observation reports the actual version. Disposable tests exercise a real
+schema6 bootstrap and explicit owner upgrades, including schema18 integration
+and schema19 external-operation histories. Storage observation and projection
+perform no production migration.
 
 Normal operations never migrate storage. The existing explicit owner migration
 routes preserve their required source-version checks and histories; unsupported
@@ -64,9 +65,12 @@ The experiment reads the complete bounded canonical task graph, verifies exact
 raw task-body digests and imports into private files outside the live workspace.
 It preserves original authority bytes inside a versioned snapshot envelope that
 native authority readers reject, alongside task snapshots and a projection.
-It reparses actual imported task identities/counts/body digests and recovers exact
-authority bytes before writing its manifest. Public results identify the source
-and file digests and always report `authoritative: false`.
+Before writing its manifest, the experiment rereads each published file with a
+bounded read and checks its private regular-file state and exact expected bytes.
+It reparses imported task IDs, projects, statuses and body digests, reconciles the
+count, and recovers exact authority bytes. A changed projection or snapshot
+refuses reconciliation. Public results identify the source and file digests and
+always report `authoritative: false`.
 
 Files publish using an atomic no-replace link. An existing file resumes only when
 its exact expected bytes and private permissions match. Changed source, task
