@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -159,6 +160,7 @@ func TestApplyPersistsCreatedPRBeforeCrashAndResumesWithoutDuplicate(t *testing.
 		t.Fatalf("identity not durably persisted: %+v %v", tx, err)
 	}
 	crashAfter = func(string) error { return nil }
+	views := 0
 	runGitHub = func(_ string, args ...string) (string, error) {
 		s := strings.Join(args, " ")
 		if strings.HasPrefix(s, "pr create") {
@@ -166,6 +168,10 @@ func TestApplyPersistsCreatedPRBeforeCrashAndResumesWithoutDuplicate(t *testing.
 			return "", errors.New("duplicate")
 		}
 		if strings.HasPrefix(s, "pr view") {
+			views++
+			if len(args) < 3 || args[2] != "91" {
+				t.Fatalf("resume observed a different PR: %v", args)
+			}
 			return fmt.Sprintf(`{"number":91,"url":"u","state":"OPEN","headRefOid":"%s","reviews":[]}`, strings.Repeat("b", 40)), nil
 		}
 		if strings.HasPrefix(s, "pr checks") {
@@ -175,15 +181,33 @@ func TestApplyPersistsCreatedPRBeforeCrashAndResumesWithoutDuplicate(t *testing.
 	}
 	// Omit the check on restart: the durable transaction must retain it rather
 	// than treating fewer flags as permission to weaken the gate.
-	if err := cmdReleaseTrain(c, []string{"--project", "core", "--source", "dev", "--target", "main", "--apply"}); err != nil {
-		t.Fatal(err)
+	crashAfter = func(phase string) error {
+		if phase == "pending-ci" {
+			return errors.New("fixture crash after pending-ci")
+		}
+		return nil
+	}
+	err = cmdReleaseTrain(c, []string{"--project", "core", "--source", "dev", "--target", "main", "--apply"})
+	if err == nil || !strings.Contains(err.Error(), "fixture crash after pending-ci") {
+		t.Fatalf("pending-CI crash fixture = %v", err)
 	}
 	if creates != 1 {
-		t.Fatalf("restart created %d PRs, want one", creates)
+		t.Fatalf("pending-CI restart created %d PRs, want one", creates)
 	}
 	tx, _ = store.ReadReleaseTrain(w, "core", "dev", "main")
-	if tx.Phase != "pending-gates" {
-		t.Fatalf("pending phase = %s", tx.Phase)
+	if tx.Phase != "pending-gates" || tx.PullRequest != 91 || !reflect.DeepEqual(tx.RequiredChecks, []string{"test"}) {
+		t.Fatalf("pending transaction lost PR/gates: %+v", tx)
+	}
+	crashAfter = func(string) error { return nil }
+	if err := cmdReleaseTrain(c, []string{"--project", "core", "--source", "dev", "--target", "main", "--apply"}); err != nil {
+		t.Fatalf("restart after pending-CI crash: %v", err)
+	}
+	if creates != 1 || views != 2 {
+		t.Fatalf("pending-CI restarts created %d PRs and viewed canonical PR %d times, want 1 and 2", creates, views)
+	}
+	tx, _ = store.ReadReleaseTrain(w, "core", "dev", "main")
+	if tx.Phase != "pending-gates" || tx.PullRequest != 91 || !reflect.DeepEqual(tx.RequiredChecks, []string{"test"}) {
+		t.Fatalf("pending-CI recovery changed canonical PR or gates: %+v", tx)
 	}
 }
 
@@ -266,6 +290,107 @@ func TestMergeRequiresRecordedAuthorityAndCleanupOnlyAfterFreshContainment(t *te
 	}
 	// Mutation proof: if the containment guard is changed to accept false, this
 	// assertion observes deleteSource and fails.
+}
+
+func TestCanonicalPRRequiresObservableOpenExactHeadBeforeMerge(t *testing.T) {
+	for _, tc := range []struct {
+		name, view, wantReason string
+	}{
+		{"missing-head", `{"number":12,"url":"u","state":"OPEN","reviews":[{"state":"APPROVED","author":{"login":"reviewer"}}]}`, "head SHA is unobservable"},
+		{"missing-state", `{"number":12,"url":"u","headRefOid":"SOURCE","reviews":[{"state":"APPROVED","author":{"login":"reviewer"}}]}`, `state "" cannot authorize merge`},
+		{"unknown-state", `{"number":12,"url":"u","state":"UNKNOWN","headRefOid":"SOURCE","reviews":[{"state":"APPROVED","author":{"login":"reviewer"}}]}`, `state "UNKNOWN" cannot authorize merge`},
+		{"closed-state", `{"number":12,"url":"u","state":"CLOSED","headRefOid":"SOURCE","reviews":[{"state":"APPROVED","author":{"login":"reviewer"}}]}`, `state "CLOSED" cannot authorize merge`},
+		{"changed-head", `{"number":12,"url":"u","state":"OPEN","headRefOid":"OTHER","reviews":[{"state":"APPROVED","author":{"login":"reviewer"}}]}`, "head changed from reviewed source SHA"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			withTrainSeams(t)
+			w, base := trainEnv(t)
+			source := strings.Repeat("f", 40)
+			remoteSHA = func(_ string, branch string) (string, error) {
+				if branch == "dev" {
+					return source, nil
+				}
+				return base, nil
+			}
+			observePromotionPRs = func(_, _, _, _, _, _ string) (promotionEvidence, error) {
+				return promotionEvidence{Heads: map[string]bool{}}, nil
+			}
+			viewed, mergeCalls := false, 0
+			view := strings.NewReplacer("SOURCE", source, "OTHER", strings.Repeat("e", 40)).Replace(tc.view)
+			runGitHub = func(_ string, args ...string) (string, error) {
+				s := strings.Join(args, " ")
+				switch {
+				case strings.HasPrefix(s, "pr list"):
+					return `[{"number":12,"url":"u","state":"OPEN","headRefOid":"` + source + `"}]`, nil
+				case strings.HasPrefix(s, "pr view"):
+					viewed = true
+					return view, nil
+				case strings.HasPrefix(s, "pr merge"):
+					mergeCalls++
+					return "", nil
+				default:
+					return "", fmt.Errorf("unexpected gh %s", s)
+				}
+			}
+			c, _ := ctx(w, false)
+			err := cmdReleaseTrain(c, []string{"--project", "core", "--source", "dev", "--target", "main", "--required-reviews", "1", "--merge", "--apply"})
+			if !viewed {
+				t.Fatal("fixture did not reach observeGates through apply")
+			}
+			if err == nil || clikit.ExitCode(err) != 3 || !strings.Contains(err.Error(), tc.wantReason) || mergeCalls != 0 {
+				t.Fatalf("PR observation must refuse before merge: err=%v code=%d mergeCalls=%d want_reason=%q", err, clikit.ExitCode(err), mergeCalls, tc.wantReason)
+			}
+		})
+	}
+}
+
+func TestMergeUsesReviewedHeadCASAgainstHeadChangeAfterView(t *testing.T) {
+	withTrainSeams(t)
+	w, base := trainEnv(t)
+	source := strings.Repeat("a", 40)
+	changedHead := strings.Repeat("b", 40)
+	remoteSHA = func(_ string, branch string) (string, error) {
+		if branch == "dev" {
+			return source, nil
+		}
+		return base, nil
+	}
+	observePromotionPRs = func(_, _, _, _, _, _ string) (promotionEvidence, error) {
+		return promotionEvidence{Heads: map[string]bool{}}, nil
+	}
+	mergeCalls, mergeSucceeded := 0, false
+	matchHead := ""
+	runGitHub = func(_ string, args ...string) (string, error) {
+		switch {
+		case len(args) > 1 && args[0] == "pr" && args[1] == "list":
+			return `[{"number":12,"url":"u","state":"OPEN","headRefOid":"` + source + `"}]`, nil
+		case len(args) > 1 && args[0] == "pr" && args[1] == "view":
+			return `{"number":12,"url":"u","state":"OPEN","headRefOid":"` + source + `","reviews":[{"state":"APPROVED","author":{"login":"reviewer"}}]}`, nil
+		case len(args) > 1 && args[0] == "pr" && args[1] == "merge":
+			mergeCalls++
+			for i := 0; i+1 < len(args); i++ {
+				if args[i] == "--match-head-commit" {
+					matchHead = args[i+1]
+				}
+			}
+			if matchHead != source {
+				return "", fmt.Errorf("merge omitted exact reviewed head compare-and-swap: got %q", matchHead)
+			}
+			// Model a head update after PR view but before GitHub evaluates its CAS.
+			if source != changedHead {
+				return "", fmt.Errorf("head changed after view: expected %s, current %s", matchHead, changedHead)
+			}
+			mergeSucceeded = true
+			return "", nil
+		default:
+			return "", fmt.Errorf("unexpected gh %v", args)
+		}
+	}
+	c, _ := ctx(w, false)
+	err := cmdReleaseTrain(c, []string{"--project", "core", "--source", "dev", "--target", "main", "--required-reviews", "1", "--merge", "--apply"})
+	if err == nil || !strings.Contains(err.Error(), "head changed after view") || mergeCalls != 1 || matchHead != source || mergeSucceeded {
+		t.Fatalf("stale viewed head was not rejected by exact merge CAS: err=%v calls=%d match=%q succeeded=%t", err, mergeCalls, matchHead, mergeSucceeded)
+	}
 }
 
 func TestMergeNeedsDurableProjectAuthority(t *testing.T) {

@@ -460,7 +460,7 @@ func apply(ctx *clikit.Ctx, w *workspace.Workspace, p *store.Project, plan Plan,
 	if !strings.EqualFold(authorized, "true") {
 		return clikit.Refusedf("--merge also requires project release_merge_authority: true; no transient flag can invent release authority")
 	}
-	if _, err := runGitHub(w.Root, "pr", "merge", strconv.Itoa(tx.PullRequest), "--repo", repo, "--merge"); err != nil {
+	if _, err := runGitHub(w.Root, "pr", "merge", strconv.Itoa(tx.PullRequest), "--repo", repo, "--merge", "--match-head-commit", plan.SourceSHA); err != nil {
 		return fmt.Errorf("merge promotion PR: %w", err)
 	}
 	tx.Phase = "merge-requested"
@@ -532,8 +532,18 @@ func observeGates(root, repo string, number int, plan Plan) (prObservation, bool
 	if err := json.Unmarshal([]byte(out), &raw); err != nil {
 		return prObservation{}, false, false, nil, err
 	}
-	if raw.Number != number || (raw.HeadRefOID != "" && raw.HeadRefOID != plan.SourceSHA) {
-		return prObservation{}, false, false, nil, fmt.Errorf("canonical PR does not point at reviewed source SHA %s", plan.SourceSHA)
+	if raw.Number != number {
+		return prObservation{}, false, false, nil, clikit.Refusedf("canonical PR identity changed: requested #%d, observed #%d", number, raw.Number)
+	}
+	if raw.HeadRefOID == "" {
+		return prObservation{}, false, false, nil, clikit.Refusedf("canonical PR head SHA is unobservable; refusing to merge")
+	}
+	if raw.HeadRefOID != plan.SourceSHA {
+		return prObservation{}, false, false, nil, clikit.Refusedf("canonical PR head changed from reviewed source SHA %s to %s", plan.SourceSHA, raw.HeadRefOID)
+	}
+	state := strings.ToUpper(strings.TrimSpace(raw.State))
+	if state != "OPEN" && state != "MERGED" {
+		return prObservation{}, false, false, nil, clikit.Refusedf("canonical PR state %q cannot authorize merge; expected OPEN or MERGED", raw.State)
 	}
 	latest := map[string]string{}
 	for _, r := range raw.Reviews {
@@ -579,7 +589,7 @@ func observeGates(root, repo string, number int, plan Plan) (prObservation, bool
 			checksReady = false
 		}
 	}
-	return prObservation{Number: raw.Number, URL: raw.URL, State: raw.State, HeadRefOID: raw.HeadRefOID}, checksReady, approved >= plan.RequiredReviews, external, nil
+	return prObservation{Number: raw.Number, URL: raw.URL, State: state, HeadRefOID: raw.HeadRefOID}, checksReady, approved >= plan.RequiredReviews, external, nil
 }
 
 func reconcileLanding(ctx *clikit.Ctx, w *workspace.Workspace, tx *store.ReleaseTrain) error {
