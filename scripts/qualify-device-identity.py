@@ -400,7 +400,6 @@ class Qualification:
         self.observations["offline_logout"] = {"State": offline.get("State"), "LocalRemoved": offline.get("LocalRemoved"), "RemoteRevoked": offline.get("RemoteRevoked")}
 
         self.logout("beta", False, expected_remote=False)
-        self.observations["cleanup_verified"] = True
         self._assert_neighbor_accounts()
         self._scan()
 
@@ -510,7 +509,6 @@ def main() -> int:
         qualification.setup()
         qualification.exercise()
         outcome = "passed"
-        print(f"qualified extracted darwin_{args.arch} artifact against synthetic device identity lifecycle")
         return_code = 0
     except (QualificationError, OSError, subprocess.SubprocessError) as exc:
         error_text = str(exc)
@@ -522,6 +520,7 @@ def main() -> int:
                 cleanup_ok = qualification.cleanup()
             except BaseException:
                 cleanup_ok = False
+            qualification.observations["cleanup_verified"] = cleanup_ok
             if not cleanup_ok:
                 outcome = "failed"
                 error_text = "exact Keychain and child-process cleanup could not be verified"
@@ -531,6 +530,8 @@ def main() -> int:
             except BaseException as exc:
                 print(f"could not write sanitized qualification evidence: {exc}", file=sys.stderr)
                 return_code = 1
+    if return_code == 0:
+        print(f"qualified extracted darwin_{args.arch} artifact against synthetic device identity lifecycle")
     return return_code
 
 
