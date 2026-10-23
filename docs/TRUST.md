@@ -568,6 +568,17 @@ These commands authenticate the owner explicitly; no worker MCP route grants
 external publication, merge, deployment, tag or release authority. Owner policy
 changes preserve historical bindings rather than rewriting old receipts.
 
+`native role registry upgrade` is an explicit owner-authenticated schema19→20
+migration. It preserves enrolled identities, grants and durable history while
+enabling signed-role provenance. It reads the private owner profile; no worker
+MCP tool or downloaded role proposal can authorize this migration, enroll a
+publisher key or activate a project pin. Current native adapters support the
+migrated authority; older readers refuse schema20 before rewriting its records.
+Keep a recoverable owner snapshot and update the selected runtimes before an
+explicit migration. Do not undo it by editing the schema number or rebuilding
+the authority. Signed-role checks provide cooperative admission, without
+filesystem, network, process or tool containment. See [ROLE_REGISTRY.md](ROLE_REGISTRY.md).
+
 ### Device identity and connected projects
 
 `auth login` selects an explicit provider and tenant, starts its device-code flow,
