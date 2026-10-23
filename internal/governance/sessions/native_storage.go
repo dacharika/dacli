@@ -135,6 +135,32 @@ func (a *Authority) ObserveStorage(owner string) (StorageSnapshot, error) {
 				out.Holds = append(out.Holds, StorageHold{task, "unknown native operation outcome"})
 			}
 		}
+		for operationKey, op := range s.NativeIntegrationOperations {
+			candidate := op.Input.Candidate
+			task := candidate.TaskID
+			binding, bound := s.Tasks[task]
+			taskBound := task != "" && bound && binding.ProjectID == candidate.ProjectID && binding.Repository == candidate.Repository && op.Policy.TaskID == task && op.Policy.ProjectID == candidate.ProjectID && op.Policy.Repository == candidate.Repository
+			if !taskBound {
+				task = ""
+			}
+			resolved := taskBound && operationKey == op.OperationKey && op.OperationKey == op.Input.OperationKey && op.InputDigest == identity("native-integration-input", "", op.Input) && op.Input.PolicyRevision == op.Policy.Revision && op.State == "integrated" && ValidNativeIntegrationOutcome(op)
+			if !resolved {
+				out.Holds = append(out.Holds, StorageHold{task, "native integration outcome unresolved"})
+			}
+		}
+		for operationKey, op := range s.NativeExternalOperations {
+			candidate := op.Input.Candidate
+			task := candidate.TaskID
+			binding, bound := s.Tasks[task]
+			taskBound := task != "" && bound && binding.ProjectID == candidate.ProjectID && binding.Repository == candidate.Repository && op.Policy.TaskID == task && op.Policy.ProjectID == candidate.ProjectID && op.Policy.Repository == candidate.Repository
+			if !taskBound {
+				task = ""
+			}
+			resolved := taskBound && operationKey == op.OperationKey && op.State == "observed" && validExternalRecord(op) && externalEffectDone(op, op.Outcome)
+			if !resolved {
+				out.Holds = append(out.Holds, StorageHold{task, "native external outcome unresolved"})
+			}
+		}
 		for _, allocation := range s.BudgetAllocations {
 			for _, phase := range allocation.Phases {
 				if phase.State != "charged" {

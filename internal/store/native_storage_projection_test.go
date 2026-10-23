@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -157,4 +158,117 @@ func TestNativeStorageProjectionActualCrashResumePreservesSource(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNativeStorageProjectionRefusesImportedDrift(t *testing.T) {
+	for _, drift := range []string{"project", "status", "projection", "mode", "symlink", "oversized"} {
+		t.Run(drift, func(t *testing.T) {
+			w, source, authorityPath, _ := storageProjectionFixture(t)
+			beforeAuthority, e := os.ReadFile(authorityPath)
+			if e != nil {
+				t.Fatal(e)
+			}
+			beforeSourceDigest := NativeStorageSourceDigest(source)
+			destination := filepath.Join(t.TempDir(), "projection")
+			mutated := false
+			_, e = nativeStorageProjection(w, source, destination, "projection-only", func(name string) error {
+				if name != "projection.json" {
+					return nil
+				}
+				if drift == "mode" {
+					err := os.Chmod(filepath.Join(destination, "projection.json"), 0644)
+					mutated = err == nil
+					return err
+				}
+				if drift == "symlink" {
+					path := filepath.Join(destination, "projection.json")
+					backing := filepath.Join(filepath.Dir(destination), "projection.backing")
+					body, readErr := os.ReadFile(path)
+					if readErr != nil {
+						return readErr
+					}
+					if readErr = os.WriteFile(backing, body, 0600); readErr != nil {
+						return readErr
+					}
+					if readErr = os.Remove(path); readErr != nil {
+						return readErr
+					}
+					readErr = os.Symlink(backing, path)
+					mutated = readErr == nil
+					return readErr
+				}
+				if drift == "projection" || drift == "oversized" {
+					path := filepath.Join(destination, "projection.json")
+					body, readErr := os.ReadFile(path)
+					if readErr != nil {
+						return readErr
+					}
+					changed := append([]byte(nil), body...)
+					if drift == "projection" {
+						changed = bytes.Replace(changed, []byte(`"Authoritative":false`), []byte(`"Authoritative":true `), 1)
+						if bytes.Equal(changed, body) || len(changed) != len(body) {
+							t.Fatalf("projection mutation did not preserve length: %d -> %d", len(body), len(changed))
+						}
+					} else {
+						changed = append(changed, byte(' '))
+						if len(changed) != len(body)+1 {
+							t.Fatalf("oversized mutation did not add one byte: %d -> %d", len(body), len(changed))
+						}
+					}
+					readErr = os.WriteFile(path, changed, 0600)
+					mutated = readErr == nil
+					return readErr
+				}
+				path := filepath.Join(destination, "tasks.snapshot")
+				body, readErr := os.ReadFile(path)
+				if readErr != nil {
+					return readErr
+				}
+				var imported []NativeStorageTask
+				if readErr = json.Unmarshal(body, &imported); readErr != nil {
+					return readErr
+				}
+				if drift == "project" {
+					imported[0].Project = sameLengthReplacement(imported[0].Project)
+				} else {
+					imported[0].Status = sameLengthReplacement(imported[0].Status)
+				}
+				changed, marshalErr := json.Marshal(imported)
+				if marshalErr != nil {
+					return marshalErr
+				}
+				if len(changed) != len(body) || bytes.Equal(changed, body) {
+					t.Fatalf("task metadata mutation did not preserve length: %d -> %d", len(body), len(changed))
+				}
+				readErr = os.WriteFile(path, changed, 0600)
+				mutated = readErr == nil
+				return readErr
+			})
+			if !mutated {
+				t.Fatalf("%s drift mutation did not run", drift)
+			}
+			if e == nil {
+				t.Fatalf("reconciled after imported %s drift", drift)
+			}
+			afterAuthority, readErr := os.ReadFile(authorityPath)
+			if readErr != nil || !bytes.Equal(beforeAuthority, afterAuthority) {
+				t.Fatal("import drift changed source authority")
+			}
+			fresh, readErr := ReadNativeStorageSource(w, afterAuthority)
+			if readErr != nil || NativeStorageSourceDigest(fresh) != beforeSourceDigest {
+				t.Fatal("import drift changed canonical task bytes")
+			}
+		})
+	}
+}
+
+func sameLengthReplacement(value string) string {
+	if value == "" {
+		return "x"
+	}
+	replacement := strings.Repeat("x", len(value))
+	if replacement == value {
+		replacement = strings.Repeat("y", len(value))
+	}
+	return replacement
 }
