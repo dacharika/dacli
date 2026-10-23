@@ -135,3 +135,7 @@ The manually dispatched CI job builds one native binary for the transport and
 missing-credential tests, and runs the Antigravity package/install safety tests.
 These deterministic checks do not launch a coding model or certify a host.
 Existing historical contract fixtures and host receipts remain unchanged.
+
+[Current deterministic coverage and terminal local results](qualification-2026-10-23.md)
+separate backend guarantees from the actual Codex receipt and pending Antigravity
+live qualification.
