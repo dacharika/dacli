@@ -30,7 +30,7 @@ conformance remains unqualified. Owner-bound publication decisions can be
 recorded and consumed once; they do not publish anything themselves. See the
 [plugin's boundaries](plugins/codex/README.md#identity-and-recovery-boundaries).
 
-Provider CLI launchers, their runtime adapters and generic process supervision
+Coding-agent launchers, their provider runtime adapters and generic supervision
 have been removed from this checkout. The optional native controller records
 bounded work and authorizes specific host actions through scoped sessions; the
 host creates and executes coding turns. Historical records remain readable for
