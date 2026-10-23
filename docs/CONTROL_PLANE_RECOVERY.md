@@ -39,6 +39,34 @@ recovery-critical stream fields, and queries through a non-superuser RLS role.
 The trap removes both containers and the temporary dump. The script refuses a
 different image rather than silently certifying an unreviewed version.
 
+## Composed service qualification
+
+The separate `scripts/qualify-hosted-postgres.sh` driver exercises the API and
+worker composition using the cached immutable PostgreSQL 16.15 image
+`postgres@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54`.
+Its receipt records the actual server/client versions; this is distinct from the
+17.6 smoke image above. Neither driver pulls an image to hide a missing local
+prerequisite.
+
+The composed proof uses synthetic tenant/device identities, an application role
+with neither superuser nor RLS bypass, private disposable storage and no external
+network. It checks readiness with complete schema checksums and required forced
+RLS, authenticated and cross-tenant refusals, committed inbox work surviving
+process/database interruption, bounded worker replay, and a custom-format dump
+restored into a separate empty database. Recovery compares the migration ledger
+and durable tenant, stream, identity, audit, inbox/proposal and outbox state before
+using the restored runtime. Replay must retain the original identity and produce
+one proposal. It never resets attempts, fences or replay floors to make recovery
+succeed.
+
+Receipts bind the source commit/tree and any dirty diff, test-binary digest,
+engine version and every stage exit, including fixture cleanup. The driver
+removes only its own disposable container and temporary fixture files. Existing
+Docker volumes, local workspaces, live databases and provider credentials are not
+inputs. No source/transcript endpoint, startup migration or new authority contract
+is introduced. External OAuth, production backup scheduling, encrypted storage,
+provider credential rotation and deployment remain separately unqualified.
+
 ## Backup
 
 1. Confirm PostgreSQL is 17.6, migrations are fully applied and checksums match

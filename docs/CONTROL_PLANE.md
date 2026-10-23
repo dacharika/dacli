@@ -1,6 +1,6 @@
 # Hosted control-plane implementation
 
-**Status: development skeleton shipped in source; hosted product not shipped.**
+**Status: authenticated development composition shipped in source; hosted product not deployed.**
 
 The [`cloud/`](https://github.com/mlnomadpy/dacli/tree/main/cloud) boundary now
 contains a runnable API lifecycle, background-worker lifecycle, strict typed
@@ -9,9 +9,11 @@ tenant-scoped repository foundation. This is infrastructure for the Phase 1
 plan, not a customer-ready SaaS claim. Device-code authentication and signed
 metadata-sync client/hosted adapters are assembled in source, with native OS
 credential storage and explicit operator-configured routes. The assembled
-production source compiles, but this implementation wave remains behaviorally
-untested and has no live provider, synchronization or deployment proof yet. A deployed tenant API, billing, approval service, portfolio view,
-hosted GitHub App service and SLO remain pending.
+composition has local behavioral tests and an opt-in real PostgreSQL
+qualification covering authenticated routes, durable worker replay and recovery.
+The fixture does not qualify an external OAuth provider, a live synchronization
+service or a deployment. A deployed tenant API, billing, approval service,
+portfolio view, hosted GitHub App service and SLO remain pending.
 
 ## What exists
 
@@ -57,7 +59,7 @@ hosted GitHub App service and SLO remain pending.
 - a durable signed-envelope inbox/outbox boundary that commits permanent
   idempotency identity, expiring payload, cursor, and redacted audit before
   acknowledgement, plus leased bounded retry and queryable dead letters;
-- Linux CI coverage with explicit floors for both process entrypoints,
+- manually dispatched CI coverage with explicit floors for both process entrypoints,
   configuration, migrations, service, tenant, and worker packages, plus an
   import-boundary test preventing the cloud service from coupling to local
   task-store or coding-agent execution internals.
@@ -78,6 +80,13 @@ the [threat model](CONTROL_PLANE_THREAT_MODEL.md),
 [privacy boundary](CONTROL_PLANE_PRIVACY.md), and public
 [`controlplane/v1`](../contracts/controlplane/v1/README.md) contract before it
 can be described as shipped.
+
+Run `scripts/qualify-hosted-postgres.sh` from a clean checkout for the composed
+service proof. It uses the cached immutable PostgreSQL 16.15 fixture image, no
+external network, synthetic identities and disposable storage. Receipts bind the
+source tree/diff, compiled test binary, actual PostgreSQL version and stage exits.
+The proof covers database crash replay and a restore into a distinct empty
+database; it does not qualify the separate PostgreSQL 17.6 recovery-smoke image.
 
 The exact persistence, crash, retry, retention, and recovery contract is in the
 [worker boundary](CONTROL_PLANE_WORKER.md). The versioned, executable

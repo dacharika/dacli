@@ -1,4 +1,4 @@
-# Control-plane service skeleton
+# Composed control-plane service
 
 This directory is the Phase 1 reference service boundary decided in
 [ADR 0001](../docs/decisions/0001-control-plane-boundary.md). The standalone API
@@ -11,10 +11,14 @@ repository's linked `lib/pq` driver, while credentials, tenant configuration,
 OAuth endpoints and keys remain explicit deployment inputs.
 
 The service source is implemented, but deployment and support qualification are
-tracked separately. The real-PostgreSQL composition qualification is opt-in;
-it does not exercise external OAuth, Keychain, backup restore or crash recovery.
-The recovery runbook and smoke script define backup/restore procedures, but do
-not establish those as completed operational qualifications.
+tracked separately. Run `scripts/qualify-hosted-postgres.sh` for the opt-in
+composition and recovery proof on the cached immutable PostgreSQL 16.15 fixture.
+It exercises restricted-role readiness, authenticated tenant/device routes,
+durable worker crash replay and a whole-database dump/restore into a separate
+empty fixture database. Receipts identify the actual engine, source, compiled
+test binary and stage exits. It does not exercise external OAuth, Keychain or
+production infrastructure, and does not qualify the separate PostgreSQL 17.6
+smoke image in the recovery runbook. CI remains manually dispatched.
 
 Neither process imports dacli's local workspace, task store, or execution
 packages. The stable client/server boundary remains
