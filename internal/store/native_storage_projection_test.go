@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -169,12 +170,15 @@ func TestNativeStorageProjectionRefusesImportedDrift(t *testing.T) {
 			}
 			beforeSourceDigest := NativeStorageSourceDigest(source)
 			destination := filepath.Join(t.TempDir(), "projection")
+			mutated := false
 			_, e = nativeStorageProjection(w, source, destination, "projection-only", func(name string) error {
 				if name != "projection.json" {
 					return nil
 				}
 				if drift == "mode" {
-					return os.Chmod(filepath.Join(destination, "projection.json"), 0644)
+					err := os.Chmod(filepath.Join(destination, "projection.json"), 0644)
+					mutated = err == nil
+					return err
 				}
 				if drift == "symlink" {
 					path := filepath.Join(destination, "projection.json")
@@ -189,7 +193,9 @@ func TestNativeStorageProjectionRefusesImportedDrift(t *testing.T) {
 					if readErr = os.Remove(path); readErr != nil {
 						return readErr
 					}
-					return os.Symlink(backing, path)
+					readErr = os.Symlink(backing, path)
+					mutated = readErr == nil
+					return readErr
 				}
 				if drift == "projection" || drift == "oversized" {
 					path := filepath.Join(destination, "projection.json")
@@ -197,7 +203,21 @@ func TestNativeStorageProjectionRefusesImportedDrift(t *testing.T) {
 					if readErr != nil {
 						return readErr
 					}
-					return os.WriteFile(path, append(body, byte(' ')), 0600)
+					changed := append([]byte(nil), body...)
+					if drift == "projection" {
+						changed = bytes.Replace(changed, []byte(`"Authoritative":false`), []byte(`"Authoritative":true `), 1)
+						if bytes.Equal(changed, body) || len(changed) != len(body) {
+							t.Fatalf("projection mutation did not preserve length: %d -> %d", len(body), len(changed))
+						}
+					} else {
+						changed = append(changed, byte(' '))
+						if len(changed) != len(body)+1 {
+							t.Fatalf("oversized mutation did not add one byte: %d -> %d", len(body), len(changed))
+						}
+					}
+					readErr = os.WriteFile(path, changed, 0600)
+					mutated = readErr == nil
+					return readErr
 				}
 				path := filepath.Join(destination, "tasks.snapshot")
 				body, readErr := os.ReadFile(path)
@@ -209,16 +229,24 @@ func TestNativeStorageProjectionRefusesImportedDrift(t *testing.T) {
 					return readErr
 				}
 				if drift == "project" {
-					imported[0].Project += "-changed"
+					imported[0].Project = sameLengthReplacement(imported[0].Project)
 				} else {
-					imported[0].Status += "-changed"
+					imported[0].Status = sameLengthReplacement(imported[0].Status)
 				}
 				changed, marshalErr := json.Marshal(imported)
 				if marshalErr != nil {
 					return marshalErr
 				}
-				return os.WriteFile(path, changed, 0600)
+				if len(changed) != len(body) || bytes.Equal(changed, body) {
+					t.Fatalf("task metadata mutation did not preserve length: %d -> %d", len(body), len(changed))
+				}
+				readErr = os.WriteFile(path, changed, 0600)
+				mutated = readErr == nil
+				return readErr
 			})
+			if !mutated {
+				t.Fatalf("%s drift mutation did not run", drift)
+			}
 			if e == nil {
 				t.Fatalf("reconciled after imported %s drift", drift)
 			}
@@ -232,4 +260,15 @@ func TestNativeStorageProjectionRefusesImportedDrift(t *testing.T) {
 			}
 		})
 	}
+}
+
+func sameLengthReplacement(value string) string {
+	if value == "" {
+		return "x"
+	}
+	replacement := strings.Repeat("x", len(value))
+	if replacement == value {
+		replacement = strings.Repeat("y", len(value))
+	}
+	return replacement
 }
