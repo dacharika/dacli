@@ -1,6 +1,9 @@
 # Hosted control-plane implementation
 
-**Status: authenticated development composition shipped in source; hosted product not deployed.**
+**Status: development composition qualified locally; hosted product not shipped.**
+
+The development skeleton shipped in source now includes authenticated API/worker
+composition and the disposable PostgreSQL recovery proof described below.
 
 The [`cloud/`](https://github.com/mlnomadpy/dacli/tree/main/cloud) boundary now
 contains a runnable API lifecycle, background-worker lifecycle, strict typed
