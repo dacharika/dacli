@@ -126,7 +126,7 @@ func Open(root string, config Config) (*Client, error) {
 	}
 	keys[config.SigningKeyID] = config.SigningKey.Public().(ed25519.PublicKey)
 	for _, row := range rows {
-		if row.ProducerSequence != last+1 || row.ProducerSequence > 9007199254740991 || row.TenantID != config.TenantID || row.ProjectID != config.ProjectID || row.SchemaVersion != 1 || !Verify(row, keys) || validatePayload(row.EventType, row.Payload) != nil {
+		if row.ProducerSequence != last+1 || row.TenantID != config.TenantID || row.ProjectID != config.ProjectID || row.SchemaVersion != 1 || validateEnvelopeFields(row) != nil || !Verify(row, keys) || validatePayload(row.EventType, row.Payload) != nil {
 			return nil, fmt.Errorf("invalid immutable producer prefix")
 		}
 		last = row.ProducerSequence
@@ -227,6 +227,9 @@ func (c *Client) Receive(e Envelope) (Outcome, error) {
 	if e.SchemaVersion < c.state.Cursor.MinimumSchemaVersion || e.SchemaVersion > c.state.Cursor.MaximumSchemaVersion {
 		return OutcomeIncompatible, ErrUnsupportedVersion
 	}
+	if err := validateEnvelopeFields(e); err != nil {
+		return OutcomeTampered, err
+	}
 	if err := validatePayload(e.EventType, e.Payload); err != nil {
 		return OutcomeTampered, err
 	}
@@ -258,6 +261,34 @@ func (c *Client) Receive(e Envelope) (Outcome, error) {
 		return "", err
 	}
 	return outcome, nil
+}
+
+// validateEnvelopeFields enforces the required v1 envelope fields before an
+// event can influence replay state or become a filesystem path. Keep these
+// bounds in step with envelope.schema.json.
+func validateEnvelopeFields(e Envelope) error {
+	if e.TenantID == "" || len(e.TenantID) > 128 || e.ProjectID == "" || len(e.ProjectID) > 128 {
+		return fmt.Errorf("%w: tenant_id and project_id must contain 1..128 bytes", ErrInvalidPayload)
+	}
+	if !ulid.Valid(e.EventID) {
+		return fmt.Errorf("%w: event_id must be a 26-character ULID", ErrInvalidPayload)
+	}
+	if e.ProducerSequence == 0 || e.ProducerSequence > 9007199254740991 {
+		return fmt.Errorf("%w: producer_sequence is outside the v1 range", ErrInvalidPayload)
+	}
+	if e.OccurredAt.IsZero() {
+		return fmt.Errorf("%w: occurred_at is required", ErrInvalidPayload)
+	}
+	if e.IdempotencyKey == "" || len(e.IdempotencyKey) > 256 {
+		return fmt.Errorf("%w: idempotency_key must contain 1..256 bytes", ErrInvalidPayload)
+	}
+	if e.ProducerVersion == "" || len(e.ProducerVersion) > 64 {
+		return fmt.Errorf("%w: producer_version must contain 1..64 bytes", ErrInvalidPayload)
+	}
+	if e.Integrity.KeyID == "" || len(e.Integrity.KeyID) > 128 {
+		return fmt.Errorf("%w: integrity.key_id must contain 1..128 bytes", ErrInvalidPayload)
+	}
+	return nil
 }
 
 type ExchangeResult struct {
@@ -461,6 +492,9 @@ func (c *Client) findIdempotency(key string) (Envelope, bool, error) {
 }
 
 func (c *Client) persistInbound(e Envelope) error {
+	if !ulid.Valid(e.EventID) {
+		return fmt.Errorf("%w: invalid inbound event_id", ErrInvalidPayload)
+	}
 	path := filepath.Join(c.root, "inbox", e.EventID+".json")
 	err := createJSON(path, e)
 	if err == nil {
