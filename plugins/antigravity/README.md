@@ -11,11 +11,14 @@ configuration uses `mcpServers` with a stdio `command` and `args`. The manifest
 uses the documented `name` and `description` fields. The template placeholders
 are rendered by this installer, not assumed host environment expansion.
 
-Read-only local application metadata observed during implementation identifies
-Antigravity 2.17.0 (`com.google.antigravity`) and Antigravity IDE 2.5.5
-(`com.google.antigravity-ide`). Neither application was launched or used to
-validate this package. Packaging and config rendering do not prove installation,
-tool availability, a task/review workflow or shared-schema conformance.
+Local application metadata identifies Antigravity 2.17.0 (`com.google.antigravity`)
+and Antigravity IDE 2.5.5 (`com.google.antigravity-ide`). A 2026-10-23 UI attempt did
+not complete opening the isolated qualification workspace. No Antigravity model
+turn or authenticated task/review workflow was verified; live setup is deferred.
+Packaging and config rendering do not prove installation, tool availability or
+host certification. The deterministic package/install and shared backend tests
+run through the manually dispatched CI workflow and are recorded separately in
+`contracts/governance/v1/qualification-2026-10-23.md` in the repository.
 
 ## Prepare and install explicitly
 

@@ -62,8 +62,13 @@ remain mandatory; this unkeyed digest proves only metadata consistency.
 ## Shared native stdio conformance (core573)
 
 `conformance.py` is a host-neutral consumer of explicit, separately owner-issued
-private selection files. The Codex and Antigravity `probes/conformance.py`
-entrypoints call the same implementation. Neither starts a model, infers identity
+private selection files. Its closed tool-name ceiling follows the native stdio
+catalogs, including `propose_review`, `evaluate_review`,
+`get_verification_status`, `observe_dispatch`, and `acknowledge_cancellation`;
+each request must also appear in that selected profile's actual `tools/list`
+catalog. Obsolete names and tools outside the role's catalog are refused. The
+Codex and Antigravity `probes/conformance.py` entrypoints call the same
+implementation. Neither starts a model, infers identity
 from host labels, reads bearer credential files, or modifies raw authority.
 
 An owner first creates an isolated temporary Git/workspace using supported
@@ -106,6 +111,15 @@ fields and historical equality are asserted independently. Reports contain only
 closed case names, bounded counts/status, and `host_certified:false`; raw replies,
 profiles, credentials, errors and authority data are not exported.
 
+`python3 -m unittest contracts.governance.v1.test_native_identity -v` runs an
+additional real-binary startup boundary check. It creates disposable authority
+through owner CLI commands, confirms an authenticated `initialize`/`identity`
+control over native stdio, then points an otherwise valid connection at a
+deliberately absent credential file. The missing-credential startup must exit 3
+and leave the authority bytes unchanged. Set `DACLI_CONFORMANCE_BINARY` to reuse
+a binary; otherwise the test builds one temporary binary. It never reads or
+copies credential contents.
+
 CI runs deterministic transport assertions and existing real backend provisioning,
 replay, lifecycle and recovery fixtures. These are backend conformance, not a live
 cross-host certification. Owner-supplied fixture execution is separate and may
@@ -117,6 +131,11 @@ entrypoint proves only the same stdio contract after actual execution. A host
 receipt must name measured host version and source receipt digest separately;
 this runner never promotes a transport/unit fixture into that receipt.
 
-Implementation and test sources are assembled; behavioral verification remains
-deferred until the owner permits execution. Existing historical contract fixtures
-and host receipts are unchanged.
+The manually dispatched CI job builds one native binary for the transport and
+missing-credential tests, and runs the Antigravity package/install safety tests.
+These deterministic checks do not launch a coding model or certify a host.
+Existing historical contract fixtures and host receipts remain unchanged.
+
+[Current deterministic coverage and terminal local results](qualification-2026-10-23.md)
+separate backend guarantees from the actual Codex receipt and pending Antigravity
+live qualification.
