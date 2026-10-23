@@ -1,6 +1,6 @@
 # Architecture
 
-**Status: normative.** This document says how the system is layered, in what order it gets built, and what contracts the pieces owe each other. Where it disagrees with an older doc, this one wins; where it disagrees with the code, the code is wrong.
+**Status: normative for current boundaries; historical for the original build roadmap.** This document says how the system is layered and what contracts the pieces owe each other. The release wedges below record an earlier plan, not the current architecture. Where this document disagrees with the code, the code is wrong.
 
 Written out of the 2026-07-21 full-design review ([REVIEW.md](REVIEW.md)), after the spec had grown eight documents and the shape needed to be stated once, in one place.
 
@@ -11,7 +11,7 @@ Written out of the 2026-07-21 full-design review ([REVIEW.md](REVIEW.md)), after
 Six principles were scattered across the docs, each defended where it arose. Collected, because together they *are* the design:
 
 1. **The format is the API; binaries are conveniences.** Any tool that reads YAML frontmatter can interoperate without linking dacli. This is why every invariant — ownership, append-only, deny-beats-allow — lives in [FORMAT.md](FORMAT.md), not in Go: the format must stay safe even for writers that never ran our code.
-2. **The native host runs agents; dacli governs scoped transitions.** The host owns delegation, models, budgets and process control. dacli no longer contains coding-agent launchers.
+2. **Native hosts execute coding turns; dacli governs scoped transitions.** dacli has no provider CLI launcher. Its optional native controller can plan bounded work and authorize particular host actions through separately enrolled sessions; the host still creates and executes coding turns, and direct host filesystem or shell actions remain outside these cooperative gates.
 3. **Evidence is not authority.** Self-reports, host labels and snapshots do not authenticate a principal or establish independent review. Explicit private enrollment and owner grants do.
 4. **Measure integrations.** Actual host observations are version-bound. A feature flag or parsed metadata is not proof of identity, interception or second-host conformance.
 5. **Refuse uncertain authority.** Missing credentials, stale fences and unreadable canonical observations cannot silently become success.
@@ -48,7 +48,7 @@ Once the command surface passed fifty verbs, L5–L7 had degenerated into seven 
 |---|---|---|
 | **shared** | `ulid`, `mdstore`, `prompts`, the pure engines (`spm`, `shortcut`, `team`), and `clikit` (command type, flags, exit-code contract) | No upward imports; engines stay pure |
 | **entities** | `model`, `workspace`, `store`, `eventlog`, `agentid`, `brief` | The domain objects and their I/O |
-| **features** | `internal/features/*` — `wscore`, `planning`, `briefing`, `knowledge`, `collab`, `insight`, `teamops`, `shortcuts`, `queues`, `history`, `reviewing`, `nativegovernance` | One slice per capability; each exports a `Commands` table; **slices never import each other** |
+| **features** | `internal/features/*` — `acceptance`, `briefing`, `catalog`, `cleanup`, `collab`, `dashboard`, `deviceauth`, `ghmirror`, `history`, `insight`, `journal`, `knowledge`, `nativegovernance`, `onboard`, `planning`, `queues`, `reconciliation`, `releasetrain`, `reviewing`, `selfreport`, `ship`, `shortcuts`, `skillforge`, `slices`, `stagegate`, `teamops`, `vcs`, `wscore` | One slice per capability; each exports a `Commands` table; **slices never import each other** |
 | **app** | `cli` (aggregation, dispatch, the MCP executor), `mcp` (protocol) | No feature logic — a command body in `cli` is a layering bug |
 
 Two rules carry the design, and both are **tests, not comments** (`internal/cli/arch_test.go`):
@@ -77,20 +77,27 @@ for `store.go` and `vcs/lifecycle.go` as collision budgets. Crossing a ceiling
 requires extracting a named responsibility with focused tests, not raising the
 number to accommodate unrelated behavior.
 
-The slice boundaries follow the domain language, not the entities: `planning` (projects/tasks/risks/glossary), `briefing` (the product), `collab` (the cooperative event loop: sync/ask/answer/threads/escalate), `insight` (every read-only view: status, lint, the SPM schedulers, doctor, standup), `teamops` (identities, roles, routing), `history` (retained run observations), `reviewing` (independent legacy review records), `nativegovernance` (owner provisioning and native transport), `shortcuts` (memoized commands: definition, guarded execution, ad-hoc tracking, promotion). Templates/gates and GitHub projections remain separate slices. The hosted bridge is a bounded infrastructure foundation, not a launched service.
+Feature slices follow capability boundaries. `planning` owns canonical project/task planning; `briefing` assembles context; `collab` owns cooperative workspace exchange; `history` reads retained run observations; `nativegovernance` owns local native authority operations; and the other slices own their matching command domains. The `nativegovernance` slice does not launch provider CLIs. Native controller, dispatch and worker behavior is split across `internal/application`, `internal/governance/sessions`, and `internal/mcp/native`; the controller catalog can authorize bounded actions while the selected native host performs them. For the source-cited inventory and component boundaries, see [DIAGRAMS.md](DIAGRAMS.md).
 
-The table above states the *rules*; the slice and entity *lists* here are illustrative and lag the code — the tool has grown past the original ten slices. For the current inventory of every slice and entity package, plus a component diagram, a native governance sequence, and the task-lifecycle state machine — each edge cited to the file that implements it — see [DIAGRAMS.md](DIAGRAMS.md). `internal/cli/diagrams_test.go` fails the build if a slice is added without being drawn there.
+The table states the *rules*; the inventory is a source snapshot. For the full current inventory of every slice and entity package, plus a component diagram, a native governance sequence, and the task-lifecycle state machine — each edge cited to the file that implements it — see [DIAGRAMS.md](DIAGRAMS.md). `internal/cli/diagrams_test.go` fails the build if a slice is added without being drawn there.
 
-Large slices also keep package-local component boundaries. `execution` splits
-provider process launch, observability, lifecycle finalization, and behavioral
-preflight; `orchestration` splits preflight/policy, wave scheduling, delivery
-tail, phase journal, and recovery; `ghmirror` splits GitHub transport and issue
-adoption from projection/publication. Package-local ports isolate process and
-GitHub adapters without introducing feature-to-feature imports. The
-architecture test enforces both the component inventory and a reviewed size
-ceiling for the remaining coordinator files.
+Large capabilities keep package-local component boundaries. GitHub transport,
+issue adoption, projection and publication are split within `ghmirror`. Native
+coordination is split among application services, authenticated session
+authority and typed MCP catalogs; it records bounded handoffs and controller
+state without invoking a coding-agent CLI. Historical execution/orchestration
+packages and provider-launch paths are not current feature slices. The
+architecture tests enforce the current component inventory and reviewed size
+ceilings for coordinator files.
 
-## 3. Historical build order
+## 3. Historical build order and release plan
+
+The following sequence and release wedges record the original project plan.
+Provider launchers and runtime adapters were later removed from current source.
+The current source has an unreleased local native preview; the latest stable
+published release remains v0.3.1 and contains the earlier CLI product. See
+[NATIVE_MIGRATION.md](NATIVE_MIGRATION.md) for the current command mapping and
+release boundary.
 
 The spine first, then the product, then everything else:
 
@@ -104,14 +111,14 @@ mdstore → workspace → objects/ownership → eventlog → brief → cli → m
 
 ### Historical release wedges
 
-Each wedge must be usable by someone before the next begins:
+The original plan gave each wedge an intended use test:
 
 | | Contains | Usable test |
 |---|---|---|
 | **v0.1** | init, project/task/note CRUD, events, `context`, `status`, `sync`, `lint` | **Dogfood: manage dacli's own development with dacli.** One Claude Code session, no spawning, no roles. If the brief isn't worth generating for that, nothing downstream matters. |
 | **v0.2** | agent identity, roles, shortcuts, `ask`/`answer` (cooperative) | A parent and children in the same repo, cooperatively |
 | **v0.3** | MCP server | Agents stop parsing stdout |
-| **v0.4** | runtimes: spawn, supervise, verify panels | dacli launches the children itself |
+| **v0.4 (historical proposal)** | runtime launchers: spawn, supervise, verification panels | dacli would launch children itself; this proposal was superseded and is not current behavior |
 | **v0.5** | templates + gates, GitHub projection | Process and human visibility |
 
 v0.1 is deliberately the original pitch, before any of this session's additions. The additions are real, but every one of them is worthless if the core brief isn't — and the dogfood test is the cheapest possible way to find that out.
