@@ -2,7 +2,11 @@
 
 package store
 
-import "golang.org/x/sys/unix"
+import (
+	"errors"
+
+	"golang.org/x/sys/unix"
+)
 
 const (
 	darwinZombieProcessState    = 5 // SZOMB from sys/proc.h.
@@ -20,7 +24,7 @@ type verificationProcessMember struct {
 // has already been reaped by Cmd.Run, so seeing its PID again makes the group
 // identity uncertain and must remain a refusal.
 func verificationGroupTerminalOnly(pgid, leaderPID int, members []verificationProcessMember) bool {
-	if pgid <= 0 || leaderPID <= 0 || len(members) > maxVerificationGroupMembers {
+	if pgid <= 0 || leaderPID <= 0 || pgid != leaderPID || len(members) > maxVerificationGroupMembers {
 		return false
 	}
 	seen := make(map[int]struct{}, len(members))
@@ -40,17 +44,40 @@ func verificationGroupTerminalOnly(pgid, leaderPID int, members []verificationPr
 // is a cooperative cleanup observation, not containment or proof about escaped
 // descendants; every unavailable or ambiguous observation fails closed.
 func verificationGroupCleanupSafeAfterEPERM(pgid, leaderPID int) bool {
-	rows, err := unix.SysctlKinfoProcSlice("kern.proc.pgrp", pgid)
-	if err != nil || len(rows) > maxVerificationGroupMembers {
+	return verificationGroupCleanupSafeAfterEPERMSnapshot(pgid, leaderPID, func(groupID int) ([]verificationProcessMember, error) {
+		rows, err := unix.SysctlKinfoProcSlice("kern.proc.pgrp", groupID)
+		if err != nil {
+			return nil, err
+		}
+		if len(rows) > maxVerificationGroupMembers {
+			return nil, errVerificationGroupSnapshotTooLarge
+		}
+		members := make([]verificationProcessMember, 0, len(rows))
+		for _, row := range rows {
+			members = append(members, verificationProcessMember{
+				PID:   int(row.Proc.P_pid),
+				PGID:  int(row.Eproc.Pgid),
+				State: row.Proc.P_stat,
+			})
+		}
+		return members, nil
+	})
+}
+
+var errVerificationGroupSnapshotTooLarge = errors.New("verification process group snapshot too large")
+
+// verificationGroupCleanupSafeAfterEPERMSnapshot permits deterministic tests
+// of unavailable snapshots without exposing a public process-inspection hook.
+func verificationGroupCleanupSafeAfterEPERMSnapshot(
+	pgid, leaderPID int,
+	snapshot func(int) ([]verificationProcessMember, error),
+) bool {
+	if pgid <= 0 || leaderPID <= 0 || pgid != leaderPID || snapshot == nil {
 		return false
 	}
-	members := make([]verificationProcessMember, 0, len(rows))
-	for _, row := range rows {
-		members = append(members, verificationProcessMember{
-			PID:   int(row.Proc.P_pid),
-			PGID:  int(row.Eproc.Pgid),
-			State: row.Proc.P_stat,
-		})
+	members, err := snapshot(pgid)
+	if err != nil || len(members) > maxVerificationGroupMembers {
+		return false
 	}
 	return verificationGroupTerminalOnly(pgid, leaderPID, members)
 }

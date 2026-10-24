@@ -45,7 +45,8 @@ func runNativeVerificationCommand(cmd *exec.Cmd) (NativeVerificationTermination,
 			return NativeVerificationTermination{}, err
 		}
 		// Cmd.Run reaped the direct child; group SIGKILL succeeded or ESRCH
-		// was observed. This does not prove escaped descendants terminated.
+		// was observed, or Darwin's exact snapshot proved only terminal zombies
+		// remained. This does not prove escaped descendants terminated.
 		state = "owned_group_cleanup"
 	}
 	return NativeVerificationTermination{State: state}, err
