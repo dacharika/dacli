@@ -23,7 +23,8 @@ import (
 var jsonHonoringCommands = map[string]bool{
 	"role registry import": true, "role registry verify": true, "role registry pin": true,
 	"role registry diff": true, "role registry upgrade": true, "role registry rollback": true,
-	"auth login": true, "auth logout": true, "auth whoami": true,
+	"role registry outcomes": true,
+	"auth login":             true, "auth logout": true, "auth whoami": true,
 	"project connect": true, "project disconnect": true, "project sync": true, "project status": true,
 	"native external configure": true, "native external inspect": true, "native external apply": true, "native external reconcile": true,
 	"native doctor":                  true,

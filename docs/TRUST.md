@@ -586,10 +586,11 @@ and the legacy MCP executor refuses them. `role registry verify` and
 
 | Mutation | Authority and effect | Recovery |
 |---|---|---|
-| `role registry import` | Verify supplied bounded regular release/lifecycle files against the existing publisher keyring, then cache the exact signed objects. No key enrollment, pin selection, role rewrite, or execution occurs. | Keep immutable cache and lifecycle history; import never activates a release. |
+| `role registry import` | Verify bounded regular release/lifecycle files or a complete hosted catalog export against the existing local publisher keyring. Historical statements verify at issue time; the selected statement must be fresh. Cache exact signed objects without key enrollment, pin selection, role rewrite, or execution. | Keep immutable cache and lifecycle history; import never activates a release. |
 | `role registry pin` | Explicit owner, schema20, no existing pin, expected project generation, current signed lifecycle, and canonical role equality. | No implicit unpin; preserve history and make another explicitly reviewed selection. |
 | `role registry upgrade` | Explicit owner, exact current pin and generation, greater SemVer, verified cache/lifecycle, and canonical role equality. | Use an explicit historical rollback with a fresh lifecycle and matching canonical role. |
 | `role registry rollback` | Explicit owner and exact current pin/generation; target must be a real prior selection. Actor/reason history and generation remain monotonic. | Another explicit selection; never delete or rewrite prior history. |
+| `role registry outcomes` | Explicit private owner and exact project; read only from bound acknowledged native dispatch observations. Fixed five-task cohorts, closed role-version grouping and whole-vector small-cell suppression; no individual identities or ranking filters. | No mutation, provider measurement, execution permit or acceptance claim. |
 
 These commands never migrate authority automatically. See
 [ROLE_MANAGEMENT.md](ROLE_MANAGEMENT.md) for inputs and the distinction between
