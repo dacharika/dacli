@@ -488,9 +488,10 @@ func EvaluateScenario(release Release, publishers map[string]ed25519.PublicKey, 
 		digest := sha256.Sum256(raw)
 		outcome := evaluateScenarioFacts(scenario, release.Content.Contract)
 		observedAction := "dispatch"
-		if outcome == "refused" {
+		switch outcome {
+		case "refused":
 			observedAction = "refuse"
-		} else if outcome == "escalated" {
+		case "escalated":
 			observedAction = "escalate"
 		}
 		policies := make([]Reference, 0, len(release.Content.References))

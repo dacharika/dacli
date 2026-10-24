@@ -257,7 +257,7 @@ func setupRoleContractBoundary(t *testing.T) roleContractBoundaryFixture {
 	for _, canonicalRole := range roles {
 		roleByID[canonicalRole.Name] = canonicalRole
 	}
-	role, reviewerRole = roleByID["builder"], roleByID["reviewer"]
+	role = roleByID["builder"]
 	checkoutPath := filepath.Join(t.TempDir(), "role-contract-worker")
 	if err := os.Mkdir(checkoutPath, 0700); err != nil {
 		t.Fatal(err)
@@ -300,11 +300,7 @@ func setupRoleContractBoundary(t *testing.T) roleContractBoundaryFixture {
 	if err := (manualSwarmCapabilityFile{path: capabilityPath}).AdmitDispatchCapability(w.ID, "core", "codex", capabilityDigestText); err != nil {
 		t.Fatalf("fixture dispatch capability: %v", err)
 	}
-	baseAdmission, err := NewLeaseAdmission(w)
-	if err != nil {
-		t.Fatal(err)
-	}
-	baseAdmission, err = NewSwarmAdmission(w, manualSwarmCapabilityFile{path: capabilityPath})
+	baseAdmission, err := NewSwarmAdmission(w, manualSwarmCapabilityFile{path: capabilityPath})
 	if err != nil {
 		t.Fatal(err)
 	}
