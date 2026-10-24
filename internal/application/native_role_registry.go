@@ -76,8 +76,11 @@ func (a *LeaseAdmission) validateRoleRegistry(project string, roles []team.Role,
 }
 
 func validateReleaseReferences(w *workspace.Workspace, role team.Role, release rolebundle.Release) ([]sessions.RolePolicyReference, error) {
+	if release.Content.Contract != nil && !rolebundle.ContractSupported(release.Content.Contract) {
+		return nil, sessions.ErrDenied
+	}
 	refs := make(map[string]rolebundle.Reference, len(release.Content.References))
-	policyRefs := []sessions.RolePolicyReference{}
+	var policyRefs []sessions.RolePolicyReference
 	for _, ref := range release.Content.References {
 		if ref.Kind == "policy" {
 			if !rolePolicyKind(ref.ID) {
@@ -94,6 +97,24 @@ func validateReleaseReferences(w *workspace.Workspace, role team.Role, release r
 	for _, id := range role.Skills {
 		if _, ok := refs[id]; !ok {
 			return nil, sessions.ErrDenied
+		}
+	}
+	if contract := release.Content.Contract; contract != nil {
+		requiredPolicies := map[string]bool{}
+		for _, ref := range policyRefs {
+			requiredPolicies[ref.Kind] = true
+		}
+		if contract.HostRequires("native-policy-observation") && len(policyRefs) == 0 {
+			return nil, sessions.ErrDenied
+		}
+		if contract.Budget.Mode == "native-policy" && !requiredPolicies["native-budget"] {
+			return nil, sessions.ErrDenied
+		}
+		for _, gate := range contract.Gates {
+			policy := map[string]string{"budget": "native-budget", "model-routing": "native-model-routing", "preflight": "native-preflight", "swarm": "native-swarm"}[gate]
+			if policy == "" || !requiredPolicies[policy] {
+				return nil, sessions.ErrDenied
+			}
 		}
 	}
 	sort.Slice(policyRefs, func(i, j int) bool { return policyRefs[i].Kind < policyRefs[j].Kind })

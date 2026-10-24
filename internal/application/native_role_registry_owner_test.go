@@ -307,7 +307,15 @@ func TestNativeRoleRegistryDiffReportsSignedAndCanonicalDifferencesDeterministic
 	targetRole.Model = "model-target"
 	targetRole.Prompt = "Target signed prompt."
 	targetRole.Skills = []string{"target-skill"}
-	target, err := rolebundle.Sign(rolebundle.ReleaseContent{SchemaVersion: 1, Version: "2.0.0", Role: targetRole, References: []rolebundle.Reference{{Kind: "policy", ID: "native-swarm", Version: "policy-v2", Digest: "sha256:" + string(bytes.Repeat([]byte("a"), 64))}}}, "publisher", f.private)
+	contract := rolebundle.RoleContract{
+		Purpose: targetRole.Summary, Instructions: targetRole.Prompt,
+		CapabilityScope: rolebundle.CapabilityScope{Grant: targetRole.Grant, Scope: targetRole.Scope, OutOfScope: targetRole.OutOfScope, Shortcuts: targetRole.Shortcuts},
+		Runtime:         rolebundle.RuntimePreference{Runtime: targetRole.Runtime, Model: targetRole.ModelID(), Profile: targetRole.Profile},
+		Host:            rolebundle.HostRequirements{Capabilities: []string{"native-swarm-admission"}, Sandbox: "cooperative", Network: "unrestricted", Filesystem: "role-scope", Process: "unrestricted"},
+		Budget:          rolebundle.BudgetRequirement{Mode: "none"},
+		Escalation:      targetRole.EscalateTo, Skills: targetRole.Skills,
+	}
+	target, err := rolebundle.Sign(rolebundle.ReleaseContent{SchemaVersion: rolebundle.ReleaseContractSchemaVersion, Version: "2.0.0", Role: targetRole, Contract: &contract, References: []rolebundle.Reference{{Kind: "policy", ID: "native-swarm", Version: "policy-v2", Digest: "sha256:" + string(bytes.Repeat([]byte("a"), 64))}}}, "publisher", f.private)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,8 +348,14 @@ func TestNativeRoleRegistryDiffReportsSignedAndCanonicalDifferencesDeterministic
 	fields := map[string]bool{}
 	for _, change := range one.Changes {
 		fields[change.Field] = true
+		if change.Field == "content.contract" {
+			want, marshalErr := json.Marshal(target.Content.Contract)
+			if marshalErr != nil || string(change.Current) != "null" || !bytes.Equal(change.Target, want) {
+				t.Fatalf("diff lost complete signed contract: current=%s target=%s want=%s err=%v", change.Current, change.Target, want, marshalErr)
+			}
+		}
 	}
-	for _, field := range []string{"role.grant", "role.model", "role.prompt", "role.skills", "references", "content.version"} {
+	for _, field := range []string{"role.grant", "role.model", "role.prompt", "role.skills", "references", "content.version", "content.contract"} {
 		if !fields[field] {
 			t.Errorf("diff omitted signed field %q: %+v", field, one.Changes)
 		}
