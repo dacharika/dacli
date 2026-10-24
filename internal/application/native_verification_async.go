@@ -23,11 +23,12 @@ type verificationJob struct {
 // NativeVerificationJobs admits at most two immediate checks. No job queue and
 // no completed receipt cache exist; authority remains the durable source.
 type NativeVerificationJobs struct {
-	selection *NativeVerificationProfile
-	mu        sync.Mutex
-	jobs      map[string]*verificationJob
-	closed    bool
-	wg        sync.WaitGroup
+	selection           *NativeVerificationProfile
+	mu                  sync.Mutex
+	jobs                map[string]*verificationJob
+	closed              bool
+	needsReconciliation bool
+	wg                  sync.WaitGroup
 }
 
 func (*NativeVerificationJobs) String() string   { return "NativeVerificationJobs" }
@@ -115,8 +116,26 @@ func (m *NativeVerificationJobs) Request(r NativeVerificationRequest) (Verificat
 	go func() {
 		defer m.wg.Done()
 		defer cancel()
-		_, _ = prepared.Execute(ctx)
+		evidence, executeErr := prepared.Execute(ctx)
+		// Execute may return an error after the reservation but before it can
+		// durably record completion or a known interruption. ErrDenied alone
+		// does not distinguish that case: a successfully persisted interruption
+		// deliberately returns ErrDenied too. A nonempty successful evidence
+		// result is already an authenticated durable completion, including a
+		// completed check whose exit code is nonzero.
+		resolved := executeErr == nil && evidence.ID != ""
+		if !resolved {
+			// Use the access authenticated for this exact request. Lookup
+			// reauthenticates its authority, but avoids re-reading a changed
+			// connection/profile selection after a known completion.
+			lookup, lookupErr := a.Lookup(r)
+			resolved = lookupErr == nil &&
+				(lookup.State == sessions.VerificationCompleted || lookup.State == sessions.VerificationInterrupted)
+		}
 		m.mu.Lock()
+		if !resolved {
+			m.needsReconciliation = true
+		}
 		delete(m.jobs, key)
 		m.mu.Unlock()
 	}()
@@ -167,6 +186,12 @@ func (m *NativeVerificationJobs) Close() error {
 	go func() { m.wg.Wait(); close(done) }()
 	select {
 	case <-done:
+		m.mu.Lock()
+		needsReconciliation := m.needsReconciliation
+		m.mu.Unlock()
+		if needsReconciliation {
+			return sessions.ErrReconcile
+		}
 		return nil
 	case <-time.After(6 * time.Second):
 		return sessions.ErrReconcile
