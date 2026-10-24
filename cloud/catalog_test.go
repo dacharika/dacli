@@ -14,7 +14,7 @@ func TestShippedMigrationCatalogIsValid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(catalog) != 11 {
+	if len(catalog) != 12 {
 		t.Fatalf("catalog = %+v", catalog)
 	}
 	for i, migration := range catalog {
