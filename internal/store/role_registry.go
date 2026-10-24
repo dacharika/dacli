@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
@@ -235,7 +236,7 @@ func (r *RoleRegistry) storeReleaseLocked(release rolebundle.Release) error {
 	data = append(data, '\n')
 	if old, err := readRoleRegistryFile(path); err == nil {
 		var cached rolebundle.Release
-		if json.Unmarshal(old, &cached) != nil || cached.ContentDigest != release.ContentDigest || cached.Content.Role.Name != release.Content.Role.Name || cached.Content.Version != release.Content.Version {
+		if decodeRoleRelease(old, &cached) != nil || cached.ContentDigest != release.ContentDigest || cached.Content.Role.Name != release.Content.Role.Name || cached.Content.Version != release.Content.Version {
 			return ErrRoleRegistry
 		}
 		if err := cached.Verify(r.publishers); err != nil {
@@ -261,10 +262,23 @@ func (r *RoleRegistry) ReadRelease(roleID, version, digest string) (rolebundle.R
 		return rolebundle.Release{}, err
 	}
 	var release rolebundle.Release
-	if json.Unmarshal(data, &release) != nil || release.Content.Role.Name != roleID || release.Content.Version != version || release.ContentDigest != digest || release.Verify(r.publishers) != nil {
+	if decodeRoleRelease(data, &release) != nil || release.Content.Role.Name != roleID || release.Content.Version != version || release.ContentDigest != digest || release.Verify(r.publishers) != nil {
 		return rolebundle.Release{}, ErrRoleRegistry
 	}
 	return release, nil
+}
+
+func decodeRoleRelease(data []byte, release *rolebundle.Release) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(release); err != nil {
+		return err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return ErrRoleRegistry
+	}
+	return nil
 }
 
 func (r *RoleRegistry) statusHistoryDir(roleID string) (string, error) {

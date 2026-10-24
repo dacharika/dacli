@@ -7,9 +7,52 @@ provide filesystem, network, process, or tool containment.
 
 This delivery covers the local release cache, explicit project pins,
 publisher verification, native admission, and [explicit local management](ROLE_MANAGEMENT.md).
-Hosted organization/team catalogs, inheritance, the complete constraint/scenario
-contract, and aggregate outcomes remain tracked by #978 and its later delivery tasks. Do not
+It also includes the signed constraint contract and declarative scenario evaluator
+described below. Hosted organization/team catalogs, inheritance and aggregate
+outcomes remain tracked by #978 and its later delivery tasks. Do not
 describe the complete shared registry as shipped until those tasks are accepted.
+
+## Signed constraint contract and scenario fixtures
+
+Schema-1 releases retain their original canonical JSON bytes and
+`dacli-role-release/v1` signing domain. Schema-2 releases require a `contract`
+member and use the separate `dacli-role-release/v2` signing domain. Lifecycle
+statements still use schema 1; release schema 2 does not require another durable
+authority migration beyond schema 20. Older runtimes refuse unsupported release
+versions, and current cache decoding rejects unknown fields and trailing JSON
+rather than silently dropping signed semantics.
+
+The contract mirrors the canonical role's purpose, instructions, grant, scope,
+exclusions, shortcuts, runtime/model/profile preferences, skills and escalation.
+Mirrored values must agree with `team.Role`; they do not create another source of
+role authority. Signed host requirements, MCP/tool requirements, budget mode,
+gates and scenarios also participate in the content digest. Owner
+`role registry diff` exposes the complete `content.contract` value, including a
+schema-1 current value of `null`.
+
+Native admission recognizes the cooperative capabilities
+`native-policy-observation` and `native-swarm-admission`. Required gates are
+`budget`, `model-routing`, `preflight` and `swarm`, mapped to exact authenticated
+native policy references. Budget mode `native-policy` requires the budget policy;
+`none` adds no budget requirement. Missing, changed or unavailable required
+observations refuse admission. Required sandbox, network, filesystem or process
+containment and required MCP/tool enforcement are represented but refused by
+this host, which cannot prove them. A signed requirement is not evidence of
+enforcement.
+
+Scenarios contain declarative fixture facts: requested, allowed and forbidden
+actions; gate and budget state; escalation; and expected outcome. The library
+evaluator performs no dispatch or command execution. Results bind the exact
+release digest, signed policy references and scenario digest, with
+`evaluated_action` and `evaluated_outcome` labels. A matching fixture outcome is
+not a live enforcement observation. Unknown or unsupported contract semantics
+are refused.
+
+Final dispatch, direct handoff and acknowledgement reopen current signed release
+and pin provenance, lifecycle, policy references and capability observations
+before authorizing an effect. Qualification replaces a signed release at the
+last measured capability callback and requires refusal with no permit or lease;
+supported signed-contract controls must succeed at the same boundaries.
 
 ## Immutable content and trust
 

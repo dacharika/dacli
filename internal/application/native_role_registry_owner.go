@@ -246,6 +246,7 @@ func roleReleaseChanges(current, target rolebundle.Release) []NativeRoleRegistry
 	}
 	add("content.schema_version", current.Content.SchemaVersion, target.Content.SchemaVersion)
 	add("content.version", current.Content.Version, target.Content.Version)
+	add("content.contract", current.Content.Contract, target.Content.Contract)
 	add("role.name", current.Content.Role.Name, target.Content.Role.Name)
 	add("role.summary", current.Content.Role.Summary, target.Content.Role.Summary)
 	add("role.skills", current.Content.Role.Skills, target.Content.Role.Skills)
