@@ -83,6 +83,15 @@ repeated shutdown. A completed failed check and a durably recorded known
 cancellation remain terminal observations. No successful evidence or
 interruption is invented when persistence or authentication fails.
 
+On Darwin, a second process-group cleanup signal can return `EPERM` when only
+unreaped zombies remain. After reaping its direct child, the runner accepts that
+specific result only if a bounded kernel snapshot of the exact owned group
+shows no members or distinct nonleader zombies. A live or unknown state,
+reappearing leader, mismatched identity, oversized snapshot or failed read
+leaves cleanup unknown. Other Unix platforms retain their existing refusal.
+This observation concerns the cooperative group at that instant; it does not
+establish termination of descendants that escaped it.
+
 Restoring storage access does not rerun or reset the original operation. Fresh
 status, cancellation and request calls preserve `reconciliation_required` with
 null evidence and interruption until explicit owner reconciliation. Closing a
