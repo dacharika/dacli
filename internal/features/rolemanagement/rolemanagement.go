@@ -3,6 +3,8 @@ package rolemanagement
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -13,9 +15,8 @@ import (
 	"github.com/mlnomadpy/dacli/internal/store"
 )
 
-// Commands exposes explicit local role release management. Registration in
-// the assembled CLI and the explicit-owner/MCP exclusions remain an owner
-// integration step because those files are held by another active lease.
+// Commands exposes explicit local role release management. The app layer
+// registers these handlers and excludes them from legacy MCP execution.
 func Commands() []clikit.Command {
 	return []clikit.Command{
 		{Path: "role registry import", Brief: "Cache one explicit signed role release and lifecycle file", Mutates: true, JSON: true, Usage: "dacli role registry import --config <private-owner> --project <slug> --release <file> --lifecycle <file> [--json]", Run: func(c *clikit.Ctx, a []string) error { return run(c, a, "import") }},
@@ -82,7 +83,9 @@ func run(ctx *clikit.Ctx, args []string, action string) error {
 	case "import":
 		var release rolebundle.Release
 		var lifecycle rolebundle.LifecycleStatus
-		if store.ReadRoleRegistryImport(f.Get("release"), &release) != nil || store.ReadRoleRegistryImport(f.Get("lifecycle"), &lifecycle) != nil {
+		releasePath, releasePathErr := resolveImportPath(ctx.Cwd, f.Get("release"))
+		lifecyclePath, lifecyclePathErr := resolveImportPath(ctx.Cwd, f.Get("lifecycle"))
+		if releasePathErr != nil || lifecyclePathErr != nil || store.ReadRoleRegistryImport(releasePath, &release) != nil || store.ReadRoleRegistryImport(lifecyclePath, &lifecycle) != nil {
 			return denied()
 		}
 		receipt, err := owner.Import(release, lifecycle, now)
@@ -156,6 +159,27 @@ func validateAction(f *clikit.Flags, action string) (uint64, error) {
 		return 0, clikit.Usagef("unknown role registry operation")
 	}
 	return generation, nil
+}
+
+func resolveImportPath(cwd, path string) (string, error) {
+	if filepath.IsAbs(path) {
+		return path, nil
+	}
+	if cwd == "" {
+		var err error
+		cwd, err = os.Getwd()
+		if err != nil {
+			return "", err
+		}
+	}
+	if !filepath.IsAbs(cwd) {
+		var err error
+		cwd, err = filepath.Abs(cwd)
+		if err != nil {
+			return "", err
+		}
+	}
+	return filepath.Join(cwd, path), nil
 }
 
 func requireTarget(f *clikit.Flags) error {
