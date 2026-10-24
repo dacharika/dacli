@@ -159,6 +159,31 @@ func Open(path string, binding Binding, admission ...LeaseAdmission) (*Authority
 	return a, nil
 }
 
+// OpenCurrent selects an exact schema reader for current local operations.
+// Legacy Open remains capped at schema 19, so pre-schema-20 binaries continue
+// to refuse authorities carrying durable role provenance.
+func OpenCurrent(path string, binding Binding, admission ...LeaseAdmission) (*Authority, error) {
+	a, err := Open(path, binding, admission...)
+	if err != nil {
+		return nil, err
+	}
+	data, err := readAuthority(a.path, false)
+	if err != nil {
+		return nil, err
+	}
+	var version struct {
+		Version int
+	}
+	if json.Unmarshal(data, &version) != nil || version.Version < 6 || version.Version > 20 {
+		return nil, ErrStorage
+	}
+	a.version = version.Version
+	if err := a.transaction(false, false, func(*state) error { return nil }); err != nil {
+		return nil, err
+	}
+	return a, nil
+}
+
 // An authority-file alias is different from a directory alias: atomic rename
 // would replace the symlink and silently fork the authority. Reject it, also
 // at transaction time in case it appeared after Open. These checks prevent

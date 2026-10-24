@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"sort"
+	"time"
 
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
 	"github.com/mlnomadpy/dacli/internal/model"
@@ -21,6 +22,10 @@ func (a *LeaseAdmission) ObserveSwarm(workspaceID, project string) (sessions.Swa
 		return sessions.SwarmSnapshot{}, sessions.ErrDenied
 	}
 	canonical, e := store.ReadCheckpointCanonical(&a.workspace)
+	if e != nil {
+		return sessions.SwarmSnapshot{}, e
+	}
+	roleRegistry, e := a.validateRoleRegistry(project, nil, time.Now().UTC())
 	if e != nil {
 		return sessions.SwarmSnapshot{}, e
 	}
@@ -72,12 +77,15 @@ func (a *LeaseAdmission) ObserveSwarm(workspaceID, project string) (sessions.Swa
 		}
 		candidates = append(candidates, sessions.SwarmCandidate{RequiredPoints: required, Sized: sized, TaskID: t.ID, ProjectID: t.Project, Status: string(t.Status), Reason: reason, Priority: model.Priority(t.Priority()).Rank(), Resources: resources})
 	}
+	if len(roleRegistry) > 0 {
+		facts = append(facts, fact{ID: "role-registry", Project: project, Status: "pinned", Digest: safeDigest(roleRegistry)})
+	}
 	data, e := json.Marshal(facts)
 	if e != nil {
 		return sessions.SwarmSnapshot{}, e
 	}
 	digest := sha256.Sum256(data)
-	return sessions.SwarmSnapshot{Digest: hex.EncodeToString(digest[:]), Candidates: candidates}, nil
+	return sessions.SwarmSnapshot{Digest: hex.EncodeToString(digest[:]), Candidates: candidates, RoleRegistry: roleRegistry}, nil
 }
 
 // NewSwarmAdmission adds an explicitly trusted host capability observation

@@ -159,6 +159,51 @@ func (f verificationFixture) assertNotRun(t *testing.T) {
 		t.Fatalf("refused request executed configured command: %v", e)
 	}
 }
+
+func TestLegacyNativeUpgradeFromSchemaFivePreservesOwnerCredential(t *testing.T) {
+	f := setupVerification(t, "", false)
+	var cfg ownerConfig
+	if err := privateJSON(f.config, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	credentialBefore, err := os.ReadFile(cfg.OwnerCredentialFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authorityBytes, err := os.ReadFile(cfg.Authority)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var authority map[string]json.RawMessage
+	if err := json.Unmarshal(authorityBytes, &authority); err != nil {
+		t.Fatal(err)
+	}
+	version, _ := json.Marshal(5)
+	authority["Version"] = version
+	delete(authority, "PublicationPolicies")
+	delete(authority, "PublicationDecisions")
+	delete(authority, "PublicationConsumed")
+	authorityBytes, err = json.Marshal(authority)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfg.Authority, authorityBytes, 0600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := verificationRun(t, f.w, upgrade, "--config", f.config)
+	if err != nil || !strings.Contains(out, "upgraded from schema 5 to 6") {
+		t.Fatalf("legacy CLI migration failed: %v %s", err, out)
+	}
+	credentialAfter, err := os.ReadFile(cfg.OwnerCredentialFile)
+	if err != nil || !bytes.Equal(credentialBefore, credentialAfter) || strings.TrimSpace(string(credentialAfter)) != f.owner {
+		t.Fatalf("owner credential changed during schema5 migration: %v", err)
+	}
+	current, err := sessions.OpenCurrent(cfg.Authority, sessions.Binding{Workspace: f.w.ID, Installation: cfg.InstallationID})
+	if err != nil || current.AuthenticateOwner(f.owner) != nil {
+		t.Fatalf("migrated authority did not retain owner identity: %v", err)
+	}
+}
+
 func TestNamedVerificationExecutesTrustedCheckAndReplays(t *testing.T) {
 	f := setupVerification(t, "", true)
 	out, e := f.run(t)

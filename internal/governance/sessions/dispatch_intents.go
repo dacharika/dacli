@@ -223,6 +223,9 @@ func (a *Authority) AcknowledgeDispatchIntent(token, worker string, req Acknowle
 		if a.dispatchCapability(s, i.Reservation) != nil {
 			return ErrDenied
 		}
+		if err := a.currentRoleRegistryMatches(s, i.Reservation); err != nil {
+			return err
+		}
 		if _, _, e := leaseAuth(s, token, worker, req.AttemptID, "lease.acquire", time.Now()); e != nil {
 			return e
 		}
@@ -362,6 +365,9 @@ func (a *Authority) requestDispatchIntentState(s *state, token, controllerID str
 		}
 		if !dispatchBoundActor(s, req.BridgeSessionID, d.ProjectID, "dispatch.correlate", d) || !dispatchBoundActor(s, req.WorkerSessionID, d.ProjectID, "lease.acquire", d) || !time.Now().Before(d.Reservation.ExpiresAt) || !preflightBoundCurrent(s, d) || !budgetDispatchCurrent(s, d) {
 			return ErrDenied
+		}
+		if err := a.currentRoleRegistryMatches(s, fresh); err != nil {
+			return err
 		}
 		s.DispatchIntents[d.ID] = intent
 		s.DispatchIntentOperations[req.OperationKey] = DispatchIntentReceipt{Digest: digest, Intent: intent}

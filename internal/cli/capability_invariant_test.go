@@ -180,6 +180,8 @@ func TestEveryCommandDeclaresItsCapability(t *testing.T) {
 		// may create/merge a PR or delete its landed source branch. Authority
 		// changes are themselves durable project-policy writes.
 		"release train": true, "release train authority": true,
+		// Signed role registry migration is an owner-only authority mutation.
+		"native role registry upgrade": true,
 		// Native provisioning validates private owner files instead of ambient
 		// legacy grants; dispatcher tests cover both authority boundaries.
 		"native checkpoint upgrade": true, "native budget upgrade": true, "native budget configure": true, "native budget settle": true, "native budget controller add": true,

@@ -64,6 +64,44 @@ func (a *Authority) UpgradeNativeExternal(owner string) error {
 		return nil
 	})
 }
+
+// UpgradeNativeRoleRegistry is an explicit owner-only schema cutover. Schema
+// 20 carries durable signed-role provenance; binaries capped at schema 19
+// refuse it rather than dropping those fields while decoding.
+func (a *Authority) UpgradeNativeRoleRegistry(owner string) error {
+	old := *a
+	old.version = 19
+	err := old.transaction(false, true, func(s *state) error {
+		if s.Version != 19 || len(owner) != 64 || hash(owner) != s.OwnerHash {
+			return ErrDenied
+		}
+		s.Version = 20
+		return nil
+	})
+	if err == nil {
+		a.version = 20
+	}
+	return err
+}
+
+// OpenNativeRoleRegistry opens only an authority that has completed the
+// explicit schema-20 owner migration; it never migrates production state.
+func OpenNativeRoleRegistry(path string, binding Binding, admission ...LeaseAdmission) (*Authority, error) {
+	a, err := Open(path, binding, admission...)
+	if err != nil {
+		return nil, err
+	}
+	a.version = 20
+	if err := a.transaction(false, false, func(s *state) error {
+		if s.Version != 20 {
+			return ErrStorage
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return a, nil
+}
 func (a *Authority) ConfigureNativeExternal(owner string, p NativeExternalPolicy) (NativeExternalPolicy, error) {
 	var out NativeExternalPolicy
 	p.ExpiresAt = p.ExpiresAt.Round(0).UTC()

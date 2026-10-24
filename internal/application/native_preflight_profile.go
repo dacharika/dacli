@@ -30,7 +30,7 @@ func (p *NativePreflightOwner) authenticate() (*sessions.Authority, string, erro
 	if e != nil {
 		return nil, "", e
 	}
-	a, e := sessions.Open(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID}, observer)
+	a, e := sessions.OpenCurrent(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID}, observer)
 	return a, o, e
 }
 func (p *NativePreflightOwner) Upgrade() error {

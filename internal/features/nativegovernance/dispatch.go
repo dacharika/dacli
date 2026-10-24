@@ -27,7 +27,7 @@ func dispatchUpgrade(ctx *clikit.Ctx, args []string) error {
 	if e != nil {
 		return denied()
 	}
-	a, e := sessions.Open(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID})
+	a, e := sessions.OpenCurrent(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID})
 	if e != nil {
 		return denied()
 	}

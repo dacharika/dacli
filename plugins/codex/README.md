@@ -359,3 +359,18 @@ The latter records three Luna workers across two dependent waves, independent
 review, trusted checks, exact local integration and canonical acceptance, with
 cooperative limits stated explicitly. The historical 0.159.2 receipt remains
 unchanged and does not stand in for current host evidence.
+
+## Signed local role pins
+
+The current runtime can verify exact signed local role releases before native
+planning and dispatch. Their release, publisher, lifecycle and pin provenance
+appears in the relevant routing and dispatch results. A historical record does
+not grant a new host permit. Unpinned projects retain their existing local role
+workflow.
+
+Using these pins requires the explicit owner schema-19-to-20 migration and
+updated current runtime readers; plugin startup never migrates an authority.
+See [the local role registry contract](../../docs/ROLE_REGISTRY.md) for trust,
+offline freshness, rollback and the remaining #978 delivery scope. This source
+capability does not extend the recorded 0.5.0 host qualification or certify an
+installed binary that has not been updated and checked.

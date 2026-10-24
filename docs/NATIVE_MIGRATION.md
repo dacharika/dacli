@@ -94,3 +94,9 @@ workflow. A capability gap means the binary and guidance differ; do not infer a
 replacement launcher from an old skill or version label.
 
 See [RUNTIMES.md](RUNTIMES.md) for the host qualification and recovery boundary.
+
+Signed local role pins use an additional explicit native authority schema-20
+cutover. Current runtime adapters read that exact schema; legacy bounded readers
+refuse it. Project pins do not trigger startup migration or activate inbound
+proposals. See [ROLE_REGISTRY.md](ROLE_REGISTRY.md) for the owner migration,
+freshness and pinning contract and the remaining shared-registry delivery scope.
