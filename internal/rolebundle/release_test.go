@@ -181,7 +181,9 @@ func contractFor(role team.Role) RoleContract {
 			{ID: "allowed", RequestedActions: []string{"dispatch"}, AllowedActions: []string{"dispatch"}, Gates: currentScenarioGates(), BudgetState: "valid", Escalation: "none", ExpectedOutcome: "allowed"},
 			{ID: "forbidden", RequestedActions: []string{"write-secrets"}, AllowedActions: []string{"dispatch"}, ForbiddenActions: []string{"write-secrets"}, BudgetState: "valid", Escalation: "none", ExpectedOutcome: "refused"},
 			{ID: "exhausted", RequestedActions: []string{"dispatch"}, AllowedActions: []string{"dispatch"}, BudgetState: "exhausted", Escalation: "none", ExpectedOutcome: "refused"},
+			{ID: "unknown-budget", RequestedActions: []string{"dispatch"}, AllowedActions: []string{"dispatch"}, BudgetState: "unknown", Escalation: "none", ExpectedOutcome: "refused"},
 			{ID: "missing-gate", RequestedActions: []string{"dispatch"}, AllowedActions: []string{"dispatch"}, Gates: []ScenarioGate{{ID: "preflight", Observed: "missing"}}, BudgetState: "valid", Escalation: "none", ExpectedOutcome: "refused"},
+			{ID: "failed-gate", RequestedActions: []string{"dispatch"}, AllowedActions: []string{"dispatch"}, Gates: []ScenarioGate{{ID: "preflight", Observed: "failed"}}, BudgetState: "valid", Escalation: "none", ExpectedOutcome: "refused"},
 			{ID: "omitted-required-gate", RequestedActions: []string{"dispatch"}, AllowedActions: []string{"dispatch"}, Gates: []ScenarioGate{{ID: "budget", Observed: "current"}, {ID: "model-routing", Observed: "current"}, {ID: "swarm", Observed: "current"}}, BudgetState: "valid", Escalation: "none", ExpectedOutcome: "refused"},
 			{ID: "escalate", RequestedActions: []string{"dispatch"}, AllowedActions: []string{"dispatch"}, Gates: currentScenarioGates(), BudgetState: "valid", Escalation: "required", ExpectedOutcome: "escalated"},
 		},
@@ -319,14 +321,15 @@ func TestSignedScenarioFixturesEvaluateDeterministicallyAndBindDigests(t *testin
 	}
 	for _, expected := range []struct{ id, outcome, action string }{
 		{"allowed", "allowed", "dispatch"}, {"forbidden", "refused", "refuse"},
-		{"exhausted", "refused", "refuse"}, {"missing-gate", "refused", "refuse"},
+		{"exhausted", "refused", "refuse"}, {"unknown-budget", "refused", "refuse"},
+		{"missing-gate", "refused", "refuse"}, {"failed-gate", "refused", "refuse"},
 		{"omitted-required-gate", "refused", "refuse"}, {"escalate", "escalated", "escalate"},
 	} {
 		result, err := EvaluateScenario(release, map[string]ed25519.PublicKey{"publisher-a": public}, expected.id)
 		if err != nil || !result.MatchesExpected || result.EvaluatedOutcome != expected.outcome || result.EvaluatedAction != expected.action {
 			t.Fatalf("scenario %s: %+v %v", expected.id, result, err)
 		}
-		if result.ReleaseDigest != release.ContentDigest || result.RoleID != content.Role.Name || len(result.PolicyReferences) != 1 || result.PolicyReferences[0].Kind != "policy" || !validDigest(result.ScenarioDigest) {
+		if result.ReleaseVersion != release.Content.Version || result.ReleaseDigest != release.ContentDigest || result.RoleID != content.Role.Name || !reflect.DeepEqual(result.PolicyReferences, []Reference{{Kind: "policy", ID: "native", Version: "v1", Digest: "sha256:" + strings.Repeat("b", 64)}}) || !validDigest(result.ScenarioDigest) {
 			t.Fatalf("scenario result lost release/policy/scenario binding: %+v", result)
 		}
 	}
