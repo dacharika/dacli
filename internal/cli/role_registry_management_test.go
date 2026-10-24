@@ -144,6 +144,12 @@ func TestRoleRegistryManagementCLIImportsAndReadsWithoutActivation(t *testing.T)
 			t.Fatalf("assembled %s lost exact canonical/schema facts: %v %s", action, err, text)
 		}
 	}
+	human := run(t, dir, 0, append([]string{"role", "registry", "verify"}, target...)...)
+	for _, want := range []string{"Role registry verify: builder 1.0.0", "canonical role matches: true", "pin operations supported: false"} {
+		if !strings.Contains(human, want) {
+			t.Fatalf("human verification omitted %q: %s", want, human)
+		}
+	}
 	if _, err := invokeRoleRegistry(t, dir, append([]string{"role", "registry", "pin"}, append(target, "--expected-generation", "0", "--reason", "requires schema20")...)...); clikit.ExitCode(err) != 3 {
 		t.Fatalf("assembled pin silently migrated old authority: %v", err)
 	}
