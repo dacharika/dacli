@@ -159,6 +159,8 @@ func (a *roleContractBoundaryAdmission) ObservePreflight(w, p, task string, spec
 type roleContractBoundaryFixture struct {
 	w                        *workspace.Workspace
 	a                        *sessions.Authority
+	path                     string
+	binding                  sessions.Binding
 	owner, controllerToken   string
 	controller               sessions.Session
 	bridge, worker           sessions.Session
@@ -172,6 +174,7 @@ type roleContractBoundaryFixture struct {
 	admission                *roleContractBoundaryAdmission
 	capabilityPath           string
 	capabilityDigest         string
+	budgetPolicy             sessions.BudgetPolicy
 }
 
 func upgradeRoleContractAuthorityTo20(t *testing.T, path string, binding sessions.Binding, owner string, admission sessions.LeaseAdmission) *sessions.Authority {
@@ -234,6 +237,25 @@ func readyPreflightPhases() []sessions.PreflightPhase {
 		phases = append(phases, sessions.PreflightPhase{Phase: phase, Verdict: "ready", Assurance: "owner-manual", Required: phase != "integration" && phase != "tokens" && phase != "budget"})
 	}
 	return phases
+}
+
+func roleContractScenarioContract(role team.Role) rolebundle.RoleContract {
+	allGates := []rolebundle.ScenarioGate{{ID: "budget", Observed: "current"}, {ID: "preflight", Observed: "current"}, {ID: "swarm", Observed: "current"}}
+	return rolebundle.RoleContract{
+		Purpose: role.Summary, Instructions: role.Prompt,
+		CapabilityScope: rolebundle.CapabilityScope{Grant: role.Grant, Scope: role.Scope, OutOfScope: role.OutOfScope, Shortcuts: role.Shortcuts},
+		Runtime:         rolebundle.RuntimePreference{Runtime: role.Runtime, Model: role.ModelID(), Profile: role.Profile},
+		Host:            rolebundle.HostRequirements{Capabilities: []string{"native-swarm-admission"}, Sandbox: "cooperative", Network: "unrestricted", Filesystem: "role-scope", Process: "unrestricted"},
+		Budget:          rolebundle.BudgetRequirement{Mode: "native-policy"}, Gates: []string{"budget", "preflight", "swarm"},
+		Scenarios: []rolebundle.Scenario{
+			{ID: "allowed", RequestedActions: []string{"dispatch"}, AllowedActions: []string{"dispatch"}, Gates: allGates, BudgetState: "valid", Escalation: "none", ExpectedOutcome: "allowed"},
+			{ID: "forbidden", RequestedActions: []string{"write-secrets"}, AllowedActions: []string{"dispatch"}, ForbiddenActions: []string{"write-secrets"}, Gates: allGates, BudgetState: "valid", Escalation: "none", ExpectedOutcome: "refused"},
+			{ID: "missing-gate", RequestedActions: []string{"dispatch"}, AllowedActions: []string{"dispatch"}, Gates: []rolebundle.ScenarioGate{{ID: "budget", Observed: "current"}, {ID: "swarm", Observed: "current"}}, BudgetState: "valid", Escalation: "none", ExpectedOutcome: "refused"},
+			{ID: "failed-gate", RequestedActions: []string{"dispatch"}, AllowedActions: []string{"dispatch"}, Gates: []rolebundle.ScenarioGate{{ID: "budget", Observed: "current"}, {ID: "preflight", Observed: "failed"}, {ID: "swarm", Observed: "current"}}, BudgetState: "valid", Escalation: "none", ExpectedOutcome: "refused"},
+			{ID: "exhausted-budget", RequestedActions: []string{"dispatch"}, AllowedActions: []string{"dispatch"}, Gates: allGates, BudgetState: "exhausted", Escalation: "none", ExpectedOutcome: "refused"},
+			{ID: "unknown-budget", RequestedActions: []string{"dispatch"}, AllowedActions: []string{"dispatch"}, Gates: allGates, BudgetState: "unknown", Escalation: "none", ExpectedOutcome: "refused"},
+		},
+	}
 }
 
 func setupRoleContractBoundary(t *testing.T) roleContractBoundaryFixture {
@@ -349,13 +371,23 @@ func setupRoleContractBoundary(t *testing.T) roleContractBoundaryFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := a.ConfigureSwarm(owner, sessions.SwarmPolicy{ProjectID: "core", Revision: "role-contract-policy", Harness: "codex", CapabilityDigest: capabilityDigestText, Width: 1, WIP: 1, TTL: time.Hour, Roles: []sessions.SwarmRole{{ID: "builder", Kind: "implement", Harness: "codex", Capacity: 1}, {ID: "reviewer", Kind: "review", Harness: "codex", Capacity: 1}}, Placements: map[string]sessions.SwarmPlacement{task.ID: {Checkout: checkoutPath, ImplementKind: "implement", ReviewKind: "review"}}}); err != nil {
+	swarmPolicy := sessions.SwarmPolicy{ProjectID: "core", Revision: "role-contract-policy", Harness: "codex", CapabilityDigest: capabilityDigestText, Width: 1, WIP: 1, TTL: time.Hour, Roles: []sessions.SwarmRole{{ID: "builder", Kind: "implement", Harness: "codex", Capacity: 1}, {ID: "reviewer", Kind: "review", Harness: "codex", Capacity: 1}}, Placements: map[string]sessions.SwarmPlacement{task.ID: {Checkout: checkoutPath, ImplementKind: "implement", ReviewKind: "review"}}}
+	if err := a.ConfigureSwarm(owner, swarmPolicy); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.ConfigurePreflight(owner, sessions.PreflightPolicy{SchemaVersion: 1, ProjectID: "core", Revision: "role-contract-preflight", Harness: "codex", Rationale: "disposable cooperative boundary fixture", AcceptManualAssurance: true, ExpiresAt: preflightExpiresAt, Tasks: map[string]sessions.PreflightTask{task.ID: {ImplementationRole: "builder", ReviewRole: "reviewer", RecoveryRole: "builder", WorkerConnection: "/private/role-contract-worker.json", ContractProfile: "/private/role-contract-profile.json"}}}); err != nil {
+	preflightPolicy := sessions.PreflightPolicy{SchemaVersion: 1, ProjectID: "core", Revision: "role-contract-preflight", Harness: "codex", Rationale: "disposable cooperative boundary fixture", AcceptManualAssurance: true, ExpiresAt: preflightExpiresAt.UTC(), Tasks: map[string]sessions.PreflightTask{task.ID: {ImplementationRole: "builder", ReviewRole: "reviewer", RecoveryRole: "builder", WorkerConnection: "/private/role-contract-worker.json", ContractProfile: "/private/role-contract-profile.json"}}}
+	if err := a.ConfigurePreflight(owner, preflightPolicy); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.ConfigureLifecycle(owner, sessions.LifecyclePolicy{SchemaVersion: 1, ProjectID: "core", Revision: "role-contract-lifecycle", Source: "owner-manual-native-host", Freshness: time.Minute, CancellationEnabled: true, CancellationChannel: "owner-manual-native-host"}); err != nil {
+		t.Fatal(err)
+	}
+	budgetObservedAt := time.Now().UTC().Round(0)
+	budgetPolicy := sessions.BudgetPolicy{SchemaVersion: 1, ProjectID: "core", Revision: "role-contract-budget", CycleID: "role-contract-cycle", Harness: "codex", Rationale: "owner-estimated fixture units; no provider measurement", CycleLimit: 100, WindowLimit: 100, RecoveryFloor: 5, Window: time.Hour, WindowOrigin: budgetObservedAt.Add(-time.Minute), ExpiresAt: budgetObservedAt.Add(time.Hour), Tasks: map[string]sessions.BudgetTask{task.ID: {Phases: map[string]sessions.BudgetEstimate{}}}}
+	for phase, tokens := range map[string]int64{"implementation": 20, "correction": 5, "recovery": 5} {
+		budgetPolicy.Tasks[task.ID].Phases[phase] = sessions.BudgetEstimate{RoleID: "builder", Model: "model-a", Tokens: tokens, Provenance: "owner-estimate", ObservedAt: budgetObservedAt}
+	}
+	if err := a.ConfigureBudget(owner, budgetPolicy); err != nil {
 		t.Fatal(err)
 	}
 	public, private, err := ed25519.GenerateKey(rand.Reader)
@@ -378,8 +410,15 @@ func setupRoleContractBoundary(t *testing.T) roleContractBoundaryFixture {
 		t.Fatal(err)
 	}
 	now := time.Now().UTC().Truncate(time.Second)
-	contract := rolebundle.RoleContract{Purpose: role.Summary, Instructions: role.Prompt, CapabilityScope: rolebundle.CapabilityScope{Grant: role.Grant, Scope: role.Scope, OutOfScope: role.OutOfScope, Shortcuts: role.Shortcuts}, Runtime: rolebundle.RuntimePreference{Runtime: role.Runtime, Model: role.ModelID(), Profile: role.Profile}, Host: rolebundle.HostRequirements{Capabilities: []string{"native-swarm-admission"}, Sandbox: "cooperative", Network: "unrestricted", Filesystem: "role-scope", Process: "unrestricted"}, Budget: rolebundle.BudgetRequirement{Mode: "none"}}
-	if err := installBoundaryRelease(t, w, registry, role, contract, "2.0.0", private, now, true); err != nil {
+	contract := roleContractScenarioContract(role)
+	contract.CapabilityScope = rolebundle.CapabilityScope{Grant: role.Grant, Scope: role.Scope, OutOfScope: role.OutOfScope, Shortcuts: role.Shortcuts}
+	contract.Runtime = rolebundle.RuntimePreference{Runtime: role.Runtime, Model: role.ModelID(), Profile: role.Profile}
+	policyRefs := []rolebundle.Reference{
+		{Kind: "policy", ID: "native-swarm", Version: swarmPolicy.Revision, Digest: sessions.RolePolicyDigest("native-swarm", swarmPolicy)},
+		{Kind: "policy", ID: "native-preflight", Version: preflightPolicy.Revision, Digest: sessions.RolePolicyDigest("native-preflight", preflightPolicy)},
+		{Kind: "policy", ID: "native-budget", Version: budgetPolicy.Revision, Digest: sessions.RolePolicyDigest("native-budget", budgetPolicy)},
+	}
+	if err := installBoundaryRelease(t, w, registry, role, contract, "2.0.0", private, now, true, policyRefs...); err != nil {
 		t.Fatal(err)
 	}
 	controller, controllerToken, err := a.Enroll(owner, sessions.Scope{Actions: []string{"swarm.plan", "swarm.reserve", "swarm.dispatch"}, Resources: []string{"project:core", "task:" + task.ID, "checkout:" + checkoutPath, "path:tracked"}}, time.Now().Add(time.Hour))
@@ -398,10 +437,10 @@ func setupRoleContractBoundary(t *testing.T) roleContractBoundaryFixture {
 	if err != nil || len(wave.Dispatches) != 1 {
 		t.Fatalf("role contract dispatch reservation: plan=%+v preflight=%+v dispatches=%d err=%v", plan.Verdicts, plan.Verdicts[0].Preflight, len(wave.Dispatches), err)
 	}
-	return roleContractBoundaryFixture{w: w, a: a, owner: owner, controllerToken: controllerToken, controller: controller, bridge: bridge, bridgeToken: bridgeToken, worker: worker, workerToken: workerToken, attempt: attempt, dispatch: wave.Dispatches[0], registry: registry, public: public, private: private, role: role, admission: admission, capabilityPath: capabilityPath, capabilityDigest: capabilityDigestText}
+	return roleContractBoundaryFixture{w: w, a: a, path: path, binding: binding, owner: owner, controllerToken: controllerToken, controller: controller, bridge: bridge, bridgeToken: bridgeToken, worker: worker, workerToken: workerToken, attempt: attempt, dispatch: wave.Dispatches[0], registry: registry, public: public, private: private, role: role, admission: admission, capabilityPath: capabilityPath, capabilityDigest: capabilityDigestText, budgetPolicy: budgetPolicy}
 }
 
-func installBoundaryRelease(t *testing.T, w *workspace.Workspace, registry *store.RoleRegistry, role team.Role, contract rolebundle.RoleContract, version string, private ed25519.PrivateKey, now time.Time, pin bool) error {
+func installBoundaryRelease(t *testing.T, w *workspace.Workspace, registry *store.RoleRegistry, role team.Role, contract rolebundle.RoleContract, version string, private ed25519.PrivateKey, now time.Time, pin bool, references ...rolebundle.Reference) error {
 	t.Helper()
 	var generation uint64 = 1
 	var previousStatusDigest string
@@ -418,7 +457,7 @@ func installBoundaryRelease(t *testing.T, w *workspace.Workspace, registry *stor
 		}
 		generation = previous.Generation + 1
 	}
-	release, err := rolebundle.Sign(rolebundle.ReleaseContent{SchemaVersion: rolebundle.ReleaseContractSchemaVersion, Version: version, Role: role, Contract: &contract}, "test-publisher", private)
+	release, err := rolebundle.Sign(rolebundle.ReleaseContent{SchemaVersion: rolebundle.ReleaseContractSchemaVersion, Version: version, Role: role, References: references, Contract: &contract}, "test-publisher", private)
 	if err != nil {
 		return err
 	}

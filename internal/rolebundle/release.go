@@ -126,6 +126,7 @@ type ScenarioGate struct {
 // policy references, and the canonical digest of the scenario that was read.
 type ScenarioResult struct {
 	RoleID           string      `json:"role_id"`
+	ReleaseVersion   string      `json:"release_version"`
 	ReleaseDigest    string      `json:"release_digest"`
 	PolicyReferences []Reference `json:"policy_references"`
 	ScenarioID       string      `json:"scenario_id"`
@@ -403,7 +404,7 @@ func canonicalScenarios(values []Scenario) ([]Scenario, error) {
 	for i := range out {
 		s := &out[i]
 		s.Gates = append([]ScenarioGate(nil), s.Gates...)
-		if !validID(s.ID) || len(s.RequestedActions) == 0 || !oneOf(s.BudgetState, "valid", "exhausted") ||
+		if !validID(s.ID) || len(s.RequestedActions) == 0 || !oneOf(s.BudgetState, "valid", "exhausted", "unknown") ||
 			!oneOf(s.Escalation, "none", "required") || !oneOf(s.ExpectedOutcome, "allowed", "refused", "escalated") {
 			return nil, ErrInvalidRelease
 		}
@@ -419,7 +420,7 @@ func canonicalScenarios(values []Scenario) ([]Scenario, error) {
 		}
 		sort.Slice(s.Gates, func(i, j int) bool { return s.Gates[i].ID < s.Gates[j].ID })
 		for j, gate := range s.Gates {
-			if !supportedGate(gate.ID) || !oneOf(gate.Observed, "current", "missing", "stale", "blocked") || j > 0 && s.Gates[j-1].ID == gate.ID {
+			if !supportedGate(gate.ID) || !oneOf(gate.Observed, "current", "missing", "stale", "blocked", "failed") || j > 0 && s.Gates[j-1].ID == gate.ID {
 				return nil, ErrInvalidRelease
 			}
 		}
@@ -500,7 +501,7 @@ func EvaluateScenario(release Release, publishers map[string]ed25519.PublicKey, 
 				policies = append(policies, ref)
 			}
 		}
-		return ScenarioResult{RoleID: release.Content.Role.Name, ReleaseDigest: release.ContentDigest, PolicyReferences: policies, ScenarioID: scenario.ID, ScenarioDigest: "sha256:" + hex.EncodeToString(digest[:]), EvaluatedAction: observedAction, ExpectedOutcome: scenario.ExpectedOutcome, EvaluatedOutcome: outcome, MatchesExpected: outcome == scenario.ExpectedOutcome}, nil
+		return ScenarioResult{RoleID: release.Content.Role.Name, ReleaseVersion: release.Content.Version, ReleaseDigest: release.ContentDigest, PolicyReferences: policies, ScenarioID: scenario.ID, ScenarioDigest: "sha256:" + hex.EncodeToString(digest[:]), EvaluatedAction: observedAction, ExpectedOutcome: scenario.ExpectedOutcome, EvaluatedOutcome: outcome, MatchesExpected: outcome == scenario.ExpectedOutcome}, nil
 	}
 	return ScenarioResult{}, ErrInvalidRelease
 }

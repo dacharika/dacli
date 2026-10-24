@@ -9,8 +9,8 @@ This delivery covers the local release cache, explicit project pins,
 publisher verification, native admission, and [explicit local management](ROLE_MANAGEMENT.md).
 It also includes the signed constraint contract and declarative scenario evaluator
 described below, plus the hosted organization/team catalog API and exact pin
-inheritance documented here. Aggregate outcomes remain tracked by core670 and
-#978; the complete shared registry is not yet delivered.
+inheritance documented here. Composed lifecycle qualification and owner-only
+aggregate outcome reporting complete the registry delivery described below.
 
 ## Signed constraint contract and scenario fixtures
 
@@ -193,5 +193,13 @@ immutable imports, lifecycle history, exact-version freshness, offline cache use
 pin drift, explicit rollback generations and key rotation. Native checks must
 also cover matching-policy success, changed-policy refusal, admission without
 optional preflight/routing, the final dispatch boundary, and schema migration
-with old-reader refusal. The test mutation and observed failure belong in the
-delivery evidence. CI remains manually dispatched.
+with old-reader refusal. The composed qualification also transfers exact hosted
+exports to a separate local keyring/cache, exercises explicit management and
+historical freshness,
+and verifies that upgrades preserve old run provenance. Scenario output names
+the exact `release_version`, release digest and signed policy references; it
+remains a declarative evaluation rather than a host action interception claim.
+The owner-only [aggregate report](ROLE_MANAGEMENT.md#aggregate-role-adoption-and-outcomes)
+uses distinct task cohorts and suppressed outcome cells, never individual
+rankings. The test mutation and observed failure belong in the delivery
+evidence. CI remains manually dispatched.

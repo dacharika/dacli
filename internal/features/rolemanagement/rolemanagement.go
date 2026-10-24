@@ -18,14 +18,15 @@ import (
 // Commands exposes explicit local role release management. The app layer
 // registers these handlers and excludes them from legacy MCP execution.
 func Commands() []clikit.Command {
-	return []clikit.Command{
-		{Path: "role registry import", Brief: "Cache one explicit signed role release and lifecycle file", Mutates: true, JSON: true, Usage: "dacli role registry import --config <private-owner> --project <slug> --release <file> --lifecycle <file> [--json]", Run: func(c *clikit.Ctx, a []string) error { return run(c, a, "import") }},
+	commands := []clikit.Command{
+		{Path: "role registry import", Brief: "Cache explicit signed role files or a complete hosted catalog export", Mutates: true, JSON: true, Usage: "dacli role registry import --config <private-owner> --project <slug> (--release <file> --lifecycle <file> | --catalog-export <file>) [--json]", Run: func(c *clikit.Ctx, a []string) error { return run(c, a, "import") }},
 		{Path: "role registry verify", Brief: "Verify one exact cached signed role release", JSON: true, Usage: "dacli role registry verify --config <private-owner> --project <slug> --role <id> --version <semver> --digest <sha256:...> [--json]", Run: func(c *clikit.Ctx, a []string) error { return run(c, a, "verify") }},
 		{Path: "role registry pin", Brief: "Pin one verified exact role release when no pin exists", Mutates: true, JSON: true, Usage: "dacli role registry pin --config <private-owner> --project <slug> --role <id> --version <semver> --digest <sha256:...> --expected-generation <n> --reason <text> [--json]", Run: func(c *clikit.Ctx, a []string) error { return run(c, a, "pin") }},
 		{Path: "role registry diff", Brief: "Compare one exact release with current selection and canonical role", JSON: true, Usage: "dacli role registry diff --config <private-owner> --project <slug> --role <id> --version <semver> --digest <sha256:...> [--json]", Run: func(c *clikit.Ctx, a []string) error { return run(c, a, "diff") }},
 		{Path: "role registry upgrade", Brief: "Explicitly select a newer verified exact cached role release", Mutates: true, JSON: true, Usage: "dacli role registry upgrade --config <private-owner> --project <slug> --role <id> --version <semver> --digest <sha256:...> --expected-generation <n> --expected-version <semver> --expected-digest <sha256:...> --reason <text> [--json]", Run: func(c *clikit.Ctx, a []string) error { return run(c, a, "upgrade") }},
 		{Path: "role registry rollback", Brief: "Explicitly restore a real prior verified role selection", Mutates: true, JSON: true, Usage: "dacli role registry rollback --config <private-owner> --project <slug> --role <id> --version <semver> --digest <sha256:...> --expected-generation <n> --expected-version <semver> --expected-digest <sha256:...> --reason <text> [--json]", Run: func(c *clikit.Ctx, a []string) error { return run(c, a, "rollback") }},
 	}
+	return append(commands, OutcomeCommands()...)
 }
 
 func AuthenticatesExplicitly(path string) bool {
@@ -33,7 +34,7 @@ func AuthenticatesExplicitly(path string) bool {
 	case "role registry import", "role registry verify", "role registry pin", "role registry diff", "role registry upgrade", "role registry rollback":
 		return true
 	}
-	return false
+	return AuthenticatesOutcomeExplicitly(path)
 }
 
 func parseFlags(args []string, allowed ...string) (*clikit.Flags, error) {
@@ -60,7 +61,7 @@ func denied() error {
 }
 
 func run(ctx *clikit.Ctx, args []string, action string) error {
-	allowed := []string{"config", "project", "role", "version", "digest", "release", "lifecycle", "expected-generation", "expected-version", "expected-digest", "reason", "json"}
+	allowed := []string{"config", "project", "role", "version", "digest", "release", "lifecycle", "catalog-export", "expected-generation", "expected-version", "expected-digest", "reason", "json"}
 	f, err := parseFlags(args, allowed...)
 	if err != nil {
 		return err
@@ -81,6 +82,9 @@ func run(ctx *clikit.Ctx, args []string, action string) error {
 	now := time.Now().UTC()
 	switch action {
 	case "import":
+		if path := f.Get("catalog-export"); path != "" {
+			return RunCatalogImport(ctx, owner, path, now)
+		}
 		var release rolebundle.Release
 		var lifecycle rolebundle.LifecycleStatus
 		releasePath, releasePathErr := resolveImportPath(ctx.Cwd, f.Get("release"))
@@ -120,8 +124,19 @@ func run(ctx *clikit.Ctx, args []string, action string) error {
 
 func validateAction(f *clikit.Flags, action string) (uint64, error) {
 	var generation uint64
+	if action != "import" && f.Get("catalog-export") != "" {
+		return 0, clikit.Usagef("%s does not accept --catalog-export", action)
+	}
 	switch action {
 	case "import":
+		if f.Get("catalog-export") != "" {
+			for _, key := range []string{"release", "lifecycle", "role", "version", "digest", "expected-generation", "expected-version", "expected-digest", "reason"} {
+				if f.Get(key) != "" {
+					return 0, clikit.Usagef("--catalog-export is exclusive with --%s", key)
+				}
+			}
+			return 0, nil
+		}
 		if f.Get("release") == "" || f.Get("lifecycle") == "" || f.Get("role") != "" || f.Get("version") != "" || f.Get("digest") != "" || f.Get("expected-generation") != "" || f.Get("expected-version") != "" || f.Get("expected-digest") != "" || f.Get("reason") != "" {
 			return 0, clikit.Usagef("import requires --release and --lifecycle only")
 		}
@@ -224,6 +239,9 @@ func emit(ctx *clikit.Ctx, action string, value any) error {
 		}
 	case store.ProjectRolePins:
 		fmt.Fprintf(ctx.Stdout, "Role registry %s recorded at project generation %d.\n", action, v.Generation)
+	case application.NativeRoleRegistryCatalogImportReceipt:
+		fmt.Fprintf(ctx.Stdout, "Imported catalog %s/%s role %s %s (%s): %d release(s), %d lifecycle event(s); project generation %d; selected: %t.\n", v.Tenant, v.CatalogID, v.RoleID, v.SelectedVersion, v.SelectedDigest, v.ReleaseCount, v.LifecycleCount, v.ProjectGeneration, v.Selected)
+		fmt.Fprintln(ctx.Stdout, v.ActivationNote)
 	case application.NativeRoleRegistryImportReceipt:
 		fmt.Fprintf(ctx.Stdout, "Imported signed %s %s (%s), lifecycle %s generation %d; project generation %d; selected: %t.\n", v.RoleID, v.Version, v.ContentDigest, v.LifecycleState, v.LifecycleGeneration, v.ProjectGeneration, v.Selected)
 		fmt.Fprintln(ctx.Stdout, v.ActivationNote)

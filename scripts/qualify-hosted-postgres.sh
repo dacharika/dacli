@@ -100,11 +100,12 @@ CREATE DATABASE qualification_sync OWNER qualification_owner;
 CREATE DATABASE qualification_recovery OWNER qualification_owner;
 CREATE DATABASE qualification_restored OWNER qualification_owner;
 CREATE DATABASE qualification_roles OWNER qualification_owner;
+CREATE DATABASE qualification_role_management OWNER qualification_owner;
 SQL
 stage bootstrap docker exec --interactive "$container_name" psql -h /var/run/postgresql -U postgres -d postgres -v ON_ERROR_STOP=1 < "$work_dir/bootstrap.sql"
 
 stage test-catalog docker exec "$container_name" /tmp/composition.test -test.list .
-for required_test in TestHostedPostgresComposition TestHostedPostgresProjectSync TestHostedPostgresReadinessRequiresOrganizationsRLS TestHostedPostgresRecovery TestHostedPostgresRoleRegistry; do
+for required_test in TestHostedPostgresComposition TestHostedPostgresProjectSync TestHostedPostgresReadinessRequiresOrganizationsRLS TestHostedPostgresRecovery TestHostedPostgresRoleRegistry TestHostedPostgresRoleManagement; do
   if ! grep -qx "$required_test" "$receipt_dir/test-catalog.log"; then
     echo "assembled qualification binary is missing $required_test" >&2
     exit 1
@@ -114,6 +115,7 @@ stage qualify-composition docker exec --env DACLI_QUALIFY_HOSTED_POSTGRES=1 "$co
 stage qualify-project-sync docker exec --env DACLI_QUALIFY_HOSTED_POSTGRES=1 "$container_name" /tmp/composition.test -test.run '^TestHostedPostgresProjectSync$' -test.v -test.timeout 60s
 stage qualify-readiness docker exec --env DACLI_QUALIFY_HOSTED_POSTGRES=1 "$container_name" /tmp/composition.test -test.run '^TestHostedPostgresReadinessRequiresOrganizationsRLS$' -test.v -test.timeout 60s
 stage qualify-role-registry docker exec --env DACLI_QUALIFY_HOSTED_POSTGRES=1 "$container_name" /tmp/composition.test -test.run '^TestHostedPostgresRoleRegistry$' -test.v -test.timeout 120s
+stage qualify-role-management docker exec --env DACLI_QUALIFY_HOSTED_POSTGRES=1 "$container_name" /tmp/composition.test -test.run '^TestHostedPostgresRoleManagement$' -test.v -test.timeout 120s
 
 # Phase 1 commits both the authenticated inbox event and an outbox row, then
 # commits a leased inbox claim and exits. Synthetic credentials stay in tmpfs.
