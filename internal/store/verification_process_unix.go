@@ -27,10 +27,17 @@ func runNativeVerificationCommand(cmd *exec.Cmd) (NativeVerificationTermination,
 	}
 	cmd.Cancel = killGroup
 	err := cmd.Run()
-	if cleanupErr := killGroup(); cleanupErr != nil {
-		// Never certify a successful check whose owned group could not be
-		// cleaned up. Do not expose process or command details through errors.
-		return NativeVerificationTermination{}, &VerificationPolicyError{Reason: "native verification process cleanup unavailable"}
+	cleanupErr := killGroup()
+	if cleanupErr != nil {
+		knownTerminalGroup := cmd.Process != nil && cmd.ProcessState != nil &&
+			errors.Is(cleanupErr, syscall.EPERM) &&
+			verificationGroupCleanupSafeAfterEPERM(cmd.Process.Pid, cmd.Process.Pid)
+		if !knownTerminalGroup {
+			// Never certify cleanup from EPERM alone. Darwin may return EPERM for
+			// a group containing only zombies; its platform-specific observer must
+			// prove that state with a successful exact-group snapshot.
+			return NativeVerificationTermination{}, &VerificationPolicyError{Reason: "native verification process cleanup unavailable"}
+		}
 	}
 	state := "not_started"
 	if cmd.Process != nil {
@@ -38,7 +45,8 @@ func runNativeVerificationCommand(cmd *exec.Cmd) (NativeVerificationTermination,
 			return NativeVerificationTermination{}, err
 		}
 		// Cmd.Run reaped the direct child; group SIGKILL succeeded or ESRCH
-		// was observed. This does not prove escaped descendants terminated.
+		// was observed, or Darwin's exact snapshot proved only terminal zombies
+		// remained. This does not prove escaped descendants terminated.
 		state = "owned_group_cleanup"
 	}
 	return NativeVerificationTermination{State: state}, err

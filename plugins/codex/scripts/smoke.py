@@ -107,6 +107,33 @@ def process_command(pid):
     return result.stdout.strip() if result.returncode == 0 else ''
 
 
+def _process_command_comparison(command_line, expected_executable, expected_args):
+    """Compare a process command without returning any observed argument text."""
+    try:
+        actual = shlex.split(command_line)
+    except ValueError:
+        return False, ('argv_parse=malformed_quoting; argv_count_match=false; '
+                       'executable_match=false; argument_mismatch_indices=unavailable')
+
+    count_match = len(actual) == len(expected_args) + 1
+    executable_match = False
+    if actual:
+        try:
+            executable_match = Path(actual[0]).resolve() == Path(expected_executable).resolve()
+        except (OSError, RuntimeError, ValueError):
+            executable_match = False
+
+    actual_args = actual[1:]
+    mismatch_indices = [index + 1 for index in range(max(len(actual_args), len(expected_args)))
+                        if index >= len(actual_args) or index >= len(expected_args)
+                        or actual_args[index] != expected_args[index]]
+    index_text = '[' + ','.join(map(str, mismatch_indices)) + ']'
+    diagnostic = ('argv_parse=ok; argv_count_match=' + str(count_match).lower()
+                  + '; executable_match=' + str(executable_match).lower()
+                  + '; argument_mismatch_indices=' + index_text)
+    return count_match and executable_match and not mismatch_indices, diagnostic
+
+
 def _open_fixture_fifo(path):
     try:
         return os.open(path, os.O_WRONLY | os.O_NONBLOCK)
@@ -507,22 +534,20 @@ os.close(fd)
                          and row['pgid'] == child_pid else None)(
                              process_snapshot(child_pid)), 10, 'synthetic check process identity')
             child_started = child['started']
-            child_argv = shlex.split(process_command(child_pid))
             expected_helper_args = [str(crash_helper), str(crash_started), str(crash_count),
                                     str(crash_fifo), str(crash_ack)]
-            assert len(child_argv) == len(expected_helper_args) + 1 \
-                and Path(child_argv[0]).resolve() == Path(sys.executable).resolve() \
-                and child_argv[1:] == expected_helper_args, 'check PID is not the fixture helper'
+            helper_matches, helper_diagnostic = _process_command_comparison(
+                process_command(child_pid), sys.executable, expected_helper_args)
+            assert helper_matches, 'check PID is not the fixture helper (' + helper_diagnostic + ')'
             verifier = process_snapshot(verifier_pid)
             assert verifier and verifier['ppid'] == server.proc.pid and verifier['state'][0] != 'Z'
             verifier_started = verifier['started']
-            verifier_argv = shlex.split(process_command(verifier_pid))
             expected_server_args = ['native', 'serve', '--connection', str(async_profile),
                                     '--runner-config', str(runner)]
-            assert len(verifier_argv) == len(expected_server_args) + 1 \
-                and Path(verifier_argv[0]).resolve() == Path(dacli).resolve() \
-                and verifier_argv[1:] == expected_server_args, \
-                'crash target is not this fixture native verifier process'
+            verifier_matches, verifier_diagnostic = _process_command_comparison(
+                process_command(verifier_pid), dacli, expected_server_args)
+            assert verifier_matches, ('crash target is not this fixture native verifier process ('
+                                      + verifier_diagnostic + ')')
             crash_running = call('get_verification_status', request=crashing)
             assert crash_running['state'] in ('admitting', 'reserved')
             authority_before_crash = authority.read_bytes()
@@ -539,17 +564,15 @@ os.close(fd)
             assert current_verifier and current_verifier['started'] == verifier_started \
                 and current_verifier['ppid'] == server.proc.pid
             current_child = process_snapshot(child_pid)
-            current_child_argv = shlex.split(process_command(child_pid))
+            current_child_matches, current_child_diagnostic = _process_command_comparison(
+                process_command(child_pid), sys.executable, expected_helper_args)
             assert current_child and current_child['started'] == child_started \
                 and current_child['ppid'] == verifier_pid and current_child['pgid'] == child_pid \
                 and current_child['state'][0] != 'Z' \
-                and len(current_child_argv) == len(expected_helper_args) + 1 \
-                and Path(current_child_argv[0]).resolve() == Path(sys.executable).resolve() \
-                and current_child_argv[1:] == expected_helper_args
-            current_verifier_argv = shlex.split(process_command(verifier_pid))
-            assert len(current_verifier_argv) == len(expected_server_args) + 1 \
-                and Path(current_verifier_argv[0]).resolve() == Path(dacli).resolve() \
-                and current_verifier_argv[1:] == expected_server_args
+                and current_child_matches, current_child_diagnostic
+            current_verifier_matches, current_verifier_diagnostic = _process_command_comparison(
+                process_command(verifier_pid), dacli, expected_server_args)
+            assert current_verifier_matches, current_verifier_diagnostic
             os.kill(verifier_pid, signal.SIGKILL)
             wait_for_process(lambda: _process_gone(verifier_pid, verifier_started), 10,
                              'fixture native verifier process death')

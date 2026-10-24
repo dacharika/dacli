@@ -202,7 +202,7 @@ type asyncWire struct {
 	done      chan error
 }
 
-func startAsyncWire(t *testing.T, f verificationFixture) asyncWire {
+func startAsyncWire(t *testing.T, f verificationFixture, allowedCloseErrors ...error) asyncWire {
 	t.Helper()
 	s, e := native.OpenWithRunner(f.connection, f.runnerProfile)
 	if e != nil {
@@ -228,7 +228,13 @@ func startAsyncWire(t *testing.T, f verificationFixture) asyncWire {
 		select {
 		case e := <-w.done:
 			if e != nil {
-				t.Error(e)
+				allowed := false
+				for _, expected := range allowedCloseErrors {
+					allowed = allowed || errors.Is(e, expected)
+				}
+				if !allowed {
+					t.Error(e)
+				}
 			}
 		case <-time.After(8 * time.Second):
 			t.Error("protocol shutdown hung")
@@ -275,7 +281,10 @@ func TestAsyncNativeProtocolResponsiveAndStrict(t *testing.T) {
 	d := t.TempDir()
 	marker := filepath.Join(d, "started")
 	f := setupVerification(t, "printf started > '"+marker+"'; sleep 30", true)
-	w := startAsyncWire(t, f)
+	// Revocation below can win the cancellation-receipt race. Only this test
+	// permits the honest reconciliation error; ordinary cleanup stays strict.
+	// The deterministic persistence-failure regression requires ErrReconcile.
+	w := startAsyncWire(t, f, sessions.ErrReconcile)
 	w.send(t, 1, "initialize", map[string]any{"protocolVersion": "2025-06-18", "capabilities": map[string]any{}, "clientInfo": map[string]any{}})
 	w.receive(t, 1)
 	w.send(t, 2, "tools/list", map[string]any{})
@@ -627,5 +636,25 @@ func TestAsyncNativeProtocolResponsesDoNotWaitForAdmission(t *testing.T) {
 	if e = os.Remove(gate); e != nil {
 		t.Fatal(e)
 	}
-	wireStatus(t, w.receive(t, 2))
+	status := wireStatus(t, w.receive(t, 2))
+	// This test measures responses during admission, not cancellation. Let the
+	// admitted check reach its expected durable completion before strict cleanup
+	// so returning from the test does not cancel its metadata preflight.
+	deadline := time.Now().Add(5 * time.Second)
+	for id := 4; status.State != "completed"; id++ {
+		if time.Now().After(deadline) {
+			t.Fatalf("admitted verification did not complete: %+v", status)
+		}
+		if status.State != "reserved" && status.State != "admitting" {
+			t.Fatalf("unexpected admitted verification outcome: %+v", status)
+		}
+		w.send(t, id, "tools/call", map[string]any{"name": "get_verification_status", "arguments": map[string]any{"schema_version": 1, "request": request}})
+		status = wireStatus(t, w.receive(t, id))
+		if status.State != "completed" {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	if status.Evidence == nil || status.Interruption != nil {
+		t.Fatalf("normal admitted check has no durable completion evidence: %+v", status)
+	}
 }
