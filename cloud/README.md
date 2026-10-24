@@ -3,7 +3,8 @@
 This directory is the Phase 1 reference service boundary decided in
 [ADR 0001](../docs/decisions/0001-control-plane-boundary.md). The standalone API
 and worker compose the PostgreSQL tenant repository, bounded tenant routes,
-envelope inbox/outbox processing, and the worker lifecycle. Device OAuth routes
+envelope inbox/outbox processing, signed hosted role catalogs, and the worker
+lifecycle. Device OAuth routes
 are enabled when explicit provider configuration is supplied; configured sync
 bindings enable the sync routes. Billing, a GitHub service, a general hosted
 queue, and remote execution are not included. PostgreSQL access uses the
@@ -14,6 +15,7 @@ The service source is implemented, but deployment and support qualification are
 tracked separately. Run `scripts/qualify-hosted-postgres.sh` for the opt-in
 composition and recovery proof on the cached immutable PostgreSQL 16.15 fixture.
 It exercises restricted-role readiness, authenticated tenant/device routes,
+signed role import/export, exact pin inheritance and tenant/member refusals,
 durable worker crash replay and a whole-database dump/restore into a separate
 empty fixture database. Receipts identify the actual engine, source, compiled
 test binary and stage exits. It does not exercise external OAuth, Keychain or
@@ -138,6 +140,16 @@ reusing a correlation for different evidence fails closed and never rewrites
 the append-only row.
 The closed `legacy_success` reason remains valid only for immutable rows
 backfilled by migration 0008; new domain constructors cannot emit it.
+
+Migration `0012_role_registry.sql` adds immutable organization/team catalogs,
+explicit publisher keys, exact signed release bytes, role-wide lifecycle
+history, scope pin history and catalog mutation audit events. Each of its six
+tables forces tenant RLS and preserves tenant-bearing foreign keys. The hosted
+runtime requires the complete exact schema-12 ledger and refuses older or
+altered schemas without applying migrations. See the
+[hosted role catalog API](../docs/ROLE_REGISTRY.md#hosted-catalogs-and-inheritance)
+for permissions, exact selectors, signed export boundaries and operator steps.
+This hosted database migration does not upgrade the local native authority.
 
 Backup and restore are whole-database operations. The executable
 [recovery and retention runbook](../docs/CONTROL_PLANE_RECOVERY.md) pins the

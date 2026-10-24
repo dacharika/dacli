@@ -40,8 +40,8 @@ func TestHostedPostgresProjectSync(t *testing.T) {
 	owner := pgSyncOpen(t, ctx, ownerDSN)
 	defer func() { _ = owner.Close() }()
 	catalog, err := migrations.Load(os.DirFS("/qualification/migrations"))
-	if err != nil || len(catalog) != 11 {
-		t.Fatalf("load schema 11 catalog: count=%d err=%v", len(catalog), err)
+	if err != nil || len(catalog) != 12 {
+		t.Fatalf("load schema 12 catalog: count=%d err=%v", len(catalog), err)
 	}
 	if err = migrations.Run(ctx, migrations.SQLStore{DB: owner}, catalog); err != nil {
 		t.Fatal(err)

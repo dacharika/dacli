@@ -85,8 +85,8 @@ func pgRecoverySeed(t *testing.T, ctx context.Context) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(catalog) != 11 {
-		t.Fatalf("recovery qualification requires all eleven migrations, got %d", len(catalog))
+	if len(catalog) != 12 {
+		t.Fatalf("recovery qualification requires all twelve migrations, got %d", len(catalog))
 	}
 	if err = migrations.Run(ctx, migrations.SQLStore{DB: owner}, catalog); err != nil {
 		t.Fatal(err)
@@ -272,7 +272,7 @@ func pgRecoverySnapshot(t *testing.T, ctx context.Context, dbname, path string) 
 		}
 		snapshot[relation] = rows
 	}
-	if len(snapshot["controlplane_schema_migrations"]) != 11 || len(snapshot["controlplane_accounts"]) != 2 || len(snapshot["controlplane_organizations"]) != 2 || len(snapshot["controlplane_projects"]) != 2 || len(snapshot["controlplane_environments"]) != 2 || len(snapshot["controlplane_devices"]) != 2 || len(snapshot["controlplane_device_sessions"]) != 2 || len(snapshot["controlplane_memberships"]) != 2 || len(snapshot["controlplane_tenant_audit_events"]) < 4 || len(snapshot["controlplane_envelope_streams"]) != 2 || len(snapshot["controlplane_envelope_inbox_identities"]) != 2 || len(snapshot["controlplane_envelope_inbox_payloads"]) != 2 || len(snapshot["controlplane_envelope_inbox_jobs"]) != 2 || len(snapshot["controlplane_envelope_proposals"]) != 2 || len(snapshot["controlplane_envelope_outbox"]) != 3 || len(snapshot["controlplane_envelope_audit_events"]) < 3 {
+	if len(snapshot["controlplane_schema_migrations"]) != 12 || len(snapshot["controlplane_accounts"]) != 2 || len(snapshot["controlplane_organizations"]) != 2 || len(snapshot["controlplane_projects"]) != 2 || len(snapshot["controlplane_environments"]) != 2 || len(snapshot["controlplane_devices"]) != 2 || len(snapshot["controlplane_device_sessions"]) != 2 || len(snapshot["controlplane_memberships"]) != 2 || len(snapshot["controlplane_tenant_audit_events"]) < 4 || len(snapshot["controlplane_envelope_streams"]) != 2 || len(snapshot["controlplane_envelope_inbox_identities"]) != 2 || len(snapshot["controlplane_envelope_inbox_payloads"]) != 2 || len(snapshot["controlplane_envelope_inbox_jobs"]) != 2 || len(snapshot["controlplane_envelope_proposals"]) != 2 || len(snapshot["controlplane_envelope_outbox"]) != 3 || len(snapshot["controlplane_envelope_audit_events"]) < 3 {
 		t.Fatalf("snapshot lacks required durable recovery evidence: %+v", snapshot)
 	}
 	pgRecoveryAssertStandaloneOutbox(t, ctx, app)

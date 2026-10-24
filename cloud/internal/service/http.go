@@ -40,6 +40,7 @@ type API struct {
 	readiness       Readiness
 	logger          *slog.Logger
 	tenant          *tenantHTTP
+	roleRegistry    *roleRegistryHTTP
 	identityLimit   *ratelimit.Limiter
 	tenantReadLimit *ratelimit.Limiter
 	limitSecret     []byte
@@ -122,6 +123,10 @@ func (a *API) Handler() http.Handler {
 	if a.tenant != nil {
 		mux.HandleFunc("/v1/projects", a.tenant.projects)
 		mux.HandleFunc("/v1/projects/", a.tenant.project)
+	}
+	if a.roleRegistry != nil {
+		mux.HandleFunc("/v1/role-registry/", a.roleRegistry.handle)
+		mux.HandleFunc("/v1/role-registry", a.roleRegistry.handle)
 	}
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		a.writeError(w, r, http.StatusNotFound, "not_found", "endpoint does not exist", false)
