@@ -8,9 +8,9 @@ provide filesystem, network, process, or tool containment.
 This delivery covers the local release cache, explicit project pins,
 publisher verification, native admission, and [explicit local management](ROLE_MANAGEMENT.md).
 It also includes the signed constraint contract and declarative scenario evaluator
-described below. Hosted organization/team catalogs, inheritance and aggregate
-outcomes remain tracked by #978 and its later delivery tasks. Do not
-describe the complete shared registry as shipped until those tasks are accepted.
+described below, plus the hosted organization/team catalog API and exact pin
+inheritance documented here. Aggregate outcomes remain tracked by core670 and
+#978; the complete shared registry is not yet delivered.
 
 ## Signed constraint contract and scenario fixtures
 
@@ -105,6 +105,65 @@ Provenance follows the role through native planning, preflight, routing and
 dispatch records. A historical plan, successful cache import, or signed bundle
 does not replace current admission or grant a fresh host permit. Projects without
 registry pins retain their local role workflow.
+
+## Hosted catalogs and inheritance
+
+The composed control-plane runtime requires the explicitly provisioned hosted
+PostgreSQL schema 12, including the exact migration checksums and forced RLS on
+all six role registry tables. This is separate from native authority schema 20.
+Startup never applies either migration. Operators review and apply
+`cloud/migrations/0012_role_registry.sql` through the existing migration runner
+and ledger procedure before starting this binary; an older hosted schema fails
+readiness. Preserve a full database backup and the enrolled publisher keys.
+Rolling back the binary requires a compatible database restoration procedure;
+immutable catalog rows are not deleted to simulate a downgrade.
+
+Catalogs belong to an organization and optionally a team. Publisher enrollment
+is an explicit catalog-scoped mutation. Publishing, pinning and lifecycle
+changes reload the authenticated actor's current membership, permissions,
+account, organization and device within the tenant transaction. Membership
+versions and expiry remain authoritative; client-supplied roles or timestamps
+cannot grant permission. Tenant-bearing foreign keys, explicit predicates and
+forced PostgreSQL RLS protect the same boundary. Successful mutations append
+an immutable actor/device/correlation audit event in the same transaction.
+
+The authenticated `/v1/role-registry` API exposes these bounded operations:
+
+| Method and path suffix | Operation |
+| --- | --- |
+| `GET /catalogs` | List accessible organization/current-team catalogs |
+| `POST /catalogs` | Create an organization or team catalog |
+| `POST /catalogs/{catalog}/publishers` | Explicitly enroll a public verification key |
+| `POST /catalogs/{catalog}/releases` | Import an exact signed envelope as a draft |
+| `POST /releases/{catalog}/{role}/{version}/{digest}/lifecycle` | Append a signed lifecycle transition with the expected role-wide sequence |
+| `GET /releases/{catalog}/{role}/{version}/{digest}` | Export exact signed bytes and the complete bounded role history |
+| `PUT /pins` | Append an exact organization/team/project pin with the expected scope generation |
+| `GET /projects/{project}/roles/{role}` | Resolve the project, current membership team, then organization pin |
+
+The API derives organization, actor and device from the verified identity.
+Release import carries `role_id`, exact `version`, `content_digest`, and the
+base64-encoded raw JSON `envelope`; publisher enrollment carries `key_id` and a
+base64-encoded Ed25519 `public_key`. Mutations require a fresh `X-Request-ID`
+correlation. Lifecycle writes carry `expected_sequence`, `state`, signed
+`status`, and `reason`. Pin writes carry `target_kind`, `scope_id`, `role_id`,
+`catalog_id`, exact `version` and `content_digest`, `expected_generation`, and
+`reason`. There is no floating version selector or automatic upgrade.
+
+Released, deprecated and revoked states are append-only metadata; release bytes
+and enrolled keys are immutable. Signed lifecycle generations form one chain
+per catalog and role across release versions. Revocation remains terminal for
+an exact release. Pin changes record the previous exact selection and advance
+the scope generation even when selecting another catalog or rolling back.
+The highest-priority explicit pin is authoritative: an invalid or revoked
+selection refuses resolution instead of silently falling back.
+
+Exports are proposal data, not an execution permit. They preserve the raw
+signed envelope bytes and full role-wide lifecycle chain so a local owner can
+verify them against separately enrolled keys before explicitly importing,
+selecting a local project pin and satisfying native admission. The hosted API
+does not enroll local trust, edit local role files, start an agent, or replace
+the native host's execution authority. Catalog resolution is a read observation;
+consumers must revalidate freshness and current governance before effects.
 
 ## Authority schema migration
 

@@ -287,7 +287,7 @@ func decodeHostedRoleEnvelope(raw []byte) (rolebundle.Release, error) {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&release); err != nil {
-		return rolebundle.Release{}, fmt.Errorf("%w: malformed signed release envelope: %v", ErrInvalidRoleRegistry, err)
+		return rolebundle.Release{}, fmt.Errorf("%w: malformed signed release envelope: %w", ErrInvalidRoleRegistry, err)
 	}
 	var trailing any
 	if err := decoder.Decode(&trailing); err != io.EOF {
