@@ -106,15 +106,17 @@ func initializeSwarms(s *state) {
 	s.SwarmOperations = map[string]SwarmReceipt{}
 }
 
-// OpenSwarm selects the exact authority schema and refuses schema6 until an
-// explicit owner migration. Legacy Open remains capped at schema19.
+// OpenSwarm selects the current authority schema. Schema6 receives a schema7
+// reader floor so ordinary operations refuse with ErrStorage until the explicit
+// owner migration; UpgradeSwarms temporarily selects schema6 to preserve history.
+// Legacy Open remains capped at schema19.
 func OpenSwarm(path string, binding Binding, admission LeaseAdmission) (*Authority, error) {
 	a, err := OpenCurrent(path, binding, admission)
 	if err != nil {
 		return nil, err
 	}
-	if a.version < 7 {
-		return nil, ErrDenied
+	if a.version == 6 {
+		a.version = 7
 	}
 	return a, nil
 }
