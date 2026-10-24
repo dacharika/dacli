@@ -636,5 +636,25 @@ func TestAsyncNativeProtocolResponsesDoNotWaitForAdmission(t *testing.T) {
 	if e = os.Remove(gate); e != nil {
 		t.Fatal(e)
 	}
-	wireStatus(t, w.receive(t, 2))
+	status := wireStatus(t, w.receive(t, 2))
+	// This test measures responses during admission, not cancellation. Let the
+	// admitted check reach its expected durable completion before strict cleanup
+	// so returning from the test does not cancel its metadata preflight.
+	deadline := time.Now().Add(5 * time.Second)
+	for id := 4; status.State != "completed"; id++ {
+		if time.Now().After(deadline) {
+			t.Fatalf("admitted verification did not complete: %+v", status)
+		}
+		if status.State != "reserved" && status.State != "admitting" {
+			t.Fatalf("unexpected admitted verification outcome: %+v", status)
+		}
+		w.send(t, id, "tools/call", map[string]any{"name": "get_verification_status", "arguments": map[string]any{"schema_version": 1, "request": request}})
+		status = wireStatus(t, w.receive(t, id))
+		if status.State != "completed" {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	if status.Evidence == nil || status.Interruption != nil {
+		t.Fatalf("normal admitted check has no durable completion evidence: %+v", status)
+	}
 }
