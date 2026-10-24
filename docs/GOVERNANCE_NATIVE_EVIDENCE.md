@@ -75,6 +75,20 @@ whose outcome may have been lost. Owners must investigate those unknown outcomes
 this slice does not automatically clear reservations. Historical receipts are
 records, never renewed capabilities or proof of current eligibility.
 
+Async server shutdown requests cancellation and waits within the existing
+six-second bound. A finished goroutine alone is not a durable outcome. If an
+admitted job ends without a returned completion or an authenticated exact
+completed/interrupted record, `Close` returns `ErrReconcile`, including on
+repeated shutdown. A completed failed check and a durably recorded known
+cancellation remain terminal observations. No successful evidence or
+interruption is invented when persistence or authentication fails.
+
+Restoring storage access does not rerun or reset the original operation. Fresh
+status, cancellation and request calls preserve `reconciliation_required` with
+null evidence and interruption until explicit owner reconciliation. Closing a
+fresh server with no admitted jobs makes no claim to resolve historical pending
+operations.
+
 A trusted issuer capability proves that the holder of an owner-enrolled local
 runner credential submitted the observation. It does **not** cryptographically
 prove native Codex, a specific host, CI execution, or protection against a hostile

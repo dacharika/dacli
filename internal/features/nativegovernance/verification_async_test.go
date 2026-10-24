@@ -202,7 +202,7 @@ type asyncWire struct {
 	done      chan error
 }
 
-func startAsyncWire(t *testing.T, f verificationFixture) asyncWire {
+func startAsyncWire(t *testing.T, f verificationFixture, allowedCloseErrors ...error) asyncWire {
 	t.Helper()
 	s, e := native.OpenWithRunner(f.connection, f.runnerProfile)
 	if e != nil {
@@ -228,7 +228,13 @@ func startAsyncWire(t *testing.T, f verificationFixture) asyncWire {
 		select {
 		case e := <-w.done:
 			if e != nil {
-				t.Error(e)
+				allowed := false
+				for _, expected := range allowedCloseErrors {
+					allowed = allowed || errors.Is(e, expected)
+				}
+				if !allowed {
+					t.Error(e)
+				}
 			}
 		case <-time.After(8 * time.Second):
 			t.Error("protocol shutdown hung")
@@ -275,7 +281,10 @@ func TestAsyncNativeProtocolResponsiveAndStrict(t *testing.T) {
 	d := t.TempDir()
 	marker := filepath.Join(d, "started")
 	f := setupVerification(t, "printf started > '"+marker+"'; sleep 30", true)
-	w := startAsyncWire(t, f)
+	// Revocation below can win the cancellation-receipt race. Only this test
+	// permits the honest reconciliation error; ordinary cleanup stays strict.
+	// The deterministic persistence-failure regression requires ErrReconcile.
+	w := startAsyncWire(t, f, sessions.ErrReconcile)
 	w.send(t, 1, "initialize", map[string]any{"protocolVersion": "2025-06-18", "capabilities": map[string]any{}, "clientInfo": map[string]any{}})
 	w.receive(t, 1)
 	w.send(t, 2, "tools/list", map[string]any{})
