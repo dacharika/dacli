@@ -48,8 +48,8 @@ func TestHostedPostgresComposition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(catalog) != 11 {
-		t.Fatalf("qualification requires all eleven migrations, got %d", len(catalog))
+	if len(catalog) != 12 {
+		t.Fatalf("qualification requires all twelve migrations, got %d", len(catalog))
 	}
 	if err = migrations.Run(ctx, migrations.SQLStore{DB: owner}, catalog); err != nil {
 		t.Fatal(err)
@@ -174,7 +174,7 @@ func TestHostedPostgresComposition(t *testing.T) {
 	if err = app.QueryRowContext(ctx, `SELECT COUNT(*) FROM controlplane_envelope_proposals`).Scan(&visible); err != nil || visible != 0 {
 		t.Fatalf("unbound application connection escaped RLS: count=%d err=%v", visible, err)
 	}
-	t.Log("real SQLStore schema11, restricted Runtime API, enrolled device inbox replay, immutable proposal and duplicate replay, foreign/revoked keys and session refusals verified")
+	t.Log("real SQLStore schema12, restricted Runtime API, enrolled device inbox replay, immutable proposal and duplicate replay, foreign/revoked keys and session refusals verified")
 }
 
 type pgCompositionDevice struct {
