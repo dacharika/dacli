@@ -44,6 +44,7 @@ import (
 	"github.com/mlnomadpy/dacli/internal/features/reconciliation"
 	"github.com/mlnomadpy/dacli/internal/features/releasetrain"
 	"github.com/mlnomadpy/dacli/internal/features/reviewing"
+	"github.com/mlnomadpy/dacli/internal/features/rolemanagement"
 	"github.com/mlnomadpy/dacli/internal/features/selfreport"
 	"github.com/mlnomadpy/dacli/internal/features/ship"
 	"github.com/mlnomadpy/dacli/internal/features/shortcuts"
@@ -70,6 +71,7 @@ var commands = aggregate(
 	wscore.Commands,
 	deviceauth.Commands,
 	nativegovernance.Commands,
+	rolemanagement.Commands(),
 	onboard.Commands,
 	planning.Commands,
 	briefing.Commands,
@@ -331,7 +333,7 @@ func jsonAlternatives(path string) []string {
 // token) instead of a misleading grant refusal.
 func refuseUngrantedMutation(ctx *Ctx, cmd *Command, args []string) error {
 	// These exact handlers enforce explicit native authority, never legacy ambient grants.
-	if nativegovernance.AuthenticatesExplicitly(cmd.Path) || deviceauth.AuthenticatesExplicitly(cmd.Path) {
+	if nativegovernance.AuthenticatesExplicitly(cmd.Path) || deviceauth.AuthenticatesExplicitly(cmd.Path) || rolemanagement.AuthenticatesExplicitly(cmd.Path) {
 		return nil
 	}
 	if !cmd.Mutates || hasDryRun(args) || mutationInvocationIsReadOnly(cmd, args) {
@@ -589,7 +591,7 @@ func executor(cwd string) mcp.Executor {
 		}
 		// Owner provisioning and stdio transport are local-only, including through
 		// the legacy MCP CLI escape hatch. Native tools have their own narrow catalog.
-		if !hasHelp(rest) && (cmd.Path == "native serve" || nativegovernance.AuthenticatesExplicitly(cmd.Path) || deviceauth.AuthenticatesExplicitly(cmd.Path)) {
+		if !hasHelp(rest) && (cmd.Path == "native serve" || nativegovernance.AuthenticatesExplicitly(cmd.Path) || deviceauth.AuthenticatesExplicitly(cmd.Path) || rolemanagement.AuthenticatesExplicitly(cmd.Path)) {
 			if err := refuseUnsupportedJSON(cmd, jsonMode); err != nil {
 				return "", marshalErrorDetails(clikit.DescribeError(err)), exitCode(err)
 			}

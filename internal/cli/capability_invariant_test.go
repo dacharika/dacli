@@ -182,6 +182,7 @@ func TestEveryCommandDeclaresItsCapability(t *testing.T) {
 		"release train": true, "release train authority": true,
 		// Signed role registry migration is an owner-only authority mutation.
 		"native role registry upgrade": true,
+		"role registry import":         true, "role registry pin": true, "role registry upgrade": true, "role registry rollback": true,
 		// Native provisioning validates private owner files instead of ambient
 		// legacy grants; dispatcher tests cover both authority boundaries.
 		"native checkpoint upgrade": true, "native budget upgrade": true, "native budget configure": true, "native budget settle": true, "native budget controller add": true,

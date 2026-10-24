@@ -579,6 +579,22 @@ explicit migration. Do not undo it by editing the schema number or rebuilding
 the authority. Signed-role checks provide cooperative admission, without
 filesystem, network, process or tool containment. See [ROLE_REGISTRY.md](ROLE_REGISTRY.md).
 
+The separate local management commands authenticate an explicit private owner
+configuration and exact project. Ambient legacy grants cannot authorize them,
+and the legacy MCP executor refuses them. `role registry verify` and
+`role registry diff` are read-only exact-version/digest observations.
+
+| Mutation | Authority and effect | Recovery |
+|---|---|---|
+| `role registry import` | Verify supplied bounded regular release/lifecycle files against the existing publisher keyring, then cache the exact signed objects. No key enrollment, pin selection, role rewrite, or execution occurs. | Keep immutable cache and lifecycle history; import never activates a release. |
+| `role registry pin` | Explicit owner, schema20, no existing pin, expected project generation, current signed lifecycle, and canonical role equality. | No implicit unpin; preserve history and make another explicitly reviewed selection. |
+| `role registry upgrade` | Explicit owner, exact current pin and generation, greater SemVer, verified cache/lifecycle, and canonical role equality. | Use an explicit historical rollback with a fresh lifecycle and matching canonical role. |
+| `role registry rollback` | Explicit owner and exact current pin/generation; target must be a real prior selection. Actor/reason history and generation remain monotonic. | Another explicit selection; never delete or rewrite prior history. |
+
+These commands never migrate authority automatically. See
+[ROLE_MANAGEMENT.md](ROLE_MANAGEMENT.md) for inputs and the distinction between
+selection metadata and separately reviewed canonical role materialization.
+
 ### Device identity and connected projects
 
 `auth login` selects an explicit provider and tenant, starts its device-code flow,
