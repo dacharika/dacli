@@ -116,14 +116,13 @@ func (m *NativeVerificationJobs) Request(r NativeVerificationRequest) (Verificat
 	go func() {
 		defer m.wg.Done()
 		defer cancel()
-		evidence, executeErr := prepared.Execute(ctx)
+		_, executeErr := prepared.Execute(ctx)
 		// Execute may return an error after the reservation but before it can
 		// durably record completion or a known interruption. ErrDenied alone
 		// does not distinguish that case: a successfully persisted interruption
-		// deliberately returns ErrDenied too. A nonempty successful evidence
-		// result is already an authenticated durable completion, including a
-		// completed check whose exit code is nonzero.
-		resolved := executeErr == nil && evidence.ID != ""
+		// deliberately returns ErrDenied too. A nil result means Execute returned
+		// an authenticated durable completion, including a failed check.
+		resolved := executeErr == nil
 		if !resolved {
 			// Use the access authenticated for this exact request. Lookup
 			// reauthenticates its authority, but avoids re-reading a changed
