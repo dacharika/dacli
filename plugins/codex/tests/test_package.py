@@ -3,6 +3,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -282,6 +283,73 @@ class SmokeCleanupTests(unittest.TestCase):
                     if process.poll() is None:
                         process.kill(); process.wait(timeout=5)
                     process.stdin.close(); process.stdout.close()
+
+
+class SmokeProcessCommandTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, str(ROOT / 'scripts'))
+        try:
+            import smoke
+        finally:
+            sys.path.pop(0)
+        cls.smoke = smoke
+
+    def compare(self, argv, executable='/private/fixture/python', args=None):
+        expected_args = argv[1:] if args is None else args
+        return self.smoke._process_command_comparison(shlex.join(argv), executable, expected_args)
+
+    def test_process_command_match_requires_exact_resolved_executable_and_arguments(self):
+        executable = '/private/fixture/python'
+        args = ['/private/fixture/check.py', '/private/fixture/started', 'fifo']
+        matched, diagnostic = self.compare([executable, *args], executable, args)
+        self.assertTrue(matched, diagnostic)
+        self.assertEqual(diagnostic,
+                         'argv_parse=ok; argv_count_match=true; executable_match=true; '
+                         'argument_mismatch_indices=[]')
+
+    def test_process_command_reports_independent_executable_argument_and_count_mismatches(self):
+        executable = '/private/fixture/python'
+        args = ['/private/fixture/check.py', 'one', 'two']
+        wrong_executable, executable_diagnostic = self.compare(
+            [executable + '-other', *args], executable, args)
+        wrong_argument, argument_diagnostic = self.compare(
+            [executable, args[0], 'changed', args[2]], executable, args)
+        wrong_count, count_diagnostic = self.compare([executable, args[0]], executable, args)
+
+        self.assertFalse(wrong_executable)
+        self.assertIn('argv_count_match=true; executable_match=false; argument_mismatch_indices=[]',
+                      executable_diagnostic)
+        self.assertFalse(wrong_argument)
+        self.assertIn('argv_count_match=true; executable_match=true; argument_mismatch_indices=[2]',
+                      argument_diagnostic)
+        self.assertFalse(wrong_count)
+        self.assertIn('argv_count_match=false; executable_match=true; argument_mismatch_indices=[2,3]',
+                      count_diagnostic)
+
+    def test_process_command_rejects_empty_and_malformed_quoted_commands(self):
+        empty, empty_diagnostic = self.smoke._process_command_comparison(
+            '   ', '/private/fixture/python', ['arg'])
+        malformed, malformed_diagnostic = self.smoke._process_command_comparison(
+            "'/private/fixture/python", '/private/fixture/python', ['arg'])
+
+        self.assertFalse(empty)
+        self.assertIn('argv_parse=ok; argv_count_match=false; executable_match=false', empty_diagnostic)
+        self.assertFalse(malformed)
+        self.assertEqual(malformed_diagnostic,
+                         'argv_parse=malformed_quoting; argv_count_match=false; '
+                         'executable_match=false; argument_mismatch_indices=unavailable')
+
+    def test_process_command_diagnostics_never_disclose_observed_arguments(self):
+        secret_path = '/private/operator/fixture-secret-token'
+        command_line = shlex.join(['/private/unexpected/python', secret_path, 'credential-value'])
+        matched, diagnostic = self.smoke._process_command_comparison(
+            command_line, '/private/fixture/python', ['/private/fixture/check.py'])
+
+        self.assertFalse(matched)
+        self.assertNotIn(secret_path, diagnostic)
+        self.assertNotIn('credential-value', diagnostic)
+        self.assertNotIn(command_line, diagnostic)
 
 
 if __name__ == '__main__':
