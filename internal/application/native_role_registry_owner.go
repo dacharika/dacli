@@ -346,8 +346,8 @@ func (p *NativeRoleRegistryOwner) Select(roleID, version, digest string, expecte
 	return registry.CompareAndSelect(p.project, roleID, version, digest, expectedGeneration, expected, actor, reason, action, now)
 }
 
-// Keep error identity available to callers that need to distinguish a policy
-// refusal from malformed command usage.
+// IsNativeRoleRegistryRefusal lets callers distinguish a policy refusal
+// from malformed command usage.
 func IsNativeRoleRegistryRefusal(err error) bool {
 	return errors.Is(err, sessions.ErrDenied) || errors.Is(err, store.ErrRoleRegistry)
 }

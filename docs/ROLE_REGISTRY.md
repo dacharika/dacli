@@ -5,10 +5,10 @@ of the existing `team.Role` model. The native host still runs the agent and
 selects the permitted model for its next turn. Registry verification does not
 provide filesystem, network, process, or tool containment.
 
-This first delivery covers the local release cache, explicit project pins,
-publisher verification, and native admission. Hosted organization/team catalogs,
-inheritance, management commands, the complete constraint/scenario contract, and
-aggregate outcomes remain tracked by #978 and its later delivery tasks. Do not
+This delivery covers the local release cache, explicit project pins,
+publisher verification, native admission, and [explicit local management](ROLE_MANAGEMENT.md).
+Hosted organization/team catalogs, inheritance, the complete constraint/scenario
+contract, and aggregate outcomes remain tracked by #978 and its later delivery tasks. Do not
 describe the complete shared registry as shipped until those tasks are accepted.
 
 ## Immutable content and trust
