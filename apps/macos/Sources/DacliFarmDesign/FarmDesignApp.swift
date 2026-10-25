@@ -50,6 +50,11 @@ struct DacliFarmDesignApp: App {
             FarmDesignView(session: session)
                 .frame(minWidth: 1024, minHeight: 660)
                 .preferredColorScheme(.light)
+                // Native title text must use a dark-bar appearance independently
+                // of the parchment content's light color scheme.
+                .toolbarBackground(FarmStyle.darkWood, for: .windowToolbar)
+                .toolbarBackground(.visible, for: .windowToolbar)
+                .toolbarColorScheme(.dark, for: .windowToolbar)
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 1440, height: 900)
