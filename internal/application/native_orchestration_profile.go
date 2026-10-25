@@ -88,7 +88,8 @@ func (p *NativeOrchestrationProfile) authenticate() (*sessions.Authority, string
 	if c.Role == "worker" {
 		// Owner native enrollment is task-scoped (core624); a project grant
 		// would widen worker authority merely to initialize transport wiring.
-		if _, e = a.Authorize(t, c.SessionID, c.WorkspaceID, "read", "workspace:"+c.WorkspaceID); e != nil {
+		worker, e := a.Authorize(t, c.SessionID, c.WorkspaceID, "read", "workspace:"+c.WorkspaceID)
+		if e != nil {
 			return nil, "", sessions.ErrDenied
 		}
 		w, e := nativeconfig.ResolveWorkspace(connection.Workspace, c.WorkspaceID)
@@ -99,20 +100,13 @@ func (p *NativeOrchestrationProfile) authenticate() (*sessions.Authority, string
 		if e != nil {
 			return nil, "", sessions.ErrDenied
 		}
-		for _, task := range canonical.Tasks {
-			if task.Project != c.ProjectID {
-				continue
-			}
-			if _, e = a.Authorize(t, c.SessionID, c.WorkspaceID, "read", "task:"+task.ID); e != nil {
-				continue
-			}
-			if _, e = a.Authorize(t, c.SessionID, c.WorkspaceID, "lease.acquire", "task:"+task.ID); e == nil {
-				// Acknowledgement still checks the exact dispatch project,
-				// assigned actor, task, checkout and fresh handshake below.
-				return a, t, nil
-			}
+		if !authorizeEnrolledWorkerTask(c.ProjectID, canonical.Tasks, worker.Scope.Resources, func(action, resource string) error {
+			_, err := a.Authorize(t, c.SessionID, c.WorkspaceID, action, resource)
+			return err
+		}) {
+			return nil, "", sessions.ErrDenied
 		}
-		return nil, "", sessions.ErrDenied
+		return a, t, nil
 	}
 	actions := map[string][]string{"controller": {"read", "controller.start", "controller.stop", "controller.read", "controller.step", "controller.reconcile", "swarm.plan", "dispatch.cancel"}, "bridge": {"read", "dispatch.correlate", "dispatch.observe"}, "worker": {"read", "lease.acquire"}}[c.Role]
 	for _, action := range actions {
@@ -121,6 +115,34 @@ func (p *NativeOrchestrationProfile) authenticate() (*sessions.Authority, string
 		}
 	}
 	return a, t, nil
+}
+
+// authorizeEnrolledWorkerTask uses the authenticated scope to select candidates,
+// then leaves each exact task action to the fresh authority reader. This bounds
+// authority decoding by enrolled task resources instead of all canonical tasks.
+func authorizeEnrolledWorkerTask(project string, tasks []*store.Task, resources []string, authorize func(action, resource string) error) bool {
+	enrolled := make(map[string]struct{}, len(resources))
+	for _, resource := range resources {
+		if len(resource) > len("task:") && resource[:len("task:")] == "task:" {
+			enrolled[resource] = struct{}{}
+		}
+	}
+	for _, task := range tasks {
+		resource := "task:" + task.ID
+		if task.Project != project {
+			continue
+		}
+		if _, ok := enrolled[resource]; !ok {
+			continue
+		}
+		if err := authorize("read", resource); err != nil {
+			continue
+		}
+		if authorize("lease.acquire", resource) == nil {
+			return true
+		}
+	}
+	return false
 }
 func (p *NativeOrchestrationProfile) Plan(project string) (sessions.SwarmPlan, error) {
 	if p.config.Role != "controller" || project != p.config.ProjectID {

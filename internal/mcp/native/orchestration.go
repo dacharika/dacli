@@ -67,7 +67,7 @@ var orchestrationRoles = map[string][]string{
 	"bridge":     {"correlate_dispatch", "observe_dispatch", "acknowledge_cancellation", "get_dispatch_status", "get_dispatch_lifecycle"},
 	"worker":     {"register_attempt", "acquire_lease", "renew_lease", "release_lease", "publish_revision", "submit_evidence", "acknowledge_dispatch", "get_dispatch_status", "get_dispatch_lifecycle"},
 }
-var orchestrationReads = []string{"identity", "workspace_status", "task_list", "task_get", "get_policy_status", "get_orchestration_host_status"}
+var orchestrationReads = []string{"identity", "workspace_status", "task_list", "task_get", "task_brief", "ready_frontier", "get_policy_status", "get_orchestration_host_status"}
 
 func init() {
 	for n, v := range map[string]any{
@@ -98,7 +98,11 @@ func (s *Server) orchestrationCatalog() []tool {
 	names := append(append([]string{}, orchestrationReads...), orchestrationRoles[s.orchestration.Role()]...)
 	out := []tool{}
 	for _, n := range names {
-		out = append(out, tool{n, "Scoped owner-pinned cooperative orchestration; host actions require first-use permission and independently enrolled child connections; no commands, credentials or grant overrides.", schema(reflect.TypeOf(arguments[n])), outputSchema(n)})
+		description := "Scoped owner-pinned cooperative orchestration; host actions require first-use permission and independently enrolled child connections; no commands, credentials or grant overrides."
+		if n == "task_brief" || n == "ready_frontier" {
+			description = toolDescription(n)
+		}
+		out = append(out, tool{n, description, schema(reflect.TypeOf(arguments[n])), outputSchema(n)})
 	}
 	return out
 }
