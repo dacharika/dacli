@@ -136,14 +136,15 @@ func cmdLint(ctx *clikit.Ctx, args []string) error {
 // Dropping aggregate nodes also dropped downstream FS constraints (core 601).
 // Their zero-work milestones remain in CPM, but never in assignment/output rows.
 type cpmProjection struct {
-	nodes   []spm.Node
-	edges   []spm.Edge
-	work    []*store.Task
-	unsized []string
+	nodes               []spm.Node
+	edges               []spm.Edge
+	work                []*store.Task
+	unsized             []string
+	scheduleDiagnostics []string
 }
 
 func projectCPM(all, tasks []*store.Task) (cpmProjection, error) {
-	p := cpmProjection{}
+	p := cpmProjection{scheduleDiagnostics: []string{}}
 	global := store.NewTaskIndex(all)
 	localTasks := map[string][]*store.Task{}
 	for _, task := range all {
@@ -162,6 +163,7 @@ func projectCPM(all, tasks []*store.Task) (cpmProjection, error) {
 		return dep, err
 	}
 	scheduled := map[string]bool{}
+	hasBlockedRequiredChild := false
 	for _, task := range tasks {
 		if task.Status == model.StatusDone || task.Status == model.StatusBlocked || task.IsLoopAnchor() {
 			continue
@@ -231,12 +233,73 @@ func projectCPM(all, tasks []*store.Task) (cpmProjection, error) {
 			if child.Status == model.StatusDone {
 				continue
 			}
+			if child.Status == model.StatusBlocked {
+				// A blocked required child is valid canonical state, but it has no
+				// place in a completion schedule. Keep the barrier diagnostic so
+				// `next` can still offer independent ready work without claiming CPM.
+				hasBlockedRequiredChild = true
+				p.scheduleDiagnostics = append(p.scheduleDiagnostics, fmt.Sprintf(
+					"critical path unavailable: aggregate %s requires blocked child %s",
+					task.ID, child.ID))
+				continue
+			}
 			if !scheduled[child.ID] {
 				return p, fmt.Errorf("aggregate %s required child %s (%s, project %s) cannot be represented in this completion schedule", task.ID, id, child.Status, child.Project)
 			}
 			// Aggregate start and finish coincide at child completion. Optional
 			// descriptive children outside this stable list add no barrier edge.
 			add(child.ID, task.ID, spm.FS)
+		}
+	}
+	if hasBlockedRequiredChild {
+		// The completion network is unavailable, but keep its cycle guard strict.
+		// Validate a temporary graph containing the scheduled nodes plus blocked
+		// work and all dependency/milestone edges among them. The result is never
+		// used as a schedule or exposed to `next`.
+		validationNodes := append([]spm.Node(nil), p.nodes...)
+		validationIDs := make(map[string]bool, len(p.nodes)+len(tasks))
+		for _, node := range p.nodes {
+			validationIDs[node.ID] = true
+		}
+		for _, task := range tasks {
+			if task.Status == model.StatusBlocked && !task.IsLoopAnchor() && !validationIDs[task.ID] {
+				validationNodes = append(validationNodes, spm.Node{ID: task.ID})
+				validationIDs[task.ID] = true
+			}
+		}
+		validationEdges := append([]spm.Edge(nil), p.edges...)
+		seenValidationEdges := map[spm.Edge]bool{}
+		for _, edge := range validationEdges {
+			seenValidationEdges[edge] = true
+		}
+		addValidationEdge := func(from, to string, typ spm.DepType) {
+			edge := spm.Edge{From: from, To: to, Type: typ}
+			if !seenValidationEdges[edge] {
+				validationEdges = append(validationEdges, edge)
+				seenValidationEdges[edge] = true
+			}
+		}
+		for _, task := range tasks {
+			if !validationIDs[task.ID] {
+				continue
+			}
+			for _, dep := range task.Deps() {
+				predecessor, err := resolve(task, dep.Ref)
+				if err == nil && validationIDs[predecessor.ID] {
+					addValidationEdge(predecessor.ID, task.ID, spm.DepType(dep.Type))
+				}
+			}
+			if task.IsAggregate() {
+				for _, childID := range task.AggregateChildren() {
+					child, err := global.Find(childID)
+					if err == nil && validationIDs[child.ID] {
+						addValidationEdge(child.ID, task.ID, spm.FS)
+					}
+				}
+			}
+		}
+		if _, err := spm.ComputeCPM(validationNodes, validationEdges); err != nil {
+			return p, fmt.Errorf("dependency graph: %w", err)
 		}
 	}
 	return p, nil
@@ -273,9 +336,12 @@ func cmdNext(ctx *clikit.Ctx, args []string) error {
 	open := projection.work
 	if len(open) == 0 {
 		if ctx.JSON {
-			return clikit.EmitJSON(ctx, map[string]any{"schema": "next/v1", "project": project, "ordering": "empty", "recommendations": []any{}, "blocked": []any{}, "problems": []any{}})
+			return clikit.EmitJSON(ctx, map[string]any{"schema": "next/v1", "project": project, "ordering": "empty", "recommendations": []any{}, "blocked": []any{}, "problems": []any{}, "schedule_diagnostics": projection.scheduleDiagnostics})
 		}
 		fmt.Fprintln(ctx.Stdout, "nothing open")
+		for _, diagnostic := range projection.scheduleDiagnostics {
+			fmt.Fprintf(ctx.Stderr, "note: %s — no critical path is claimed\n", diagnostic)
+		}
 		return nil
 	}
 
@@ -297,10 +363,12 @@ func cmdNext(ctx *clikit.Ctx, args []string) error {
 		}
 	}
 
-	// CPM needs durations; degrade to MoSCoW-then-sequence when estimates
-	// are missing, and SAY SO.
+	// CPM needs durations and a representable completion graph. Degrade only
+	// the next-work ordering when valid blocked required children make that full
+	// graph unavailable; never attach slack or critical-path claims to the
+	// independent ready work selected below.
 	slack := map[string]float64{}
-	haveCPM := len(projection.unsized) == 0
+	haveCPM := len(projection.unsized) == 0 && len(projection.scheduleDiagnostics) == 0
 	nodes, edges := projection.nodes, projection.edges
 	if haveCPM {
 		net, err := spm.ComputeCPM(nodes, edges)
@@ -310,8 +378,12 @@ func cmdNext(ctx *clikit.Ctx, args []string) error {
 		for id, s := range net.Schedules {
 			slack[id] = s.Slack
 		}
-	} else {
-		if !ctx.JSON {
+	} else if !ctx.JSON {
+		if len(projection.scheduleDiagnostics) > 0 {
+			for _, diagnostic := range projection.scheduleDiagnostics {
+				fmt.Fprintf(ctx.Stderr, "note: %s — falling back to MoSCoW-then-sequence order, no critical path\n", diagnostic)
+			}
+		} else {
 			fmt.Fprintln(ctx.Stderr, "note: estimates missing — falling back to MoSCoW-then-sequence order, no critical path")
 		}
 	}
@@ -323,7 +395,7 @@ func cmdNext(ctx *clikit.Ctx, args []string) error {
 			for _, task := range frontier.Blocked {
 				blocked = append(blocked, task.ID)
 			}
-			return clikit.EmitJSON(ctx, map[string]any{"schema": "next/v1", "project": project, "ordering": map[bool]string{true: "moscow-critical-path", false: "moscow-sequence"}[haveCPM], "recommendations": []any{}, "blocked": blocked, "problems": frontier.ProblemLines()})
+			return clikit.EmitJSON(ctx, map[string]any{"schema": "next/v1", "project": project, "ordering": map[bool]string{true: "moscow-critical-path", false: "moscow-sequence"}[haveCPM], "recommendations": []any{}, "blocked": blocked, "problems": frontier.ProblemLines(), "schedule_diagnostics": projection.scheduleDiagnostics})
 		}
 		// Distinguish the three ways a frontier empties out: a real dependency
 		// wait, a broken ref, and "everything open is already being worked on".
@@ -396,13 +468,14 @@ func cmdNext(ctx *clikit.Ctx, args []string) error {
 			blocked = append(blocked, task.ID)
 		}
 		return clikit.EmitJSON(ctx, struct {
-			Schema          string           `json:"schema"`
-			Project         string           `json:"project,omitempty"`
-			Ordering        string           `json:"ordering"`
-			Recommendations []recommendation `json:"recommendations"`
-			Blocked         []string         `json:"blocked"`
-			Problems        []string         `json:"problems"`
-		}{"next/v1", project, map[bool]string{true: "moscow-critical-path", false: "moscow-sequence"}[haveCPM], recommendations, blocked, frontier.ProblemLines()})
+			Schema              string           `json:"schema"`
+			Project             string           `json:"project,omitempty"`
+			Ordering            string           `json:"ordering"`
+			Recommendations     []recommendation `json:"recommendations"`
+			Blocked             []string         `json:"blocked"`
+			Problems            []string         `json:"problems"`
+			ScheduleDiagnostics []string         `json:"schedule_diagnostics"`
+		}{"next/v1", project, map[bool]string{true: "moscow-critical-path", false: "moscow-sequence"}[haveCPM], recommendations, blocked, frontier.ProblemLines(), projection.scheduleDiagnostics})
 	}
 
 	// Scope-matched lessons (D2): a cross-project lesson whose topic overlaps a
@@ -663,6 +736,9 @@ func cmdCriticalPath(ctx *clikit.Ctx, args []string) error {
 	projection, err := projectCPM(allTasks, tasks)
 	if err != nil {
 		return err
+	}
+	if len(projection.scheduleDiagnostics) > 0 {
+		return fmt.Errorf("critical-path refuses an incomplete aggregate completion schedule: %s", strings.Join(projection.scheduleDiagnostics, "; "))
 	}
 	nodes, edges := projection.nodes, projection.edges
 	labels := map[string]string{}

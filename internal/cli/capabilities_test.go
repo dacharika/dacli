@@ -32,8 +32,10 @@ import (
 // No MCP tools or automatic activation are added.
 // Native doctor adds one read-only JSON command with bounded explicit input flags; MCP tool capabilities remain projected only from mcp.ToolCapabilities(), not command briefs.
 // Explicit issue milestone plans add only the github push --milestone-plan flag.
+// Native task claims add owner-only preview/apply commands and explicit private inputs;
+// preview is read-only, apply mutates canonical task claims, and no MCP tool is added.
 // Digest generated from the assembled CLI artifact; behavioral checks are separate.
-const capabilityRegistryGolden = "f386988faf420f690f225bad89588ca9379132b8ee5de6945b2c3d02b4af7577"
+const capabilityRegistryGolden = "104e9f64c07403c2314bcde904bf152500ce244fa242d6c2c588867932af715f"
 
 func TestCapabilityRegistryGolden(t *testing.T) {
 	m := capabilityManifest()

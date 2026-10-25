@@ -1,0 +1,14 @@
+{
+  "case": "stale-source-remains-stale",
+  "request": {"schema_version": 1, "request_id": "req-stale", "operation": "attempts.timeline", "workspace_id": "ws-operator-01", "project_id": "operator", "task_id": "t-01M5SKFBR9FZ26JMMFY550XW8T", "limit": 100},
+  "response": {
+    "schema_version": 1,
+    "request_id": "req-stale",
+    "ok": true,
+    "scope": {"workspace_id": "ws-operator-01", "project_id": "operator", "task_id": "t-01M5SKFBR9FZ26JMMFY550XW8T"},
+    "observed_at": "2026-10-25T16:09:02Z",
+    "source": {"producer": "buildDeliveryTimeline", "schema": "delivery-attempt-timeline/v1", "observed_at": "2026-10-25T16:09:02Z"},
+    "data": {"task": {"id": "t-01M5SKFBR9FZ26JMMFY550XW8T", "project": "operator"}, "attempts": [{"run_id": "run-01J9TASK000000000000000001", "identity": {"task_id": "t-01M5SKFBR9FZ26JMMFY550XW8T", "run_id": "run-01J9TASK000000000000000001"}, "spans": [{"phase": "ci", "status": "unknown", "source": "historical-check-record", "freshness": "stale", "detail": "Recorded check is stale; current state is unknown."}]}]},
+    "page": {"limit": 100, "truncated": true, "partial": true}
+  }
+}

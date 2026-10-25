@@ -276,17 +276,13 @@ func TestCore601DescriptiveParentRemainsOrdinaryEstimatedWork(t *testing.T) {
 	}
 }
 func TestCore601UnrepresentableRequiredChildrenRefuseBothViews(t *testing.T) {
-	for _, kind := range []string{"blocked", "missing", "external", "empty", "unstable", "duplicate", "cycle"} {
+	for _, kind := range []string{"missing", "external", "empty", "unstable", "duplicate", "cycle", "blocked-cycle"} {
 		t.Run(kind, func(t *testing.T) {
 			w := scheduleWorkspace(t)
 			child := scheduleTask(t, w, "required implementation", 2, "")
 			parent := scheduleAggregate(t, w, "invalid milestone", child)
 			identity := child.ID
 			switch kind {
-			case "blocked":
-				if err := store.MoveTask(w, child, model.StatusBlocked); err != nil {
-					t.Fatal(err)
-				}
 			case "missing":
 				identity = "t-01M000000000000000000000000"
 				parent.Doc.Front.SetList("aggregate_children", []string{identity})
@@ -298,7 +294,12 @@ func TestCore601UnrepresentableRequiredChildrenRefuseBothViews(t *testing.T) {
 				parent.Doc.Front.SetList("aggregate_children", []string{identity})
 			case "duplicate":
 				parent.Doc.Front.SetList("aggregate_children", []string{child.ID, child.ID})
-			case "cycle":
+			case "cycle", "blocked-cycle":
+				if kind == "blocked-cycle" {
+					if err := store.MoveTask(w, child, model.StatusBlocked); err != nil {
+						t.Fatal(err)
+					}
+				}
 				child.Doc.Front.SetList("depends_on", []string{parent.ID + ":FS"})
 				if err := store.SaveTask(child); err != nil {
 					t.Fatal(err)
@@ -328,6 +329,58 @@ func TestCore601UnrepresentableRequiredChildrenRefuseBothViews(t *testing.T) {
 		})
 	}
 }
+
+func TestCore601NextRetainsIndependentReadyWorkWhenRequiredChildBlocked(t *testing.T) {
+	w := scheduleWorkspace(t)
+	independent := scheduleTask(t, w, "independent ready work", 4, "")
+	child := scheduleTask(t, w, "blocked required implementation", 2, "")
+	parent := scheduleAggregate(t, w, "incomplete aggregate milestone", child)
+	dependent := scheduleTask(t, w, "waits for aggregate", 1, "", parent.ID+":FS")
+	if err := store.MoveTask(w, child, model.StatusBlocked); err != nil {
+		t.Fatal(err)
+	}
+
+	out := &bytes.Buffer{}
+	ctx := &clikit.Ctx{Cwd: w.Root, Stdout: out, Stderr: &bytes.Buffer{}, JSON: true}
+	if err := cmdNext(ctx, []string{"--project", "core", "--parallel", "12", "--critical-path"}); err != nil {
+		t.Fatalf("next must retain independent ready work without claiming an incomplete critical path: %v", err)
+	}
+	var got struct {
+		Ordering        string `json:"ordering"`
+		Recommendations []struct {
+			ID       string   `json:"id"`
+			Slack    *float64 `json:"slack"`
+			Critical bool     `json:"critical"`
+		} `json:"recommendations"`
+		Blocked             []string `json:"blocked"`
+		ScheduleDiagnostics []string `json:"schedule_diagnostics"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("next JSON: %v\n%s", err, out)
+	}
+	if got.Ordering != "moscow-sequence" {
+		t.Fatalf("ordering = %q, want explicit sequence fallback", got.Ordering)
+	}
+	if len(got.Recommendations) != 1 || got.Recommendations[0].ID != independent.ID {
+		t.Fatalf("recommendations = %+v, want only independent ready work %s", got.Recommendations, independent.ID)
+	}
+	if got.Recommendations[0].Slack != nil || got.Recommendations[0].Critical {
+		t.Fatalf("fallback recommendation claimed CPM evidence: %+v", got.Recommendations[0])
+	}
+	if len(got.Blocked) != 1 || got.Blocked[0] != dependent.ID {
+		t.Fatalf("blocked = %v, want aggregate-dependent task %s", got.Blocked, dependent.ID)
+	}
+	if len(got.ScheduleDiagnostics) != 1 || !strings.Contains(got.ScheduleDiagnostics[0], parent.ID) || !strings.Contains(got.ScheduleDiagnostics[0], child.ID) {
+		t.Fatalf("schedule diagnostics = %v, want aggregate %s and blocked child %s", got.ScheduleDiagnostics, parent.ID, child.ID)
+	}
+
+	criticalOut := &bytes.Buffer{}
+	criticalCtx := &clikit.Ctx{Cwd: w.Root, Stdout: criticalOut, Stderr: &bytes.Buffer{}, JSON: true}
+	if err := cmdCriticalPath(criticalCtx, []string{"--project", "core"}); err == nil || !strings.Contains(err.Error(), parent.ID) || !strings.Contains(err.Error(), child.ID) {
+		t.Fatalf("critical-path must continue refusing the incomplete aggregate schedule with both IDs: %v", err)
+	}
+}
+
 func TestCore601RequiredChildrenStayInCanonicalProject(t *testing.T) {
 	for _, done := range []bool{false, true} {
 		t.Run(fmt.Sprintf("done-%t", done), func(t *testing.T) {
