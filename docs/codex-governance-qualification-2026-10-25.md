@@ -28,6 +28,10 @@ qualified, with at most two fixture responses per case, a 15-second host work
 limit, an eight-second cleanup limit, and a 23-second total limit. The timeout
 case completed its hook timeout at about one second. Results:
 
+The fixture sets `bypass_hook_trust` in `thread/start` only for its generated,
+reviewed callbacks; the untrusted control omits it. This temporary configuration
+does not change the installed plugin or the user's persisted hook trust.
+
 | Case | Hook observation | Tool marker | Qualification detail |
 |---|---|---:|---|
 | `observe` | callback entered; completed | created | Normal `PreToolUse` callback |
