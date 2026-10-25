@@ -25,7 +25,7 @@ class NativeBoundaryGuards(unittest.TestCase):
         with self.assertRaises(ValueError):
             probe.identity_boundary({'host_label': 'one'}, {'host_label': 'two'})
 
-    def test_configured_but_unentered_hooks_remain_unexercised(self):
+    def test_startup_callback_cannot_certify_unrelated_successful_tool(self):
         result = probe.hook_verdict([], True)
         self.assertFalse(result['hook_path_exercised'], 'configured hook promoted into exercised enforcement')
         self.assertEqual(result['blocking'], 'unexercised')
@@ -33,7 +33,25 @@ class NativeBoundaryGuards(unittest.TestCase):
         self.assertFalse(result['callback_completed'])
         self.assertFalse(result['tool_hook_path_exercised'], 'startup callback promoted into tool authorization coverage')
         self.assertEqual(result['events_entered'], ['SessionStart'])
-        self.assertEqual(result['blocking'], 'nonblocking-observed')
+        self.assertEqual(result['events_completed'], [])
+        self.assertEqual(result['observed_action'], 'completed')
+        self.assertEqual(result['blocking'], 'unexercised', 'startup callback certified an unrelated direct-RPC tool success')
+
+    def test_pre_tool_callback_on_diagnostic_route_does_not_certify_blocking(self):
+        records = [{'event': 'PreToolUse', 'state': 'entered'}, {'event': 'PreToolUse', 'state': 'completed'}]
+        result = probe.hook_verdict(records, True)
+        self.assertTrue(result['tool_hook_path_exercised'], 'observed PreToolUse callback presence was lost')
+        self.assertEqual(result['events_completed'], ['PreToolUse'])
+        self.assertEqual(result['observed_action'], 'completed')
+        self.assertEqual(result['blocking'], 'unexercised', 'diagnostic direct-RPC success was treated as a hook-protected action')
+
+    def test_explicit_host_version_pin_rejects_mismatch_before_cases(self):
+        with mock.patch.object(probe.subprocess, 'check_output', return_value='codex-cli 0.159.2\n') as version, \
+                mock.patch.object(probe, 'host_case') as run_case:
+            with self.assertRaisesRegex(ValueError, 'unmeasured Codex version'):
+                probe.host_probe('codex', 'dacli', Path('/source'), {}, 'codex-cli 0.164.0-alpha.11.1')
+        version.assert_called_once()
+        run_case.assert_not_called()
 
     def test_native_tool_text_structured_parity(self):
         typed = {'ok': True, 'data': {'session_id': 'a' * 64}}

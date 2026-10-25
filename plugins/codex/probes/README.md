@@ -1,5 +1,12 @@
 # Native Codex governance startup probe v1
 
+The [2026-10-25 qualification report](../../../docs/codex-governance-qualification-2026-10-25.md)
+contains the current Codex0.164.0-alpha.11.1 observations and reproduction commands
+for `hook_matrix.py`. That fixture feeds deterministic loopback Responses into the
+actual app-server tool pipeline, with no remote inference. The startup runners
+and 0.159.2 receipts below remain historical provenance; direct diagnostic MCP
+calls still do not establish tool-hook behavior.
+
 Requires Python 3.9+, POSIX process groups and the actual installed Codex CLI.
 Install the host separately using the official Codex installation instructions;
 this fixture does not install or upgrade Codex. The measured executable was:

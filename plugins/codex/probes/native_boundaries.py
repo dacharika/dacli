@@ -108,12 +108,16 @@ def attributable(identity, attempt, task, checkout):
 def hook_verdict(records, action_ok):
     entered = [r for r in records if r.get('state') == 'entered']
     completed = [r for r in records if r.get('state') == 'completed']
+    # This probe invokes MCP directly through app-server. Callback observations
+    # are useful lifecycle facts, but the successful native tool call does not
+    # establish that it traversed the user-facing tool authorization boundary.
     return {'callback_entered': bool(entered), 'callback_completed': bool(completed),
             'events_entered': sorted({r['event'] for r in entered}),
+            'events_completed': sorted({r['event'] for r in completed}),
             'observed_action': 'completed' if action_ok else 'refused-or-failed',
             'hook_path_exercised': bool(entered),
             'tool_hook_path_exercised': any(r['event'] == 'PreToolUse' for r in entered),
-            'blocking': ('nonblocking-observed' if action_ok else 'refusal-observed-cause-unverified') if entered else 'unexercised'}
+            'blocking': 'unexercised'}
 
 
 def closed_notification(value):
@@ -349,10 +353,10 @@ def child_probe(source, spec):
     return result
 
 
-def host_probe(codex, dacli, source, spec):
+def host_probe(codex, dacli, source, spec, expected_version=VERSION):
     env = {k: os.environ[k] for k in ('PATH', 'TMPDIR', 'SystemRoot') if k in os.environ}
     version = subprocess.check_output([codex, '--version'], env=env, stderr=subprocess.DEVNULL, text=True, timeout=8).strip()
-    if version != VERSION:
+    if version != expected_version:
         raise ValueError('unmeasured Codex version')
     for key in ('selection_a', 'selection_b', 'child_selection'):
         if str(Path(private_json(spec[key])['binary']).resolve(strict=True)) != dacli:
@@ -409,6 +413,8 @@ def main():
     p.add_argument('--stage', required=True, choices=('host', 'child'))
     p.add_argument('--codex')
     p.add_argument('--dacli')
+    p.add_argument('--expected-version', default=VERSION,
+                   help='exact output expected from codex --version (default: historical pin %(default)s)')
     p.add_argument('--output', required=True)
     args = p.parse_args()
     stage = 'fixture-validation'
@@ -419,7 +425,7 @@ def main():
             if not args.codex or not args.dacli:
                 p.error('host stage requires exact --codex and --dacli executables')
             stage = 'host-probe'
-            result = host_probe(str(Path(args.codex).resolve(strict=True)), str(Path(args.dacli).resolve(strict=True)), source, spec)
+            result = host_probe(str(Path(args.codex).resolve(strict=True)), str(Path(args.dacli).resolve(strict=True)), source, spec, args.expected_version)
         else:
             stage = 'child-stdio-probe'
             result = child_probe(source, spec)

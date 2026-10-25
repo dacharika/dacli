@@ -1,0 +1,41 @@
+{
+  "schema": "dacli-codex-native-boundaries/v2",
+  "stage": "child",
+  "session_id": "3ce886fa540542810c9164ce8016216a076bdb5ff21270c5d5e2e517f2d8a453",
+  "attempt_id": "572af05751e39c461136a0bb5df39e50dbcf9d47c75525c4ace07a114a7bd87b",
+  "own_stdio_authenticated": true,
+  "text_structured_parity": true,
+  "tool_calls": [
+    {
+      "request_id": 1,
+      "method": "initialize",
+      "outcome": "response"
+    },
+    {
+      "request_id": 2,
+      "method": "tools/list",
+      "outcome": "response"
+    },
+    {
+      "request_id": 3,
+      "method": "tools/call",
+      "outcome": "response",
+      "tool": "identity"
+    },
+    {
+      "request_id": 4,
+      "method": "tools/call",
+      "outcome": "response",
+      "tool": "task_get"
+    },
+    {
+      "request_id": 5,
+      "method": "tools/call",
+      "outcome": "response",
+      "tool": "register_attempt"
+    }
+  ],
+  "host_identity_cryptographically_bound": false,
+  "automatic_child_profile_delivery": false,
+  "stdio_exit_code": 0
+}
