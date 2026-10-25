@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 96" role="img" aria-labelledby="title desc" shape-rendering="crispEdges">
+  <title id="title">Patchwork farm starter sprites</title>
+  <desc id="desc">Original geometric icons and pixel animals in a limited garden palette.</desc>
+  <defs>
+    <symbol id="seed-mark" viewBox="0 0 32 32">
+      <rect x="5" y="5" width="21" height="21" fill="#174c4c" />
+      <rect x="10" y="2" width="9" height="5" fill="#f2c85e" />
+      <rect x="2" y="10" width="5" height="9" fill="#f2c85e" />
+      <rect x="24" y="10" width="5" height="9" fill="#f2c85e" />
+      <rect x="10" y="24" width="9" height="5" fill="#f2c85e" />
+      <rect x="12" y="8" width="7" height="15" fill="#d8e7c9" />
+      <rect x="8" y="12" width="15" height="7" fill="#d8e7c9" />
+      <rect x="14" y="13" width="3" height="8" fill="#bc5e51" />
+    </symbol>
+    <symbol id="fox" viewBox="0 0 32 32">
+      <rect x="7" y="10" width="18" height="13" fill="#bf704c" />
+      <path d="M7 10 5 3 12 7 16 5 20 7 27 3 25 11Z" fill="#bf704c" />
+      <path d="m7 7 2 4 3-3Zm16 0-2 4-3-3Z" fill="#f3d48c" />
+      <rect x="11" y="12" width="3" height="3" fill="#183c3d" />
+      <rect x="20" y="12" width="3" height="3" fill="#183c3d" />
+      <rect x="15" y="16" width="4" height="3" fill="#f7e4bd" />
+      <rect x="16" y="17" width="2" height="2" fill="#713f3a" />
+      <rect x="8" y="22" width="5" height="5" fill="#8e5940" />
+      <rect x="21" y="22" width="5" height="5" fill="#8e5940" />
+      <rect x="25" y="19" width="5" height="4" fill="#bc5e51" />
+      <rect x="28" y="16" width="3" height="4" fill="#bc5e51" />
+      <rect x="10" y="27" width="4" height="2" fill="#4b4840" />
+      <rect x="20" y="27" width="7" height="2" fill="#4b4840" />
+      <rect x="7" y="18" width="3" height="2" fill="#e7b86d" />
+    </symbol>
+    <symbol id="rabbit" viewBox="0 0 32 32">
+      <rect x="8" y="12" width="17" height="12" fill="#d9c5a5" />
+      <rect x="9" y="2" width="6" height="12" fill="#d9c5a5" />
+      <rect x="17" y="1" width="6" height="13" fill="#d9c5a5" />
+      <rect x="11" y="4" width="2" height="8" fill="#bb7182" />
+      <rect x="19" y="3" width="2" height="8" fill="#bb7182" />
+      <rect x="11" y="15" width="3" height="3" fill="#263d3d" />
+      <rect x="20" y="15" width="3" height="3" fill="#263d3d" />
+      <rect x="14" y="19" width="6" height="3" fill="#f4ead7" />
+      <rect x="16" y="19" width="2" height="2" fill="#bb7182" />
+      <rect x="8" y="23" width="6" height="5" fill="#bca98f" />
+      <rect x="20" y="23" width="6" height="5" fill="#bca98f" />
+      <rect x="9" y="28" width="6" height="2" fill="#5c5b52" />
+      <rect x="19" y="28" width="7" height="2" fill="#5c5b52" />
+      <rect x="5" y="21" width="4" height="4" fill="#f0dfc4" />
+    </symbol>
+    <symbol id="raccoon" viewBox="0 0 32 32">
+      <rect x="7" y="10" width="19" height="14" fill="#84918c" />
+      <path d="M7 11 6 3 13 8 19 8 26 3 25 12Z" fill="#84918c" />
+      <path d="m8 7 2 4 3-3Zm16 0-2 4-3-3Z" fill="#d2c6a8" />
+      <rect x="9" y="13" width="7" height="4" fill="#3b4848" />
+      <rect x="17" y="13" width="7" height="4" fill="#3b4848" />
+      <rect x="12" y="13" width="2" height="2" fill="#f2c85e" />
+      <rect x="20" y="13" width="2" height="2" fill="#f2c85e" />
+      <rect x="15" y="17" width="4" height="3" fill="#e9dfc8" />
+      <rect x="16" y="18" width="2" height="2" fill="#343f3e" />
+      <rect x="9" y="23" width="6" height="5" fill="#677874" />
+      <rect x="21" y="23" width="6" height="5" fill="#677874" />
+      <rect x="9" y="28" width="7" height="2" fill="#3b4848" />
+      <rect x="20" y="28" width="7" height="2" fill="#3b4848" />
+      <rect x="25" y="20" width="4" height="4" fill="#c7c2a7" />
+    </symbol>
+    <symbol id="notice-board" viewBox="0 0 64 64">
+      <rect x="7" y="8" width="50" height="37" fill="#78563f" />
+      <rect x="11" y="12" width="42" height="29" fill="#f3dc9f" />
+      <rect x="18" y="18" width="14" height="3" fill="#6d8372" />
+      <rect x="18" y="25" width="29" height="3" fill="#bc5e51" />
+      <rect x="18" y="32" width="22" height="3" fill="#719277" />
+      <rect x="10" y="44" width="4" height="17" fill="#745039" />
+      <rect x="49" y="44" width="4" height="17" fill="#745039" />
+      <rect x="6" y="58" width="14" height="4" fill="#745039" />
+      <rect x="44" y="58" width="14" height="4" fill="#745039" />
+      <rect x="17" y="17" width="4" height="4" fill="#cf9b47" />
+      <rect x="45" y="24" width="4" height="4" fill="#cf9b47" />
+    </symbol>
+    <symbol id="storehouse" viewBox="0 0 64 64">
+      <path d="M5 24 32 4 59 24V59H5Z" fill="#b8734e" />
+      <path d="M10 24 32 8 54 24V56H10Z" fill="#dba36b" />
+      <path d="M3 25 32 3 61 25 57 30 32 11 7 30Z" fill="#714a3c" />
+      <rect x="22" y="34" width="20" height="22" fill="#76583f" />
+      <rect x="25" y="37" width="14" height="19" fill="#e4bd79" />
+      <rect x="30" y="40" width="4" height="16" fill="#9b704b" />
+      <rect x="12" y="28" width="7" height="7" fill="#a8d5c6" />
+      <rect x="45" y="28" width="7" height="7" fill="#a8d5c6" />
+      <rect x="11" y="56" width="42" height="4" fill="#76583f" />
+    </symbol>
+    <symbol id="sun" viewBox="0 0 32 32">
+      <rect x="8" y="3" width="4" height="6" fill="#c39643" /><rect x="8" y="23" width="4" height="6" fill="#c39643" />
+      <rect x="3" y="12" width="6" height="4" fill="#c39643" /><rect x="23" y="12" width="6" height="4" fill="#c39643" />
+      <rect x="6" y="6" width="4" height="4" fill="#c39643" /><rect x="20" y="6" width="4" height="4" fill="#c39643" />
+      <rect x="6" y="20" width="4" height="4" fill="#c39643" /><rect x="20" y="20" width="4" height="4" fill="#c39643" />
+      <rect x="10" y="9" width="11" height="11" fill="#f2c85e" /><rect x="13" y="12" width="5" height="5" fill="#fff2b9" />
+    </symbol>
+    <symbol id="list" viewBox="0 0 32 32">
+      <rect x="4" y="5" width="4" height="4" fill="#397d78" /><rect x="11" y="5" width="14" height="3" fill="#397d78" />
+      <rect x="4" y="13" width="4" height="4" fill="#397d78" /><rect x="11" y="13" width="14" height="3" fill="#397d78" />
+      <rect x="4" y="21" width="4" height="4" fill="#397d78" /><rect x="11" y="21" width="14" height="3" fill="#397d78" />
+    </symbol>
+    <symbol id="map-pin" viewBox="0 0 32 32">
+      <path d="M16 29 7 17V10A9 9 0 0 1 25 10V17Z" fill="#397d78" />
+      <rect x="12" y="7" width="8" height="8" fill="#f2c85e" /><rect x="14" y="9" width="4" height="4" fill="#174c4c" />
+      <rect x="14" y="18" width="4" height="7" fill="#397d78" />
+    </symbol>
+  </defs>
+  <view id="animal-sprite-grid" viewBox="0 0 128 32" />
+  <svg x="0" y="0" width="32" height="32" viewBox="0 0 32 32"><use href="#fox" /></svg>
+  <svg x="32" y="0" width="32" height="32" viewBox="0 0 32 32"><use href="#rabbit" /></svg>
+  <svg x="64" y="0" width="32" height="32" viewBox="0 0 32 32"><use href="#raccoon" /></svg>
+  <svg x="96" y="0" width="32" height="32" viewBox="0 0 32 32"><use href="#seed-mark" /></svg>
+  <view id="building-sprite-row" viewBox="0 32 128 64" />
+  <svg x="0" y="32" width="64" height="64" viewBox="0 0 64 64"><use href="#notice-board" /></svg>
+  <svg x="64" y="32" width="64" height="64" viewBox="0 0 64 64"><use href="#storehouse" /></svg>
+</svg>
