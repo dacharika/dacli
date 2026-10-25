@@ -43,8 +43,8 @@ func TestOwnerTaskClaimsProtectionHoldsForRetainedReservationWithoutWritingAutho
 		t.Fatal("retained reservation did not protect claims")
 	}
 	guardAfter, err := os.ReadFile(f.a.path)
-	if err != nil {
-		t.Fatal(err)
+	if err != nil || !bytes.Equal(guardBefore, guardAfter) {
+		t.Fatal("refused guard changed authority bytes", err)
 	}
 	_ = f.a.WithOwnerTaskClaimsProtection(f.owner, "task-a", func(TaskClaimsProtection) error { return nil })
 	guardAfter, err = os.ReadFile(f.a.path)
