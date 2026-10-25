@@ -41,7 +41,7 @@ var Commands = []clikit.Command{
 	{Path: "github doctor", Brief: "Probe gh, auth, repository visibility, and autonomous-landing branch protection", JSON: true, Usage: "dacli github doctor", Run: cmdDoctor},
 	{Path: "github projection", Brief: "Show the typed public/private allowlist, withheld fields, and closure authority used by CLI and MCP publishers", JSON: true, Usage: "dacli github projection <project> [--include-internal] [--terminal]", Run: cmdProjection},
 	{Path: "github link", Brief: "Bind a project to the repo (--allow-public records public-safe consent; --allow-internal separately authorizes internal evidence)", Mutates: true, Usage: "dacli github link <project> [--allow-public [--allow-internal]]", Run: cmdLink},
-	{Path: "github push", Brief: "Outbound mirror under the typed public/private projection policy; public defaults to task-safe fields and needs --include-internal plus recorded authority for findings/decisions", Mutates: true, Usage: "dacli github push <project> [task-ref...] [--since <dur>] [--findings-as-issues | --closure-only] [--include-internal] [--dry-run]", Run: cmdPush},
+	{Path: "github push", Brief: "Outbound mirror under the typed public/private projection policy; public defaults to task-safe fields and needs --include-internal plus recorded authority for findings/decisions", Mutates: true, Usage: "dacli github push <project> [task-ref...] [--since <dur>] [--milestone-plan <file>] [--findings-as-issues | --closure-only] [--include-internal] [--dry-run]", Run: cmdPush},
 	{Path: "github sync", Brief: "Bidirectional sync: pull then policy-governed push (--dry-run previews both halves)", JSON: true, Mutates: true, Usage: "dacli github sync <project> [task-ref...] [--since <dur>] [--findings-as-issues] [--with-tasks] [--include-internal] [--dry-run] [--limit N] [--cursor N] [--include-acceptance]", Run: cmdSync},
 	{Path: "github pull", Brief: "Inbound: adopt human-authored issues as local tasks (--dry-run previews the adoptions)", JSON: true, Mutates: true, Usage: "dacli github pull <project> [--dry-run] [--limit N] [--cursor N] [--include-acceptance]", Run: cmdPull},
 	{Path: "task acceptance migrate", Brief: "Preview or apply an immutable plan that imports acceptance from a task's mapped GitHub issue", Mutates: true, Usage: "dacli task acceptance migrate <ref> [--from-section \"Acceptance criteria\"] (--dry-run | --apply plan-id)", Run: cmdTaskAcceptanceMigrate},
@@ -203,12 +203,18 @@ func cmdPush(ctx *clikit.Ctx, args []string) error {
 	if err != nil {
 		return err
 	}
-	f, _ := clikit.ParseFlags(args)
-	if err := f.Reject("findings-as-issues", "with-tasks", "since", "closure-only", "include-internal", "dry-run"); err != nil {
+	f, parseErr := clikit.ParseFlags(args, "milestone-plan")
+	if parseErr != nil {
+		return parseErr
+	}
+	if err := f.Reject("findings-as-issues", "with-tasks", "since", "milestone-plan", "closure-only", "include-internal", "dry-run"); err != nil {
 		return err
 	}
+	if plans := f.All("milestone-plan"); len(plans) > 1 || len(plans) == 1 && strings.TrimSpace(plans[0]) == "" {
+		return clikit.Usagef("--milestone-plan requires exactly one non-empty plan file")
+	}
 	if len(f.Pos) == 0 {
-		return clikit.Usagef("usage: dacli github push <project> [task-ref...] [--since <dur>] [--findings-as-issues | --closure-only] [--include-internal] [--dry-run]")
+		return clikit.Usagef("usage: dacli github push <project> [task-ref...] [--since <dur>] [--milestone-plan <file>] [--findings-as-issues | --closure-only] [--include-internal] [--dry-run]")
 	}
 	// --dry-run: run the real read + decision path below but ELIDE every write —
 	// each remote mutation and local mapping write is swapped for a "would ..."
@@ -229,6 +235,9 @@ func cmdPush(ctx *clikit.Ctx, args []string) error {
 	// without it, the default finding-comment path is unchanged.
 	findingsAsIssues := f.Bool("findings-as-issues")
 	closureOnly := f.Bool("closure-only")
+	if f.Get("milestone-plan") != "" && (findingsAsIssues || f.Bool("with-tasks") || f.Bool("include-internal")) {
+		return clikit.Usagef("--milestone-plan is an exact task taxonomy operation and cannot be combined with finding or internal projection flags")
+	}
 	if closureOnly {
 		if len(f.Pos) < 2 {
 			return clikit.Usagef("--closure-only requires one or more explicit task refs")
@@ -236,6 +245,9 @@ func cmdPush(ctx *clikit.Ctx, args []string) error {
 		if findingsAsIssues || f.Bool("with-tasks") || f.Bool("include-internal") || f.Get("since") != "" {
 			return clikit.Usagef("--closure-only cannot be combined with finding, task-expansion, or --since projection flags")
 		}
+	}
+	if f.Get("milestone-plan") != "" && closureOnly {
+		return clikit.Usagef("--milestone-plan cannot be combined with --closure-only")
 	}
 
 	// Visibility is re-checked LIVE at every push: a repo flipped public
@@ -352,35 +364,7 @@ func githubPushLockPath(w *workspace.Workspace, repo string) string {
 // acquire a mutating lease because it writes nothing (issue #682).
 func pushProject(ctx *clikit.Ctx, w *workspace.Workspace, p *store.Project, repo string, f *clikit.Flags, dry, findingsAsIssues bool, policy publication.Policy) error {
 
-	// G6: pre-create the full static label set (type:*, severity:*, finding,
-	// decision, status:*) with stable colors ONCE, before any issue-create
-	// references a label — so a not-yet-created label never fails a push under a
-	// flaky network. The project's area: label is dynamic, so it rides the extras.
 	taskArea := areaLabel(p.Slug)
-	// Pre-creating labels is a remote write, so a dry-run skips it — labels are
-	// cosmetic and outside the create/adopt/close the preview reports.
-	if !dry {
-		precreateLabels(w, repo, taskArea)
-	}
-
-	// dacli 224: a project maps to ONE milestone, so a mirrored repo groups its
-	// task issues under a planning milestone the way a hand-run project does.
-	// Ensure it exists BEFORE any issue-create references it — `gh issue create
-	// --milestone` hard-fails on an unknown milestone, so haveMilestone is true
-	// ONLY once the milestone is positively confirmed present; a create that
-	// could not be confirmed is skipped, not passed as a poison --milestone.
-	milestone := milestoneTitle(p)
-	// A dry-run must not POST a milestone, so it probes existence read-only
-	// (milestoneExists) instead of ensureMilestone, which creates one. haveMilestone
-	// then reflects the LIVE state the preview reasons about.
-	haveMilestone := false
-	if dry {
-		if ok, merr := milestoneExists(w, repo, milestone); merr == nil {
-			haveMilestone = ok
-		}
-	} else {
-		haveMilestone = ensureMilestone(w, repo, milestone)
-	}
 
 	// One issue-list snapshot for the ENTIRE push: adoption scans it in memory
 	// instead of a full `gh issue list` per task/decision/finding (the old
@@ -426,6 +410,100 @@ func pushProject(ctx *clikit.Ctx, w *workspace.Workspace, p *store.Project, repo
 	tasks, err = deliveryProjectionParents(w, tasks)
 	if err != nil {
 		return err
+	}
+	planByTask := map[string]string(nil)
+	if planPath := f.Get("milestone-plan"); planPath != "" {
+		if len(f.Pos) < 2 || f.Get("since") != "" {
+			return clikit.Usagef("--milestone-plan requires an exact task-ref window and cannot be combined with --since")
+		}
+		plan, err := readMilestonePlan(planPath)
+		if err != nil {
+			return err
+		}
+		if len(f.Pos[1:]) != len(tasks) {
+			return clikit.Refusedf("milestone plan requires each canonical task_id exactly once; the selected task window contains %d task(s) from %d ref(s)", len(tasks), len(f.Pos[1:]))
+		}
+		selectedIDs := make(map[string]bool, len(tasks))
+		for _, task := range tasks {
+			selectedIDs[task.ID] = true
+		}
+		seenRefs := map[string]bool{}
+		for _, ref := range f.Pos[1:] {
+			if !selectedIDs[ref] || seenRefs[ref] {
+				return clikit.Refusedf("milestone plan requires each canonical task_id exactly once; %q is not a unique canonical task_id", ref)
+			}
+			seenRefs[ref] = true
+		}
+		planByTask, err = validateMilestonePlan(plan, p.Slug, repo, tasks, idx)
+		if err != nil {
+			return err
+		}
+	}
+
+	defaultMilestone := milestoneTitle(p)
+	defaultHave := false
+	if planByTask == nil {
+		if dry {
+			defaultHave, _ = milestoneExists(w, repo, defaultMilestone)
+		} else {
+			defaultHave = ensureMilestone(w, repo, defaultMilestone)
+		}
+	}
+	plannedMilestones := map[string]bool{}
+	for _, title := range planByTask {
+		plannedMilestones[title] = false
+	}
+	for title := range plannedMilestones {
+		found, err := milestoneExists(w, repo, title)
+		if err != nil {
+			return fmt.Errorf("verify planned milestone %q: %w", title, err)
+		}
+		if !found {
+			return clikit.Refusedf("milestone plan target %q does not exist in %s; create it explicitly, then refresh the plan", title, repo)
+		}
+		plannedMilestones[title] = true
+	}
+	if planByTask != nil {
+		// Explicit plans only edit mapped issues. Creating labels here would
+		// mutate repository-wide definitions outside the plan and beyond the
+		// issue-level diff printed by --dry-run, so require all needed labels to
+		// exist before any plan apply can edit an issue.
+		repoLabels, err := listLabels(w, repo)
+		if err != nil {
+			return fmt.Errorf("verify labels required by milestone plan: %w", err)
+		}
+		needed := map[string]bool{}
+		for _, task := range tasks {
+			issueLabels := idx.labelsFor(mappedIssue(task))
+			for _, label := range []string{statusLabel(task.Status), "type:task", taskArea} {
+				if label != "" && !issueLabels[label] {
+					needed[label] = true
+				}
+			}
+		}
+		labelsToCheck := append([]string(nil), "type:task", taskArea)
+		for _, status := range model.AllStatuses {
+			labelsToCheck = append(labelsToCheck, statusLabel(status))
+		}
+		for _, label := range labelsToCheck {
+			if needed[label] && !repoLabels[label] {
+				return clikit.Refusedf("milestone plan requires label %q, which does not exist in %s; create required labels explicitly, then refresh the plan", label, repo)
+			}
+			delete(needed, label)
+		}
+		// Keep a future status label from silently passing if the status model
+		// grows without updating the deterministic list above.
+		for label := range needed {
+			if !repoLabels[label] {
+				return clikit.Refusedf("milestone plan requires label %q, which does not exist in %s; create required labels explicitly, then refresh the plan", label, repo)
+			}
+		}
+	}
+	// G6 labels are pre-created only after every explicit milestone plan has
+	// passed its stale/conflict and target-existence checks, so refusal cannot
+	// leave remote changes.
+	if !dry && planByTask == nil {
+		precreateLabels(w, repo, taskArea)
 	}
 	// task 298: the window must scope the decision and finding-issue mirrors too,
 	// not just the tasks — a decision rode along on EVERY push regardless of the
@@ -490,6 +568,11 @@ func pushProject(ctx *clikit.Ctx, w *workspace.Workspace, p *store.Project, repo
 
 	created, adopted, closed, kept, commented := 0, 0, 0, 0, 0
 	for _, t := range tasks {
+		milestone, haveMilestone := defaultMilestone, defaultHave
+		if planByTask != nil {
+			milestone = planByTask[t.ID]
+			haveMilestone = plannedMilestones[milestone]
+		}
 		num := mappedIssue(t)
 
 		// The idempotent create path, per GITHUB.md § 4: frontmatter first,
@@ -582,10 +665,20 @@ func pushProject(ctx *clikit.Ctx, w *workspace.Workspace, p *store.Project, repo
 				return err
 			}
 		}
-		// G1/G6 taxonomy and milestone assignment are best-effort remote writes
-		// outside the create/adopt/close the preview reports, so a dry-run skips
-		// them entirely rather than mutating labels on the live repo.
-		if !dry {
+		if dry {
+			if num != 0 {
+				if planByTask != nil {
+					beforeMilestone, _ := idx.issueMilestone(num)
+					beforeLabels, _ := idx.issueLabels(num)
+					afterLabels := projectedTaxonomyLabels(beforeLabels, t.Status, taskArea)
+					fmt.Fprintf(ctx.Stdout, "would edit issue #%d: milestone %q -> %q; labels %s -> %s\n", num, beforeMilestone, milestone, formatLabelSet(beforeLabels), formatLabelSet(afterLabels))
+				} else if diff := issueTaxonomyArgs(idx, num, t.Status, taskArea, milestone, haveMilestone); len(diff) > 0 {
+					fmt.Fprintf(ctx.Stdout, "would edit issue #%d taxonomy: %s\n", num, strings.Join(diff, " "))
+				} else {
+					fmt.Fprintf(ctx.Stdout, "issue #%d taxonomy unchanged\n", num)
+				}
+			}
+		} else {
 			// One diffed edit per issue, covering the status label (G1), the
 			// type:/area: taxonomy (G6) and the milestone (dacli 224).
 			//
@@ -597,7 +690,13 @@ func pushProject(ctx *clikit.Ctx, w *workspace.Workspace, p *store.Project, repo
 			// issues to the values they already had. syncIssueTaxonomy diffs
 			// against the snapshot the marker index has already fetched and
 			// makes zero calls when the issue is current.
-			syncIssueTaxonomy(w, repo, idx, num, t.Status, taskArea, milestone, haveMilestone)
+			if planByTask != nil {
+				if err := syncIssueTaxonomyStrict(w, repo, idx, num, t.Status, taskArea, milestone, haveMilestone); err != nil {
+					return fmt.Errorf("milestone plan apply stopped at task %s: %w", t.ID, err)
+				}
+			} else {
+				syncIssueTaxonomy(w, repo, idx, num, t.Status, taskArea, milestone, haveMilestone)
+			}
 		}
 
 		// Findings backlink to the issue a human sees: each finding note about
@@ -605,7 +704,7 @@ func pushProject(ctx *clikit.Ctx, w *workspace.Workspace, p *store.Project, repo
 		// so a re-push never duplicates. Behind the disclosure gate tripped above.
 		// Skipped in --findings-as-issues mode, where findings become standalone
 		// issues instead (mirrored once, after the task loop).
-		if !findingsAsIssues && policy.Allows(publication.FieldFindings) {
+		if planByTask == nil && !findingsAsIssues && policy.Allows(publication.FieldFindings) {
 			if dry {
 				// findingsToPost is the SHARED decision both the real mirror and
 				// this preview run, so a would-comment can never drift from what a
@@ -626,7 +725,7 @@ func pushProject(ctx *clikit.Ctx, w *workspace.Workspace, p *store.Project, repo
 			}
 		}
 
-		if t.Status == model.StatusDone {
+		if planByTask == nil && t.Status == model.StatusDone {
 			if dry {
 				fmt.Fprintf(ctx.Stdout, "would close issue #%d (%s)\n", num, taskIssueTitle(t))
 				closed++
@@ -647,12 +746,17 @@ func pushProject(ctx *clikit.Ctx, w *workspace.Workspace, p *store.Project, repo
 		fmt.Fprintf(ctx.Stdout, "push: %d created, %d adopted-by-marker, %d unchanged, %d closed, %d finding comment(s) (of %d tasks)\n",
 			created, adopted, kept, closed, commented, len(tasks))
 	}
-	if haveMilestone {
+	if planByTask != nil {
+		fmt.Fprintf(ctx.Stdout, "milestone plan: %s for %d explicitly selected task issue(s)\n", map[bool]string{true: "previewed", false: "applied"}[dry], len(planByTask))
+	} else if defaultHave {
 		if dry {
-			fmt.Fprintf(ctx.Stdout, "milestone: %s (task issues would be assigned)\n", milestone)
+			fmt.Fprintf(ctx.Stdout, "milestone: %s (task issues would be assigned; legacy project-title default)\n", defaultMilestone)
 		} else {
-			fmt.Fprintf(ctx.Stdout, "milestone: %s (task issues assigned)\n", milestone)
+			fmt.Fprintf(ctx.Stdout, "milestone: %s (task issues assigned; legacy project-title default)\n", defaultMilestone)
 		}
+	}
+	if planByTask != nil {
+		return nil // explicit plan mode changes only selected issue labels/milestones
 	}
 
 	// G2: decisions ride the SAME explicit push and the SAME disclosure gate
