@@ -21,6 +21,7 @@ import (
 // so no command can quietly claim --json support. Adding an entry is the
 // deliberate act that says "I checked: this command honors --json."
 var jsonHonoringCommands = map[string]bool{
+	"native task claims preview": true, "native task claims apply": true,
 	"role registry import": true, "role registry verify": true, "role registry pin": true,
 	"role registry diff": true, "role registry upgrade": true, "role registry rollback": true,
 	"role registry outcomes": true,
