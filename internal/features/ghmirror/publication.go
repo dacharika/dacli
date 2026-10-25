@@ -1137,6 +1137,43 @@ func syncIssueTaxonomy(w *workspace.Workspace, repo string, idx *markerIndex, nu
 	if num == 0 {
 		return
 	}
+	args := issueTaxonomyArgs(idx, num, st, area, milestone, haveMilestone)
+	if len(args) == 0 {
+		return // already current: the common case on a re-push
+	}
+	// The label must exist before it can be attached; only ensure the ones
+	// this edit actually adds.
+	for i := 0; i+1 < len(args); i += 2 {
+		if args[i] == "--add-label" {
+			ensureLabel(w, repo, args[i+1])
+		}
+	}
+	_, _ = ghRepo(w, repo, append([]string{"issue", "edit", strconv.Itoa(num)}, args...)...)
+	idx.forget(num)
+}
+
+// syncIssueTaxonomyStrict is used by explicit owner plans, where reporting a
+// successful apply after a failed edit would invalidate the plan's receipt.
+// Required repository labels were read-verified during whole-plan preflight;
+// this path must not create or update shared repository label definitions.
+func syncIssueTaxonomyStrict(w *workspace.Workspace, repo string, idx *markerIndex, num int, st model.Status, area, milestone string, haveMilestone bool) error {
+	args := issueTaxonomyArgs(idx, num, st, area, milestone, haveMilestone)
+	if len(args) == 0 {
+		return nil
+	}
+	if out, err := ghRepo(w, repo, append([]string{"issue", "edit", strconv.Itoa(num)}, args...)...); err != nil {
+		return fmt.Errorf("edit planned issue #%d taxonomy: %w (%s)", num, err, out)
+	}
+	idx.forget(num)
+	return nil
+}
+
+// issueTaxonomyArgs is shared by apply and dry-run so the preview describes
+// the exact label/milestone edit the live path would issue.
+func issueTaxonomyArgs(idx *markerIndex, num int, st model.Status, area, milestone string, haveMilestone bool) []string {
+	if num == 0 {
+		return nil
+	}
 	want := statusLabel(st)
 	have := idx.labelsFor(num)
 
@@ -1157,18 +1194,7 @@ func syncIssueTaxonomy(w *workspace.Workspace, repo string, idx *markerIndex, nu
 	if haveMilestone && milestone != "" && idx.milestoneFor(num) != milestone {
 		args = append(args, "--milestone", milestone)
 	}
-	if len(args) == 0 {
-		return // already current: the common case on a re-push
-	}
-	// The label must exist before it can be attached; only ensure the ones
-	// this edit actually adds.
-	for i := 0; i+1 < len(args); i += 2 {
-		if args[i] == "--add-label" {
-			ensureLabel(w, repo, args[i+1])
-		}
-	}
-	_, _ = ghRepo(w, repo, append([]string{"issue", "edit", strconv.Itoa(num)}, args...)...)
-	idx.forget(num)
+	return args
 }
 
 type markerIndex struct {
@@ -1229,6 +1255,30 @@ func (m *markerIndex) milestoneFor(num int) string {
 		}
 	}
 	return ""
+}
+
+func (m *markerIndex) issueMilestone(num int) (string, bool) {
+	m.load()
+	for _, h := range m.issues {
+		if h.Number == num {
+			return h.Milestone.Title, true
+		}
+	}
+	return "", false
+}
+
+func (m *markerIndex) issueLabels(num int) ([]string, bool) {
+	m.load()
+	for _, h := range m.issues {
+		if h.Number == num {
+			labels := make([]string, 0, len(h.Labels))
+			for _, label := range h.Labels {
+				labels = append(labels, label.Name)
+			}
+			return labels, true
+		}
+	}
+	return nil, false
 }
 
 // forget drops an issue from the snapshot after it has been edited, so a later

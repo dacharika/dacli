@@ -31,8 +31,9 @@ import (
 // fixed-cohort outcome report; selection still requires exact targets and CAS.
 // No MCP tools or automatic activation are added.
 // Native doctor adds one read-only JSON command with bounded explicit input flags; MCP tool capabilities remain projected only from mcp.ToolCapabilities(), not command briefs.
+// Explicit issue milestone plans add only the github push --milestone-plan flag.
 // Digest generated from the assembled CLI artifact; behavioral checks are separate.
-const capabilityRegistryGolden = "977f97e5f686d8a51089e2f0e553c2801cf8e61810b443c34e2ec26e85c4fc1c"
+const capabilityRegistryGolden = "f386988faf420f690f225bad89588ca9379132b8ee5de6945b2c3d02b4af7577"
 
 func TestCapabilityRegistryGolden(t *testing.T) {
 	m := capabilityManifest()
