@@ -1,5 +1,8 @@
 # dacli Codex plugin — local preview 0.5.0
 
+For the version-specific support status across the native CLI, MCP, Codex,
+Antigravity and hosted surfaces, see the [governance support matrix](../../docs/governance-support-matrix.md).
+
 Owner-enrolled native session tools connect Codex to canonical tasks, external
 Git checkout attempts, fenced leases and revision-bound self-reports. An owner
 may separately enable named asynchronous verification through private runner

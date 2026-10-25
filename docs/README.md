@@ -16,6 +16,7 @@ Reading order top to bottom. **Status** says how real each document is — a spe
 | [CONTROL_PLANE_WORKER.md](CONTROL_PLANE_WORKER.md) | Signed inbox transaction, leased outbox retries/dead letters, audit, retention, and recovery | **Implemented provider-neutral boundary** |
 | [CONTROL_PLANE_RECOVERY.md](CONTROL_PLANE_RECOVERY.md) | Versioned PostgreSQL restore, key rotation, tenant retention, and incident response contract | **Executable development runbook; production infrastructure not included** |
 | [GOVERNANCE_NATIVE_MCP.md](GOVERNANCE_NATIVE_MCP.md) | Explicit scoped native MCP and private owner setup | **Implemented local preview** |
+| [governance-support-matrix.md](governance-support-matrix.md) | CLI, native MCP, Codex, Antigravity and hosted support, version compatibility, and evidence boundaries | **Source and receipt linked; version-specific** |
 | [GOVERNANCE_NATIVE_EVIDENCE.md](GOVERNANCE_NATIVE_EVIDENCE.md) | Self-reports versus trusted runner grants | **Implemented kernel boundary** |
 | [GOVERNANCE_NATIVE_REVIEW.md](GOVERNANCE_NATIVE_REVIEW.md) | Independent credential families and revision-bound review | **Implemented kernel boundary; no native final acceptance** |
 | [DIAGRAMS.md](DIAGRAMS.md) | Component, native governance sequence, and task-lifecycle diagrams — Mermaid, each edge cited to code | **Checked against code** |

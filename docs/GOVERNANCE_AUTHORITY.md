@@ -1,8 +1,12 @@
 # ADR: Versioned governance authority and lifecycle
 
-Status: proposed contract design for #1070 under #1068. Implementation scope is
-fixtures, typed records and executable structural validation. Native authenticated
-Codex or other host integration is not implemented or claimed.
+Status: proposed **structural `governance/v1` contract design** for #1070 under
+#1068. Its implementation scope is fixtures, typed records and executable
+structural validation. This status applies to the contract in
+[`contracts/governance/v1`](../contracts/governance/v1/README.md), not to the
+separate authenticated native authority now implemented in source. For the
+measured CLI, MCP, Codex, Antigravity and hosted boundaries, see the
+[governance support matrix](governance-support-matrix.md).
 
 ## Identity and authority
 
@@ -150,3 +154,15 @@ single use transactionally across all history, including after expiry or
 restart. A retry of the same decision returns its recorded result and cannot
 execute again. Neither possession of the ID nor a matching unkeyed action digest
 proves approval, identity, delegation or authenticity.
+
+## Implemented native system is separate
+
+The native local system authenticates explicit private session profiles and
+enforces scoped task, lease, revision and evidence operations through its own
+versioned storage and typed MCP catalog. Owner provisioning, recovery and
+subsystem migrations remain local CLI operations. Native self-report evidence,
+trusted runner verification, review, Codex qualification, Antigravity
+qualification and hosted proposal sync have different evidence boundaries;
+none should be inferred from structural validation in this ADR. See the
+[support matrix](governance-support-matrix.md), [native MCP contract](GOVERNANCE_NATIVE_MCP.md),
+and [current Codex qualification](codex-governance-qualification-2026-10-25.md).
