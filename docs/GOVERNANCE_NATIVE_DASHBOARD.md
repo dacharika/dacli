@@ -40,11 +40,13 @@ missing usage is unavailable, never zero or enforceable remaining spend.
 Transcript files are not required or read. Existing legacy burn charts retain
 their own source and calibration labels.
 
-Authorities at schemas 6 through 16 are validated with the shared native decoder.
-A schema-10 authority remains schema 10; unavailable newer services are explicitly
-unsupported. Unsupported future schemas, corruption, revoked/expired identities,
-changed profiles and unreadable private files yield typed error or permission
-states without exposing private error details. The descriptor-first reader
+This projection uses the shared read-only authority decoder, which accepts
+schemas 6 through 19. Schema 20 is outside this projection's decoder range; its
+separate signed-role reader is not used here. A schema-10 authority remains
+schema 10; unavailable newer services are explicitly unsupported. Unsupported
+schemas, corruption, revoked/expired identities, changed profiles and unreadable
+private files yield typed error or permission states without exposing private
+error details. The descriptor-first reader
 refuses symlinks, FIFOs, nonregular files, public permissions and files larger
 than 16 MiB. Records and attention are deterministically capped at 512, with a
 visible limited state. This is a cooperative local observation, not containment
