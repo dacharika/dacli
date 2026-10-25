@@ -20,6 +20,8 @@ import (
 )
 
 var Commands = append(append(append(append([]clikit.Command{
+	{Path: "native task claims preview", Brief: "Owner previews exact canonical task path claims", JSON: true, Usage: "dacli native task claims preview --config <owner> --task <ref> --claims-file <private-file> --json", Run: taskClaimsPreview},
+	{Path: "native task claims apply", Brief: "Owner applies digest-bound canonical task path claims", Mutates: true, JSON: true, Usage: "dacli native task claims apply --config <owner> --plan <private-file> --json", Run: taskClaimsApply},
 	{Path: "native doctor", Brief: "Read-only native runtime, plugin and authority compatibility diagnosis", JSON: true, Usage: "dacli native doctor --plugin-manifest <manifest> [--package-artifact <file>] [--runtime-artifact <executable>] [--connection <private-file>] [--capability-file <private-file> --project <id>] --json", Run: nativeDoctor},
 	{Path: "native controller refresh-review", Brief: "Owner refresh exact independent review grant after checklist progress", Mutates: true, JSON: true, Usage: "dacli native controller refresh-review --config <owner> --review-config <private-profile> --request <private-file> --out <new-private-profile> --json", Run: controllerRefreshReview},
 	{Path: "native controller upgrade", Brief: "upgrade durable bounded native controller", Mutates: true, JSON: false, Usage: "dacli native controller upgrade --config <owner>", Run: func(c *clikit.Ctx, a []string) error { return controllerOwner(c, a, "upgrade") }},
@@ -98,6 +100,8 @@ func AuthenticatesExplicitly(path string) bool {
 		return true
 	}
 	switch path {
+	case "native task claims preview", "native task claims apply":
+		return true
 	case "native storage observe", "native storage experiment", "native storage retention":
 		return true
 	case "native controller upgrade", "native controller configure", "native controller start", "native controller step", "native controller reconcile", "native controller status", "native controller enroll", "native policy upgrade", "native role registry upgrade", "native policy configure", "native policy evaluate", "native policy approve", "native policy status", "accept apply-native", "native acceptance upgrade", "native acceptance candidate":
