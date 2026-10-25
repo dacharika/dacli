@@ -54,7 +54,7 @@ Task, attempt, evidence, review and acceptance IDs are retained. A completed att
 
 ## Accessibility
 
-Task signs and journal rows share the existing explicit input-focus modifier. Tab focus is visible as a dashed outline, distinct from solid selected timber/cream styling. Unmodified Space and Return open details. Closing the inspector clears then restores the selected task focus. These remain native interactions, requiring live runtime verification after any redesign.
+Task signs and journal rows share the existing explicit input-focus modifier. Tab focus is visible as a dashed outline, distinct from solid selected timber/cream styling. Unmodified Space and Return open details. Closing the inspector clears then restores the selected task focus. The native checks recorded below cover plot and list activation and focus restoration. They do not constitute a full keyboard or assistive-technology audit.
 
 Statuses always have a word and symbol; color is supplementary. Main record text is 12–13 points, titles 19–26, and compact metadata 10–11. Plot task titles are 12 and wrap. The map itself is decorative to accessibility; its native controls have complete labels. The journal provides an equivalent task list. Animal appearances are explicitly cosmetic in agent detail.
 
@@ -83,4 +83,24 @@ The proposal was built and tested on macOS with Xcode 26.6 / Swift 6.3.3. All fi
 
 Mutation evidence: temporarily removed `selectedAgentID = task.agentID` from `FarmSession.select`. `FarmSessionTests.testSwitchingFarmReplacesAgentAndAcceptanceIdentity` failed with the stale `core-mallow` identity instead of `ui-mallow`; the Accepted-to-Review test also caught `core-mallow` instead of `core-fern`. The original selection update was then restored and the focused suite rerun. This mutation verifies selection safety, not UI activation.
 
-Visual review inspected farm wide, journal wide, acceptance wide and disconnected compact exports. Exports are view artifacts with the wrapper limitations above. Live focus restoration, actual native List rendering, menu actions, titlebar sizing, macOS 14, VoiceOver and runtime performance remain pending. No full Go suite was run for this native-only proposal.
+Visual review inspected farm wide, journal wide, acceptance wide and disconnected compact exports. Exports remain view artifacts with the wrapper limitations above. The actual native checks below are separate evidence for the listed interactions and window sizes. No full Go suite was run for this native-only change.
+
+
+## Actual native qualification — 2026-10-25
+
+Root reviewed the running native app through CUA. On `aa423429`, selecting plot CORE-316 showed Pebble and its task inspector; closing details and pressing Space reopened the selected plot, and closing again and pressing Return also reopened it. Command-2 showed the real native task List. Selecting CORE-312 updated the inspector and assigned agent to Fern, and closing List details then pressing Space reopened that task. The task-selection, list and keyboard code is unchanged in the subsequent preset-helper revision `1f3f607a`.
+
+Earlier on 2026-10-25, native capture attempts returned white or cropped imagery even after the Mac was unlocked. Those remain failed capture attempts, not accepted visual evidence. They are superseded for visual review by the complete actual-window captures below. Earlier Compact menu attempts also left a 3024×1896-pixel window and did not qualify the requested size. Revision `1f3f607a` adds a guarded own-app principal-window fallback when no eligible key window is available. Root then quit using the actual app menu and relaunched the fixed binary; a preceding background-host Command-Q attempt had not terminated the old process. The observations do not establish which of those conditions caused the earlier preset failure.
+
+After that relaunch, Root exercised both Fixture presets and confirmed complete readable windows, native titlebars and no blank/cropped panes at the requested sizes:
+
+| Fixture preset, outer window points | Actual capture pixels | Untouched native capture |
+| --- | --- | --- |
+| Compact, 1024×768 | 2048×1536 | [Compact farm](captures/farm-1024x768-native.jpg) |
+| Wide, 1440×900 | 2880×1800 | [Wide farm](captures/farm-1440x900-native.jpg) |
+
+These are actual native-window captures, separate from ImageRenderer artifacts. The CUA source paths ended in `.png`, but their bytes are JPEG/JFIF. The two files are stored with `.jpg` extensions and copied byte-for-byte without conversion, cropping, resizing or retouching. SHA-256: compact `8d042e9833097112e58cad35c2b859cd20d3ea7fb43ca41b0253c18cca4f45f8`; wide `a50e75590c9da2156009de76cef40305d370f8854c15e6c06521dc79cdbd486b`.
+
+Root's final review was recorded at 2026-10-25 23:22 UTC against source commit `1f3f607a2151e052dc4980a7e32ec01069b1d854`, binary SHA-256 `a1e1b0acf6d70ecd57ba27bf50758bdd66445ec07bb11f2b719d83a4436bc57a`. All six Fixture sample states visibly selected their corresponding states. Switching to Moonrise used its own task, agent and acceptance/evidence IDs. Its accepted Storehouse displayed revision `UI-r24`, digest `sha256:86bf0c17`, separate review receipt `UI-R019` and acceptance record `ACCEPT-UI-02`. The disconnected Moonrise task `UI-084` retained its last content and clearly labeled connection/freshness. These are observed synthetic-fixture behaviors, not a live connection or a dacli approval operation.
+
+The checks above qualify these fixture interactions and supported-size captures on the reviewed Mac. Full VoiceOver behavior, macOS 14 runtime compatibility, runtime performance, and live backend integration remain unverified. Contrast and Reduce Motion settings are implemented but are not a completed accessibility certification.
