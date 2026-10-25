@@ -136,13 +136,18 @@ func DecodeSuccess(raw []byte, maxBytes int) (Success, error) {
 	if got.SchemaVersion != Version {
 		return got, &ValidationError{Code: CodeUnsupportedVersion}
 	}
-	if !got.OK || got.RequestID == "" || got.Scope.WorkspaceID == "" || got.Scope.ProjectID == "" || got.Source.Producer == "" || got.Source.Schema == "" || len(got.Data) == 0 || !validTime(got.ObservedAt) || !validTime(got.Source.ObservedAt) {
+	if !got.OK || got.RequestID == "" || got.Scope.WorkspaceID == "" || got.Scope.ProjectID == "" || got.Source.Producer == "" || got.Source.Schema == "" || !isJSONObject(got.Data) || !validTime(got.ObservedAt) || !validTime(got.Source.ObservedAt) {
 		return got, &ValidationError{Code: CodeInvalidRequest}
 	}
 	if got.Page != nil && !validPage(*got.Page) {
 		return got, &ValidationError{Code: CodeInvalidRequest}
 	}
 	return got, nil
+}
+
+func isJSONObject(raw json.RawMessage) bool {
+	data := bytes.TrimSpace(raw)
+	return len(data) > 0 && data[0] == '{'
 }
 
 func DecodeFailure(raw []byte, maxBytes int) (Failure, error) {

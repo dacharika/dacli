@@ -166,6 +166,44 @@ func TestRejectUnknownResponseFieldsAndTrailingJSON(t *testing.T) {
 	}
 }
 
+func TestDecodeSuccessRequiresObjectData(t *testing.T) {
+	base := loadFixture(t, "tasks-list-success").Response
+	cases := []struct {
+		name    string
+		data    string
+		wantErr bool
+	}{
+		{name: "empty-object", data: `{}`},
+		{name: "producer-object", data: `{"items":[1,"two",null]}`},
+		{name: "null", data: `null`, wantErr: true},
+		{name: "string", data: `"value"`, wantErr: true},
+		{name: "array", data: `[]`, wantErr: true},
+		{name: "boolean", data: `true`, wantErr: true},
+		{name: "number", data: `7`, wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var response map[string]json.RawMessage
+			if err := json.Unmarshal(base, &response); err != nil {
+				t.Fatal(err)
+			}
+			response["data"] = json.RawMessage(tc.data)
+			raw, err := json.Marshal(response)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = DecodeSuccess(raw, 1024*1024)
+			if tc.wantErr {
+				if got := errorCode(t, err); got != CodeInvalidRequest {
+					t.Fatalf("error code = %q, want %q", got, CodeInvalidRequest)
+				}
+			} else if err != nil {
+				t.Fatalf("DecodeSuccess rejected producer-owned object: %v", err)
+			}
+		})
+	}
+}
+
 func TestRequestLimitsAndRequiredScope(t *testing.T) {
 	base := loadFixture(t, "tasks-list-success").Request
 	cases := []struct {
