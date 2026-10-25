@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import AttentionQueue from '../AttentionQueue.vue'
-import type { OperatorAttentionResponse } from '@/types'
+import type { NativeSnapshot, OperatorAttentionItem, OperatorAttentionResponse } from '@/types'
 
 function response(): OperatorAttentionResponse {
   return {
@@ -38,6 +38,69 @@ function response(): OperatorAttentionResponse {
       },
     ],
     ranking_rule: 'severity, critical path, age, confidence, stable identity',
+  }
+}
+
+function nativeAlert(
+  category: string,
+  task: string,
+  freshness: OperatorAttentionItem['freshness'],
+  rank: number,
+): OperatorAttentionItem {
+  const link = `#/work?project=core&task=${task}`
+  return {
+    id: `native_${category}/core/${task}//`,
+    code: `native_${category}`,
+    severity: 'high',
+    affected: { project: 'core', task },
+    first_observed: '2026-10-05T08:00:00Z',
+    last_observed: '2026-10-05T09:00:00Z',
+    freshness,
+    retryable: false,
+    summary: `${category} native condition for ${task}`,
+    next_action: 'Inspect the exact native task record.',
+    link,
+    evidence: [
+      {
+        kind: 'native-governance',
+        id: `record-${task}`,
+        url: link,
+        observed_at: '2026-10-05T09:00:00Z',
+        confidence: 'high',
+      },
+    ],
+    occurrences: 1,
+    duration_seconds: 3600,
+    critical_path: false,
+    confidence: 'high',
+    rank,
+    rank_reason: `native category=${category}; freshness=${freshness}`,
+  }
+}
+
+function nativeSnapshot(): NativeSnapshot {
+  return {
+    schema: 'native-dashboard/v1',
+    state: 'ready',
+    project: 'core',
+    observed_at: '2026-10-05T09:05:00Z',
+    authority_version: 16,
+    limited: false,
+    services: { preflight: 'supported', budget: 'supported' },
+    records: [],
+    attention: [],
+    spend: {
+      state: 'estimated',
+      provenance: 'owner-estimate',
+      enforcement: 'local allocation only',
+      unit: 'owner-estimated tokens',
+      estimated_spent: 0,
+      estimated_reserved: 40,
+      estimated_limit: 100,
+      provider_tokens: null,
+      provider_cost_usd: null,
+      unknown_retained: true,
+    },
   }
 }
 
@@ -84,5 +147,41 @@ describe('AttentionQueue', () => {
     })
     expect(wrapper.text()).toContain('current-state observation')
     expect(wrapper.text()).toContain('not a claim that missing external systems are healthy')
+  })
+
+  it('renders native governance snapshots and links each freshness-labeled condition to its exact Work task', () => {
+    const categories = [
+      ['blocked', 'task-blocked', 'stale'],
+      ['disconnected', 'task-disconnected', 'fresh'],
+      ['approval-needed', 'task-approval', 'stale'],
+      ['unsupported-capability', 'task-unsupported', 'missing'],
+    ] as const
+    const nativeResponse = response()
+    nativeResponse.native = [nativeSnapshot()]
+    nativeResponse.alerts = categories.map(([category, task, freshness], index) =>
+      nativeAlert(category, task, freshness, index + 1),
+    )
+
+    const wrapper = mount(AttentionQueue, {
+      props: { attention: nativeResponse, phase: 'live', hasSnapshot: true, error: null },
+    })
+
+    expect(wrapper.findAll('[aria-label="Native governance"]')).toHaveLength(1)
+    const nativePanel = wrapper.get('[aria-label="Native governance"]')
+    expect(nativePanel.text()).toContain('Native governance · core')
+    expect(nativePanel.text()).toContain('Provider tokens (measured)Unavailable')
+    expect(nativePanel.text()).toContain('Provider cost USD (measured)Unavailable')
+    expect(nativePanel.text()).toContain('Owner estimate spent0')
+    expect(nativePanel.text()).toContain('Owner estimate reserved40')
+
+    for (const [index, [category, task, freshness]] of categories.entries()) {
+      const alertCard = wrapper.get(`[aria-labelledby="attention-${index + 1}"]`)
+      expect(alertCard.text()).toContain(`native ${category}`)
+      expect(alertCard.text()).toContain(`${freshness} evidence`)
+      const taskLinks = alertCard.findAll(`a[href="#/work?project=core&task=${task}"]`)
+      expect(taskLinks).toHaveLength(2)
+      expect(taskLinks[0].text()).toContain(`record-${task}`)
+      expect(taskLinks[1].text()).toContain('Inspect exact evidence')
+    }
   })
 })
