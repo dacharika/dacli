@@ -65,7 +65,7 @@ func readMilestonePlan(path string) (milestonePlan, error) {
 	if err != nil {
 		return plan, fmt.Errorf("read milestone plan: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	data, err := io.ReadAll(io.LimitReader(f, milestonePlanMaxBytes+1))
 	if err != nil {
 		return plan, fmt.Errorf("read milestone plan: %w", err)
