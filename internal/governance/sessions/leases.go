@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/mlnomadpy/dacli/internal/governance/checkout"
+	"github.com/mlnomadpy/dacli/internal/pathclaims"
 )
 
 // LeaseAdmission is an owner-configured read adapter. It must freshly resolve
@@ -117,18 +118,8 @@ func canonicalResources(root, task string, in []Resource) ([]Resource, error) {
 				return nil, ErrDenied
 			}
 		case "path":
-			if r.Path == "" || filepath.IsAbs(r.Path) || strings.ToLower(r.Path) != r.Path || filepath.ToSlash(filepath.Clean(r.Path)) != r.Path {
+			if pathclaims.ValidatePath(r.Path) != nil {
 				return nil, ErrDenied
-			}
-			for _, seg := range strings.Split(r.Path, "/") {
-				if seg == "." || seg == ".." || seg == ".git" || seg == "" {
-					return nil, ErrDenied
-				}
-				for _, c := range seg {
-					if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-' || c == '_' || c == '.') {
-						return nil, ErrDenied
-					}
-				}
 			}
 			p := root
 			for _, seg := range strings.Split(r.Path, "/") {
