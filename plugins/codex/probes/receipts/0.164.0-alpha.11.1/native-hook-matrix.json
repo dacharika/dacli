@@ -1,0 +1,646 @@
+{
+  "schema": "dacli-codex-hook-matrix/v1",
+  "host_version": "codex-cli 0.164.0-alpha.11.1",
+  "host_binary_sha256": "a04752e4d46a4d89e53e6f61c59c5349a638c8ce172ffbf391fd482b4d902a4e",
+  "source_sha256": "70026669718da17b1022f91bc0c56bdea60f4440e50c989d46bdfe1b410f63fd",
+  "fixture_only": true,
+  "external_inference": false,
+  "credentials_loaded": false,
+  "max_responses_per_case": 2,
+  "max_seconds_per_case": 15,
+  "max_cleanup_seconds_per_case": 8,
+  "max_total_seconds_per_case": 23,
+  "cases": [
+    {
+      "case": "observe",
+      "callback_entered": true,
+      "turn_outcome": "completed",
+      "marker_created": true,
+      "hook_statuses": [
+        "completed"
+      ],
+      "hook_inventory": [
+        {
+          "event": "preToolUse",
+          "trust": "untrusted",
+          "handler": "command",
+          "enabled": true
+        }
+      ],
+      "responses": 2,
+      "tool_names": [
+        "exec_command",
+        "write_stdin",
+        "request_user_input",
+        "view_image"
+      ],
+      "qualified": true,
+      "unsupported_scenario": null,
+      "thread_controls": {
+        "hooks_disabled": false,
+        "hook_trust_bypassed": true
+      },
+      "host_elapsed_seconds": 0.355,
+      "host_deadline_met": true,
+      "cleanup_outcome": "terminated",
+      "notifications": [
+        {
+          "method": "turn/started"
+        },
+        {
+          "method": "hook/started",
+          "event": "preToolUse",
+          "status": "running",
+          "duration_ms": null,
+          "entry_kinds": []
+        },
+        {
+          "method": "hook/completed",
+          "event": "preToolUse",
+          "status": "completed",
+          "duration_ms": 61,
+          "entry_kinds": []
+        },
+        {
+          "method": "turn/completed",
+          "turn_status": "completed"
+        }
+      ],
+      "notification_overflow": false,
+      "cleanup_elapsed_seconds": 0.5,
+      "cleanup_deadline_met": true,
+      "response_limit_exceeded": false,
+      "fixture_write_failed": false,
+      "mcp_fixture_calls": [],
+      "fixture_mcp_initialized": false,
+      "fixture_mcp_catalog_seen": false,
+      "fixture_mcp_unknown_tool_called": false,
+      "callback_records": [
+        {
+          "event": "PreToolUse",
+          "entered": true,
+          "tool_name": "Bash"
+        }
+      ],
+      "hook_durations_ms": [
+        61
+      ],
+      "hook_error_entry_kinds": [],
+      "hook_started": true,
+      "total_elapsed_seconds": 0.856,
+      "total_deadline_met": true,
+      "cleanup_complete": true
+    },
+    {
+      "case": "deny",
+      "callback_entered": true,
+      "turn_outcome": "completed",
+      "marker_created": false,
+      "hook_statuses": [
+        "blocked"
+      ],
+      "hook_inventory": [
+        {
+          "event": "preToolUse",
+          "trust": "untrusted",
+          "handler": "command",
+          "enabled": true
+        }
+      ],
+      "responses": 2,
+      "tool_names": [
+        "exec_command",
+        "write_stdin",
+        "request_user_input",
+        "view_image"
+      ],
+      "qualified": true,
+      "unsupported_scenario": null,
+      "thread_controls": {
+        "hooks_disabled": false,
+        "hook_trust_bypassed": true
+      },
+      "host_elapsed_seconds": 0.198,
+      "host_deadline_met": true,
+      "cleanup_outcome": "terminated",
+      "notifications": [
+        {
+          "method": "turn/started"
+        },
+        {
+          "method": "hook/started",
+          "event": "preToolUse",
+          "status": "running",
+          "duration_ms": null,
+          "entry_kinds": []
+        },
+        {
+          "method": "hook/completed",
+          "event": "preToolUse",
+          "status": "blocked",
+          "duration_ms": 60,
+          "entry_kinds": [
+            "feedback"
+          ]
+        },
+        {
+          "method": "turn/completed",
+          "turn_status": "completed"
+        }
+      ],
+      "notification_overflow": false,
+      "cleanup_elapsed_seconds": 0.5,
+      "cleanup_deadline_met": true,
+      "response_limit_exceeded": false,
+      "fixture_write_failed": false,
+      "mcp_fixture_calls": [],
+      "fixture_mcp_initialized": false,
+      "fixture_mcp_catalog_seen": false,
+      "fixture_mcp_unknown_tool_called": false,
+      "callback_records": [
+        {
+          "event": "PreToolUse",
+          "entered": true,
+          "tool_name": "Bash"
+        }
+      ],
+      "hook_durations_ms": [
+        60
+      ],
+      "hook_error_entry_kinds": [
+        "feedback"
+      ],
+      "hook_started": true,
+      "total_elapsed_seconds": 0.698,
+      "total_deadline_met": true,
+      "cleanup_complete": true
+    },
+    {
+      "case": "disabled",
+      "callback_entered": false,
+      "turn_outcome": "completed",
+      "marker_created": true,
+      "hook_statuses": [],
+      "hook_inventory": [
+        {
+          "event": "preToolUse",
+          "trust": "untrusted",
+          "handler": "command",
+          "enabled": true
+        }
+      ],
+      "responses": 2,
+      "tool_names": [
+        "exec_command",
+        "write_stdin",
+        "request_user_input",
+        "view_image"
+      ],
+      "qualified": true,
+      "unsupported_scenario": null,
+      "thread_controls": {
+        "hooks_disabled": true,
+        "hook_trust_bypassed": true
+      },
+      "host_elapsed_seconds": 0.195,
+      "host_deadline_met": true,
+      "cleanup_outcome": "terminated",
+      "notifications": [
+        {
+          "method": "turn/started"
+        },
+        {
+          "method": "turn/completed",
+          "turn_status": "completed"
+        }
+      ],
+      "notification_overflow": false,
+      "cleanup_elapsed_seconds": 0.5,
+      "cleanup_deadline_met": true,
+      "response_limit_exceeded": false,
+      "fixture_write_failed": false,
+      "mcp_fixture_calls": [],
+      "fixture_mcp_initialized": false,
+      "fixture_mcp_catalog_seen": false,
+      "fixture_mcp_unknown_tool_called": false,
+      "callback_records": [],
+      "hook_durations_ms": [],
+      "hook_error_entry_kinds": [],
+      "hook_started": false,
+      "total_elapsed_seconds": 0.696,
+      "total_deadline_met": true,
+      "cleanup_complete": true
+    },
+    {
+      "case": "untrusted",
+      "callback_entered": false,
+      "turn_outcome": "completed",
+      "marker_created": true,
+      "hook_statuses": [],
+      "hook_inventory": [
+        {
+          "event": "preToolUse",
+          "trust": "untrusted",
+          "handler": "command",
+          "enabled": true
+        }
+      ],
+      "responses": 2,
+      "tool_names": [
+        "exec_command",
+        "write_stdin",
+        "request_user_input",
+        "view_image"
+      ],
+      "qualified": true,
+      "unsupported_scenario": null,
+      "thread_controls": {
+        "hooks_disabled": false,
+        "hook_trust_bypassed": false
+      },
+      "host_elapsed_seconds": 0.16,
+      "host_deadline_met": true,
+      "cleanup_outcome": "terminated",
+      "notifications": [
+        {
+          "method": "turn/started"
+        },
+        {
+          "method": "turn/completed",
+          "turn_status": "completed"
+        }
+      ],
+      "notification_overflow": false,
+      "cleanup_elapsed_seconds": 0.5,
+      "cleanup_deadline_met": true,
+      "response_limit_exceeded": false,
+      "fixture_write_failed": false,
+      "mcp_fixture_calls": [],
+      "fixture_mcp_initialized": false,
+      "fixture_mcp_catalog_seen": false,
+      "fixture_mcp_unknown_tool_called": false,
+      "callback_records": [],
+      "hook_durations_ms": [],
+      "hook_error_entry_kinds": [],
+      "hook_started": false,
+      "total_elapsed_seconds": 0.66,
+      "total_deadline_met": true,
+      "cleanup_complete": true
+    },
+    {
+      "case": "malformed",
+      "callback_entered": true,
+      "turn_outcome": "completed",
+      "marker_created": true,
+      "hook_statuses": [
+        "failed"
+      ],
+      "hook_inventory": [
+        {
+          "event": "preToolUse",
+          "trust": "untrusted",
+          "handler": "command",
+          "enabled": true
+        }
+      ],
+      "responses": 2,
+      "tool_names": [
+        "exec_command",
+        "write_stdin",
+        "request_user_input",
+        "view_image"
+      ],
+      "qualified": true,
+      "unsupported_scenario": null,
+      "thread_controls": {
+        "hooks_disabled": false,
+        "hook_trust_bypassed": true
+      },
+      "host_elapsed_seconds": 0.243,
+      "host_deadline_met": true,
+      "cleanup_outcome": "terminated",
+      "notifications": [
+        {
+          "method": "turn/started"
+        },
+        {
+          "method": "hook/started",
+          "event": "preToolUse",
+          "status": "running",
+          "duration_ms": null,
+          "entry_kinds": []
+        },
+        {
+          "method": "hook/completed",
+          "event": "preToolUse",
+          "status": "failed",
+          "duration_ms": 52,
+          "entry_kinds": [
+            "error"
+          ]
+        },
+        {
+          "method": "turn/completed",
+          "turn_status": "completed"
+        }
+      ],
+      "notification_overflow": false,
+      "cleanup_elapsed_seconds": 0.499,
+      "cleanup_deadline_met": true,
+      "response_limit_exceeded": false,
+      "fixture_write_failed": false,
+      "mcp_fixture_calls": [],
+      "fixture_mcp_initialized": false,
+      "fixture_mcp_catalog_seen": false,
+      "fixture_mcp_unknown_tool_called": false,
+      "callback_records": [
+        {
+          "event": "PreToolUse",
+          "entered": true,
+          "tool_name": "Bash"
+        }
+      ],
+      "hook_durations_ms": [
+        52
+      ],
+      "hook_error_entry_kinds": [
+        "error"
+      ],
+      "hook_started": true,
+      "total_elapsed_seconds": 0.742,
+      "total_deadline_met": true,
+      "cleanup_complete": true
+    },
+    {
+      "case": "timeout",
+      "callback_entered": true,
+      "turn_outcome": "completed",
+      "marker_created": true,
+      "hook_statuses": [
+        "failed"
+      ],
+      "hook_inventory": [
+        {
+          "event": "preToolUse",
+          "trust": "untrusted",
+          "handler": "command",
+          "enabled": true
+        }
+      ],
+      "responses": 2,
+      "tool_names": [
+        "exec_command",
+        "write_stdin",
+        "request_user_input",
+        "view_image"
+      ],
+      "qualified": true,
+      "unsupported_scenario": null,
+      "thread_controls": {
+        "hooks_disabled": false,
+        "hook_trust_bypassed": true
+      },
+      "host_elapsed_seconds": 1.32,
+      "host_deadline_met": true,
+      "cleanup_outcome": "terminated",
+      "notifications": [
+        {
+          "method": "turn/started"
+        },
+        {
+          "method": "hook/started",
+          "event": "preToolUse",
+          "status": "running",
+          "duration_ms": null,
+          "entry_kinds": []
+        },
+        {
+          "method": "hook/completed",
+          "event": "preToolUse",
+          "status": "failed",
+          "duration_ms": 1001,
+          "entry_kinds": [
+            "error"
+          ]
+        },
+        {
+          "method": "turn/completed",
+          "turn_status": "completed"
+        }
+      ],
+      "notification_overflow": false,
+      "cleanup_elapsed_seconds": 0.5,
+      "cleanup_deadline_met": true,
+      "response_limit_exceeded": false,
+      "fixture_write_failed": false,
+      "mcp_fixture_calls": [],
+      "fixture_mcp_initialized": false,
+      "fixture_mcp_catalog_seen": false,
+      "fixture_mcp_unknown_tool_called": false,
+      "callback_records": [
+        {
+          "event": "PreToolUse",
+          "entered": true,
+          "tool_name": "Bash"
+        }
+      ],
+      "hook_durations_ms": [
+        1001
+      ],
+      "hook_error_entry_kinds": [
+        "error"
+      ],
+      "hook_started": true,
+      "total_elapsed_seconds": 1.82,
+      "total_deadline_met": true,
+      "cleanup_complete": true
+    },
+    {
+      "case": "error",
+      "callback_entered": true,
+      "turn_outcome": "completed",
+      "marker_created": true,
+      "hook_statuses": [
+        "failed"
+      ],
+      "hook_inventory": [
+        {
+          "event": "preToolUse",
+          "trust": "untrusted",
+          "handler": "command",
+          "enabled": true
+        }
+      ],
+      "responses": 2,
+      "tool_names": [
+        "exec_command",
+        "write_stdin",
+        "request_user_input",
+        "view_image"
+      ],
+      "qualified": true,
+      "unsupported_scenario": null,
+      "thread_controls": {
+        "hooks_disabled": false,
+        "hook_trust_bypassed": true
+      },
+      "host_elapsed_seconds": 0.292,
+      "host_deadline_met": true,
+      "cleanup_outcome": "terminated",
+      "notifications": [
+        {
+          "method": "turn/started"
+        },
+        {
+          "method": "hook/started",
+          "event": "preToolUse",
+          "status": "running",
+          "duration_ms": null,
+          "entry_kinds": []
+        },
+        {
+          "method": "hook/completed",
+          "event": "preToolUse",
+          "status": "failed",
+          "duration_ms": 46,
+          "entry_kinds": [
+            "error"
+          ]
+        },
+        {
+          "method": "turn/completed",
+          "turn_status": "completed"
+        }
+      ],
+      "notification_overflow": false,
+      "cleanup_elapsed_seconds": 0.5,
+      "cleanup_deadline_met": true,
+      "response_limit_exceeded": false,
+      "fixture_write_failed": false,
+      "mcp_fixture_calls": [],
+      "fixture_mcp_initialized": false,
+      "fixture_mcp_catalog_seen": false,
+      "fixture_mcp_unknown_tool_called": false,
+      "callback_records": [
+        {
+          "event": "PreToolUse",
+          "entered": true,
+          "tool_name": "Bash"
+        }
+      ],
+      "hook_durations_ms": [
+        46
+      ],
+      "hook_error_entry_kinds": [
+        "error"
+      ],
+      "hook_started": true,
+      "total_elapsed_seconds": 0.793,
+      "total_deadline_met": true,
+      "cleanup_complete": true
+    },
+    {
+      "case": "unsupported-callback",
+      "callback_entered": false,
+      "turn_outcome": "completed",
+      "marker_created": true,
+      "hook_statuses": [
+        "failed"
+      ],
+      "hook_inventory": [
+        {
+          "event": "preToolUse",
+          "trust": "untrusted",
+          "handler": "mcpTool",
+          "enabled": true
+        }
+      ],
+      "responses": 2,
+      "tool_names": [
+        "exec_command",
+        "write_stdin",
+        "request_user_input",
+        "view_image"
+      ],
+      "qualified": true,
+      "unsupported_scenario": "unknown-mcp-callback-tool",
+      "thread_controls": {
+        "hooks_disabled": false,
+        "hook_trust_bypassed": true
+      },
+      "fixture_mcp_noop_advertised": true,
+      "requested_mcp_tool_not_advertised": true,
+      "fixture_mcp_server_healthy": true,
+      "host_elapsed_seconds": 3.331,
+      "host_deadline_met": true,
+      "cleanup_outcome": "terminated",
+      "notifications": [
+        {
+          "method": "turn/started"
+        },
+        {
+          "method": "hook/started",
+          "event": "preToolUse",
+          "status": "running",
+          "duration_ms": null,
+          "entry_kinds": []
+        },
+        {
+          "method": "hook/completed",
+          "event": "preToolUse",
+          "status": "failed",
+          "duration_ms": 1,
+          "entry_kinds": [
+            "error"
+          ]
+        },
+        {
+          "method": "turn/completed",
+          "turn_status": "completed"
+        }
+      ],
+      "notification_overflow": false,
+      "cleanup_elapsed_seconds": 0.499,
+      "cleanup_deadline_met": true,
+      "response_limit_exceeded": false,
+      "fixture_write_failed": false,
+      "mcp_fixture_calls": [
+        {
+          "method": "initialize",
+          "noop": false,
+          "other_tool": false
+        },
+        {
+          "method": "notifications/initialized",
+          "noop": false,
+          "other_tool": false
+        },
+        {
+          "method": "tools/list",
+          "noop": false,
+          "other_tool": false
+        },
+        {
+          "method": "tools/call",
+          "noop": false,
+          "other_tool": true
+        }
+      ],
+      "fixture_mcp_initialized": true,
+      "fixture_mcp_catalog_seen": true,
+      "fixture_mcp_unknown_tool_called": true,
+      "callback_records": [],
+      "hook_durations_ms": [
+        1
+      ],
+      "hook_error_entry_kinds": [
+        "error"
+      ],
+      "hook_started": true,
+      "total_elapsed_seconds": 3.83,
+      "total_deadline_met": true,
+      "cleanup_complete": true
+    }
+  ],
+  "matrix_qualified": true
+}
