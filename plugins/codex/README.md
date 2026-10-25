@@ -250,13 +250,17 @@ containment guarantee. See `probes/README.md` for the exact fixture schema,
 reproduction and remaining acceptance boundary. Historical launching probes and
 receipts are preserved; the current probe starts no coding/model CLI turn.
 
-The current Codex0.159.2 observation is
+The historical Codex0.159.2 observation is
 `probes/receipts/0.159.2/native-boundaries-v4.json`. It confirms separate enrolled
 host sessions, shared-selection identity reuse and an actual native child using
 its own credentialed stdio process. Its direct diagnostic tool calls entered no
-hook callbacks in all seven cases. Timeout/malformed callback enforcement remains
-unexercised and core583 criterion3 remains open; this beta boundary does not rely
-on hooks or relax reviewer independence.
+hook callbacks in all seven cases. Those diagnostic callbacks remain unexercised.
+The [2026-10-25 qualification report](../../docs/codex-governance-qualification-2026-10-25.md)
+records Codex0.164.0-alpha.11.1 identity controls and a separate deterministic
+loopback fixture exercising the actual tool pipeline. Explicit denial blocked
+the fixture command; malformed, timeout and error callbacks allowed it to proceed.
+These measured hook behaviors do not change the cooperative beta boundary or
+relax reviewer independence.
 
 ## Native swarms and bounded loops
 
