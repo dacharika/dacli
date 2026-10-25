@@ -1,94 +1,86 @@
-# Patchwork Farms: native visual and interaction contract
+# Patchwork Farms: native pixel farm
 
-**Status:** M1 native SwiftUI design fixture; synthetic and read-only
-**Issue:** GitHub #1130
-**Package:** `apps/macos/Package.swift`, executable target `DacliFarmDesign`
+Status: original SwiftUI design fixture, synthetic and read-only. This is a full visual redesign of the initial native fixture. It does not add a client connection, workspace mutation, scheduler, review action, or acceptance authority.
 
-## Visual direction
+## Direction
 
-The scene is an after-rain allotment: mint sky, layered sage fields, a blue-green pond, rough timber plots, and one warm yellow sun. Pixel animals are drawn from small original 12×12 shape maps in SwiftUI Canvas. The surrounding project rail, picker, list, controls, and inspector use native macOS SwiftUI components and system typography.
+An original top-down 16-bit farming world fills the workspace: warm grass, a stepped treeline, crop rows, a sand path, timber buildings, a pond with a dock, and three clothed animal farmhands. Rust roof tiles, grain in timber, quiet parchment texture, tiny flowers and vegetable crates add scale. The task signs belong to the world rather than floating in an unrelated card dashboard.
 
-| Token | Value | Use |
+The artwork uses the visual grammar of cozy farming games as a reference. Every tile, tree, crop, building and animal is original SwiftUI Canvas code. No commercial-game sprites, logos, downloaded fonts, or external image assets are used. `PixelFarmPainter` authors a 400×340 world with rectangle edges rounded to whole logical points; `PixelAnimal` uses original 16×14 cell maps rendered at integral cell sizes. The map scales to its viewport; the animals keep integral pixel cells. There is no blur or bitmap interpolation.
+
+Georgia Bold gives the journal and wooden signs the character of a storybook. Native system type carries task records, evidence and controls. Parchment is a functional record surface; the dark wood rail is persistent navigation, and the main wood toolbar is a compact game HUD. The surrounding UI uses squared, double-beveled timber borders and small inventory slots rather than large rounded cards.
+
+| Token | Value | Purpose |
 | --- | --- | --- |
-| Deep creek | `#174C4C` | Brand and primary text |
-| Pond glass | `#397D78` | Navigation accents |
-| Field sage | `#9FBE8B` | Garden ground |
-| Rain sky | `#D1ECE7` | Scene sky |
-| Seed gold | `#F2C85E` | Focus marks and sun |
-| Berry bark | `#BC5E51` | Selected plot outline |
-| Note paper | `#FFFDF1` | Inspector and record surfaces |
-| Garden ink | `#193A3D` | Main text |
+| Dark timber | `#452C20` | Project rail, structural outlines |
+| Timber | `#80512F` | Toolbar and inventory frame |
+| Honey wood | `#BB8246` | Rules, beveled highlights |
+| Parchment | `#F6E5B9` | Native journal and inspector |
+| Cream | `#FFF0C9` | Selected signs, inventory slots |
+| Soil ink | `#3C291E` | Record text |
+| Meadow | `#83A94B` | Terrain |
+| Creek | `#4C9298` | Pond water |
+| Seed gold | `#F2CA67` | Selected item accents |
 
-The original SVG sheets in `assets/` document the palette and early sprite shapes. The native fixture draws its own pixel forms with SwiftUI Canvas and does not load those SVGs at runtime.
+## Layout and behavior
 
-## Canonical meaning and authority
+The 174-point left rail contains the farm switcher, Task journal, Notice board and Storehouse. Review attention is visible near the bottom. A single “Synthetic preview” indication identifies the environment, with a tooltip explaining its local data.
 
-| Farm metaphor | Canonical meaning | Interaction rule |
-| --- | --- | --- |
-| Project farm | Existing dacli project | Switching farms changes only local sample content. |
-| Task plot and sign | Task and task reference | Selecting a plot opens the native task inspector. Plot location and crop are presentation only. |
-| Animal | Agent identity | Selecting an animal shows a sample status and related task. Name, species, costume, and location are cosmetic. |
-| Animal activity word | Task/attempt projection state | The word comes from the selected synthetic sample and never claims live freshness. |
-| Notice board | Review attention and evidence references | Opens a sample note. It cannot approve, dispatch, or alter a record. |
-| Storehouse | Owner acceptance record | Shows a synthetic owner acceptance tied to an explicit revision and digest. A separate review receipt is shown as distinct evidence. |
-| Task/evidence inspector | Conventional record view | Shows identifiers, sample status, description, evidence, activity, and the authority boundary. |
+The compact top toolbar contains the current farm/project, Farm/Journal view switch and details toggle. The Sample state picker, contrast override, motion override and window presets are in the development-only Fixture menu. The Farm menu exposes Command-1, Command-2 and Option-Command-I shortcuts.
 
-The fixture has two farms, Wildflower (`dacli core`) and Moonrise (`operator UI`), with three agents and three tasks each. Task, attempt, evidence, note, acceptance, revision, and review-receipt IDs are project-distinct (`CORE-…` versus `UI-…`). The six-state picker selects running, waiting, blocked, disconnected, review needed, or accepted synthetic snapshots. A review receipt alone is never presented as owner acceptance. No backend, scheduler, account data, or live protocol is included.
+The center view contains a slim status strip, a world map, and a three-slot farmhand inventory. Plot signs are native buttons with task IDs, titles and a state word plus symbol. Selecting a plot or a journal row opens the same task record; selecting a farmhand opens agent identity. The Notice board opens review attention. The Storehouse opens the separate owner acceptance record.
 
-The disconnected state keeps the last sample visible and labels it as a synthetic sample. It does not imply the task stopped. Review needed does not imply owner acceptance. The accepted sample shows owner acceptance for a specific revision and digest, with a separate review receipt.
+The 320-point parchment inspector is a journal page with a fixed title bar and independently scrolling contents. Task identity, description, assigned agent, evidence and activity are distinct sections divided by quiet rules. Agent detail shows identity and its related task. Storehouse detail shows owner acceptance tied to revision and digest, plus its separate review receipt. There are no synthetic “Accept” or “Dispatch” controls.
 
-## Native interaction and accessibility
+The Journal tab is a native SwiftUI `List` with the same three tasks and canonical projection as the map. It presents task ID, full title, assigned agent and state. It is an equivalent, conventional way to navigate the record, including with the keyboard.
 
-- `NavigationSplitView` provides the project sidebar, working scene, and native inspector. The sidebar shows each project's name and its review attention count.
-- The compact two-row header keeps the native Sample state picker, Garden/List segmented picker, Display menu, and inspector button together. The menu contains High contrast and Selection motion. The list presents the same three tasks as the garden plots; neither view changes task status. A persistent Synthetic preview label identifies the local fixture.
-- The status summary wraps the active work and shows sample freshness on its own line. The main scene and inspector scroll independently below their fixed headers. The bounded HSplitView preserves a farm column of at least 440 points and an adjustable inspector between 270 and 320 points.
-- Plots, animals, notice board, and storehouse are buttons with descriptive accessibility labels and native keyboard focus. Selecting a list row opens its task evidence. The close control and inspector-toggle close path explicitly reset and then restore keyboard focus to the selected task in the current Garden or List view. Task targets accept keyboard input independently of the macOS Keyboard Navigation preference; unmodified Space or Return opens that task’s details. The list row and plot use the same focus/activation modifier and a dashed visible outline. Other native controls retain standard macOS keyboard behavior. Escape is not an inspector-close shortcut. Dashed deep-creek outlines distinguish keyboard focus on plots, buildings and animals from the solid berry plot selection and gold animal selection.
-- State is expressed with text and symbols as well as color. Task titles and evidence labels use at least 12 points; short state and agent captions use at least 11 points and have combined accessibility labels. Plot state text wraps instead of shrinking.
-- The Motion control disables small selection transitions. The macOS Reduce Motion environment setting always takes precedence. The farm scene itself has no looping animation.
-- High contrast changes the fixture palette; the macOS Increase Contrast setting also activates that palette and cannot be overridden by the menu. This is an alternate palette, not a claim of WCAG certification.
-- The development-only Fixture menu has Compact window (1024×768) and Wide window (1440×900) actions. These sizes are outer window frames in logical points; macOS may constrain a preset at a screen edge or when the screen is smaller. The window content minimum is 1024×660 points.
-- The package declares macOS 14 as its deployment minimum. Build review has been performed with Xcode 26.6 / Swift 6.3.3; the baseline received native runtime review on macOS 26.5.1; the Sol refinement still needs fresh native captures. macOS 14 compatibility and VoiceOver behavior remain unverified.
+At 1024 points the rail remains 174, the inspector 320, and the center approximately 530. At 1440 points the farm gains landscape space without expanding controls. The center has a 440-point minimum, and the window minimum is 1024×660. Closing details gives that width back to the farm or journal.
 
-The sRGB relative-luminance checks from the original palette apply to listed flat color pairs only. They do not certify all colors after SwiftUI compositing or every native rendered state. Recalculate against the actual native appearance before claiming conformance.
+## Meaning and authority
 
-## Original starter assets and rendering
+The existing two projects, three tasks per project, three agents per project and six sample snapshots are unchanged. `FixtureModels.swift` and its semantic tests remain intact.
 
-The native animals are three original 12×12 color maps in `FarmCanvas.swift`: fox, rabbit and raccoon. They were drawn for this fixture with distinct ears, muzzles, eye masks, feet and tails; no commercial-game sprites, sprite libraries or downloaded artwork were used. The scene uses the garden tokens above. Animal colors add rust `#BA5938`, ear gold `#EBAD57`, oat `#D1BF9E`, blush `#B8617A`, slate `#6E827D`, cream `#FCE0A8`, and dark ink `#1A3333` (rounded sRGB values).
+| Presentation | Canonical meaning |
+| --- | --- |
+| Farm | Project |
+| Plot and sign | Task |
+| Farmhand | Agent identity; species and appearance are cosmetic |
+| State label | Existing task/attempt snapshot projection |
+| Notice board | Review attention and evidence references |
+| Storehouse | Owner acceptance bound to revision/digest |
+| Journal | Conventional task and evidence navigation |
 
-Each occupied cell is filled edge-to-edge in native Canvas. Cell size is an integral number of logical points, centered in the drawing bounds: 4-point cells for a 48×48 scene animal and 3-point cells for a 36×36 inspector animal. This is direct integer-grid drawing with no bitmap interpolation. If exported as raster assets later, use nearest-neighbor sampling and integer scale factors. The bounded starter set has one static pose for each species. Running, waiting, blocked, disconnected, review-needed and accepted meanings are readable text and symbols beside the animal; no unimplemented animation is implied. Only selection transitions animate, and the menu and macOS Reduce Motion setting can disable them.
+Task, attempt, evidence, review and acceptance IDs are retained. A completed attempt is not owner acceptance; a review receipt is not owner acceptance. The disconnected sample keeps the last visible content and labels its freshness; it does not claim work stopped. Farm actions select records only. Actual task changes and approvals remain under dacli.
 
-The provenance SVG sheet remains an earlier original exploration: animal symbols and utility icons use 32×32 viewboxes; notice-board and storehouse symbols use 64×64 viewboxes in a 128×96 sheet. `field-tiles.svg` records the original field study. Neither SVG is loaded by the app. Buildings, pond, fence, plots, path and field texture are native shapes, symbols and Canvas drawing; their location and decoration remain cosmetic.
+## Accessibility
 
-## Sol native design review
+Task signs and journal rows share the existing explicit input-focus modifier. Tab focus is visible as a dashed outline, distinct from solid selected timber/cream styling. Unmodified Space and Return open details. Closing the inspector clears then restores the selected task focus. These remain native interactions, requiring live runtime verification after any redesign.
 
-The baseline native 1024×768 capture showed a truncated active-work summary and sample timestamp, three crowded header rows, separated mosaic-like animal cells, and repeated explanatory cards competing with evidence. The refinement keeps the after-rain palette and makes the farm the expressive element: two quiet header rows, native view navigation, wrapping status/freshness, connected original silhouettes, readable state captions and a concise inspector authority note. Project sidebar subtitles use native secondary text so selection can adapt to the system highlight.
+Statuses always have a word and symbol; color is supplementary. Main record text is 12–13 points, titles 19–26, and compact metadata 10–11. Plot task titles are 12 and wrap. The map itself is decorative to accessibility; its native controls have complete labels. The journal provides an equivalent task list. Animal appearances are explicitly cosmetic in agent detail.
 
-This is a contextual product/design review, not a reviewer acceptance or evidence of live integration. The fixture model and its task/agent mappings are unchanged. Fresh actual-native captures at 1024×768 and 1440×900, keyboard traversal, and the six sample-state mappings remain required for final visual review. Open choices are whether later live work needs an always-visible display menu title, richer animal poses, and a denser layout for more than three tasks. No runtime frame-time, CPU or memory claim follows from this design pass.
+There is no ambient or looping animation. Optional view-mode transition respects Reduce Motion. macOS Increase Contrast activates the stronger palette and cannot be overridden by the Fixture toggle. The design does not claim WCAG certification or a completed VoiceOver audit.
 
-## Build and launch
+## Development renders and verification
 
-From the repository root:
+`FarmPreviewExport` adds an opt-in development argument, `--render-preview <directory>`. In debug builds it uses `ImageRenderer` to export the same reusable SwiftUI design at 2× scale. Release builds do not activate the export argument. It exits before opening a window. The export includes wide/compact farm, journal, agent, acceptance and disconnected compact views.
+
+The exporter substitutes plain containers for native ScrollView/List wrappers, which ImageRenderer omits. It reuses the exact inspector page and task-row content views, and bounds the inspector to a clipped viewport. Native list selection, scroll behavior and platform rendering remain outside this artifact.
+
+These are **native view renders, not actual window captures**. They verify design composition and SwiftUI rendering only. They do not verify macOS titlebar behavior, focus activation, native menu behavior, live window resizing, VoiceOver, or performance. Actual app interaction uses the approved computer-use interface; the renderer does not inspect or control the computer.
+
+From the repository root, with isolated writable caches:
 
 ```sh
-xcrun swift build --package-path apps/macos --scratch-path /private/tmp/dacli-operator-build-20261025/swift-build
-xcrun swift run --package-path apps/macos --scratch-path /private/tmp/dacli-operator-build-20261025/swift-build DacliFarmDesign
+CLANG_MODULE_CACHE_PATH=/private/tmp/dacli-farm-clang SWIFTPM_MODULECACHE_OVERRIDE=/private/tmp/dacli-farm-swift xcrun swift test --disable-sandbox --package-path apps/macos --scratch-path /private/tmp/dacli-farm-build
+/private/tmp/dacli-farm-build/debug/DacliFarmDesign --render-preview /private/tmp/dacli-farm-renders
 ```
 
-The optional Swift package is independent of the Go build and has no external package dependencies. `.build`, `.swiftpm`, and `DerivedData` are ignored locally.
+The package has no external dependencies. No Go sources or backend behavior change in this design slice. Preserve the existing fixture tests. Do not treat them as focus tests. macOS 14 runtime compatibility, full VoiceOver behavior and runtime performance remain unverified.
 
-## Performance and evidence limits
+## Redesign qualification record
 
-No native frame-time, CPU, or memory measurements have been collected. On Xcode 26.6 / Swift 6.3.3, the latest focused test build completed in 2.37 seconds and all three fixture tests passed in 0.003 seconds; these timings are build/test timings, not runtime performance results. The original proposed budgets (idle 60 fps, transition 45 fps, texture memory below 8 MiB) were planning targets for a later sprite implementation; they are not measured results for this SwiftUI fixture. A native performance pass should record device, OS, display scale, p50/p95 frame time, CPU, and peak memory at 1024×768 and 1440×900 with the default and a larger task set.
+The proposal was built and tested on macOS with Xcode 26.6 / Swift 6.3.3. All five focused Swift tests passed: the three existing fixture projection tests plus two selection-transition tests. The fixture model and its existing tests are unchanged.
 
-## Source-backed gaps for follow-on work
+Mutation evidence: temporarily removed `selectedAgentID = task.agentID` from `FarmSession.select`. `FarmSessionTests.testSwitchingFarmReplacesAgentAndAcceptanceIdentity` failed with the stale `core-mallow` identity instead of `ui-mallow`; the Accepted-to-Review test also caught `core-mallow` instead of `core-fern`. The original selection update was then restored and the focused suite rerun. This mutation verifies selection safety, not UI activation.
 
-- The sample plots have no dependency edges. The operator interview says the dependency chain is manually reconstructed from task files today (`docs/research/interviews/operator.md:111–113`); a separate backlog task covers plot and dependency paths (`t-01M5SKD4NETD7P2YV5AX84BX2M`). Plot adjacency remains decorative until the data mapping is defined.
-- The fixture cannot distinguish an agent that is thinking from one that is hung, or show whether work is moving in the requested direction (`docs/research/interviews/operator.md:76–102`). That interview is one source and marks these findings unverified until they recur across three sources (`docs/research/interviews/operator.md:3–8`). Treat them as follow-up questions, not universal operator behavior.
-- There is no authenticated read-only client or backend subscription in this fixture. Separate roadmap work covers the SwiftUI client prototype (`t-01M5SKD4CTYWJ9Q5CRPHAEQ6SG`), read-only operator transport (`t-01M5SKFBTKZPFCH4424XYJQYTY`), and bounded projection subscriptions (`t-01M5SKJQ60VA0RJ4KZGXGQQSPE`).
-- VoiceOver, macOS 14 compatibility, and native rendering performance remain unverified. No browser screenshots are evidence for this SwiftUI fixture.
-
-## Keyboard repair review
-
-Actual native review of commit `bfa7ea14` found that selecting CORE-316 in List view and closing details did not leave a visible focus ring, and neither Space nor Return reopened the selected task. The original source attached FocusState to plain buttons but did not create an explicit keyboard-input focus target; it also reused the selected focus value after closing. This is preserved as a failed behavioral observation, not reclassified as a passing documentation check.
-
-The repair gives Garden plots and List task rows a shared native SwiftUI input-focus wrapper, handles Space/Return locally, and clears focus before a deferred restore after the split view changes. It changes no system setting. The compiled fixture’s model tests do not verify UI focus; the same native close-and-reactivate sequence must be repeated on the repair binary before claiming this behavior is qualified. Full VoiceOver and macOS 14 runtime checks remain pending.
+Visual review inspected farm wide, journal wide, acceptance wide and disconnected compact exports. Exports are view artifacts with the wrapper limitations above. Live focus restoration, actual native List rendering, menu actions, titlebar sizing, macOS 14, VoiceOver and runtime performance remain pending. No full Go suite was run for this native-only proposal.
