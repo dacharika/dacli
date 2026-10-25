@@ -1,0 +1,5 @@
+{
+  "case": "unsupported-version",
+  "request": {"schema_version": 999, "request_id": "req-badver", "operation": "tasks.list", "workspace_id": "ws-operator-01", "project_id": "operator"},
+  "response": {"schema_version": 1, "request_id": "req-badver", "ok": false, "error": {"code": "unsupported_version", "message": "protocol version is unsupported", "retryable": false}}
+}

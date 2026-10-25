@@ -1,0 +1,6 @@
+{
+  "case": "revoked-session-denied",
+  "harness": {"workspace_id": "ws-operator-01", "project_id": "operator", "credential_state": "revoked", "revoked_at": "2026-10-25T16:08:00Z"},
+  "request": {"schema_version": 1, "request_id": "req-revoked", "operation": "governance.snapshot", "workspace_id": "ws-operator-01", "project_id": "operator"},
+  "response": {"schema_version": 1, "request_id": "req-revoked", "ok": false, "error": {"code": "denied", "message": "credential is unavailable or outside scope", "retryable": false}}
+}

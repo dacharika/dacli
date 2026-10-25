@@ -1,0 +1,6 @@
+{
+  "case": "cross-workspace-denied",
+  "harness": {"credential_workspace_id": "ws-operator-01", "credential_project_id": "operator", "credential_state": "active"},
+  "request": {"schema_version": 1, "request_id": "req-crossws", "operation": "tasks.list", "workspace_id": "ws-foreign-02", "project_id": "operator"},
+  "response": {"schema_version": 1, "request_id": "req-crossws", "ok": false, "error": {"code": "denied", "message": "request is outside the credential scope", "retryable": false}}
+}

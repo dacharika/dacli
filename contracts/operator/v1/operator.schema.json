@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "dacli-operator-protocol-v1.schema.json",
+  "title": "dacli local read-only operator protocol v1",
+  "oneOf": [
+    { "$ref": "#/$defs/request" },
+    { "$ref": "#/$defs/success" },
+    { "$ref": "#/$defs/failure" }
+  ],
+  "$defs": {
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "request_id", "operation", "workspace_id", "project_id"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "request_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "operation": { "enum": ["tasks.list", "tasks.get", "activity.list", "attempts.timeline", "attention.list", "governance.snapshot", "evidence.list"] },
+        "workspace_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "project_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "task_id": { "type": "string", "maxLength": 128 },
+        "limit": { "type": "integer", "minimum": 1, "maximum": 500 },
+        "cursor": { "type": "string", "maxLength": 2048 },
+        "filters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "type": "string", "maxLength": 64 },
+            "state": { "enum": ["all", "pending", "applied"] },
+            "range": { "enum": ["24h", "7d", "30d", "all"] }
+          }
+        }
+      },
+      "allOf": [
+        { "if": { "properties": { "operation": { "enum": ["tasks.get", "attempts.timeline"] } } }, "then": { "required": ["task_id"] } }
+      ]
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspace_id", "project_id"],
+      "properties": {
+        "workspace_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "project_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "task_id": { "type": "string", "maxLength": 128 }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["producer", "schema", "observed_at"],
+      "properties": {
+        "producer": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "schema": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "observed_at": { "type": "string", "format": "date-time", "maxLength": 64 }
+      }
+    },
+    "page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["limit", "truncated", "partial"],
+      "properties": {
+        "limit": { "type": "integer", "minimum": 1, "maximum": 512 },
+        "next_cursor": { "type": "string", "maxLength": 2048 },
+        "truncated": { "type": "boolean" },
+        "partial": { "type": "boolean" }
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "retryable"],
+      "properties": {
+        "code": { "enum": ["unsupported_version", "invalid_request", "unknown_operation", "unknown_field", "denied", "not_found", "stale_source", "limit_exceeded", "unsupported_pagination", "storage_unavailable", "internal"] },
+        "message": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "retryable": { "type": "boolean" }
+      }
+    },
+    "success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "request_id", "ok", "scope", "observed_at", "source", "data"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "request_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "ok": { "const": true },
+        "scope": { "$ref": "#/$defs/scope" },
+        "observed_at": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "source": { "$ref": "#/$defs/source" },
+        "data": { "type": "object" },
+        "page": { "$ref": "#/$defs/page" }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "request_id", "ok", "error"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "request_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "ok": { "const": false },
+        "error": { "$ref": "#/$defs/error" }
+      }
+    }
+  }
+}

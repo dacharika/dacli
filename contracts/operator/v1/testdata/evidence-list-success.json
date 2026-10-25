@@ -1,0 +1,14 @@
+{
+  "case": "evidence-list-success",
+  "request": {"schema_version": 1, "request_id": "req-evidence", "operation": "evidence.list", "workspace_id": "ws-operator-01", "project_id": "operator", "task_id": "t-01M5SKFBR9FZ26JMMFY550XW8T"},
+  "response": {
+    "schema_version": 1,
+    "request_id": "req-evidence",
+    "ok": true,
+    "scope": {"workspace_id": "ws-operator-01", "project_id": "operator", "task_id": "t-01M5SKFBR9FZ26JMMFY550XW8T"},
+    "observed_at": "2026-10-25T16:09:02Z",
+    "source": {"producer": "Authority.ReadDashboard", "schema": "native-dashboard/v1", "observed_at": "2026-10-25T16:09:02Z"},
+    "data": {"records": [{"kind": "evidence", "id": "evidence-01J9TASK000000000000000001", "task_id": "t-01M5SKFBR9FZ26JMMFY550XW8T", "attempt_id": "attempt-01J9TASK000000000000000001", "revision_id": "revision-01J9TASK000000000001", "state": "recorded", "freshness": "historical", "observed_at": "2026-10-25T15:58:00Z", "eligibility": "historical-not-revalidated"}]},
+    "page": {"limit": 512, "truncated": false, "partial": false}
+  }
+}

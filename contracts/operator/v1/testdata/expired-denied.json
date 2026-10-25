@@ -1,0 +1,6 @@
+{
+  "case": "expired-session-denied",
+  "harness": {"workspace_id": "ws-operator-01", "project_id": "operator", "credential_state": "expired", "expires_at": "2026-10-25T16:00:00Z", "request_observed_at": "2026-10-25T16:09:02Z"},
+  "request": {"schema_version": 1, "request_id": "req-expired", "operation": "tasks.get", "workspace_id": "ws-operator-01", "project_id": "operator", "task_id": "t-01M5SKFBR9FZ26JMMFY550XW8T"},
+  "response": {"schema_version": 1, "request_id": "req-expired", "ok": false, "error": {"code": "denied", "message": "credential is unavailable or outside scope", "retryable": false}}
+}
