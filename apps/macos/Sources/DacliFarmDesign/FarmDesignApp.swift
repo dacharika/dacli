@@ -62,8 +62,8 @@ struct DacliFarmDesignApp: App {
                 Toggle("High contrast", isOn: $session.highContrast)
                 Toggle("Selection motion", isOn: $session.allowMotion)
                 Divider()
-                Button("Compact window (1024×768)") { resizeKeyWindow(width: 1024, height: 768) }
-                Button("Wide window (1440×900)") { resizeKeyWindow(width: 1440, height: 900) }
+                Button("Compact window (1024×768)") { resizeFixtureWindow(width: 1024, height: 768) }
+                Button("Wide window (1440×900)") { resizeFixtureWindow(width: 1440, height: 900) }
             }
             CommandMenu("Farm") {
                 Button("Show farm") { session.listMode = false }.keyboardShortcut("1", modifiers: .command)
@@ -73,8 +73,20 @@ struct DacliFarmDesignApp: App {
         }
     }
 
-    private func resizeKeyWindow(width: CGFloat, height: CGFloat) {
-        guard let window = NSApp.keyWindow else { return }
+    private func resizeFixtureWindow(width: CGFloat, height: CGFloat) {
+        // Accessibility-driven menu actions can arrive while the preview is not
+        // key. Use this app's known principal window, or its sole visible one;
+        // never guess among multiple windows when neither key nor main is known.
+        let candidates = NSApp.windows.filter { $0.isVisible && $0.canBecomeKey && $0.canBecomeMain }
+        let window: NSWindow?
+        if let keyWindow = NSApp.keyWindow, candidates.contains(where: { $0 === keyWindow }) {
+            window = keyWindow
+        } else if let mainWindow = NSApp.mainWindow, candidates.contains(where: { $0 === mainWindow }) {
+            window = mainWindow
+        } else {
+            window = candidates.count == 1 ? candidates[0] : nil
+        }
+        guard let window else { return }
         var frame = window.frame
         let visibleFrame = (window.screen ?? NSScreen.main)?.visibleFrame
         frame.size = CGSize(width: width, height: height)
