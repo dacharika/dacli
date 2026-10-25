@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/mlnomadpy/dacli/internal/governance/nativeconfig"
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
 	"github.com/mlnomadpy/dacli/internal/store"
+	"github.com/mlnomadpy/dacli/internal/workspace"
 )
 
 func TestOrchestrationPrivateProfileFreshIdentityAndRole(t *testing.T) {
@@ -205,4 +207,133 @@ func TestOrchestrationTaskScopedWorker(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOrchestrationWorkerAuthenticationFindsLateEnrolledTask(t *testing.T) {
+	w, _ := readFixture(t)
+	if _, err := store.CreateProject(w, "root", "Worker project", "p", "goal", ""); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 128; i++ {
+		if _, err := store.CreateTask(w, "root", "p", "Unrelated backlog task", store.TaskOpts{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	task, err := store.CreateTask(w, "root", "p", "Late enrolled task", store.TaskOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := newOrchestrationWorkerProfile(t, w, "p", task.ID)
+	if _, err := profile.Authenticate(); err != nil {
+		t.Fatalf("worker with only the late canonical task enrolled was refused: %v", err)
+	}
+}
+
+func TestAuthorizeEnrolledWorkerTaskChecksOnlyEnrolledCandidates(t *testing.T) {
+	tasks := make([]*store.Task, 0, 130)
+	for i := 0; i < 128; i++ {
+		tasks = append(tasks, &store.Task{ID: fmt.Sprintf("unrelated-%03d", i), Project: "p"})
+	}
+	tasks = append(tasks, &store.Task{ID: "foreign", Project: "other"})
+	tasks = append(tasks, &store.Task{ID: "late", Project: "p"})
+	type authorizationCall struct{ action, resource string }
+	var calls []authorizationCall
+	authorize := func(action, resource string) error {
+		calls = append(calls, authorizationCall{action, resource})
+		if resource == "task:late" && (action == "read" || action == "lease.acquire") {
+			return nil
+		}
+		return sessions.ErrDenied
+	}
+	if !authorizeEnrolledWorkerTask("p", tasks, []string{"workspace:w", "task:late"}, authorize) {
+		t.Fatal("enrolled late task was not authorized")
+	}
+	want := []authorizationCall{{"read", "task:late"}, {"lease.acquire", "task:late"}}
+	if len(calls) != len(want) {
+		t.Fatalf("authorization call count=%d, want exactly %d (late task read and lease only)", len(calls), len(want))
+	}
+	for i := range want {
+		if calls[i] != want[i] {
+			t.Fatalf("authorization calls = %v, want exactly %v", calls, want)
+		}
+	}
+}
+
+func BenchmarkOrchestrationWorkerAuthenticationLargeBacklog(b *testing.B) {
+	for _, size := range []int{0, 128, 512} {
+		b.Run(fmt.Sprintf("unrelated_tasks_%d", size), func(b *testing.B) {
+			w, err := workspace.Init(b.TempDir(), "orchestration-benchmark")
+			if err != nil {
+				b.Fatal(err)
+			}
+			if _, err = store.CreateProject(w, "root", "Worker project", "p", "goal", ""); err != nil {
+				b.Fatal(err)
+			}
+			for i := 0; i < size; i++ {
+				if _, err = store.CreateTask(w, "root", "p", "Unrelated backlog task", store.TaskOpts{}); err != nil {
+					b.Fatal(err)
+				}
+			}
+			task, err := store.CreateTask(w, "root", "p", "Late enrolled task", store.TaskOpts{})
+			if err != nil {
+				b.Fatal(err)
+			}
+			profile := newOrchestrationWorkerProfile(b, w, "p", task.ID)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				if _, err := profile.Authenticate(); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+func newOrchestrationWorkerProfile(t testing.TB, w *workspace.Workspace, project, task string) *NativeOrchestrationProfile {
+	t.Helper()
+	private := t.TempDir()
+	authorityPath := filepath.Join(private, "authority.json")
+	authority, err := sessions.Open(authorityPath, sessions.Binding{Workspace: w.ID, Installation: "installation"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner, err := authority.Bootstrap()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = authority.UpgradeSwarms(owner); err != nil {
+		t.Fatal(err)
+	}
+	actor, token, err := authority.Enroll(owner, sessions.Scope{Actions: []string{"read", "lease.acquire"}, Resources: []string{"workspace:" + w.ID, "task:" + task}}, time.Now().Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	save := func(path string, value any) []byte {
+		t.Helper()
+		data, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = os.WriteFile(path, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+	credential := filepath.Join(private, "token")
+	if err = os.WriteFile(credential, []byte(token), 0600); err != nil {
+		t.Fatal(err)
+	}
+	connection := filepath.Join(private, "connection.json")
+	save(connection, nativeconfig.Connection{SchemaVersion: 1, Workspace: w.Root, WorkspaceID: w.ID, Authority: authorityPath, InstallationID: "installation", SessionID: actor.ID, CredentialFile: credential})
+	capability := filepath.Join(private, "capability.json")
+	data := save(capability, ManualSwarmCapability{SchemaVersion: 2, WorkspaceID: w.ID, ProjectID: project, Harness: "codex", Source: "owner-manual-native-handoff", Codex: &CodexDispatchCapability{SchemaVersion: 1, NativeHostAttestation: "owner-observed-native-collaboration", ChildProfileChannel: "owner-manual-separate-process"}})
+	digest := sha256.Sum256(data)
+	config := filepath.Join(private, "orchestration.json")
+	save(config, NativeOrchestrationConfig{SchemaVersion: 1, WorkspaceID: w.ID, ProjectID: project, SessionID: actor.ID, Role: "worker", CapabilityFile: capability, CapabilitySHA256: hex.EncodeToString(digest[:])})
+	profile, err := OpenNativeOrchestrationProfile(connection, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return profile
 }
