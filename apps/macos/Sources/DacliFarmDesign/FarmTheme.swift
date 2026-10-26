@@ -157,3 +157,16 @@ extension EnvironmentValues {
         set { self[FarmArtifactRenderKey.self] = newValue }
     }
 }
+
+private struct FarmRenderSkinsKey: EnvironmentKey { static let defaultValue = false }
+private struct FarmRenderTimeKey: EnvironmentKey { static let defaultValue = 2.0 }
+extension EnvironmentValues {
+    var farmRenderSkins: Bool {
+        get { self[FarmRenderSkinsKey.self] }
+        set { self[FarmRenderSkinsKey.self] = newValue }
+    }
+    var farmRenderTime: Double {
+        get { self[FarmRenderTimeKey.self] }
+        set { self[FarmRenderTimeKey.self] = newValue }
+    }
+}

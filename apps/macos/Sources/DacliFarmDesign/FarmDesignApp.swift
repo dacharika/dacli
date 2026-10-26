@@ -12,8 +12,73 @@ final class FarmSession: ObservableObject {
     @Published var listMode = false
     @Published var highContrast = false
     @Published var allowMotion = true
+    @Published var harvestPhase: HarvestPhase = .harvested
+    @Published var appearances: [String: AgentAppearance] = [:]
+    @Published var usagePreviews: [String: UsagePreview] = [:]
+    @Published var adoptions: [String: AdoptionPreview] = [:]
+    @Published private(set) var queueEmptyPreview = false
+    private var nextAdoptionSerial = 1
 
-    var farm: ProjectFarm { ProjectFarm.samples.first(where: { $0.id == selectedFarmID }) ?? ProjectFarm.samples[0] }
+    func previewAdoption(role: AgentRole, state: SampleState) {
+        guard adoptions[selectedFarmID] == nil else { return }
+        let base = ProjectFarm.samples.first(where: { $0.id == selectedFarmID }) ?? ProjectFarm.samples[0]
+        let serial = nextAdoptionSerial
+        nextAdoptionSerial += 1
+        let name: String
+        let title: String
+        switch role {
+        case .builder: name = "Clover"; title = "Repair a fence corner"
+        case .planner: name = "Pip"; title = "Plan the orchard rows"
+        case .reviewer: name = "Wren"; title = "Review the seed ledger"
+        }
+        let agent = FarmAgent(id: "\(base.id)-adopt-\(serial)", name: name, role: role, usage: AgentUsageSample(outputTokens: nil, attemptID: nil))
+        let allowedState: SampleState = [.running, .waiting, .blocked, .reviewNeeded].contains(state) ? state : .waiting
+        let task = FarmTask(key: "adoption-\(serial)", id: "\(base.code)-P\(String(format: "%03d", serial))", title: title, plotTitle: title, summary: "An independent open work item for this adoption preview.", baseState: allowedState, agentID: agent.id, kind: .task)
+        adoptions[base.id] = AdoptionPreview(agent: agent, task: task)
+        select(task)
+        open(.agent)
+    }
+    func removeAdoptionPreview() {
+        if let previous = adoptions.removeValue(forKey: selectedFarmID) {
+            appearances.removeValue(forKey: previous.agent.id)
+            usagePreviews.removeValue(forKey: previous.agent.id)
+            if selectedAgentID == previous.agent.id { select(farm.task(for: sampleState.fixtureTaskKey)) }
+        }
+    }
+    var selectedUsagePreview: UsagePreview {
+        get { usagePreviews[selectedAgentID] ?? .recorded }
+        set { usagePreviews[selectedAgentID] = newValue }
+    }
+    func usage(for agent: FarmAgent) -> AgentUsageSample {
+        (usagePreviews[agent.id] ?? .recorded).usage(for: agent, code: farm.code)
+    }
+
+    var activeTasks: [FarmTask] { farm.activeTasks(state: sampleState, harvest: harvestPhase) }
+    func appearance(for agent: FarmAgent) -> AgentAppearance { appearances[agent.id] ?? .roleDefault(agent) }
+    func preview(_ appearance: AgentAppearance, for agent: FarmAgent) { appearances[agent.id] = appearance }
+    func restoreAppearance(for agent: FarmAgent) { appearances.removeValue(forKey: agent.id) }
+    func setQueuePreviewEmpty(_ empty: Bool) {
+        queueEmptyPreview = empty
+        if empty && sampleState == .accepted {
+            harvestPhase = .fallow
+            if selectedTaskKey == "next" { select(farm.task(for: "primary")) }
+        }
+    }
+    func setHarvestPhase(_ phase: HarvestPhase) {
+        harvestPhase = phase == .nextOpen && farm.nextOpenTask == nil ? .fallow : phase
+        if harvestPhase == .nextOpen, let queued = farm.nextOpenTask { select(queued) }
+    }
+    func advanceHarvestPreview() {
+        guard sampleState == .accepted else { return }
+        if harvestPhase == .harvested { harvestPhase = .fallow }
+        else if let queued = farm.nextOpenTask { harvestPhase = .nextOpen; select(queued) }
+        else { harvestPhase = .fallow }
+    }
+
+    var farm: ProjectFarm {
+        let base = ProjectFarm.samples.first(where: { $0.id == selectedFarmID }) ?? ProjectFarm.samples[0]
+        return base.withQueuedWork(queueEmptyPreview ? [] : base.queuedTasks).adding(adoptions[selectedFarmID])
+    }
     var projection: FixtureProjection { FixtureProjection.make(farm: farm, state: sampleState, selectedTaskKey: selectedTaskKey) }
 
     func select(_ task: FarmTask) {
@@ -27,10 +92,11 @@ final class FarmSession: ObservableObject {
     }
     func selectFarm(_ farm: ProjectFarm) {
         selectedFarmID = farm.id
-        select(farm.task(for: sampleState.fixtureTaskKey))
+        select(self.farm.task(for: sampleState.fixtureTaskKey))
     }
     func selectState(_ state: SampleState) {
         sampleState = state
+        harvestPhase = .harvested
         select(farm.task(for: state.fixtureTaskKey))
     }
 }
@@ -49,7 +115,13 @@ struct DacliFarmDesignApp: App {
         WindowGroup {
             FarmDesignView(session: session)
                 .frame(minWidth: 1024, minHeight: 660)
-                .preferredColorScheme(.light)
+                .environment(\.colorScheme, .light)
+                .preferredColorScheme(.dark)
+                // Native title text must use a dark-bar appearance independently
+                // of the parchment content's light color scheme.
+                .toolbarBackground(FarmStyle.darkWood, for: .windowToolbar)
+                .toolbarBackground(.visible, for: .windowToolbar)
+                .toolbarColorScheme(.dark, for: .windowToolbar)
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 1440, height: 900)
@@ -60,7 +132,14 @@ struct DacliFarmDesignApp: App {
                 }
                 Divider()
                 Toggle("High contrast", isOn: $session.highContrast)
-                Toggle("Selection motion", isOn: $session.allowMotion)
+                Toggle("Farm animation", isOn: $session.allowMotion)
+                Picker("Selected agent output sample", selection: Binding(get: { session.selectedUsagePreview }, set: { session.selectedUsagePreview = $0 })) {
+                    ForEach(UsagePreview.allCases) { usage in Text(usage.rawValue).tag(usage) }
+                }
+                Picker("Accepted land preview", selection: Binding(get: { session.harvestPhase }, set: { session.setHarvestPhase($0) })) {
+                    ForEach(HarvestPhase.allCases) { phase in Text(phase.rawValue).tag(phase) }
+                }.disabled(session.sampleState != .accepted)
+                Toggle("Empty queued backlog", isOn: Binding(get: { session.queueEmptyPreview }, set: { session.setQueuePreviewEmpty($0) }))
                 Divider()
                 Button("Compact window (1024×768)") { resizeFixtureWindow(width: 1024, height: 768) }
                 Button("Wide window (1440×900)") { resizeFixtureWindow(width: 1440, height: 900) }
@@ -103,6 +182,7 @@ struct FarmDesignView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.farmArtifactRender) private var artifactRender
+    @Environment(\.scenePhase) private var scenePhase
     @FocusState private var focusedTaskID: String?
 
     private var farm: ProjectFarm { session.farm }
@@ -117,7 +197,7 @@ struct FarmDesignView: View {
                     VStack(spacing: 0) {
                         statusStrip
                         if session.listMode { journalList } else {
-                            FarmCanvas(farm: farm, sampleState: session.sampleState, palette: palette, selectedTaskKey: $session.selectedTaskKey, selectedAgentID: $session.selectedAgentID, focusedTaskID: $focusedTaskID) { selection in
+                            FarmCanvas(session: session, palette: palette, focusedTaskID: $focusedTaskID, motionAllowed: session.allowMotion && !reduceMotion && scenePhase == .active, artifactRender: artifactRender) { selection in
                                 focusedTaskID = nil
                                 session.open(selection)
                             }
@@ -129,7 +209,7 @@ struct FarmDesignView: View {
                     .frame(minWidth: 440, maxWidth: .infinity, maxHeight: .infinity)
                     .background { TimberSurface() }
                     if session.inspectorPresented {
-                        NativeInspector(farm: farm, sampleState: session.sampleState, projection: session.projection, selection: session.inspectorSelection, selectedAgentID: session.selectedAgentID, palette: palette, onClose: closeInspector, onAgentSelected: { session.open(.agent) })
+                        NativeInspector(session: session, farm: farm, sampleState: session.sampleState, projection: session.projection, selection: session.inspectorSelection, selectedAgentID: session.selectedAgentID, palette: palette, onClose: closeInspector, onAgentSelected: { session.selectedAgentID = session.projection.agent.id; session.open(.agent) })
                             .frame(width: 320)
                     }
                 }
@@ -139,11 +219,11 @@ struct FarmDesignView: View {
         .background(FarmStyle.darkWood)
         .foregroundStyle(palette.ink)
         .tint(palette.creek)
-        .preferredColorScheme(.light)
+        .environment(\.colorScheme, .light)
         .onChange(of: session.inspectorPresented) { _, presented in
             guard !presented else { return }
             focusedTaskID = nil
-            DispatchQueue.main.async { focusedTaskID = farm.task(for: session.selectedTaskKey).id }
+            DispatchQueue.main.async { focusedTaskID = (session.activeTasks.first(where: { $0.key == session.selectedTaskKey }) ?? session.activeTasks.first)?.id }
         }
         .animation(session.allowMotion && !reduceMotion ? .easeInOut(duration: 0.14) : nil, value: session.listMode)
     }
@@ -183,6 +263,7 @@ struct FarmDesignView: View {
             Divider().overlay(FarmStyle.lightWood.opacity(0.3)).padding(17)
             railLink("Task journal", symbol: "book.closed", shortcut: "⌘2", selected: session.listMode) { session.listMode = true }
             railLink("Notice board", symbol: "note.text", shortcut: "1", selected: session.inspectorSelection == .notice && session.inspectorPresented) { session.open(.notice) }
+            railLink("Wardrobe & shop", symbol: "tshirt", shortcut: "", selected: session.inspectorSelection == .wardrobe && session.inspectorPresented) { session.open(.wardrobe) }
             railLink("Storehouse", symbol: "shippingbox", shortcut: "", selected: session.inspectorSelection == .storehouse && session.inspectorPresented) { session.open(.storehouse) }
             Spacer(minLength: 12)
             VStack(alignment: .leading, spacing: 8) {
@@ -265,34 +346,41 @@ struct FarmDesignView: View {
             HStack {
                 Text("Farmhands").font(FarmStyle.title(13)).foregroundStyle(FarmStyle.cream)
                 Spacer()
-                Text("Select an agent to see their work").font(.system(size: 10)).foregroundStyle(Color(hex: 0xE2C99E))
+                Button { session.open(.wardrobe) } label: {
+                    Label("Wardrobe & shop preview", systemImage: "tshirt").font(.system(size: 10, weight: .semibold)).foregroundStyle(FarmStyle.cream)
+                }.buttonStyle(.plain)
             }
             HStack(spacing: 7) {
                 ForEach(farm.agents) { agent in
-                    let task = farm.tasks.first(where: { $0.agentID == agent.id }) ?? farm.tasks[0]
+                    let task = farm.currentTask(agentID: agent.id, state: session.sampleState, harvest: session.harvestPhase)
                     let state = FixtureProjection.taskStatus(farm: farm, state: session.sampleState, taskKey: task.key)
+                    let appearance = session.appearance(for: agent)
+                    let usage = session.usage(for: agent)
                     Button {
                         session.selectedAgentID = agent.id
                         session.selectedTaskKey = task.key
                         session.open(.agent)
                     } label: {
-                        HStack(spacing: 6) {
-                            PixelAnimal(species: agent.species).frame(width: 40, height: 42)
-                                .background(Color(hex: 0xD5B77E))
-                                .overlay { Rectangle().strokeBorder(FarmStyle.soil, lineWidth: 1) }
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(agent.name).font(.system(size: 12, weight: .bold))
-                                Label(state.title, systemImage: state.symbol).font(.system(size: 10, weight: .medium)).lineLimit(1)
+                        VStack(alignment: .leading, spacing: 5) {
+                            HStack(spacing: 6) {
+                                PixelAnimal(species: appearance.species, skin: appearance.skin).frame(width: 30, height: 36)
+                                    .background(Color(hex: 0xD5B77E)).overlay { Rectangle().strokeBorder(FarmStyle.soil, lineWidth: 1) }
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(agent.name).font(.system(size: 11, weight: .bold)).lineLimit(1)
+                                    Label(agent.role.rawValue, systemImage: agent.role.symbol).font(.system(size: 9, weight: .semibold)).lineLimit(1)
+                                }
+                                Spacer(minLength: 0)
                             }
-                            Spacer(minLength: 0)
+                            Label(state.title, systemImage: state.symbol).font(.system(size: 9, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
+                            Text(usage.outputTokens.map { "\(usage.growth?.rawValue ?? "") · \($0.formatted(.number.notation(.compactName))) sample out" } ?? "Output usage unavailable")
+                                .font(.system(size: 9)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
                         }
-                        .foregroundStyle(palette.ink)
-                        .padding(6).frame(maxWidth: .infinity)
+                        .foregroundStyle(palette.ink).padding(7).frame(maxWidth: .infinity, alignment: .leading)
                         .background(agent.id == session.selectedAgentID ? FarmStyle.cream : Color(hex: 0xDCC18B))
                         .modifier(BevelFrame(selected: agent.id == session.selectedAgentID))
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("\(agent.name), \(agent.species.rawValue), \(state.title). Open agent details.")
+                    .accessibilityLabel("\(agent.name), \(agent.role.rawValue), \(state.title), \(usage.caption), growth \(usage.growth?.rawValue ?? "unavailable"). Open agent details.")
                 }
             }
         }
@@ -307,7 +395,7 @@ struct FarmDesignView: View {
                     Text("Every plot has a story. Here is the record.").font(.system(size: 12)).foregroundStyle(FarmStyle.muted)
                 }
                 Spacer()
-                Text("3 entries").font(.system(size: 11, weight: .medium)).foregroundStyle(FarmStyle.muted).padding(.top, 8)
+                Text("\(session.activeTasks.count) open entries").font(.system(size: 11, weight: .medium)).foregroundStyle(FarmStyle.muted).padding(.top, 8)
             }.padding(24)
             HStack {
                 Text("Task").frame(maxWidth: .infinity, alignment: .leading)
@@ -315,18 +403,24 @@ struct FarmDesignView: View {
             }.font(.system(size: 11, weight: .semibold)).foregroundStyle(FarmStyle.muted).padding(.horizontal, 24).padding(.bottom, 9)
             if artifactRender {
                 VStack(spacing: 0) {
-                    ForEach(farm.tasks) { task in
+                    ForEach(session.activeTasks) { task in
                         journalRow(task).padding(.horizontal, 12)
                         Rectangle().fill(FarmStyle.honey.opacity(0.4)).frame(height: 1).padding(.horizontal, 24)
                     }
                     Spacer(minLength: 0)
                 }
             } else {
-                List(farm.tasks) { task in
+                List(session.activeTasks) { task in
                     journalRow(task)
                         .listRowBackground(Color.clear).listRowSeparatorTint(FarmStyle.honey.opacity(0.4))
                 }
                 .listStyle(.plain).scrollContentBackground(.hidden)
+            }
+            if session.sampleState == .accepted {
+                Button { session.open(.storehouse) } label: {
+                    Label("1 completed delivery in the Storehouse", systemImage: "archivebox")
+                        .font(.system(size: 12, weight: .semibold)).padding(.horizontal, 24).padding(.vertical, 8)
+                }.buttonStyle(.plain)
             }
             HStack {
                 Image(systemName: "keyboard")
@@ -345,7 +439,7 @@ struct FarmDesignView: View {
                         Image(systemName: task.key == "review" ? "doc.text.magnifyingglass" : "leaf")
                             .font(.system(size: 19)).foregroundStyle(statusColor(state)).frame(width: 28)
                         VStack(alignment: .leading, spacing: 5) {
-                            Text(task.id).font(.system(size: 10, weight: .bold, design: .monospaced)).foregroundStyle(FarmStyle.muted)
+                            Text("\(task.kind.rawValue) \(task.id) · Open").font(.system(size: 10, weight: .bold, design: .monospaced)).foregroundStyle(FarmStyle.muted)
                             Text(task.title).font(.system(size: 13, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
                             Text(farm.agent(for: task.agentID).name).font(.system(size: 11)).foregroundStyle(FarmStyle.muted)
                         }
@@ -361,7 +455,7 @@ struct FarmDesignView: View {
                 }
                 .buttonStyle(.plain)
                 .modifier(TaskKeyboardFocus(taskID: task.id, palette: palette, focusedTaskID: $focusedTaskID) { select(task) })
-                .accessibilityLabel("\(task.id), \(task.title), \(state.title). Open task details.")
+                .accessibilityLabel("Open \(task.kind.rawValue) \(task.id), \(task.title), \(state.title). Open task details.")
     }
 
     private var footer: some View {
@@ -369,7 +463,7 @@ struct FarmDesignView: View {
             Image(systemName: session.sampleState == .disconnected ? "wifi.slash" : "clock")
             Text(session.sampleState == .disconnected ? "Last sample · 10:38 · connection unavailable" : "Snapshot · 10:42")
             Spacer()
-            Text("Farm actions select records")
+            Text("Open work and harvest history")
         }
         .font(.system(size: 10, weight: .medium)).foregroundStyle(Color(hex: 0xE0C393))
         .padding(.horizontal, 13).padding(.vertical, 7)
