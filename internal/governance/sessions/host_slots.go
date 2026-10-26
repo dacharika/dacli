@@ -209,9 +209,7 @@ func hostSlotPolicyValid(s *state, project string, p HostSlotAdmissionPolicy) bo
 func rawDigest(value string) string { return strings.TrimPrefix(value, "sha256:") }
 
 func validCapabilityDigest(value string) bool {
-	if strings.HasPrefix(value, "sha256:") {
-		value = strings.TrimPrefix(value, "sha256:")
-	}
+	value = strings.TrimPrefix(value, "sha256:")
 	return len(value) == 64 && strings.Trim(value, "0123456789abcdef") == ""
 }
 

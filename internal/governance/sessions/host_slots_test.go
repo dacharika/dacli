@@ -794,7 +794,6 @@ func TestHostSlotSerializedConcurrentReservationsCannotExceedCap(t *testing.T) {
 	}
 	results := make(chan outcome, len(tasks))
 	for _, task := range tasks {
-		task := task
 		go func() {
 			<-start
 			req := ReserveWaveRequest{OperationKey: "concurrent-slot-" + task, ExpiresAt: time.Now().Add(10 * time.Minute)}
@@ -862,7 +861,7 @@ func TestHostSlotConcurrentPublicPlanAndReserveRefuseFreshCapPlusOne(t *testing.
 		baseCopy := *base
 		admissionCopy := *base.swarmFixtureAdmission
 		admissionCopy.snapshot.Candidates = nil
-		for _, candidate := range base.swarmFixtureAdmission.snapshot.Candidates {
+		for _, candidate := range base.snapshot.Candidates {
 			if candidate.TaskID == task {
 				admissionCopy.snapshot.Candidates = append(admissionCopy.snapshot.Candidates, candidate)
 			}
@@ -897,7 +896,6 @@ func TestHostSlotConcurrentPublicPlanAndReserveRefuseFreshCapPlusOne(t *testing.
 	}
 	results := make(chan result, len(proposals))
 	for _, proposal := range proposals {
-		proposal := proposal
 		go func() {
 			<-startPlans
 			plan, planErr := proposal.authority.PlanSwarm(proposal.token, proposal.session.ID, "project")
