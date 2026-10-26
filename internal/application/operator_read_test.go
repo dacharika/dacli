@@ -63,7 +63,7 @@ func TestOperatorReadRequiresDistinctIdentityAndRechecksRevocation(t *testing.T)
 	if _, err := reader.Authorize(context.Background(), req); err != nil {
 		t.Fatalf("project operator could not read canonical task without native task binding: %v", err)
 	}
-	if err := store.CreateProject(operator.workspace, "owner", "Foreign", "foreign", "foreign project", ""); err != nil {
+	if _, err := store.CreateProject(operator.workspace, "owner", "Foreign", "foreign", "foreign project", ""); err != nil {
 		t.Fatal(err)
 	}
 	foreignTask, err := store.CreateTask(operator.workspace, "owner", "foreign", "Foreign task", store.TaskOpts{})
