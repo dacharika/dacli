@@ -677,6 +677,7 @@ Capacity schema21 is an explicit owner-selected source capability; four independ
 
 | Exact command | Authority and effects |
 | --- | --- |
+| `native capacity slots upgrade` | Explicit private owner21→22 migration, local-only; preserves authority and history. |
 | `native capacity upgrade` | Explicit owner20→21 migration, never automatic. |
 | `native capacity observer add` | Owner-enrolled exact observer and private credential. |
 | `native capacity policy configure` | Explicit owner policy fact. |
@@ -687,3 +688,22 @@ Capacity schema21 is an explicit owner-selected source capability; four independ
 | `native guidance refresh-preview` | Explicit owner; immutable private plan only. |
 | `native guidance refresh-apply` | Explicit owner; reviewed instruction assets/private backups only. |
 | `github issue link` | Exact local owner apply; selected-only mapping/recovery, no remote writes. |
+
+
+Schema22 host-slot admission binds a selected single-authority domain, executor
+instance, host-session, capability digest, policy and qualification to each
+original dispatch. A census references exact original dispatch/fence/intent/key
+and correlated host-agent identities. These are authenticated cooperative
+records, not OS containment or proof of physical host exclusivity. Unknown or
+stale observations cannot increase admission. Independent authorities sharing
+a host need a separately qualified admission primitive and are unsupported here.
+
+Only an accepted supported terminal observation bound to the exact execution
+can free its host-turn claim. The owner-selected typed terminal qualification
+binds the source, domain, host/session/instance, runtime/build/capability,
+supported state, evidence digest and validity interval. Labels alone cannot
+qualify termination. This eligibility is captured durably at ingestion;
+later bridge expiry does not invalidate historical evidence. Writer/task/path
+protection remains governed by existing acceptance and owner recovery, including
+after nominal expiry. No callback, slot calculation or plugin installation
+accepts work, releases writers, merges source or upgrades live authority.

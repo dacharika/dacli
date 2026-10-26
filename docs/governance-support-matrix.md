@@ -42,7 +42,7 @@ receipts and proposal contracts.
 Current source has more than one compatibility boundary:
 
 - [`OpenCurrent`](../internal/governance/sessions/sessions.go) accepts stored
-  authority versions 6 through 20. The older `Open` reader remains capped at
+  authority versions 6 through 22. The older `Open` reader remains capped at
   19 so pre-schema-20 binaries refuse schema-20 role provenance.
 - The native compatibility/doctor range is currently declared as 6 through 19
   in [`compatibility.go`](../internal/governance/sessions/compatibility.go) and
@@ -104,6 +104,21 @@ authority to make a version or host appear supported.
 
 ### Capacity facts and current guidance
 
-#1228 adds exact21 host-capacity facts and an explicit owner20→21 upgrade. Current source selection is6–21, while legacy compatibility/doctor authentication remains deliberately bounded6–19 and signed-role exact20 readers retain their own boundary. Unknown21 fields and unknown20 migration input refuse. New owner/scoped capacity commands do not activate live21 or admit additional workers. The live workspace remains10.
+#1228 adds exact21 host-capacity facts and an explicit owner20→21 upgrade. Current source selection is6–22, while legacy compatibility/doctor authentication remains deliberately bounded6–19 and signed-role exact20 readers retain their own boundary. Unknown21 fields and unknown20 migration input refuse. New owner/scoped capacity commands do not activate live21 or admit additional workers. The live workspace remains10.
 
 #1213 diagnoses reviewed instruction bytes and declared capability manifests. A supplied manifest is unverified runtime metadata; fresh process and cached connection state remain unknown until separately observed. Both refresh preview and apply require explicit owner configuration and are local-only. File replacement preserves checked private backups and recovery identity; it does not reconnect a host. No current App Server or Antigravity qualification is inferred.
+
+
+#1229 adds exact22 host-slot admission, selected by explicit owner21→22 migration.
+Claims commit with original dispatch reservations and are checked again before
+launch, correlation and handoff. Version2 observations require an exact local
+execution census so observed and reserved occupancy are not counted twice.
+Supported terminal observations can free execution capacity while retaining
+writer/lease/path protection. Heartbeat loss, expiry, STOP and cancellation
+request or acknowledgement do not free either protection by themselves.
+
+This is cooperative serialization within one selected authority and executor
+host-session. Shared-host scope across authorities is unsupported; no global
+host primitive, unattended driver, additional workers or paid capacity is
+qualified. The live authority remains schema10. Queue accounting remains #1230; rolling admission and the
+host-effect driver remain #1218; live qualification remains #1217.

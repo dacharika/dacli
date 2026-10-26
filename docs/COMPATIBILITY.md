@@ -266,6 +266,25 @@ documented escape forms in § 1/§ 2 above are unaffected.
 
 ## Explicit host-capacity schema 21
 
-Source supports `OpenCurrent` for native schemas6–21. The bounded legacy `Open` reader remains capped19; `OpenNativeRoleRegistry` remains exact20. `OpenHostCapacity` is exact21. Only the authenticated owner command `dacli native capacity upgrade --config <private-owner-file> --json` performs20→21. It refuses unfamiliar source fields and preserves all old populated semantic collections and nested role provenance. Already-open20 handles refuse21; opening never migrates. Schema21 writers reject unknown top-level/nested fields rather than discarding them.
+Source supports `OpenCurrent` for native schemas6–22. The bounded legacy `Open` reader remains capped19; `OpenNativeRoleRegistry` remains exact20. `OpenHostCapacity` is exact21. Only the authenticated owner command `dacli native capacity upgrade --config <private-owner-file> --json` performs20→21. It refuses unfamiliar source fields and preserves all old populated semantic collections and nested role provenance. Already-open20 handles refuse21; opening never migrates. Schema21 writers reject unknown top-level/nested fields rather than discarding them.
 
-Observer, policy, qualification and report v1 contracts carry the exact owner-selected executor instance and capability binding. Owner CLI request files require explicit contract version1. Capacity observations, host declarations, policy and qualification are separate facts, not automatic dispatch or provider quota. The currently observed live workspace stays schema10; no live upgrade is part of #1228. Admission/queue/driver delivery remains #1229/#1230/#1218.
+Observer, policy, qualification and report v1 contracts carry the exact owner-selected executor instance and capability binding. Owner CLI request files require explicit contract version1. Capacity observations, host declarations, policy and qualification are separate facts, not automatic dispatch or provider quota. The currently observed live workspace stays schema10; no live upgrade is part of #1228. The schema22 admission extension is described below; queue/driver delivery remains #1230/#1218.
+
+
+## Explicit host-slot schema 22
+
+`OpenHostSlots` reads exact22. `OpenCapacityCurrent` selects exact21 or22;
+`OpenHostCapacity` stays exact21, `OpenNativeRoleRegistry` exact20, and legacy
+`Open` remains capped19. Only `dacli native capacity slots upgrade --config
+<private-owner-file> --json` performs21→22 with explicit owner authentication.
+Open never migrates. Unknown source fields, unfamiliar target shapes and
+repeated migration refuse without rewriting history. Version1 capacity report
+and operation payloads remain compatible; the separate version2 report adds
+an explicit, exact local-execution census required for bound slot admission.
+
+Schema22 attaches claims to original dispatch reservations in the existing
+authority transaction; it introduces no second scheduler or allocation ledger.
+Legacy nil slot policy and explicit manual mode remain manual. Single-authority
+mode does not qualify a global semaphore or permit independent authorities to
+share a host's observed remainder. Live authority stays schema10; source and
+fixture checks do not activate the new schema or qualify automatic host turns.

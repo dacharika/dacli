@@ -104,8 +104,10 @@ the durable cancellation request or host cancellation call.
 
 ## Storage and compatibility boundary
 
-This implementation adds no persisted record or reader/writer. Before a future
-durable executor record is introduced, an owner-approved upgrade must define its
+The base executor contract adds no separate persisted executor record or ledger.
+The authority22 extension below extends existing authority records and readers
+through its explicit owner migration. Before a future separate durable executor
+record is introduced, an owner-approved upgrade must define its
 schema/version, atomic writer, restart lookup, migration, and minimum readers in
 `docs/COMPATIBILITY.md` and the native compatibility ledger. Dispatch
 reservations, operation-key receipts, worker leases, host intents, lifecycle
@@ -232,3 +234,39 @@ Schema 10 is the currently observed live authority and is not migrated by this
 feature. Its existing manual host workflow remains manual. Schema-21 support
 here is source and fixture behavior only; it does not prove a live host
 observer, install an observer, or change dispatch/admission authority.
+
+
+## Bound host-slot extension (authority22, report2)
+
+The separate version2 capacity DTO preserves the version1 contract and adds
+`census`: schema1, an owner-selected `authority_domain_id`, and an explicit
+`included_local_executions` array, including for a known empty census. Each
+entry carries `dispatch_id`, `reservation_fence`, `intent_id`,
+`original_operation_key` and `host_agent_id`. Unknown fields, duplicate keys,
+missing/null required measurements, substituted scope and ambiguous identities
+refuse before producing positive capacity. Explicit numeric zero remains known
+zero. Host-session, observer principal and worker principal are distinct.
+
+The selected single-authority swarm policy binds all scope and capacity fact
+identities. Original dispatch reservations carry their slot claim; the executor
+must compare that claim with independently owner-selected expected scope before
+host effects and recheck the actual authority permit. A returned claim cannot
+supply its own expected identity. Original-key uncertain dispatch remains
+lookup-only; registration or replay never grants another host launch.
+
+The authority subtracts exact census overlap from observed occupancy, counts
+all unresolved claims regardless of nominal lease expiry, and retains existing
+writer protection after an accepted terminal proof frees execution capacity.
+An accepted census remains historical after a later terminal callback. Terminal
+eligibility requires an owner-selected typed qualification with supported state,
+exact source/domain/host/session/instance/runtime/build/capability, evidence
+digest and validity interval. The proof freezes the qualifying historical policy
+and evidence at accepted ingestion time, so later bridge expiry/revocation
+cannot rewrite history. Cancellation acknowledgements are not termination.
+
+`OpenHostSlots` is exact22; `OpenCapacityCurrent` accepts21/22. The owner-only
+`native capacity slots upgrade` migrates21→22 without changing the old exact21
+reader, version1 hashes or existing semantic history. No open operation migrates.
+Source and fixture behavior does not activate live schema10, qualify a live
+observer or serialize multiple authorities sharing one host. A real external
+semaphore would be a separate idempotent effect with explicit unknown state.
