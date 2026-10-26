@@ -38,6 +38,8 @@ Backend registration is checked against the same authenticated binding before
 the adapter receives it. `DispatchSpecDigest` binds the exact prompt, profile
 reference, repository, checkout, and worker binding; changing any of them under
 an original key fails before a repeated host call.
+Credential-bearing helpers redact worker, controller, and bridge tokens from
+JSON and Go formatting output.
 
 DACLI session authentication proves which enrolled session supplied the
 credential. It does not cryptographically prove an OS process, host binary, or
@@ -81,12 +83,24 @@ callbacks, process replacement, terminal regression, and distinct terminal
 outcomes at one sequence refuse. The existing native lifecycle authority is
 the durable writer and independently assigns received time. An observation is
 not proof of lease release or canonical completion.
+The callback path authenticates the current bridge through the existing
+lifecycle authority and checks its complete status binding. It intentionally
+does not reauthenticate the worker: an exact authorized bridge may report a
+late terminal observation after worker expiry or revocation, without restoring
+worker authority. An expired or revoked bridge cannot report.
 
 Cancellation request and host acknowledgement are separate from observed
 terminal state. `acknowledged` means the host accepted the request; `unknown`
 and `unsupported` remain explicit. Neither request nor acknowledgement means
 the process stopped, and neither releases reservations or leases. Only the
 existing owner-authorized recovery operation can reconcile retained resources.
+Before withdrawing authority, the adapter re-reads lifecycle status and
+requires the complete binding plus the worker attempt's exact task, session,
+repository, and checkout. It verifies the backend's host and currently
+registered process binding. Its typed cancellation request carries a fresh
+cancellation key, the original dispatch key when known, and the complete
+dispatch/intent/host-correlation/attempt/lease target. A mismatch refuses before
+the durable cancellation request or host cancellation call.
 
 ## Storage and compatibility boundary
 

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -81,6 +82,16 @@ type AuthenticatedBinding struct {
 }
 
 func (a AuthenticatedBinding) Claim() Binding { return a.binding }
+func (a AuthenticatedBinding) String() string {
+	return fmt.Sprintf("AuthenticatedBinding{binding:%+v, token:[redacted], profile:%+v}", a.binding, a.profile)
+}
+func (a AuthenticatedBinding) GoString() string { return a.String() }
+func (a AuthenticatedBinding) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Binding Binding    `json:"binding"`
+		Profile ProfileRef `json:"profile"`
+	}{a.binding, a.profile})
+}
 
 func AuthenticateWorker(authority *sessions.Authority, token string, e WorkerEnrollment, now time.Time) (AuthenticatedBinding, error) {
 	if authority == nil || token == "" || e.Binding.Session == "" || e.AttemptRequest.TaskID != e.Binding.Task || e.AttemptRequest.RequestID == "" {
@@ -198,8 +209,11 @@ func DispatchSpecDigest(d Dispatch) string {
 type HostResult struct {
 	Version         int     `json:"version"`
 	OperationKey    string  `json:"operation_key"`
+	DispatchID      string  `json:"dispatch_id"`
 	HostExecutionID string  `json:"host_execution_id"`
 	State           string  `json:"state"`
+	Repository      string  `json:"repository"`
+	Checkout        string  `json:"checkout"`
 	Binding         Binding `json:"binding"`
 }
 type Observation struct {
@@ -217,11 +231,22 @@ type Observation struct {
 // use Lookup with that same key and never issue a replacement dispatch.
 type Backend interface {
 	Register(Registration) error
+	VerifyBinding(Binding) error // read-only proof of the registered host/session/instance
 	Capabilities() Capabilities
 	Dispatch(Dispatch) (HostResult, error)
 	Lookup(operationKey string, binding Binding) (HostResult, error)
 	Observe(Observation) error
-	Cancel(operationKey string, binding Binding) (string, error) // acknowledgement: acknowledged|unsupported|unknown
+	Cancel(CancellationRequest) (string, error) // acknowledgement: acknowledged|unsupported|unknown
+}
+
+type CancellationRequest struct {
+	Version              int                       `json:"version"`
+	OperationKey         string                    `json:"operation_key"`
+	OriginalOperationKey string                    `json:"original_operation_key,omitempty"`
+	Lifecycle            sessions.LifecycleBinding `json:"lifecycle_binding"`
+	Worker               Binding                   `json:"worker_binding"`
+	Repository           string                    `json:"repository"`
+	Checkout             string                    `json:"checkout"`
 }
 
 // Coordinator makes one host call and, on an uncertain response, looks up the
@@ -229,7 +254,21 @@ type Backend interface {
 type Coordinator struct {
 	Backend                            Backend
 	Authority                          *sessions.Authority
-	ControllerToken, ControllerSession string
+	controllerToken, controllerSession string
+}
+
+func NewCoordinator(backend Backend, authority *sessions.Authority, controllerToken, controllerSession string) Coordinator {
+	return Coordinator{Backend: backend, Authority: authority, controllerToken: controllerToken, controllerSession: controllerSession}
+}
+func (c Coordinator) String() string {
+	return fmt.Sprintf("Coordinator{Backend:%T, Authority:[bound], ControllerToken:[redacted], ControllerSession:%q}", c.Backend, c.controllerSession)
+}
+func (c Coordinator) GoString() string { return c.String() }
+func (c Coordinator) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		ContractVersion   int    `json:"contract_version"`
+		ControllerSession string `json:"controller_session"`
+	}{ContractVersion, c.controllerSession})
 }
 
 func (c Coordinator) DispatchOnce(req Dispatch, enrolled AuthenticatedBinding, now time.Time) (HostResult, error) {
@@ -251,8 +290,12 @@ func (c Coordinator) DispatchOnce(req Dispatch, enrolled AuthenticatedBinding, n
 	if ValidateRegistration(c.Authority, enrolled, registration, now) != nil || c.Backend.Register(registration) != nil {
 		return HostResult{}, ErrDenied
 	}
-	permit, err := c.Authority.RequestDispatchIntent(c.ControllerToken, c.ControllerSession, sessions.RequestDispatchIntent{OperationKey: req.OperationKey, DispatchID: req.DispatchID, ExpectedFence: req.ExpectedFence, BridgeSessionID: req.BridgeSession, WorkerSessionID: req.Binding.Session, PromptSpecDigest: req.PromptSpecDigest})
+	permit, err := c.Authority.RequestDispatchIntent(c.controllerToken, c.controllerSession, sessions.RequestDispatchIntent{OperationKey: req.OperationKey, DispatchID: req.DispatchID, ExpectedFence: req.ExpectedFence, BridgeSessionID: req.BridgeSession, WorkerSessionID: req.Binding.Session, PromptSpecDigest: req.PromptSpecDigest})
 	if err != nil {
+		return HostResult{}, ErrDenied
+	}
+	reservation := permit.Intent.Reservation
+	if permit.Intent.OperationKey != req.OperationKey || permit.Intent.DispatchID != req.DispatchID || permit.Intent.BridgeSessionID != req.BridgeSession || permit.Intent.WorkerSessionID != enrolled.binding.Session || permit.Intent.PromptSpecDigest != req.PromptSpecDigest || reservation.Reservation.Fence != req.ExpectedFence || reservation.ProjectID != enrolled.binding.Project || reservation.Reservation.TaskID != enrolled.binding.Task || reservation.Reservation.Checkout != enrolled.attempt.Observation.Locator || reservation.Reservation.Repository != enrolled.attempt.Observation.Repository {
 		return HostResult{}, ErrDenied
 	}
 	if !permit.HostActionAuthorized {
@@ -261,10 +304,6 @@ func (c Coordinator) DispatchOnce(req Dispatch, enrolled AuthenticatedBinding, n
 			return lookup, nil
 		}
 		return HostResult{}, ErrUncertain
-	}
-	reservation := permit.Intent.Reservation
-	if permit.Intent.DispatchID != req.DispatchID || permit.Intent.WorkerSessionID != enrolled.binding.Session || reservation.ProjectID != enrolled.binding.Project || reservation.Reservation.TaskID != enrolled.binding.Task || reservation.Reservation.Checkout != enrolled.attempt.Observation.Locator || reservation.Reservation.Repository != enrolled.attempt.Observation.Repository {
-		return HostResult{}, ErrDenied
 	}
 	result, err := c.Backend.Dispatch(req)
 	if err == nil && hostResultMatches(result, req) {
@@ -278,7 +317,7 @@ func (c Coordinator) DispatchOnce(req Dispatch, enrolled AuthenticatedBinding, n
 }
 
 func hostResultMatches(result HostResult, req Dispatch) bool {
-	return result.Version == ContractVersion && result.OperationKey == req.OperationKey && result.HostExecutionID != "" && result.Binding.same(req.Binding)
+	return result.Version == ContractVersion && result.OperationKey == req.OperationKey && result.DispatchID == req.DispatchID && result.HostExecutionID != "" && result.Repository == req.Repository && result.Checkout == req.Checkout && result.Binding.same(req.Binding)
 }
 
 // ValidateObservation enforces an exact one-step sequence and terminal-state
@@ -300,33 +339,63 @@ func ValidateObservation(previousState string, expected uint64, next Observation
 // existing session authority. It is intentionally only an adapter, not a ledger.
 type LifecycleAuthority struct {
 	Authority                                                      *sessions.Authority
-	BridgeToken, BridgeSession, ControllerToken, ControllerSession string
+	bridgeToken, bridgeSession, controllerToken, controllerSession string
+}
+
+func NewLifecycleAuthority(authority *sessions.Authority, bridgeToken, bridgeSession, controllerToken, controllerSession string) LifecycleAuthority {
+	return LifecycleAuthority{Authority: authority, bridgeToken: bridgeToken, bridgeSession: bridgeSession, controllerToken: controllerToken, controllerSession: controllerSession}
+}
+func (a LifecycleAuthority) String() string {
+	return fmt.Sprintf("LifecycleAuthority{Authority:[bound], BridgeToken:[redacted], BridgeSession:%q, ControllerToken:[redacted], ControllerSession:%q}", a.bridgeSession, a.controllerSession)
+}
+func (a LifecycleAuthority) GoString() string { return a.String() }
+func (a LifecycleAuthority) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		ContractVersion   int    `json:"contract_version"`
+		BridgeSession     string `json:"bridge_session"`
+		ControllerSession string `json:"controller_session"`
+	}{ContractVersion, a.bridgeSession, a.controllerSession})
 }
 
 func (a LifecycleAuthority) Observe(req sessions.ObserveLifecycleRequest) (sessions.LifecycleObservation, error) {
 	if a.Authority == nil {
 		return sessions.LifecycleObservation{}, ErrDenied
 	}
-	return a.Authority.ObserveLifecycle(a.BridgeToken, a.BridgeSession, req)
+	return a.Authority.ObserveLifecycle(a.bridgeToken, a.bridgeSession, req)
 }
 func (a LifecycleAuthority) Cancel(req sessions.CancelLifecycleRequest) (sessions.LifecycleCancellationResult, error) {
 	if a.Authority == nil {
 		return sessions.LifecycleCancellationResult{}, ErrDenied
 	}
-	return a.Authority.CancelLifecycle(a.ControllerToken, a.ControllerSession, req)
+	return a.Authority.CancelLifecycle(a.controllerToken, a.controllerSession, req)
 }
 func (a LifecycleAuthority) AcknowledgeCancellation(req sessions.AcknowledgeCancellationRequest) (sessions.LifecycleCancellation, error) {
 	if a.Authority == nil {
 		return sessions.LifecycleCancellation{}, ErrDenied
 	}
-	return a.Authority.AcknowledgeCancellation(a.BridgeToken, a.BridgeSession, req)
+	return a.Authority.AcknowledgeCancellation(a.bridgeToken, a.bridgeSession, req)
 }
 
 // CancelHost first withdraws future task authority in the existing lifecycle
 // ledger, then calls the backend only for the first permit, and records host
 // acknowledgement separately. A cancellation response never sets terminal
 // execution state or releases the existing lease/reservation.
-func (a LifecycleAuthority) CancelHost(backend Backend, worker AuthenticatedBinding, req sessions.CancelLifecycleRequest) (sessions.LifecycleCancellationResult, sessions.LifecycleCancellation, error) {
+
+func (a LifecycleAuthority) CancelHost(backend Backend, worker AuthenticatedBinding, req sessions.CancelLifecycleRequest, originalOperationKey string) (sessions.LifecycleCancellationResult, sessions.LifecycleCancellation, error) {
+	if a.Authority == nil || backend == nil {
+		return sessions.LifecycleCancellationResult{}, sessions.LifecycleCancellation{}, ErrDenied
+	}
+	status, err := a.Status(req.Binding.DispatchID)
+	if err != nil || status.Binding != req.Binding || req.Binding.TaskID != worker.binding.Task || req.Binding.AttemptID != worker.binding.Attempt || req.Binding.WorkerSessionID != worker.binding.Session || req.Binding.Checkout != worker.attempt.Observation.Locator || req.Binding.BaseCommit != worker.attempt.Observation.Commit || worker.attempt.SessionID != worker.binding.Session || worker.attempt.ProjectID != worker.binding.Project || worker.attempt.Request.TaskID != worker.binding.Task {
+		return sessions.LifecycleCancellationResult{}, sessions.LifecycleCancellation{}, ErrDenied
+	}
+	caps := backend.Capabilities()
+	if caps.Version != ContractVersion || caps.Host != worker.binding.Host {
+		return sessions.LifecycleCancellationResult{}, sessions.LifecycleCancellation{}, ErrDenied
+	}
+	if backend.VerifyBinding(worker.binding) != nil {
+		return sessions.LifecycleCancellationResult{}, sessions.LifecycleCancellation{}, ErrDenied
+	}
 	requested, err := a.Cancel(req)
 	if err != nil {
 		return sessions.LifecycleCancellationResult{}, sessions.LifecycleCancellation{}, err
@@ -335,19 +404,16 @@ func (a LifecycleAuthority) CancelHost(backend Backend, worker AuthenticatedBind
 		return requested, sessions.LifecycleCancellation{}, nil
 	}
 	state := "dispatch_unknown"
-	if backend != nil {
-		caps := backend.Capabilities()
-		if caps.Version == ContractVersion && caps.Cancel.State == Unsupported {
-			state = "unsupported"
-		} else if caps.Version == ContractVersion && caps.Cancel.State == Supported {
-			observed, cancelErr := backend.Cancel(req.OperationKey, worker.binding)
-			if cancelErr == nil {
-				switch observed {
-				case "acknowledged", "unsupported":
-					state = observed
-				case "unknown", "dispatch_unknown":
-					state = "dispatch_unknown"
-				}
+	if caps.Cancel.State == Unsupported {
+		state = "unsupported"
+	} else if caps.Cancel.State == Supported {
+		observed, cancelErr := backend.Cancel(CancellationRequest{Version: ContractVersion, OperationKey: req.OperationKey, OriginalOperationKey: originalOperationKey, Lifecycle: req.Binding, Worker: worker.binding, Repository: worker.attempt.Observation.Repository, Checkout: worker.attempt.Observation.Locator})
+		if cancelErr == nil {
+			switch observed {
+			case "acknowledged", "unsupported":
+				state = observed
+			case "unknown", "dispatch_unknown":
+				state = "dispatch_unknown"
 			}
 		}
 	}
@@ -358,23 +424,26 @@ func (a LifecycleAuthority) Status(dispatch string) (sessions.LifecycleStatus, e
 	if a.Authority == nil {
 		return sessions.LifecycleStatus{}, ErrDenied
 	}
-	return a.Authority.LifecycleStatus(a.BridgeToken, a.BridgeSession, dispatch)
+	return a.Authority.LifecycleStatus(a.bridgeToken, a.bridgeSession, dispatch)
 }
 
 // AcceptObservation checks authenticated exact binding and monotonic sequence
 // before a host callback reaches the durable sessions lifecycle authority.
 
-func (a LifecycleAuthority) AcceptObservation(enrolled AuthenticatedBinding, b sessions.LifecycleBinding, o Observation, expected uint64, now time.Time) (sessions.LifecycleObservation, error) {
-	if a.Authority == nil || ValidateBinding(enrolled.binding, o.Binding, now) != nil || !enrolled.binding.same(o.Binding) {
+func (a LifecycleAuthority) AcceptObservation(enrolled AuthenticatedBinding, b sessions.LifecycleBinding, o Observation, expected uint64) (sessions.LifecycleObservation, error) {
+	if a.Authority == nil || !sameBindingIdentity(enrolled.binding, o.Binding) {
 		return sessions.LifecycleObservation{}, ErrDenied
 	}
-	current, authErr := a.Authority.Authenticate(enrolled.token, enrolled.binding.Session)
-	if authErr != nil || current.Revoked || !now.Before(current.ExpiresAt) || b.TaskID != enrolled.binding.Task || b.AttemptID != enrolled.binding.Attempt || b.WorkerSessionID != enrolled.binding.Session {
+	if b.TaskID != enrolled.binding.Task || b.AttemptID != enrolled.binding.Attempt || b.WorkerSessionID != enrolled.binding.Session || b.Checkout != enrolled.attempt.Observation.Locator || b.BaseCommit != enrolled.attempt.Observation.Commit || enrolled.attempt.SessionID != enrolled.binding.Session || enrolled.attempt.ProjectID != enrolled.binding.Project {
 		return sessions.LifecycleObservation{}, ErrDenied
 	}
 	status, err := a.Status(b.DispatchID)
-	if err != nil || ValidateObservation(status.State, expected, o) != nil {
+	if err != nil || status.Binding != b || ValidateObservation(status.State, expected, o) != nil {
 		return sessions.LifecycleObservation{}, ErrDenied
 	}
 	return a.Observe(sessions.ObserveLifecycleRequest{OperationKey: o.OperationKey, Binding: b, ExpectedSequence: expected, HostSequence: o.Sequence, State: o.State, Source: "owner-manual-native-host", EvidenceDigest: o.EvidenceDigest, SourceTime: o.SourceTime})
+}
+
+func sameBindingIdentity(expected, observed Binding) bool {
+	return expected.Workspace == observed.Workspace && expected.Project == observed.Project && expected.Task == observed.Task && expected.Attempt == observed.Attempt && expected.Host == observed.Host && expected.Session == observed.Session && expected.Instance == observed.Instance && expected.CredentialID == observed.CredentialID
 }

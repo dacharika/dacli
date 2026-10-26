@@ -1,7 +1,9 @@
 package executor
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -42,6 +44,10 @@ type authorityFixture struct {
 }
 
 func makeAuthorityFixture(t *testing.T) authorityFixture {
+	return makeAuthorityFixtureWithTTLs(t, time.Hour, 30*time.Minute)
+}
+
+func makeAuthorityFixtureWithTTLs(t *testing.T, bridgeTTL, reservationTTL time.Duration) authorityFixture {
 	t.Helper()
 	root := t.TempDir()
 	repo := filepath.Join(root, "repo")
@@ -100,7 +106,7 @@ func makeAuthorityFixture(t *testing.T) authorityFixture {
 	if err != nil {
 		t.Fatalf("plan wave: %v", err)
 	}
-	wave, err := a.ReserveWave(ct, controller.ID, sessions.ReserveWaveRequest{OperationKey: "wave-1", Plan: plan, ExpiresAt: time.Now().Add(30 * time.Minute)})
+	wave, err := a.ReserveWave(ct, controller.ID, sessions.ReserveWaveRequest{OperationKey: "wave-1", Plan: plan, ExpiresAt: time.Now().Add(reservationTTL)})
 	if err != nil {
 		t.Fatalf("reserve wave: %v", err)
 	}
@@ -108,7 +114,7 @@ func makeAuthorityFixture(t *testing.T) authorityFixture {
 		t.Fatalf("upgrade dispatch intents: %v", err)
 	}
 	d := wave.Dispatches[0]
-	bridge, bt, err := a.Enroll(owner, sessions.Scope{Actions: []string{"read", "dispatch.correlate", "dispatch.observe"}, Resources: resources}, time.Now().Add(time.Hour))
+	bridge, bt, err := a.Enroll(owner, sessions.Scope{Actions: []string{"read", "dispatch.correlate", "dispatch.observe"}, Resources: resources}, time.Now().Add(bridgeTTL))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,15 +130,16 @@ func makeAuthorityFixture(t *testing.T) authorityFixture {
 }
 
 type fakeStore struct {
-	byKey         map[string]HostResult
-	digests       map[string]string
-	observed      map[string]Observation
-	dispatches    int
-	dispatchCalls int
-	cancelCalls   int
-	registerCalls int
-	cancel        string
-	loseNext      bool
+	byKey            map[string]HostResult
+	digests          map[string]string
+	observed         map[string]Observation
+	dispatches       int
+	dispatchCalls    int
+	cancelCalls      int
+	registerCalls    int
+	cancel           string
+	loseNext         bool
+	lastCancellation CancellationRequest
 }
 type fakeHost struct {
 	store              *fakeStore
@@ -144,6 +151,7 @@ func (f *fakeHost) Register(r Registration) error {
 	f.store.registerCalls++
 	return validateRegistration(f.enrolled, r, time.Now())
 }
+func (f *fakeHost) VerifyBinding(b Binding) error { return ValidateBinding(f.enrolled, b, time.Now()) }
 func (f *fakeHost) Capabilities() Capabilities {
 	if f.capabilityOverride != nil {
 		return *f.capabilityOverride
@@ -162,7 +170,7 @@ func (f *fakeHost) Dispatch(d Dispatch) (HostResult, error) {
 		return old, nil
 	}
 	f.store.dispatches++
-	r := HostResult{Version: 1, OperationKey: d.OperationKey, HostExecutionID: "exec-1", State: "accepted", Binding: d.Binding}
+	r := HostResult{Version: 1, OperationKey: d.OperationKey, DispatchID: d.DispatchID, HostExecutionID: "exec-1", State: "accepted", Repository: d.Repository, Checkout: d.Checkout, Binding: d.Binding}
 	f.store.byKey[d.OperationKey] = r
 	f.store.digests[d.OperationKey] = DispatchSpecDigest(d)
 	if f.store.loseNext {
@@ -197,9 +205,10 @@ func (f *fakeHost) Observe(o Observation) error {
 	f.store.observed[o.Binding.Attempt] = o
 	return nil
 }
-func (f *fakeHost) Cancel(key string, b Binding) (string, error) {
+func (f *fakeHost) Cancel(req CancellationRequest) (string, error) {
 	f.store.cancelCalls++
-	if key == "" || ValidateBinding(f.enrolled, b, time.Now()) != nil {
+	f.store.lastCancellation = req
+	if req.Version != ContractVersion || req.OperationKey == "" || req.Lifecycle.DispatchID == "" || req.Lifecycle.IntentID == "" || req.Lifecycle.HostAgentID == "" || req.Lifecycle.LeaseID == "" || req.Repository == "" || req.Checkout == "" || ValidateBinding(f.enrolled, req.Worker, time.Now()) != nil {
 		return "", ErrDenied
 	}
 	if f.store.cancel == "" {
@@ -256,6 +265,33 @@ func TestCapabilitiesDefaultToUnqualified(t *testing.T) {
 	}
 }
 
+func TestCredentialBearingHelpersRedactFormattingAndJSON(t *testing.T) {
+	worker := AuthenticatedBinding{token: "WORKER_TOKEN_SENTINEL"}
+	controller := NewCoordinator(nil, nil, "CONTROLLER_TOKEN_SENTINEL", "controller-session")
+	bridge := NewLifecycleAuthority(nil, "BRIDGE_TOKEN_SENTINEL", "bridge-session", "LIFECYCLE_CONTROLLER_SENTINEL", "controller-session")
+	objects := []any{worker, controller, bridge}
+	secrets := []string{"WORKER_TOKEN_SENTINEL", "CONTROLLER_TOKEN_SENTINEL", "BRIDGE_TOKEN_SENTINEL", "LIFECYCLE_CONTROLLER_SENTINEL"}
+	for _, object := range objects {
+		for _, format := range []string{"%v", "%+v", "%#v"} {
+			got := fmt.Sprintf(format, object)
+			for _, secret := range secrets {
+				if strings.Contains(got, secret) {
+					t.Fatalf("%s leaked through %s", secret, format)
+				}
+			}
+		}
+		encoded, err := json.Marshal(object)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, secret := range secrets {
+			if strings.Contains(string(encoded), secret) {
+				t.Fatalf("%s leaked through JSON", secret)
+			}
+		}
+	}
+}
+
 func TestLostDispatchResponseLooksUpOriginalKeyWithoutRelaunch(t *testing.T) {
 	f := makeAuthorityFixture(t)
 	p := ProfileRef{ID: "worker-profile-2", WorkerSession: f.worker.ID, ScopeDigest: "sha256:scope", ExpiresAt: f.worker.ExpiresAt}
@@ -272,7 +308,7 @@ func TestLostDispatchResponseLooksUpOriginalKeyWithoutRelaunch(t *testing.T) {
 	}
 	d := Dispatch{Version: 1, OperationKey: "dispatch-original", DispatchID: f.dispatch.ID, BridgeSession: f.bridge.ID, ExpectedFence: f.dispatch.Reservation.Fence, Binding: b, Profile: p, Prompt: "Implement the assigned task.", Repository: f.attempt.Observation.Repository, Checkout: f.attempt.Observation.Locator}
 	d.PromptSpecDigest = DispatchSpecDigest(d)
-	coordinator := Coordinator{Backend: h, Authority: f.a, ControllerToken: f.controllerToken, ControllerSession: f.controller.ID}
+	coordinator := NewCoordinator(h, f.a, f.controllerToken, f.controller.ID)
 	got, err := coordinator.DispatchOnce(d, authenticated, time.Now())
 	if err != nil || got.OperationKey != d.OperationKey || got.HostExecutionID == "" {
 		t.Fatalf("lost response reconciliation: %+v %v", got, err)
@@ -298,7 +334,7 @@ func TestLostDispatchResponseLooksUpOriginalKeyWithoutRelaunch(t *testing.T) {
 	otherCaps := h.Capabilities()
 	otherCaps.Host = "other-host"
 	wrongHost.capabilityOverride = &otherCaps
-	if _, err = (Coordinator{Backend: &wrongHost, Authority: f.a, ControllerToken: f.controllerToken, ControllerSession: f.controller.ID}).DispatchOnce(d, authenticated, time.Now()); err == nil || store.dispatchCalls != 1 {
+	if _, err = NewCoordinator(&wrongHost, f.a, f.controllerToken, f.controller.ID).DispatchOnce(d, authenticated, time.Now()); err == nil || store.dispatchCalls != 1 {
 		t.Fatalf("other-host capabilities reached effect: %v", err)
 	}
 	for name, mutate := range map[string]func(*Dispatch){"project": func(x *Dispatch) { x.Binding.Project = "other-project" }, "task": func(x *Dispatch) { x.Binding.Task = "other-task" }, "checkout": func(x *Dispatch) { x.Checkout = "/tmp/other-checkout" }, "prompt": func(x *Dispatch) { x.Prompt = "Run a different task."; x.PromptSpecDigest = DispatchSpecDigest(*x) }, "profile": func(x *Dispatch) {
@@ -356,14 +392,15 @@ func TestCallbacksAreMonotonicAndCancellationUnknownIsNotTerminal(t *testing.T) 
 	if err := h.Observe(late); err == nil {
 		t.Fatal("terminal state regressed")
 	}
-	if state, err := h.Cancel("cancel-1", b); err != nil || state != "unknown" {
+	cancelReq := CancellationRequest{Version: 1, OperationKey: "cancel-1", Worker: b, Lifecycle: sessions.LifecycleBinding{DispatchID: "dispatch", IntentID: "intent", HostAgentID: "host-exec", LeaseID: "lease"}, Repository: "repo", Checkout: "/repo"}
+	if state, err := h.Cancel(cancelReq); err != nil || state != "unknown" {
 		t.Fatalf("unknown cancellation: %q %v", state, err)
 	}
 	_ = p
 }
 
 func TestRealLifecycleAuthorityKeepsCancelAckSeparateFromTerminalObservation(t *testing.T) {
-	f := makeAuthorityFixture(t)
+	f := makeAuthorityFixtureWithTTLs(t, 12*time.Second, 10*time.Second)
 	if err := f.a.UpgradeLifecycle(f.owner); err != nil {
 		t.Fatal(err)
 	}
@@ -389,36 +426,88 @@ func TestRealLifecycleAuthorityKeepsCancelAckSeparateFromTerminalObservation(t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	bridge := LifecycleAuthority{Authority: f.a, BridgeToken: f.bridgeToken, BridgeSession: f.bridge.ID, ControllerToken: f.controllerToken, ControllerSession: f.controller.ID}
+	bridge := NewLifecycleAuthority(f.a, f.bridgeToken, f.bridge.ID, f.controllerToken, f.controller.ID)
 	status, err := bridge.Status(i.DispatchID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	obs := Observation{Version: 1, OperationKey: "lifecycle-running", Binding: worker.Claim(), Sequence: 1, State: "running", EvidenceDigest: sessions.OutputDigest([]byte("running")), SourceTime: time.Now().UTC()}
-	if _, err = bridge.AcceptObservation(worker, status.Binding, obs, 0, time.Now()); err != nil {
+	for name, mutate := range map[string]func(*Observation){"task": func(o *Observation) { o.Binding.Task = "task-c" }, "attempt": func(o *Observation) { o.Binding.Attempt = "other-attempt" }, "instance": func(o *Observation) { o.Binding.Instance = "replacement-process" }} {
+		bad := obs
+		mutate(&bad)
+		if _, e := bridge.AcceptObservation(worker, status.Binding, bad, 0); e == nil {
+			t.Fatalf("substituted %s callback accepted", name)
+		}
+	}
+	wrongLifecycle := status.Binding
+	wrongLifecycle.AttemptID = "other-attempt"
+	if _, e := bridge.AcceptObservation(worker, wrongLifecycle, obs, 0); e == nil {
+		t.Fatal("substituted lifecycle attempt accepted")
+	}
+	if _, err = bridge.AcceptObservation(worker, status.Binding, obs, 0); err != nil {
 		t.Fatalf("real running observation: %v", err)
 	}
 	store := &fakeStore{byKey: map[string]HostResult{}, digests: map[string]string{}, observed: map[string]Observation{}}
 	host := &fakeHost{store: store, enrolled: worker.Claim()}
 	cancelReq := sessions.CancelLifecycleRequest{OperationKey: "cancel-host", Binding: status.Binding}
-	request, ack, err := bridge.CancelHost(host, worker, cancelReq)
+	wrongTask := cancelReq
+	wrongTask.Binding.TaskID = "task-c"
+	if _, _, e := bridge.CancelHost(host, worker, wrongTask, "lifecycle-intent"); e == nil || store.cancelCalls != 0 {
+		t.Fatalf("wrong-task cancellation reached host: %v calls=%d", e, store.cancelCalls)
+	}
+	wrongInstance := worker
+	wrongInstance.binding.Instance = "replacement-process"
+	if _, _, e := bridge.CancelHost(host, wrongInstance, cancelReq, "lifecycle-intent"); e == nil || store.cancelCalls != 0 {
+		t.Fatalf("wrong-instance cancellation reached host: %v calls=%d", e, store.cancelCalls)
+	}
+	wrongHost := *host
+	wrongCaps := host.Capabilities()
+	wrongCaps.Host = "another-host"
+	wrongHost.capabilityOverride = &wrongCaps
+	if _, _, e := bridge.CancelHost(&wrongHost, worker, cancelReq, "lifecycle-intent"); e == nil || store.cancelCalls != 0 {
+		t.Fatalf("wrong-host cancellation reached host: %v calls=%d", e, store.cancelCalls)
+	}
+	request, ack, err := bridge.CancelHost(host, worker, cancelReq, "lifecycle-intent")
 	if err != nil || !request.HostActionAuthorized || ack.State != "dispatch_unknown" {
 		t.Fatalf("unknown cancel receipt: %+v %+v %v", request, ack, err)
+	}
+	target := store.lastCancellation
+	if target.OperationKey != cancelReq.OperationKey || target.OriginalOperationKey != "lifecycle-intent" || target.Lifecycle != status.Binding || !target.Worker.same(worker.Claim()) || target.Repository != worker.attempt.Observation.Repository || target.Checkout != worker.attempt.Observation.Locator {
+		t.Fatalf("cancellation target lost exact execution binding: %+v", target)
 	}
 	after, err := bridge.Status(i.DispatchID)
 	if err != nil || after.State != "running" || after.Cancellation == nil || after.Cancellation.State != "dispatch_unknown" || !after.ResourcesRetained {
 		t.Fatalf("cancellation acknowledgement implied termination: %+v %v", after, err)
 	}
-	_, _, err = bridge.CancelHost(host, worker, cancelReq)
+	_, _, err = bridge.CancelHost(host, worker, cancelReq, "lifecycle-intent")
 	if err != nil || store.cancelCalls != 1 {
 		t.Fatalf("replayed cancellation called host again: calls=%d err=%v", store.cancelCalls, err)
 	}
-	terminal := Observation{Version: 1, OperationKey: "lifecycle-completed", Binding: worker.Claim(), Sequence: 2, State: "completed", EvidenceDigest: sessions.OutputDigest([]byte("completed")), SourceTime: time.Now().UTC()}
-	if _, err = bridge.AcceptObservation(worker, status.Binding, terminal, 1, time.Now()); err != nil {
+	if err = f.a.Revoke(f.owner, f.worker.ID); err != nil {
+		t.Fatal(err)
+	}
+	expiredWorker := worker
+	expiredWorker.binding.ExpiresAt = time.Now().Add(-time.Hour)
+	expiredWorker.binding.Revoked = true
+	terminal := Observation{Version: 1, OperationKey: "lifecycle-completed", Binding: expiredWorker.Claim(), Sequence: 2, State: "completed", EvidenceDigest: sessions.OutputDigest([]byte("completed")), SourceTime: time.Now().UTC()}
+	if _, err = bridge.AcceptObservation(expiredWorker, status.Binding, terminal, 1); err != nil {
 		t.Fatalf("independent terminal observation: %v", err)
 	}
 	after, err = bridge.Status(i.DispatchID)
 	if err != nil || after.State != "completed" || after.Cancellation == nil || after.Cancellation.State != "dispatch_unknown" || !after.ResourcesRetained {
 		t.Fatalf("terminal observation conflated with cancellation/release: %+v %v", after, err)
+	}
+	late := terminal
+	late.OperationKey = "expired-bridge-late"
+	late.Sequence = 3
+	wrongBridge := NewLifecycleAuthority(f.a, "wrong-bridge-credential", f.bridge.ID, f.controllerToken, f.controller.ID)
+	if _, e := wrongBridge.AcceptObservation(expiredWorker, status.Binding, late, 2); e == nil {
+		t.Fatal("wrong bridge credential accepted")
+	}
+	if wait := time.Until(f.bridge.ExpiresAt) + 25*time.Millisecond; wait > 0 {
+		time.Sleep(wait)
+	}
+	if _, e := bridge.AcceptObservation(expiredWorker, status.Binding, late, 2); e == nil {
+		t.Fatal("expired bridge callback accepted")
 	}
 }
