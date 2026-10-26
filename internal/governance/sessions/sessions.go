@@ -104,26 +104,31 @@ type state struct {
 	DispatchIntents          map[string]DispatchIntent
 	DispatchIntentOperations map[string]DispatchIntentReceipt
 
-	SwarmPolicies        map[string]SwarmPolicy
-	Dispatches           map[string]DispatchReservation
-	SwarmOperations      map[string]SwarmReceipt
-	Version              int
-	Binding              Binding
-	OwnerHash            string
-	Sessions             map[string]record
-	Tasks                map[string]TaskBinding
-	Attempts             map[string]Attempt
-	Leases               map[string]Lease
-	Operations           map[string]operation
-	Fence                uint64
-	Revisions            map[string][]AttemptRevision
-	Grants               map[string]VerificationGrant
-	Evidence             map[string]Evidence
-	ReviewGrants         map[string]ReviewGrant
-	Reviews              map[string]Review
-	PublicationPolicies  map[string][]PublicationPolicy
-	PublicationDecisions map[string]PublicationDecision
-	PublicationConsumed  map[string]PublicationConsumption
+	SwarmPolicies   map[string]SwarmPolicy
+	Dispatches      map[string]DispatchReservation
+	SwarmOperations map[string]SwarmReceipt
+
+	CapacityPolicies       map[string]HostCapacityPolicy
+	CapacityObservers      map[string]HostCapacityObserver
+	CapacityObservations   map[string]HostCapacityObservation
+	CapacityQualifications map[string]HostCapacityQualification
+	Version                int
+	Binding                Binding
+	OwnerHash              string
+	Sessions               map[string]record
+	Tasks                  map[string]TaskBinding
+	Attempts               map[string]Attempt
+	Leases                 map[string]Lease
+	Operations             map[string]operation
+	Fence                  uint64
+	Revisions              map[string][]AttemptRevision
+	Grants                 map[string]VerificationGrant
+	Evidence               map[string]Evidence
+	ReviewGrants           map[string]ReviewGrant
+	Reviews                map[string]Review
+	PublicationPolicies    map[string][]PublicationPolicy
+	PublicationDecisions   map[string]PublicationDecision
+	PublicationConsumed    map[string]PublicationConsumption
 }
 
 // Authority contains no cached authority snapshot; each operation reloads under lock.
@@ -174,7 +179,7 @@ func OpenCurrent(path string, binding Binding, admission ...LeaseAdmission) (*Au
 	var version struct {
 		Version int
 	}
-	if json.Unmarshal(data, &version) != nil || version.Version < 6 || version.Version > 20 {
+	if json.Unmarshal(data, &version) != nil || version.Version < 6 || version.Version > 21 {
 		return nil, ErrStorage
 	}
 	a.version = version.Version
@@ -263,6 +268,9 @@ func (a *Authority) transaction(create bool, write bool, fn func(*state) error) 
 	initializePublication(&s)
 	if a.version >= 7 {
 		initializeSwarms(&s)
+	}
+	if a.version >= 21 {
+		initializeCapacity(&s)
 	}
 	data, err := readAuthority(a.path, create)
 	if err != nil {
@@ -469,6 +477,16 @@ func decodeAuthorityState(data []byte, binding Binding, version int) (state, err
 	return s, nil
 }
 func validateAuthorityMaps(s *state) error {
+	if s.Version < 21 && (s.CapacityPolicies != nil || s.CapacityObservers != nil || s.CapacityObservations != nil || s.CapacityQualifications != nil) {
+		return ErrStorage
+	}
+	if s.Version >= 21 && (s.CapacityPolicies == nil || s.CapacityObservers == nil || s.CapacityObservations == nil || s.CapacityQualifications == nil) {
+		return ErrStorage
+	}
+	if s.Version >= 21 && validateHostCapacityState(s) != nil {
+		return ErrStorage
+	}
+
 	if s.Version < 19 && (s.NativeExternalPolicies != nil || s.NativeExternalHistory != nil || s.NativeExternalOperations != nil) {
 		return ErrStorage
 	}
