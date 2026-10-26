@@ -1,6 +1,8 @@
 package executor
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,13 +15,20 @@ import (
 
 	"github.com/mlnomadpy/dacli/internal/governance/checkout"
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
+	"github.com/mlnomadpy/dacli/internal/team"
 )
 
-type testAdmission struct{ snapshot sessions.SwarmSnapshot }
+type testAdmission struct {
+	snapshot  sessions.SwarmSnapshot
+	preflight map[string]sessions.PreflightObservation
+}
 
 func (a *testAdmission) AdmitLease(string, string, string) error { return nil }
 func (a *testAdmission) ObserveSwarm(string, string) (sessions.SwarmSnapshot, error) {
 	return a.snapshot, nil
+}
+func (a *testAdmission) ObservePreflight(_, _, task string, _ sessions.PreflightTask, _ sessions.SwarmPlacement) (sessions.PreflightObservation, error) {
+	return a.preflight[task], nil
 }
 func (a *testAdmission) AdmitSwarmCapability(w, p, h, d string) error {
 	if w == "workspace" && p == "project" && h == "codex" && d == "cap-v1" {
@@ -41,6 +50,7 @@ type authorityFixture struct {
 	attempt                sessions.Attempt
 	bridge                 sessions.Session
 	bridgeToken            string
+	hostSlotScope          ExpectedHostSlotScope
 }
 
 func makeAuthorityFixture(t *testing.T) authorityFixture {
@@ -48,8 +58,20 @@ func makeAuthorityFixture(t *testing.T) authorityFixture {
 }
 
 func makeAuthorityFixtureWithTTLs(t *testing.T, bridgeTTL, reservationTTL time.Duration) authorityFixture {
+	return makeAuthorityFixtureConfigured(t, bridgeTTL, reservationTTL, false)
+}
+
+func makeAuthorityFixtureWithHostSlots(t *testing.T) authorityFixture {
+	return makeAuthorityFixtureConfigured(t, time.Hour, 5*time.Minute, true)
+}
+
+func makeAuthorityFixtureConfigured(t *testing.T, bridgeTTL, reservationTTL time.Duration, hostSlots bool) authorityFixture {
 	t.Helper()
 	root := t.TempDir()
+	canonicalRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
 	repo := filepath.Join(root, "repo")
 	if err := os.Mkdir(repo, 0700); err != nil {
 		t.Fatal(err)
@@ -61,7 +83,7 @@ func makeAuthorityFixtureWithTTLs(t *testing.T, bridgeTTL, reservationTTL time.D
 			t.Fatalf("git %v: %s %v", args, out, err)
 		}
 	}
-	repo, err := filepath.EvalSymlinks(repo)
+	repo, err = filepath.EvalSymlinks(repo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,31 +108,109 @@ func makeAuthorityFixtureWithTTLs(t *testing.T, bridgeTTL, reservationTTL time.D
 		}
 	}
 	ad := &testAdmission{snapshot: sessions.SwarmSnapshot{Digest: "snapshot-v1", Candidates: []sessions.SwarmCandidate{{TaskID: "task-a", ProjectID: "project", Status: "open", Reason: "ready", Resources: []sessions.Resource{{Kind: "path", Path: "src/a"}}}}}}
+	if hostSlots {
+		roleLifecycleExpiry := time.Now().UTC().Round(0).Add(time.Hour)
+		ad.snapshot.RoleRegistry = []sessions.RoleRegistryProvenance{{RoleID: "implement", Version: "1.2.3", ContentDigest: "sha256:" + strings.Repeat("d", 64), LifecycleDigest: "sha256:" + strings.Repeat("e", 64), LifecycleExpiresAt: roleLifecycleExpiry}, {RoleID: "review", Version: "2.3.4", ContentDigest: "sha256:" + strings.Repeat("f", 64), LifecycleDigest: "sha256:" + strings.Repeat("a", 64), LifecycleExpiresAt: roleLifecycleExpiry}}
+	}
 	if err = a.UpgradeSwarms(owner); err != nil {
 		t.Fatal(err)
+	}
+	if hostSlots {
+		for _, upgrade := range []func(string) error{a.UpgradeDispatchIntents, a.UpgradeLifecycle, a.UpgradeRecovery, a.UpgradePreflight, a.UpgradeCheckpoints, a.UpgradeBudgets, a.UpgradeNativeAcceptance, a.UpgradeNativePolicy, a.UpgradeController, a.UpgradeNativeModelRouting, a.UpgradeNativeIntegration, a.UpgradeNativeExternal, a.UpgradeNativeRoleRegistry, a.UpgradeHostCapacity, a.UpgradeHostSlots} {
+			if err = upgrade(owner); err != nil {
+				t.Fatalf("host-slot fixture schema upgrade: %v", err)
+			}
+		}
 	}
 	a, err = sessions.OpenSwarm(filepath.Join(root, "authority.json"), sessions.Binding{Workspace: "workspace", Installation: "installation"}, ad)
 	if err != nil {
 		t.Fatal(err)
 	}
+	var hostScope ExpectedHostSlotScope
+	var slotObserver sessions.HostCapacityObserver
+	var slotObserverToken string
 	policy := sessions.SwarmPolicy{ProjectID: "project", Revision: "policy-v1", Harness: "codex", CapabilityDigest: "cap-v1", Width: 1, WIP: 1, TTL: time.Hour, Roles: []sessions.SwarmRole{{ID: "implement", Kind: "implement", Harness: "codex", Capacity: 1}, {ID: "review", Kind: "review", Harness: "codex", Capacity: 1}}, Placements: map[string]sessions.SwarmPlacement{"task-a": {Checkout: repo, ImplementKind: "implement", ReviewKind: "review"}}}
+	if hostSlots {
+		a, err = sessions.OpenHostSlots(filepath.Join(root, "authority.json"), sessions.Binding{Workspace: "workspace", Installation: "installation"}, ad)
+		if err != nil {
+			t.Fatal(err)
+		}
+		host, _, enrollErr := a.Enroll(owner, sessions.Scope{Actions: []string{"host.observe"}, Resources: []string{"workspace:workspace"}}, time.Now().Add(time.Hour))
+		if enrollErr != nil {
+			t.Fatal(enrollErr)
+		}
+		observer, observerToken, enrollErr := a.EnrollHostCapacityObserver(owner, sessions.HostCapacityObserver{SchemaVersion: 1, HostSessionID: host.ID, ExecutorInstanceID: "executor-slots", HostID: "host-slots", Runtime: "codex", Build: "build-slots", CapabilityDigest: strings.Repeat("a", 64), ExpiresAt: time.Now().Add(30 * time.Minute)})
+		if enrollErr != nil {
+			t.Fatal(enrollErr)
+		}
+		slotObserver, slotObserverToken = observer, observerToken
+		capacityPolicy := sessions.HostCapacityPolicy{SchemaVersion: 1, WorkspaceID: "workspace", InstallationID: "installation", HostID: observer.HostID, Runtime: observer.Runtime, Build: observer.Build, HostSessionID: observer.HostSessionID, ExecutorInstanceID: observer.ExecutorInstanceID, CapabilityDigest: observer.CapabilityDigest, State: sessions.CapacityKnown, RequestedSlots: 2, Freshness: 10 * time.Minute, Revision: "capacity-slots-v1"}
+		if _, err = a.ConfigureHostCapacityPolicy(owner, capacityPolicy); err != nil {
+			t.Fatal(err)
+		}
+		if _, err = a.QualifyHostCapacity(owner, sessions.HostCapacityQualification{SchemaVersion: 1, HostSessionID: observer.HostSessionID, ExecutorInstanceID: observer.ExecutorInstanceID, HostID: observer.HostID, Runtime: observer.Runtime, Build: observer.Build, CapabilityDigest: observer.CapabilityDigest, State: sessions.CapacityKnown, EvidenceDigest: strings.Repeat("b", 64), QualificationID: "qualified-slots-v1", QualifiedSlots: 2, ExpiresAt: time.Now().Add(15 * time.Minute)}); err != nil {
+			t.Fatal(err)
+		}
+		terminalExpires := time.Now().Add(15 * time.Minute)
+		policy.HostSlots = &sessions.HostSlotAdmissionPolicy{SchemaVersion: 1, Mode: sessions.HostSlotSingleAuthority, Revision: "host-slots-rev1", AuthorityDomainID: "domain-slots-1", WorkspaceID: "workspace", InstallationID: "installation", HostID: observer.HostID, HostSessionID: observer.HostSessionID, ExecutorInstanceID: observer.ExecutorInstanceID, Runtime: observer.Runtime, Build: observer.Build, CapabilityDigest: observer.CapabilityDigest, CapacityPolicyRevision: capacityPolicy.Revision, QualificationID: "qualified-slots-v1", TerminalObservationSource: "owner-bridge-terminal", TerminalQualificationID: "terminal-qualification-v1", TerminalQualification: &sessions.HostSlotTerminalQualification{SchemaVersion: 1, ID: "terminal-qualification-v1", State: "supported", Source: "owner-bridge-terminal", EvidenceDigest: strings.Repeat("c", 64), AuthorityDomainID: "domain-slots-1", HostID: observer.HostID, HostSessionID: observer.HostSessionID, ExecutorInstanceID: observer.ExecutorInstanceID, Runtime: observer.Runtime, Build: observer.Build, CapabilityDigest: observer.CapabilityDigest, QualifiedAt: time.Now().Add(-time.Second), ExpiresAt: terminalExpires}}
+		policy.Revision = "policy-host-slots"
+		hostScope = ExpectedHostSlotScope{SchemaVersion: 1, AuthorityDomainID: "domain-slots-1", HostSessionID: observer.HostSessionID, CapabilityDigest: observer.CapabilityDigest}
+	}
 	if err = a.ConfigureSwarm(owner, policy); err != nil {
 		t.Fatalf("configure swarm: %v", err)
+	}
+	if hostSlots {
+		if _, _, err = a.RecordHostCapacityObservationV2(slotObserverToken, slotObserver.ObserverSessionID, sessions.HostCapacityObservationRequestV2{HostCapacityObservationRequest: sessions.HostCapacityObservationRequest{SchemaVersion: 2, OperationKey: "capacity-slots-empty", HostID: slotObserver.HostID, Runtime: slotObserver.Runtime, Build: slotObserver.Build, HostSessionID: slotObserver.HostSessionID, ExecutorInstanceID: slotObserver.ExecutorInstanceID, CapabilityDigest: slotObserver.CapabilityDigest, Sequence: 1, DeclarationState: sessions.CapacityKnown, DeclaredSlots: 2, ObservedState: sessions.CapacityKnown, OccupiedSlots: 0, AvailableSlots: 2, ObservedAt: time.Now().Add(-time.Second).UTC()}, Census: sessions.HostCapacityCensus{SchemaVersion: 1, AuthorityDomainID: hostScope.AuthorityDomainID, IncludedLocalExecutions: []sessions.HostSlotObservationBinding{}}}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	resources := []string{"project:project", "project:other-project", "task:task-a", "task:task-b", "task:task-c", "path:src/a"}
 	controller, ct, err := a.Enroll(owner, sessions.Scope{Actions: []string{"read", "swarm.plan", "swarm.reserve", "swarm.dispatch", "dispatch.cancel"}, Resources: resources}, time.Now().Add(time.Hour))
 	if err != nil {
 		t.Fatalf("enroll controller: %v", err)
 	}
+	var worker sessions.Session
+	var wt string
+	var attempt sessions.Attempt
+	if hostSlots {
+		view, viewErr := a.ReadHostSlotAdmission(ct, controller.ID, "project")
+		if viewErr != nil || !view.Known {
+			t.Fatalf("host-slot fixture admission is not known: view=%+v err=%v", view, viewErr)
+		}
+		workerResources := append(append([]string(nil), resources...), "checkout:", "checkout:"+repo)
+		worker, wt, err = a.Enroll(owner, sessions.Scope{Actions: []string{"read", "attempt.register", "lease.acquire", "lease.renew", "lease.release", "attempt.publish", "verification.request", "evidence.submit"}, Resources: workerResources}, time.Now().Add(time.Hour))
+		if err != nil {
+			t.Fatal(err)
+		}
+		tokenDigest := sha256.Sum256([]byte(wt))
+		role := func(name, kind, grant string) team.Role {
+			return team.Role{Name: name, Kind: kind, Runtime: "codex", Model: "model", Grant: grant, MaxPoints: 8}
+		}
+		ad.preflight = map[string]sessions.PreflightObservation{"task-a": {AuthorityPath: filepath.Join(canonicalRoot, "authority.json"), InstallationID: "installation", TaskDigest: strings.Repeat("1", 64), RosterDigest: strings.Repeat("2", 64), ClaimsDigest: strings.Repeat("3", 64), ProfileDigest: strings.Repeat("4", 64), Harness: "codex", ClaimResources: []string{"path:src/a"}, Required: 1, Sized: true, Implementation: role("implement", "implement", "rw"), Review: role("review", "review", "ro"), Recovery: role("implement", "implement", "rw"), Worker: sessions.PreflightActor{SessionID: worker.ID, CredentialHash: hex.EncodeToString(tokenDigest[:])}, RoleRegistry: ad.snapshot.RoleRegistry, ExpiresAt: time.Now().Add(20 * time.Minute), Phases: []sessions.PreflightPhase{{Phase: "implementation", Verdict: "ready", Assurance: "owner-manual", Required: true}, {Phase: "review", Verdict: "ready", Assurance: "owner-manual", Required: false}, {Phase: "verification", Verdict: "ready", Assurance: "owner-manual", Required: false}, {Phase: "integration", Verdict: "ready", Assurance: "owner-manual", Required: false}, {Phase: "recovery", Verdict: "ready", Assurance: "owner-manual", Required: true}, {Phase: "fallback", Verdict: "ready", Assurance: "owner-manual", Required: false}, {Phase: "tokens", Verdict: "ready", Assurance: "owner-manual", Required: false}, {Phase: "budget", Verdict: "ready", Assurance: "owner-manual", Required: false}}}}
+		preflight := sessions.PreflightPolicy{SchemaVersion: 1, ProjectID: "project", Revision: "preflight-slots", Harness: "codex", Rationale: "fixture for bound slot coordinator", AcceptManualAssurance: true, ExpiresAt: time.Now().Add(20 * time.Minute), Tasks: map[string]sessions.PreflightTask{"task-a": {ImplementationRole: "implement", ReviewRole: "review", RecoveryRole: "implement", WorkerConnection: filepath.Join(root, "worker.json"), ContractProfile: filepath.Join(root, "contract.json"), RequireReview: false, RequireVerification: false}}}
+		if err = a.ConfigurePreflight(owner, preflight); err != nil {
+			t.Fatalf("configure preflight fixture: %v", err)
+		}
+	}
 	plan, err := a.PlanSwarm(ct, controller.ID, "project")
 	if err != nil {
 		t.Fatalf("plan wave: %v", err)
 	}
+	if hostSlots && (len(plan.Verdicts) == 0 || !plan.Verdicts[0].Selected) {
+		var report any
+		if len(plan.Verdicts) > 0 {
+			report = plan.Verdicts[0].Preflight
+		}
+		t.Fatalf("host-slot fixture plan did not select task: verdicts=%+v preflight=%+v", plan.Verdicts, report)
+	}
 	wave, err := a.ReserveWave(ct, controller.ID, sessions.ReserveWaveRequest{OperationKey: "wave-1", Plan: plan, ExpiresAt: time.Now().Add(reservationTTL)})
 	if err != nil {
-		t.Fatalf("reserve wave: %v", err)
+		t.Fatalf("reserve wave: %v (plan=%+v)", err, plan)
 	}
-	if err = a.UpgradeDispatchIntents(owner); err != nil {
+	if !hostSlots {
+		err = a.UpgradeDispatchIntents(owner)
+	}
+	if err != nil {
 		t.Fatalf("upgrade dispatch intents: %v", err)
 	}
 	d := wave.Dispatches[0]
@@ -118,15 +218,22 @@ func makeAuthorityFixtureWithTTLs(t *testing.T, bridgeTTL, reservationTTL time.D
 	if err != nil {
 		t.Fatal(err)
 	}
-	worker, wt, err := a.Enroll(owner, sessions.Scope{Actions: []string{"read", "attempt.register", "lease.acquire", "lease.renew", "lease.release", "attempt.publish", "evidence.submit"}, Resources: append(resources, "checkout:")}, time.Now().Add(time.Hour))
-	if err != nil {
-		t.Fatal(err)
+	if hostSlots {
+		attempt, err = a.RegisterAttempt(wt, worker.ID, sessions.AttemptRequest{RequestID: "worker-attempt", TaskID: "task-a", Checkout: repo})
+		if err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		worker, wt, err = a.Enroll(owner, sessions.Scope{Actions: []string{"read", "attempt.register", "lease.acquire", "lease.renew", "lease.release", "attempt.publish", "evidence.submit"}, Resources: append(resources, "checkout:")}, time.Now().Add(time.Hour))
+		if err != nil {
+			t.Fatal(err)
+		}
+		attempt, err = a.RegisterAttempt(wt, worker.ID, sessions.AttemptRequest{RequestID: "worker-attempt", TaskID: "task-a", Checkout: repo})
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
-	attempt, err := a.RegisterAttempt(wt, worker.ID, sessions.AttemptRequest{RequestID: "worker-attempt", TaskID: "task-a", Checkout: repo})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return authorityFixture{a: a, owner: owner, controllerToken: ct, controller: controller, dispatch: d, worker: worker, workerToken: wt, attempt: attempt, bridge: bridge, bridgeToken: bt}
+	return authorityFixture{a: a, owner: owner, controllerToken: ct, controller: controller, dispatch: d, worker: worker, workerToken: wt, attempt: attempt, bridge: bridge, bridgeToken: bt, hostSlotScope: hostScope}
 }
 
 type fakeStore struct {
@@ -145,6 +252,7 @@ type fakeHost struct {
 	store              *fakeStore
 	enrolled           Binding
 	capabilityOverride *Capabilities
+	capabilityCalls    int
 }
 
 func (f *fakeHost) Register(r Registration) error {
@@ -153,6 +261,7 @@ func (f *fakeHost) Register(r Registration) error {
 }
 func (f *fakeHost) VerifyBinding(b Binding) error { return ValidateBinding(f.enrolled, b, time.Now()) }
 func (f *fakeHost) Capabilities() Capabilities {
+	f.capabilityCalls++
 	if f.capabilityOverride != nil {
 		return *f.capabilityOverride
 	}
@@ -558,9 +667,10 @@ func TestExpiredBridgeCannotAcceptRunningLifecycleObservation(t *testing.T) {
 
 func TestHostSlotClaimMustMatchAuthenticatedWorkerScope(t *testing.T) {
 	worker := Binding{Host: "host-a", Session: "worker-session-a", Instance: "executor-a"}
+	expected := ExpectedHostSlotScope{SchemaVersion: 1, AuthorityDomainID: "domain-a", HostSessionID: "host-session-a", CapabilityDigest: strings.Repeat("a", 64)}
 	req := Dispatch{DispatchID: "dispatch-a", ExpectedFence: 9}
-	claim := &sessions.HostSlotClaim{SchemaVersion: 1, AuthorityDomainID: "domain-a", HostID: "host-a", HostSessionID: "worker-session-a", ExecutorInstanceID: "executor-a", CapabilityDigest: strings.Repeat("a", 64), DispatchID: "dispatch-a", DispatchFence: 9, Units: 1}
-	if !hostSlotClaimMatchesWorker(claim, req, worker) {
+	claim := &sessions.HostSlotClaim{SchemaVersion: 1, AuthorityDomainID: "domain-a", HostID: "host-a", HostSessionID: "host-session-a", ExecutorInstanceID: "executor-a", CapabilityDigest: strings.Repeat("a", 64), DispatchID: "dispatch-a", DispatchFence: 9, Units: 1}
+	if !hostSlotClaimMatchesWorker(claim, req, worker, expected, true) {
 		t.Fatal("exact authority-returned host-slot claim did not match the authenticated worker")
 	}
 	for name, mutate := range map[string]func(*sessions.HostSlotClaim){
@@ -573,12 +683,63 @@ func TestHostSlotClaimMustMatchAuthenticatedWorkerScope(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			changed := *claim
 			mutate(&changed)
-			if hostSlotClaimMatchesWorker(&changed, req, worker) {
+			if hostSlotClaimMatchesWorker(&changed, req, worker, expected, true) {
 				t.Fatalf("substituted %s claim passed worker-scope check", name)
 			}
 		})
 	}
-	if !hostSlotClaimMatchesWorker(nil, req, worker) {
+	if hostSlotClaimMatchesWorker(claim, req, worker, ExpectedHostSlotScope{}, false) {
+		t.Fatal("bound claim without an owner-enrolled expected host scope was accepted")
+	}
+	if hostSlotClaimMatchesWorker(nil, req, worker, expected, true) {
+		t.Fatal("owner-enrolled host scope silently downgraded to a manual reservation")
+	}
+	if !hostSlotClaimMatchesWorker(nil, req, worker, ExpectedHostSlotScope{}, false) {
 		t.Fatal("legacy manual reservation was not preserved")
+	}
+}
+
+func TestCoordinatorPreflightsBoundHostScopeBeforeBackendAndIntent(t *testing.T) {
+	f := makeAuthorityFixtureWithHostSlots(t)
+	preflight, err := f.a.CheckPreflight(f.controllerToken, f.controller.ID, "project", "task-a", "preflight-debug")
+	if err != nil || !preflight.Report.Allowed || preflight.Report.ProofDigest != f.dispatch.PreflightDigest {
+		t.Fatalf("stable selected preflight unavailable before coordinator: allowed=%v checked-digest=%s reservation-digest=%s err=%v report=%+v", preflight.Report.Allowed, preflight.Report.ProofDigest, f.dispatch.PreflightDigest, err, preflight.Report)
+	}
+	p := ProfileRef{ID: "worker-profile-slots", WorkerSession: f.worker.ID, ScopeDigest: "sha256:scope", ExpiresAt: f.worker.ExpiresAt}
+	b := Binding{Workspace: "workspace", Project: "project", Task: "task-a", Host: "host-slots", Session: f.worker.ID, Instance: "executor-slots", CredentialID: p.ID, ExpiresAt: f.worker.ExpiresAt}
+	goodEnrollment := WorkerEnrollment{Binding: b, Profile: p, AttemptRequest: f.attempt.Request, ExpectedHostSlotScope: &f.hostSlotScope}
+	goodWorker, err := AuthenticateWorker(f.a, f.workerToken, goodEnrollment, time.Now())
+	if err != nil {
+		t.Fatalf("authenticate bound worker: %v", err)
+	}
+	wrongScope := f.hostSlotScope
+	goodEnrollment.ExpectedHostSlotScope.HostSessionID = "mutated-after-authentication"
+	store := &fakeStore{byKey: map[string]HostResult{}, digests: map[string]string{}, observed: map[string]Observation{}}
+	host := &fakeHost{store: store, enrolled: goodWorker.Claim()}
+	coordinator := NewCoordinator(host, f.a, f.controllerToken, f.controller.ID)
+	dispatch := Dispatch{Version: 1, OperationKey: "bound-dispatch-original", DispatchID: f.dispatch.ID, BridgeSession: f.bridge.ID, ExpectedFence: f.dispatch.Reservation.Fence, Binding: goodWorker.Claim(), Profile: p, Prompt: "Implement the assigned task.", Repository: f.attempt.Observation.Repository, Checkout: f.attempt.Observation.Locator}
+	dispatch.PromptSpecDigest = DispatchSpecDigest(dispatch)
+
+	wrongScope.HostSessionID = "substituted-host-session"
+	wrongEnrollment := goodEnrollment
+	wrongEnrollment.ExpectedHostSlotScope = &wrongScope
+	wrongWorker, err := AuthenticateWorker(f.a, f.workerToken, wrongEnrollment, time.Now())
+	if err != nil {
+		t.Fatalf("authenticate worker with substituted owner scope: %v", err)
+	}
+	if _, err = coordinator.DispatchOnce(dispatch, wrongWorker, time.Now()); err == nil {
+		t.Fatal("substituted reserved host session passed coordinator preflight")
+	}
+	if host.capabilityCalls != 0 || store.registerCalls != 0 || store.dispatchCalls != 0 || store.dispatches != 0 {
+		t.Fatalf("wrong host scope reached backend: capabilities=%d registers=%d dispatch-calls=%d dispatches=%d", host.capabilityCalls, store.registerCalls, store.dispatchCalls, store.dispatches)
+	}
+	if _, err = f.a.DispatchIntentStatus(f.controllerToken, f.controller.ID, f.dispatch.ID); err == nil {
+		t.Fatal("wrong host scope created a durable dispatch intent")
+	}
+
+	result, err := coordinator.DispatchOnce(dispatch, goodWorker, time.Now())
+	if err != nil || result.OperationKey != dispatch.OperationKey || store.registerCalls != 1 || store.dispatchCalls != 1 || store.dispatches != 1 {
+		intent, intentErr := f.a.DispatchIntentStatus(f.controllerToken, f.controller.ID, f.dispatch.ID)
+		t.Fatalf("bound host scope failed coordinator dispatch: result=%+v err=%v intent=%+v intentErr=%v registers=%d dispatch-calls=%d dispatches=%d", result, err, intent, intentErr, store.registerCalls, store.dispatchCalls, store.dispatches)
 	}
 }

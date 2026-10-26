@@ -50,6 +50,10 @@ func TestDecodeCapacityReportV2RequiresExplicitBoundCensus(t *testing.T) {
 	if report, err := DecodeCapacityReportV2([]byte(base)); err != nil || report.Census == nil || report.Census.IncludedLocalExecutions == nil {
 		t.Fatalf("explicit empty census refused or collapsed to absent: report=%+v err=%v", report, err)
 	}
+	knownZero := strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(base, `"declared_slots":2`, `"declared_slots":0`), `"occupied_slots":1`, `"occupied_slots":0`), `"available_slots":1`, `"available_slots":0`)
+	if _, err := DecodeCapacityReportV2([]byte(knownZero)); err != nil {
+		t.Fatalf("explicit zero measurements were refused: %v", err)
+	}
 	cases := map[string]string{
 		"schema1":               strings.Replace(base, `"schema_version":2`, `"schema_version":1`, 1),
 		"unknown-census-schema": strings.Replace(base, `"schema_version":1,"authority_domain_id"`, `"schema_version":2,"authority_domain_id"`, 1),
@@ -58,6 +62,12 @@ func TestDecodeCapacityReportV2RequiresExplicitBoundCensus(t *testing.T) {
 		"bad-counts":            strings.Replace(base, `"available_slots":1`, `"available_slots":2`, 1),
 		"negative-count":        strings.Replace(base, `"occupied_slots":1`, `"occupied_slots":-1`, 1),
 		"negative-declaration":  strings.Replace(base, `"declared_slots":2`, `"declared_slots":-2`, 1),
+		"missing-declaration":   strings.Replace(strings.Replace(strings.Replace(base, `,"declared_slots":2`, "", 1), `"occupied_slots":1`, `"occupied_slots":0`, 1), `"available_slots":1`, `"available_slots":0`, 1),
+		"null-declaration":      strings.Replace(strings.Replace(strings.Replace(base, `"declared_slots":2`, `"declared_slots":null`, 1), `"occupied_slots":1`, `"occupied_slots":0`, 1), `"available_slots":1`, `"available_slots":0`, 1),
+		"missing-occupied":      strings.Replace(strings.Replace(base, `,"occupied_slots":1`, "", 1), `"declared_slots":2`, `"declared_slots":1`, 1),
+		"null-occupied":         strings.Replace(strings.Replace(base, `"occupied_slots":1`, `"occupied_slots":null`, 1), `"declared_slots":2`, `"declared_slots":1`, 1),
+		"missing-available":     strings.Replace(strings.Replace(base, `,"available_slots":1`, "", 1), `"declared_slots":2`, `"declared_slots":1`, 1),
+		"null-available":        strings.Replace(strings.Replace(base, `"available_slots":1`, `"available_slots":null`, 1), `"declared_slots":2`, `"declared_slots":1`, 1),
 		"overflow-count":        strings.Replace(base, `"occupied_slots":1`, `"occupied_slots":9223372036854775807`, 1),
 		"unknown-field":         strings.Replace(base, `,"census":`, `,"future":true,"census":`, 1),
 		"duplicate-version":     strings.Replace(base, `"schema_version":2`, `"schema_version":2,"schema_version":1`, 1),

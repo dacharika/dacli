@@ -131,6 +131,13 @@ func DecodeCapacityReportV2(data []byte) (CapacityReportV2, error) {
 	if len(data) == 0 || len(data) > 16*1024 || hasDuplicateJSONKeys(data) {
 		return CapacityReportV2{}, ErrDenied
 	}
+	// A plain int field cannot distinguish an explicit zero from an absent or
+	// null measurement. Keep schema-2 known-state counts presence-aware at the
+	// wire boundary; schema-1 decoding retains its historical behavior.
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(data, &fields) != nil || !hasExplicitCount(fields, "declared_slots") || !hasExplicitCount(fields, "occupied_slots") || !hasExplicitCount(fields, "available_slots") {
+		return CapacityReportV2{}, ErrDenied
+	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if decoder.Decode(&report) != nil || decoder.Decode(new(any)) != io.EOF || report.SchemaVersion != 2 || report.ExecutorInstanceID == "" || !validCapacityCounts(report.DeclaredSlots, report.OccupiedSlots, report.AvailableSlots) || report.Census == nil || report.Census.SchemaVersion != 1 || report.Census.AuthorityDomainID == "" || report.Census.IncludedLocalExecutions == nil {
@@ -157,6 +164,11 @@ func DecodeCapacityReportV2(data []byte) (CapacityReportV2, error) {
 		seenKeys[binding.OriginalOperationKey] = struct{}{}
 	}
 	return report, nil
+}
+
+func hasExplicitCount(fields map[string]json.RawMessage, name string) bool {
+	value, ok := fields[name]
+	return ok && len(bytes.TrimSpace(value)) != 0 && !bytes.Equal(bytes.TrimSpace(value), []byte("null"))
 }
 
 // ObservationRequestV2 preserves every census identity for the authority's

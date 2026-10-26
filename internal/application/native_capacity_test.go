@@ -207,7 +207,35 @@ func TestNativeCapacityCurrentReaderAndOwnerUpgradeSlots(t *testing.T) {
 	if err := os.WriteFile(connectionPath, encoded, 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := OpenNativeCapacity(connectionPath, w); err != nil {
+	access, err := OpenNativeCapacity(connectionPath, w)
+	if err != nil {
 		t.Fatalf("authenticated current capacity reader refused schema 22: %v", err)
+	}
+	capacityPolicy := sessions.HostCapacityPolicy{SchemaVersion: 1, WorkspaceID: w.ID, InstallationID: "capacity-installation", HostID: observer.HostID, Runtime: observer.Runtime, Build: observer.Build, HostSessionID: observer.HostSessionID, ExecutorInstanceID: observer.ExecutorInstanceID, CapabilityDigest: observer.CapabilityDigest, State: sessions.CapacityKnown, RequestedSlots: 1, Freshness: 10 * time.Minute, Revision: "capacity-v2-app"}
+	terminalExpires := time.Now().Add(15 * time.Minute)
+	slotPolicy := sessions.HostSlotAdmissionPolicy{SchemaVersion: 1, Mode: sessions.HostSlotSingleAuthority, Revision: "host-slots-v2-app", AuthorityDomainID: "domain-app", WorkspaceID: w.ID, InstallationID: "capacity-installation", HostID: observer.HostID, HostSessionID: observer.HostSessionID, ExecutorInstanceID: observer.ExecutorInstanceID, Runtime: observer.Runtime, Build: observer.Build, CapabilityDigest: observer.CapabilityDigest, CapacityPolicyRevision: capacityPolicy.Revision, QualificationID: "qualified-v2-app", TerminalObservationSource: "owner-bridge-terminal", TerminalQualificationID: "terminal-v2-app", TerminalQualification: &sessions.HostSlotTerminalQualification{SchemaVersion: 1, ID: "terminal-v2-app", State: "supported", Source: "owner-bridge-terminal", EvidenceDigest: strings.Repeat("b", 64), AuthorityDomainID: "domain-app", HostID: observer.HostID, HostSessionID: observer.HostSessionID, ExecutorInstanceID: observer.ExecutorInstanceID, Runtime: observer.Runtime, Build: observer.Build, CapabilityDigest: observer.CapabilityDigest, QualifiedAt: time.Now().Add(-time.Second), ExpiresAt: terminalExpires}}
+	ownerAuthority, err := sessions.OpenHostSlots(path, binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = ownerAuthority.ConfigureHostCapacityPolicy(ownerToken, capacityPolicy); err != nil {
+		t.Fatalf("configure schema-22 capacity policy for application observation: %v", err)
+	}
+	if _, err = ownerAuthority.QualifyHostCapacity(ownerToken, sessions.HostCapacityQualification{SchemaVersion: 1, HostSessionID: observer.HostSessionID, ExecutorInstanceID: observer.ExecutorInstanceID, HostID: observer.HostID, Runtime: observer.Runtime, Build: observer.Build, CapabilityDigest: observer.CapabilityDigest, State: sessions.CapacityKnown, QualifiedSlots: 2, EvidenceDigest: strings.Repeat("c", 64), QualificationID: "qualified-v2-app", ExpiresAt: time.Now().Add(14 * time.Minute)}); err != nil {
+		t.Fatalf("qualify schema-22 capacity for application observation: %v", err)
+	}
+	if err = ownerAuthority.BindTask(ownerToken, sessions.TaskBinding{TaskID: "task-a", ProjectID: "capacity-project", Repository: w.Root, AdmissionEnabled: true}); err != nil {
+		t.Fatalf("bind owner task for schema-22 host-slot policy: %v", err)
+	}
+	swarmPolicy := sessions.SwarmPolicy{ProjectID: "capacity-project", Revision: "swarm-v2-app", Harness: "codex", CapabilityDigest: "capacity-capability", Width: 1, WIP: 1, TTL: 10 * time.Minute, Roles: []sessions.SwarmRole{{ID: "implement", Kind: "implement", Harness: "codex", Capacity: 1}, {ID: "review", Kind: "review", Harness: "codex", Capacity: 1}}, Placements: map[string]sessions.SwarmPlacement{"task-a": {Checkout: w.Root, ImplementKind: "implement", ReviewKind: "review"}}, HostSlots: &slotPolicy}
+	if err = ownerAuthority.ConfigureSwarm(ownerToken, swarmPolicy); err != nil {
+		t.Fatalf("configure owner host-slot policy for application observation: %v", err)
+	}
+	report := executor.CapacityReportV2{SchemaVersion: 2, OperationKey: "capacity-v2-through-app", HostID: observer.HostID, Runtime: observer.Runtime, Build: observer.Build, HostSessionID: observer.HostSessionID, ExecutorInstanceID: observer.ExecutorInstanceID, CapabilityDigest: observer.CapabilityDigest, Sequence: 1, DeclarationState: sessions.CapacityKnown, DeclaredSlots: 2, ObservationState: sessions.CapacityKnown, OccupiedSlots: 0, AvailableSlots: 2, ObservedAt: time.Now().Add(-time.Second).UTC(), Census: &executor.HostCapacityCensusV2{SchemaVersion: 1, AuthorityDomainID: "domain-app", IncludedLocalExecutions: []executor.HostCapacityObservationBinding{}}}
+	if _, duplicate, err := access.ObserveV2(report); err != nil || duplicate {
+		t.Fatalf("schema-2 observation through authenticated application adapter failed: duplicate=%v err=%v", duplicate, err)
+	}
+	if _, duplicate, err := access.ObserveV2(report); err != nil || !duplicate {
+		t.Fatalf("schema-2 observation receipt was not persisted for exact replay: duplicate=%v err=%v", duplicate, err)
 	}
 }
