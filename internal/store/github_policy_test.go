@@ -33,7 +33,7 @@ func TestRequiredCheckPolicyRulesetOnlyBranchProtectionOnlyAndNoProtection(t *te
 	}{
 		"ruleset only":                      {rules: []byte(`[{"type":"required_status_checks","ruleset_id":7,"parameters":{"required_status_checks":[{"context":"ci"}]}}]`), want: []string{"ci"}},
 		"paginated ruleset":                 {rules: []byte(`[[{"type":"required_status_checks","ruleset_id":8,"parameters":{"required_status_checks":[{"context":"pages"}]}}]]`), want: []string{"pages"}},
-		"legacy only":                       {legacy: []byte(`{"contexts":["build"]}`), rules: []byte(`[]`), want: []string{"build"}},
+		"legacy only":                       {legacy: []byte(`{"contexts":["build"],"checks":[]}`), rules: []byte(`[]`), want: []string{"build"}},
 		"no protection":                     {rules: []byte(`[]`), want: []string{}},
 		"non-check evaluated rules omitted": {rules: []byte(`[{"type":"pull_request","ruleset_id":9,"parameters":{}}]`), want: []string{}},
 	} {

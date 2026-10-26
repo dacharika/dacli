@@ -34,8 +34,10 @@ import (
 // Explicit issue milestone plans add only the github push --milestone-plan flag.
 // Native task claims add owner-only preview/apply commands and explicit private inputs;
 // preview is read-only, apply mutates canonical task claims, and no MCP tool is added.
+// Native reader add adds a bounded owner-only generic MCP reader with exact scope;
+// it adds no MCP tools or automatic authority migration.
 // Digest generated from the assembled CLI artifact; behavioral checks are separate.
-const capabilityRegistryGolden = "c7efc320188ed994599fec2d82fe8c14cb0cb4866687f631000cce5fcc255f28"
+const capabilityRegistryGolden = "26473708e1d32b6cd4ce1dbf0b48d4df5c3ac65a821b52482f1d4d6c6873c635"
 
 func TestCapabilityRegistryGolden(t *testing.T) {
 	m := capabilityManifest()
