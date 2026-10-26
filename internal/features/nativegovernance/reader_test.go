@@ -310,7 +310,7 @@ func TestNativeReaderPreservesIssuedActorOnPersistenceFailure(t *testing.T) {
 	readerWritePrivate = func(file *os.File, data []byte) error {
 		writes++
 		if writes == 2 {
-			return errors.New("injected persistence failure")
+			return denied()
 		}
 		return writePrivate(file, data)
 	}

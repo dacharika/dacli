@@ -131,5 +131,7 @@ func readerAdd(ctx *clikit.Ctx, args []string) error {
 }
 
 func readerPersistenceFailure(session, connection, credential string, cause error) error {
-	return fmt.Errorf("native MCP reader %s was issued but output persistence is uncertain (%v); preserve and reconcile the reserved files %q and %q with the owner authority before retrying", session, cause, connection, credential)
+	// Do not wrap the cause: writePrivate can return a policy-refusal error, but
+	// issuance already happened, so this uncertain outcome must remain exit 1.
+	return fmt.Errorf("native MCP reader %s was issued but output persistence is uncertain (%s); preserve and reconcile the reserved files %q and %q with the owner authority before retrying", session, cause.Error(), connection, credential)
 }
