@@ -344,7 +344,11 @@ func parseExactIssueMapping(block string) (int, string, error) {
 	var repo string
 	seenIssue, seenRepo := false, false
 	for _, line := range strings.Split(block, "\n") {
-		key, value, ok := strings.Cut(strings.TrimSpace(line), ":")
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		key, value, ok := strings.Cut(line, ":")
 		if !ok {
 			return 0, "", fmt.Errorf("invalid mapping line")
 		}
