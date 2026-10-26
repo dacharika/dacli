@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -110,13 +111,15 @@ func cmdExactIssueLink(ctx *clikit.Ctx, args []string) error {
 	if _, err := publicationPolicy(w, repo, p, false, false); err != nil {
 		return err
 	}
-	tasks, err := store.ListTasks(w, p.Slug, "")
+	graph, err := store.ReadCheckpointCanonical(w)
 	if err != nil {
-		return err
+		return clikit.Refusedf("complete canonical task mapping inventory unavailable: %v", err)
 	}
-	allTasks, err := store.ListTasks(w, "", "")
-	if err != nil {
-		return err
+	tasks := make([]*store.Task, 0)
+	for _, task := range graph.Tasks {
+		if task.Project == p.Slug {
+			tasks = append(tasks, task)
+		}
 	}
 	request, err := parseExactIssueSelection(f.Pos[1:])
 	if err != nil {
@@ -139,7 +142,7 @@ func cmdExactIssueLink(ctx *clikit.Ctx, args []string) error {
 		if strings.EqualFold(issue.State, "closed") || strings.Contains(issue.Body, markerPrefix) {
 			return clikit.Refusedf("issue #%d is closed or already carries a dacli projection marker", pair.number)
 		}
-		task, err := resolveExactTarget(tasks, pair.task, issue.Title)
+		task, err := resolveExactTargetFromCanonical(tasks, pair.task, issue.Title)
 		if err != nil {
 			return err
 		}
@@ -147,9 +150,6 @@ func cmdExactIssueLink(ctx *clikit.Ctx, args []string) error {
 			return clikit.Usagef("task %s is selected more than once", task.ID)
 		}
 		selectedTaskIDs[task.ID] = true
-		if err := ensureIssueMappingUnique(allTasks, task, pair.number, repo); err != nil {
-			return err
-		}
 		block, _ := task.Doc.Front.GetBlock("github")
 		alreadyLinked := block == githubBlock(pair.number, repo)
 		logEntry := fmt.Sprintf("GitHub issue #%d linked by exact selection; source sha256:%s", pair.number, exactIssueSourceDigest(repo, issue))
@@ -158,8 +158,32 @@ func cmdExactIssueLink(ctx *clikit.Ctx, args []string) error {
 		}
 		targets = append(targets, store.IssueLinkTarget{TaskID: task.ID, Project: task.Project, IssueNumber: pair.number, Repository: repo, IssueDigest: exactIssueSourceDigest(repo, issue), MappingBlock: githubBlock(pair.number, repo), LogEntry: logEntry})
 	}
+	// Selected remote reads are not a lock. Refresh the project and its exact
+	// repository/consent after the final read so a relink or consent withdrawal
+	// during preview cannot be captured as a valid plan for the old binding.
+	currentProject, err := store.LoadProject(w, p.Slug)
+	if err != nil {
+		return err
+	}
+	currentRepo, _ := currentProject.Doc.Front.Get("github_repo")
+	if currentRepo != repo {
+		return clikit.Refusedf("project repository changed while exact issues were being selected")
+	}
+	if _, err := publicationPolicy(w, repo, currentProject, false, false); err != nil {
+		return err
+	}
 	plan, err := store.PlanIssueLinkBatch(w, p.Slug, repo, targets, time.Now().UTC())
 	if err != nil {
+		return err
+	}
+	if err := store.ValidateIssueLinkBatchBindings(w, plan); err != nil {
+		return clikit.Refusedf("exact issue link mapping inventory is incomplete or conflicting: %v", err)
+	}
+	currentProject, err = store.LoadProject(w, p.Slug)
+	if err != nil {
+		return err
+	}
+	if _, err := publicationPolicy(w, repo, currentProject, false, false); err != nil {
 		return err
 	}
 	if err := writeExactIssueLinkPlan(w, plan); err != nil {
@@ -196,6 +220,29 @@ func parseExactIssueSelection(raw []string) ([]exactIssuePair, error) {
 }
 
 func resolveExactTarget(tasks []*store.Task, ref, title string) (*store.Task, error) {
+	if len(tasks) > 0 {
+		if tasks[0].Path != "" {
+			w, err := workspace.Find(tasks[0].Path)
+			if err != nil {
+				return nil, clikit.Refusedf("complete canonical task identity unavailable: %v", err)
+			}
+			graph, err := store.ReadCheckpointCanonical(w)
+			if err != nil {
+				return nil, clikit.Refusedf("complete canonical task identity unavailable: %v", err)
+			}
+			project := tasks[0].Project
+			tasks = make([]*store.Task, 0)
+			for _, task := range graph.Tasks {
+				if task.Project == project {
+					tasks = append(tasks, task)
+				}
+			}
+		}
+	}
+	return resolveExactTargetFromCanonical(tasks, ref, title)
+}
+
+func resolveExactTargetFromCanonical(tasks []*store.Task, ref, title string) (*store.Task, error) {
 	var matches []*store.Task
 	for _, task := range tasks {
 		if ref != "" && (task.ID == ref || "t-"+task.ID == ref) {
@@ -214,24 +261,25 @@ func resolveExactTarget(tasks []*store.Task, ref, title string) (*store.Task, er
 	return matches[0], nil
 }
 
+// ensureIssueMappingUnique is retained as the repository-qualified predicate
+// for focused boundary tests. Production preview/apply use the strict complete
+// canonical batch validator in store.ValidateIssueLinkBatchBindings.
 func ensureIssueMappingUnique(tasks []*store.Task, selected *store.Task, number int, repo string) error {
 	for _, task := range tasks {
-		issue := mappedIssue(task)
-		if issue == 0 {
+		block, exists := task.Doc.Front.GetBlock("github")
+		if !exists {
 			continue
 		}
-		block, _ := task.Doc.Front.GetBlock("github")
-		mappedRepo := ""
-		for _, line := range strings.Split(block, "\n") {
-			if key, val, ok := strings.Cut(strings.TrimSpace(line), ":"); ok && strings.TrimSpace(key) == "repo" {
-				mappedRepo = strings.TrimSpace(val)
+		mappedNumber, mappedRepo, err := store.ParseIssueLinkMapping(block)
+		if err != nil {
+			return clikit.Refusedf("task %s has a malformed GitHub mapping: %v", task.ID, err)
+		}
+		if task.ID == selected.ID {
+			if mappedNumber != number || !strings.EqualFold(mappedRepo, repo) {
+				return clikit.Refusedf("selected task %s already has a conflicting GitHub mapping", task.ID)
 			}
-		}
-		if issue == number && (task.ID != selected.ID || !strings.EqualFold(mappedRepo, repo)) {
+		} else if mappedNumber == number && strings.EqualFold(mappedRepo, repo) {
 			return clikit.Refusedf("issue #%d is already mapped to task %s in repository %q", number, task.ID, mappedRepo)
-		}
-		if task.ID == selected.ID && (issue != number || !strings.EqualFold(mappedRepo, repo)) {
-			return clikit.Refusedf("selected task %s already has a conflicting GitHub mapping", task.ID)
 		}
 	}
 	return nil
@@ -264,17 +312,15 @@ func refreshExactIssueBindings(w *workspace.Workspace, p *store.Project, plan st
 	if _, err := publicationPolicy(w, repo, p, false, false); err != nil {
 		return err
 	}
-	tasks, err := store.ListTasks(w, plan.Project, "")
-	if err != nil {
-		return err
-	}
-	all, err := store.ListTasks(w, "", "")
+	graph, err := store.ReadCheckpointCanonical(w)
 	if err != nil {
 		return err
 	}
 	byID := map[string]*store.Task{}
-	for _, task := range tasks {
-		byID[task.ID] = task
+	for _, task := range graph.Tasks {
+		if task.Project == plan.Project {
+			byID[task.ID] = task
+		}
 	}
 	for _, target := range plan.Targets {
 		issue, err := fetchExactIssue(w, repo, target.IssueNumber)
@@ -285,12 +331,22 @@ func refreshExactIssueBindings(w *workspace.Workspace, p *store.Project, plan st
 			return fmt.Errorf("issue #%d source body/title/state or target changed", target.IssueNumber)
 		}
 		task := byID[target.TaskID]
-		if task == nil || task.Path != target.TaskPath {
+		if task == nil || !store.SameIssueLinkPath(task.Path, target.TaskPath) {
 			return fmt.Errorf("task %s moved or disappeared", target.TaskID)
 		}
-		if err := ensureIssueMappingUnique(all, task, target.IssueNumber, repo); err != nil {
-			return err
-		}
+	}
+	// Network reads may overlap a local relink or consent withdrawal. Re-read
+	// the project and complete mapping inventory only after all selected issues
+	// have been fetched; never carry the initial project object across that gap.
+	currentProject, err := store.LoadProject(w, plan.Project)
+	if err != nil {
+		return err
+	}
+	if err := store.ValidateIssueLinkBatchBindings(w, plan); err != nil {
+		return err
+	}
+	if _, err := publicationPolicy(w, repo, currentProject, false, false); err != nil {
+		return err
 	}
 	return nil
 }
@@ -308,9 +364,9 @@ func writeExactIssueLinkPlan(w *workspace.Workspace, plan store.IssueLinkBatchPl
 	if err != nil {
 		return err
 	}
-	if old, readErr := os.ReadFile(path); readErr == nil {
+	if old, readErr := readExactIssuePrivateFile(path, 1<<20); readErr == nil {
 		var prior store.IssueLinkBatchPlan
-		if json.Unmarshal(old, &prior) != nil {
+		if decodeExactIssueJSON(old, &prior) != nil {
 			return fmt.Errorf("existing issue link plan is invalid")
 		}
 		priorJSON, _ := json.Marshal(prior)
@@ -330,12 +386,121 @@ func readExactIssueLinkPlan(w *workspace.Workspace, id string) (store.IssueLinkB
 	if decoded, err := hex.DecodeString(id); err != nil || len(id) != 64 || len(decoded) != sha256.Size {
 		return plan, fmt.Errorf("plan ID must be a SHA-256 digest")
 	}
-	data, err := os.ReadFile(exactIssuePlanPath(w, id))
+	data, err := readExactIssuePrivateFile(exactIssuePlanPath(w, id), 1<<20)
 	if err != nil {
 		return plan, err
 	}
-	if err := json.Unmarshal(data, &plan); err != nil || plan.ID != id {
+	if err := decodeExactIssueJSON(data, &plan); err != nil {
+		return plan, fmt.Errorf("plan identity mismatch: %w", err)
+	}
+	if plan.ID != id {
 		return plan, fmt.Errorf("plan identity mismatch")
 	}
 	return plan, nil
+}
+
+func readExactIssuePrivateFile(path string, max int64) ([]byte, error) {
+	f, err := openExactIssuePrivate(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("private issue-link plan must be a bounded regular file: %w", err)
+	}
+	defer f.Close()
+	opened, err := f.Stat()
+	if err != nil || !opened.Mode().IsRegular() || opened.Size() < 0 || opened.Size() > max {
+		return nil, fmt.Errorf("private issue-link plan must be a bounded regular file")
+	}
+	data, err := io.ReadAll(io.LimitReader(f, max+1))
+	if err != nil || int64(len(data)) > max {
+		return nil, fmt.Errorf("private issue-link plan exceeds its size limit")
+	}
+	after, err := f.Stat()
+	if err != nil || after.Size() != opened.Size() || !after.ModTime().Equal(opened.ModTime()) {
+		return nil, fmt.Errorf("private issue-link plan changed during read")
+	}
+	return data, nil
+}
+
+func decodeExactIssueJSON(data []byte, into any) error {
+	if err := rejectExactIssueJSONDuplicates(data); err != nil {
+		return err
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(into); err != nil {
+		return err
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("multiple JSON values")
+		}
+		return err
+	}
+	return nil
+}
+
+func rejectExactIssueJSONDuplicates(data []byte) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	var value func(json.Token) error
+	value = func(token json.Token) error {
+		delim, ok := token.(json.Delim)
+		if !ok {
+			return nil
+		}
+		switch delim {
+		case '{':
+			seen := map[string]bool{}
+			for decoder.More() {
+				keyToken, err := decoder.Token()
+				if err != nil {
+					return err
+				}
+				key, ok := keyToken.(string)
+				if !ok || seen[key] {
+					return fmt.Errorf("duplicate or invalid JSON object key")
+				}
+				seen[key] = true
+				child, err := decoder.Token()
+				if err != nil {
+					return err
+				}
+				if err := value(child); err != nil {
+					return err
+				}
+			}
+			_, err := decoder.Token()
+			return err
+		case '[':
+			for decoder.More() {
+				child, err := decoder.Token()
+				if err != nil {
+					return err
+				}
+				if err := value(child); err != nil {
+					return err
+				}
+			}
+			_, err := decoder.Token()
+			return err
+		default:
+			return fmt.Errorf("invalid JSON delimiter")
+		}
+	}
+	root, err := decoder.Token()
+	if err != nil {
+		return err
+	}
+	if err := value(root); err != nil {
+		return err
+	}
+	if _, err := decoder.Token(); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("multiple JSON values")
+		}
+		return err
+	}
+	return nil
 }

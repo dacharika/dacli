@@ -56,10 +56,19 @@ edits, comments on, or closes a GitHub issue and never imports acceptance
 criteria; use `dacli task acceptance migrate` for that separate authorized
 workflow.
 
-The selected local task files are validated and staged together before writes.
-Each selected write is durable on its own; a stopped multi-task apply can leave
-only part of the explicit selection applied. Its private recovery journal is
-under `.dacli/recovery/issue-links/`; rerun the same `--apply` plan to finish
-those selected changes. Changed task bytes are refused for owner review. This
-does not claim a distributed transaction with GitHub or an atomic multi-file
-filesystem commit.
+The project and complete canonical mapping inventory are refreshed after the
+selected issue reads and again at each local write boundary. The boundary uses
+the established native-authority-then-task-lock order. These are cooperative
+observations: the project/task store has no workspace-wide transaction, so a
+non-cooperating writer can still race the final local read. No authority lock is
+held across GitHub reads, and this workflow does not claim a distributed
+transaction with GitHub.
+
+Selected local task files are validated and staged together before writes. Each
+selected write is durable on its own; a stopped multi-task apply can leave only
+part of the explicit selection applied. Its private bounded regular-file
+recovery journal is under `.dacli/recovery/issue-links/`; rerun the same
+`--apply` plan to finish those selected changes. The journal's applied flags
+never override observed task bytes: a task restored after an applied entry is
+refused for owner review. This does not claim an atomic multi-file filesystem
+commit.

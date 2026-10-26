@@ -29,8 +29,8 @@ func exactLinkFakeGH(t *testing.T, root string) (state string) {
 S="$GH_EXACT_STATE"
 printf '%s\n' "$*" >> "$S/calls"
 case "$1 $2" in
-  "repo view") echo '{"nameWithOwner":"me/demo","visibility":"PRIVATE","defaultBranchRef":{"name":"main"}}';;
-  "issue view") n="$3"; cat "$S/issue_$n.json";;
+  "repo view") visibility="${GH_EXACT_VISIBILITY:-PRIVATE}"; echo "{\"nameWithOwner\":\"me/demo\",\"visibility\":\"$visibility\",\"defaultBranchRef\":{\"name\":\"main\"}}";;
+  "issue view") n="$3"; if [ "${GH_EXACT_MUTATE_ISSUE:-}" = "$n" ]; then cp "$GH_EXACT_MUTATE_PROJECT" "$GH_EXACT_PROJECT_PATH"; fi; cat "$S/issue_$n.json";;
   *) echo "unexpected gh call: $*" >&2; exit 19;;
 esac
 `
@@ -165,4 +165,142 @@ func TestExactIssueLinkCLISelectionDoesNotBroadenOrWriteRemote(t *testing.T) {
 	if got := fileDigest(t, tasks[3].Path); got != before[3] {
 		t.Fatalf("valid unselected task changed: %s", tasks[3].ID)
 	}
+}
+
+func TestExactIssueLinkCLIRefusesRepositoryRelinkDuringIssueRefresh(t *testing.T) {
+	dir, state, w, tasks, planID, ownerConfig := prepareExactIssueLinkCLI(t, "PRIVATE", false)
+	projectPath := w.ProjectPath("core")
+	mutated := prepareMutatedProjectFile(t, w, func(project *store.Project) {
+		project.Doc.Front.Set("github_repo", "me/other")
+	})
+	t.Setenv("GH_EXACT_MUTATE_ISSUE", "603")
+	t.Setenv("GH_EXACT_MUTATE_PROJECT", mutated)
+	t.Setenv("GH_EXACT_PROJECT_PATH", projectPath)
+	before := make([]string, len(tasks))
+	for i, task := range tasks {
+		before[i] = fileDigest(t, task.Path)
+	}
+	out := run(t, dir, 3, "github", "issue", "link", "--apply", planID, "--owner-config", ownerConfig)
+	if !strings.Contains(out, "changed") && !strings.Contains(out, "stale") {
+		t.Fatalf("apply did not report late repository binding drift: %s", out)
+	}
+	for i, task := range tasks {
+		if got := fileDigest(t, task.Path); got != before[i] {
+			t.Fatalf("selected task %s changed after late repository relink", task.ID)
+		}
+	}
+	calls, _ := os.ReadFile(filepath.Join(state, "calls"))
+	if strings.Contains(string(calls), "issue edit") || strings.Contains(string(calls), "issue create") {
+		t.Fatalf("repository drift path issued remote mutation: %s", calls)
+	}
+}
+
+func TestExactIssueLinkCLIRefusesPublicConsentRemovalDuringIssueRefresh(t *testing.T) {
+	dir, state, w, tasks, planID, ownerConfig := prepareExactIssueLinkCLI(t, "PUBLIC", true)
+	mutated := prepareMutatedProjectFile(t, w, func(project *store.Project) {
+		project.Doc.Front.Delete("github_public_confirmed")
+	})
+	t.Setenv("GH_EXACT_MUTATE_ISSUE", "603")
+	t.Setenv("GH_EXACT_MUTATE_PROJECT", mutated)
+	t.Setenv("GH_EXACT_PROJECT_PATH", w.ProjectPath("core"))
+	before := make([]string, len(tasks))
+	for i, task := range tasks {
+		before[i] = fileDigest(t, task.Path)
+	}
+	out := run(t, dir, 3, "github", "issue", "link", "--apply", planID, "--owner-config", ownerConfig)
+	if !strings.Contains(out, "changed") && !strings.Contains(out, "consent") && !strings.Contains(out, "stale") {
+		t.Fatalf("apply did not report public consent withdrawal: %s", out)
+	}
+	for i, task := range tasks {
+		if got := fileDigest(t, task.Path); got != before[i] {
+			t.Fatalf("selected task %s changed after public consent withdrawal", task.ID)
+		}
+	}
+	calls, _ := os.ReadFile(filepath.Join(state, "calls"))
+	if strings.Contains(string(calls), "issue edit") || strings.Contains(string(calls), "issue create") {
+		t.Fatalf("consent withdrawal path issued remote mutation: %s", calls)
+	}
+}
+
+func prepareExactIssueLinkCLI(t *testing.T, visibility string, allowPublic bool) (string, string, *workspace.Workspace, []*store.Task, string, string) {
+	t.Helper()
+	dir := t.TempDir()
+	state := exactLinkFakeGH(t, dir)
+	t.Setenv("GH_EXACT_VISIBILITY", visibility)
+	run(t, dir, 0, "init", "--name", "late-binding")
+	run(t, dir, 0, "project", "add", "Core", "--slug", "core", "--goal", "selected issue link")
+	titles := []string{"Map quota settings", "Document retry behavior", "Inspect stale token flow"}
+	for i, title := range titles {
+		run(t, dir, 0, "task", "add", title, "--project", "core", "--accept", fmt.Sprintf("criterion %d remains local", i+1))
+	}
+	linkArgs := []string{"github", "link", "core"}
+	if allowPublic {
+		linkArgs = append(linkArgs, "--allow-public")
+	}
+	run(t, dir, 0, linkArgs...)
+	w, err := workspace.Find(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tasks, err := store.ListTasks(w, "core", "")
+	if err != nil || len(tasks) != 3 {
+		t.Fatalf("tasks=%d err=%v", len(tasks), err)
+	}
+	args := []string{"github", "issue", "link", "core"}
+	for i, task := range tasks {
+		args = append(args, fmt.Sprintf("%d=%s", 601+i, task.ID))
+	}
+	args = append(args, "--dry-run")
+	out := run(t, dir, 0, args...)
+	fields := strings.Fields(out)
+	if len(fields) < 5 || len(fields[4]) != 64 {
+		t.Fatalf("cannot parse immutable plan ID: %s", out)
+	}
+	authorityPath := filepath.Join(dir, "native-authority.json")
+	authority, err := sessions.Open(authorityPath, sessions.Binding{Workspace: w.ID, Installation: "exact-issue-link-late-test"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownerToken, err := authority.Bootstrap()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownerCredential := filepath.Join(dir, "owner.token")
+	if err := os.WriteFile(ownerCredential, []byte(ownerToken), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ownerConfig := filepath.Join(dir, "owner.json")
+	configRaw, _ := json.Marshal(map[string]any{"schema_version": 1, "workspace": w.Root, "authority": authorityPath, "installation_id": "exact-issue-link-late-test", "owner_credential_file": ownerCredential})
+	if err := os.WriteFile(ownerConfig, configRaw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return dir, state, w, tasks, fields[4], ownerConfig
+}
+
+func prepareMutatedProjectFile(t *testing.T, w *workspace.Workspace, mutate func(*store.Project)) string {
+	t.Helper()
+	project, err := store.LoadProject(w, "core")
+	if err != nil {
+		t.Fatal(err)
+	}
+	original, err := os.ReadFile(project.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mutate(project)
+	if err := store.SaveProject(project); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := os.ReadFile(project.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	copy := filepath.Join(t.TempDir(), "mutated-project.md")
+	if err := os.WriteFile(copy, changed, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(project.Path, original, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return copy
 }

@@ -21,6 +21,7 @@ func TestNativeIssueLinkApplyRechecksRetainedTaskLeaseAfterPreview(t *testing.T)
 	if _, err := store.CreateProject(w, "a-root", "Project", "p", "goal", ""); err != nil {
 		t.Fatal(err)
 	}
+	linkProjectForIssueTest(t, w)
 	task, err := store.CreateTask(w, "a-root", "p", "Task protected after preview", store.TaskOpts{Accept: []string{"keep"}})
 	if err != nil {
 		t.Fatal(err)
@@ -105,6 +106,7 @@ func TestNativeIssueLinkApplyPreservesAcceptanceAndReplays(t *testing.T) {
 	if _, err := store.CreateProject(w, "a-root", "Project", "p", "goal", ""); err != nil {
 		t.Fatal(err)
 	}
+	linkProjectForIssueTest(t, w)
 	task, err := store.CreateTask(w, "a-root", "p", "Existing task", store.TaskOpts{Accept: []string{"local criterion"}})
 	if err != nil {
 		t.Fatal(err)
@@ -164,5 +166,17 @@ func TestNativeIssueLinkApplyPreservesAcceptanceAndReplays(t *testing.T) {
 	}
 	if string(first) != string(second) || strings.Count(string(second), "source sha256:"+strings.Repeat("a", 64)) != 1 {
 		t.Fatal("idempotent replay changed task bytes or duplicated history")
+	}
+}
+
+func linkProjectForIssueTest(t *testing.T, w *workspace.Workspace) {
+	t.Helper()
+	project, err := store.LoadProject(w, "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	project.Doc.Front.Set("github_repo", "owner/repo")
+	if err := store.SaveProject(project); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -51,12 +51,14 @@ func (p *NativeIssueLinkOwner) Apply(plan store.IssueLinkBatchPlan) error {
 	if err != nil {
 		return sessions.ErrDenied
 	}
-	return store.ApplyIssueLinkBatch(p.root, plan, func(taskID string, commit func() error) error {
+	return store.ApplyIssueLinkBatchWithValidation(p.root, plan, func(taskID string, commit func() error) error {
 		return authority.WithOwnerTaskClaimsProtection(owner, taskID, func(protection sessions.TaskClaimsProtection) error {
 			if protection.TaskID != taskID || len(protection.Holds) != 0 {
 				return fmt.Errorf("native task protection unavailable or retained for %s: %v", taskID, protection.Holds)
 			}
 			return commit()
 		})
+	}, func() error {
+		return store.ValidateIssueLinkBatchBindings(p.root, plan)
 	})
 }
