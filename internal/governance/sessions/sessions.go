@@ -496,7 +496,9 @@ func decodeAuthorityStateMode(data []byte, binding Binding, version int, strict 
 	if decoded != nil || (s.Version != version && !((version >= 6 && version <= 12) && s.Version >= version && s.Version <= 19)) || s.Binding != binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version >= 3 && (s.Leases == nil || s.Operations == nil)) || (s.Version >= 4 && (s.Revisions == nil || s.Grants == nil || s.Evidence == nil)) || (s.Version >= 5 && (s.ReviewGrants == nil || s.Reviews == nil)) || (s.Version >= 6 && (s.PublicationPolicies == nil || s.PublicationDecisions == nil || s.PublicationConsumed == nil)) {
 		return state{}, ErrStorage
 	}
-	// Mutation check: disabled the explicit-presence guard.
+	if s.Version < 22 && authorityHasSchema22Fields(data) {
+		return state{}, ErrStorage
+	}
 	if e := validateAuthorityMaps(&s); e != nil {
 		return state{}, e
 	}
