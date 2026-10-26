@@ -35,3 +35,31 @@ GitHub does not provide a transaction that atomically checks the complete task
 and issue snapshot while editing it. A real push revalidates the plan before
 writing, but a remote human edit can still race between that read and the
 individual issue edit.
+
+## Link existing issues to canonical tasks
+
+Use `dacli github issue link <project> <issue-number[=task-id]>... --dry-run`
+to preview an exact selection of existing GitHub issues and existing canonical
+tasks. Each issue number appears once and each task is named once. A task ID may
+be omitted only when the issue title has one exact match in the configured
+project. The preview fetches only the selected issues, resolves the linked
+repository and visibility, and saves a digested plan under
+`.dacli/plans/issue-links/`.
+
+Apply with `dacli github issue link --apply <plan-id> --owner-config <private-owner-file>`.
+Apply refreshes the repository/project binding, public
+task-only consent, selected issue bodies and titles, and selected task bytes.
+It refuses stale or conflicting mappings, ambiguous/missing targets, and
+retained native leases or reservations. It writes the `github` mapping and a
+task-log provenance line containing the issue-body digest. It never creates,
+edits, comments on, or closes a GitHub issue and never imports acceptance
+criteria; use `dacli task acceptance migrate` for that separate authorized
+workflow.
+
+The selected local task files are validated and staged together before writes.
+Each selected write is durable on its own; a stopped multi-task apply can leave
+only part of the explicit selection applied. Its private recovery journal is
+under `.dacli/recovery/issue-links/`; rerun the same `--apply` plan to finish
+those selected changes. Changed task bytes are refused for owner review. This
+does not claim a distributed transaction with GitHub or an atomic multi-file
+filesystem commit.
