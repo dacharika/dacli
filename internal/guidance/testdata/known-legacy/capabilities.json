@@ -1,0 +1,198 @@
+{
+  "schema_version": 1,
+  "generated_by_version": "dacli-capability-manifest/v1",
+  "required": [
+    {"id": "cli.command.agents", "schema_version": 1},
+    {"id": "cli.command.agents.flag.project", "schema_version": 1},
+    {"id": "cli.command.agents.flag.tail", "schema_version": 1},
+    {"id": "cli.command.capabilities", "schema_version": 1},
+    {"id": "cli.command.capabilities.flag.json", "schema_version": 1},
+    {"id": "cli.command.claim.expand", "schema_version": 1},
+    {"id": "cli.command.claim.expand.flag.add", "schema_version": 1},
+    {"id": "cli.command.claim.expand.flag.reason", "schema_version": 1},
+    {"id": "cli.command.claim.expand.flag.run", "schema_version": 1},
+    {"id": "cli.command.claim.expand.flag.task", "schema_version": 1},
+    {"id": "cli.command.critical-path", "schema_version": 1},
+    {"id": "cli.command.critical-path.flag.project", "schema_version": 1},
+    {"id": "cli.command.doctor", "schema_version": 1},
+    {"id": "cli.command.explain", "schema_version": 1},
+    {"id": "cli.command.explain.flag.project", "schema_version": 1},
+    {"id": "cli.command.github.doctor", "schema_version": 1},
+    {"id": "cli.command.github.link", "schema_version": 1},
+    {"id": "cli.command.github.link.flag.allow-public", "schema_version": 1},
+    {"id": "cli.command.github.projection", "schema_version": 1},
+    {"id": "cli.command.github.pull", "schema_version": 1},
+    {"id": "cli.command.github.pull.flag.dry-run", "schema_version": 1},
+    {"id": "cli.command.github.push", "schema_version": 1},
+    {"id": "cli.command.github.push.flag.dry-run", "schema_version": 1},
+    {"id": "cli.command.github.sync", "schema_version": 1},
+    {"id": "cli.command.github.sync.flag.dry-run", "schema_version": 1},
+    {"id": "cli.command.logs", "schema_version": 1},
+    {"id": "cli.command.logs.flag.short-f", "schema_version": 1},
+    {"id": "cli.command.loop", "schema_version": 1},
+    {"id": "cli.command.loop.flag.advise", "schema_version": 1},
+    {"id": "cli.command.loop.flag.dry-run", "schema_version": 1},
+    {"id": "cli.command.loop.flag.harness", "schema_version": 1},
+    {"id": "cli.command.loop.flag.max-cycles", "schema_version": 1},
+    {"id": "cli.command.loop.flag.max-tokens", "schema_version": 1},
+    {"id": "cli.command.loop.flag.token-window", "schema_version": 1},
+    {"id": "cli.command.loop.flag.width", "schema_version": 1},
+    {"id": "cli.command.loop.flag.window-tokens", "schema_version": 1},
+    {"id": "cli.command.loop.status", "schema_version": 1},
+    {"id": "cli.command.loop.status.flag.json", "schema_version": 1},
+    {"id": "cli.command.loop.status.flag.project", "schema_version": 1},
+    {"id": "cli.command.next", "schema_version": 1},
+    {"id": "cli.command.next.flag.critical-path", "schema_version": 1},
+    {"id": "cli.command.next.flag.parallel", "schema_version": 1},
+    {"id": "cli.command.next.flag.project", "schema_version": 1},
+    {"id": "cli.command.preflight", "schema_version": 1},
+    {"id": "cli.command.preflight.flag.role", "schema_version": 1},
+    {"id": "cli.command.pr", "schema_version": 1},
+    {"id": "cli.command.pr.diagnose", "schema_version": 1},
+    {"id": "cli.command.pr.diagnose.flag.task", "schema_version": 1},
+    {"id": "cli.command.pr.flag.dry-run", "schema_version": 1},
+    {"id": "cli.command.pr.flag.task", "schema_version": 1},
+    {"id": "cli.command.pr.flag.with-verdicts", "schema_version": 1},
+    {"id": "cli.command.pr.status", "schema_version": 1},
+    {"id": "cli.command.pr.status.flag.task", "schema_version": 1},
+    {"id": "cli.command.project.show", "schema_version": 1},
+    {"id": "cli.command.project.show.flag.landing-base", "schema_version": 1},
+    {"id": "cli.command.project.show.flag.landing-mode", "schema_version": 1},
+    {"id": "cli.command.push", "schema_version": 1},
+    {"id": "cli.command.runs.list", "schema_version": 1},
+    {"id": "cli.command.runs.show", "schema_version": 1},
+    {"id": "cli.command.runtime.doctor", "schema_version": 1},
+    {"id": "cli.command.ship", "schema_version": 1},
+    {"id": "cli.command.ship.flag.dry-run", "schema_version": 1},
+    {"id": "cli.command.ship.flag.into", "schema_version": 1},
+    {"id": "cli.command.ship.flag.pr", "schema_version": 1},
+    {"id": "cli.command.ship.flag.project", "schema_version": 1},
+    {"id": "cli.command.ship.flag.tasks", "schema_version": 1},
+    {"id": "cli.command.ship.flag.verify", "schema_version": 1},
+    {"id": "cli.command.spawn", "schema_version": 1},
+    {"id": "cli.command.spawn.flag.advise", "schema_version": 1},
+    {"id": "cli.command.spawn.flag.claim", "schema_version": 1},
+    {"id": "cli.command.spawn.flag.detach", "schema_version": 1},
+    {"id": "cli.command.spawn.flag.harness", "schema_version": 1},
+    {"id": "cli.command.spawn.flag.max-tokens", "schema_version": 1},
+    {"id": "cli.command.spawn.flag.role", "schema_version": 1},
+    {"id": "cli.command.spawn.flag.task", "schema_version": 1},
+    {"id": "cli.command.spawn.flag.worktree", "schema_version": 1},
+    {"id": "cli.command.start", "schema_version": 1},
+    {"id": "cli.command.start.flag.configure", "schema_version": 1},
+    {"id": "cli.command.start.flag.dry-run", "schema_version": 1},
+    {"id": "cli.command.start.flag.harness", "schema_version": 1},
+    {"id": "cli.command.start.flag.json", "schema_version": 1},
+    {"id": "cli.command.start.flag.profile", "schema_version": 1},
+    {"id": "cli.command.start.flag.project", "schema_version": 1},
+    {"id": "cli.command.start.flag.show", "schema_version": 1},
+    {"id": "cli.command.start.flag.width", "schema_version": 1},
+    {"id": "cli.command.status", "schema_version": 1},
+    {"id": "cli.command.status.flag.project", "schema_version": 1},
+    {"id": "cli.command.sync", "schema_version": 1},
+    {"id": "cli.command.task.check", "schema_version": 1},
+    {"id": "cli.command.task.check.flag.n", "schema_version": 1},
+    {"id": "cli.command.task.depend", "schema_version": 1},
+    {"id": "cli.command.task.depend.flag.add", "schema_version": 1},
+    {"id": "cli.command.task.depend.flag.remove", "schema_version": 1},
+    {"id": "cli.command.task.estimate", "schema_version": 1},
+    {"id": "cli.command.task.estimate.flag.estimate", "schema_version": 1},
+    {"id": "cli.command.task.list", "schema_version": 1},
+    {"id": "cli.command.task.list.flag.project", "schema_version": 1},
+    {"id": "cli.command.task.list.flag.status", "schema_version": 1},
+    {"id": "cli.command.task.show", "schema_version": 1},
+    {"id": "cli.command.team.assign", "schema_version": 1},
+    {"id": "cli.command.version", "schema_version": 1},
+    {"id": "cli.command.version.flag.compatibility", "schema_version": 1},
+    {"id": "cli.command.version.flag.json", "schema_version": 1},
+    {"id": "cli.command.wait", "schema_version": 1},
+    {"id": "cli.command.whoami", "schema_version": 1}
+  ],
+  "optional": [
+    {
+      "id": "cli.command.accept.flag.allow-unobservable-check-policy",
+      "schema_version": 1,
+      "fallback": "Do not close while GitHub required-check policy is unreadable; repair repository/ruleset access and rerun acceptance."
+    },
+    {
+      "id": "cli.command.adopt",
+      "schema_version": 1,
+      "fallback": "Inspect the repository stack and configure verification policy explicitly; refuse to guess commands for an unknown or stale codebase map."
+    },
+    {
+      "id": "cli.command.task.acceptance.migrate",
+      "schema_version": 1,
+      "fallback": "Require the mapped issue's acceptance criteria to be corrected before adoption, or preserve the existing local criteria without rewriting them."
+    },
+    {
+      "id": "cli.command.task.acceptance.migrate.flag.dry-run",
+      "schema_version": 1,
+      "fallback": "Do not migrate acceptance without an immutable preview; preserve the existing criteria."
+    },
+    {
+      "id": "cli.command.task.acceptance.migrate.flag.apply",
+      "schema_version": 1,
+      "fallback": "Do not migrate acceptance without exact-plan apply; preserve the existing criteria."
+    },
+    {
+      "id": "cli.command.cleanup",
+      "schema_version": 1,
+      "fallback": "Do not delete worktrees, branches, or run artifacts automatically; preserve them for an owner-reviewed manual audit."
+    },
+    {
+      "id": "cli.command.slice.add",
+      "schema_version": 1,
+      "fallback": "Create a normal child task with --parent and track its branch and PR manually; do not reuse a parent branch across deliveries."
+    },
+    {
+      "id": "cli.command.task.progress",
+      "schema_version": 1,
+      "fallback": "List the parent's child tasks and verify each acceptance, exact branch head, PR, merge commit, and cleanup state independently."
+    },
+    {
+      "id": "cli.command.pr.flag.slice",
+      "schema_version": 1,
+      "fallback": "Resolve the typed slice child task and pass it with --task; ensure the PR body only references, and never closes, the parent issue."
+    },
+    {
+      "id": "cli.command.task.check.flag.verify",
+      "schema_version": 1,
+      "fallback": "Run the verification command directly, preserve its output, then use task check without --verify only when the acceptance contract permits manual evidence."
+    },
+    {
+      "id": "cli.command.start.flag.hybrid",
+      "schema_version": 1,
+      "fallback": "Use one explicitly selected harness; do not silently switch coding CLIs."
+    },
+    {
+      "id": "cli.command.pr.wait",
+      "schema_version": 1,
+      "fallback": "Run pr diagnose --task <ref> repeatedly only inside an explicit finite timeout while its typed result is retryable; stop on exit 3."
+    },
+    {
+      "id": "cli.command.pr.wait.flag.task",
+      "schema_version": 1,
+      "fallback": "Use the required pr diagnose --task contract for the exact task PR."
+    },
+    {
+      "id": "cli.command.pr.wait.flag.timeout",
+      "schema_version": 1,
+      "fallback": "Impose an external finite observation deadline; never poll indefinitely."
+    },
+    {
+      "id": "cli.command.pr.land",
+      "schema_version": 1,
+      "fallback": "Use the required ship --project <project> --tasks <ref> --pr --verify <command> transaction after checks; do not implement a separate merge path."
+    },
+    {
+      "id": "cli.command.branches.audit",
+      "schema_version": 1,
+      "fallback": "Use cleanup --project <project> --dry-run and retain its exact plan id."
+    },
+    {
+      "id": "cli.command.branches.prune",
+      "schema_version": 1,
+      "fallback": "Use cleanup --project <project> --apply-safe <plan-id>; never delete branches directly."
+    }
+  ]
+}

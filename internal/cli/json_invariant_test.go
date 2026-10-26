@@ -21,6 +21,10 @@ import (
 // so no command can quietly claim --json support. Adding an entry is the
 // deliberate act that says "I checked: this command honors --json."
 var jsonHonoringCommands = map[string]bool{
+	"native guidance diagnose": true, "native guidance refresh-preview": true, "native guidance refresh-apply": true,
+	"native capacity upgrade": true, "native capacity observer add": true, "native capacity policy configure": true,
+	"native capacity qualify": true, "native capacity observe": true, "native capacity status": true,
+	"github issue link":          true,
 	"operator serve":             true,
 	"native task claims preview": true, "native task claims apply": true,
 	"role registry import": true, "role registry verify": true, "role registry pin": true,

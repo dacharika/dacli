@@ -29,6 +29,11 @@ live JSON support before parsing output. A required capability gap means this
 skill and binary do not match; do not invent a fallback launcher. Older released
 v0.3.1 binaries do not contain the native plugin preview.
 
+Diagnose selected installation files with `dacli native doctor --plugin-manifest <manifest> --runtime-capabilities <manifest> --skill-root <absolute-dir> --json` or `dacli native guidance diagnose --runtime-capabilities <manifest> --skill-root <absolute-dir> --json`. Known legacy, current, customized, conflicting and missing copies are distinct. A supplied capability manifest describes declared requirements; it does not prove an executable, running process or cached connection supports them. A manifest digest is not an executable digest.
+
+For an exact reviewed legacy copy, the owner creates and inspects a private plan with `dacli native guidance refresh-preview --config <owner> --skill-root <absolute-dir> --plan-out <private-file> --json`, then applies it with `dacli native guidance refresh-apply --config <owner> --plan <private-file> --json`. Both require explicit owner authentication; apply preserves byte-exact private backups and changes only allowlisted instruction assets. Customized or unrecognized content stays preserved. Partial progress retains a recovery identity. These owner operations are local only, including through the legacy MCP CLI escape hatch. File refresh cannot hot-reload this chat: the host owner must reselect/restart its process and observe fresh identity and tool discovery.
+
+
 ## Native task workflow
 
 Use the reviewed [Codex plugin setup](https://github.com/mlnomadpy/dacli/blob/main/plugins/codex/README.md).

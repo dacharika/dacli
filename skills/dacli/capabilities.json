@@ -155,7 +155,79 @@
       "schema_version": 1
     },
     {
+      "id": "cli.command.native.doctor",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.doctor.flag.json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.doctor.flag.plugin-manifest",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.doctor.flag.runtime-capabilities",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.doctor.flag.skill-root",
+      "schema_version": 1
+    },
+    {
       "id": "cli.command.native.enroll",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.guidance.diagnose",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.guidance.diagnose.flag.json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.guidance.diagnose.flag.runtime-capabilities",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.guidance.diagnose.flag.skill-root",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.guidance.refresh-apply",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.guidance.refresh-apply.flag.config",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.guidance.refresh-apply.flag.json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.guidance.refresh-apply.flag.plan",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.guidance.refresh-preview",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.guidance.refresh-preview.flag.config",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.guidance.refresh-preview.flag.json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.guidance.refresh-preview.flag.plan-out",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.guidance.refresh-preview.flag.skill-root",
       "schema_version": 1
     },
     {

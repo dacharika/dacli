@@ -1,0 +1,1 @@
+Captured from selected dacli capabilities --json at source commit 0199f0d1f710b13460fff2a14514fdc94742986. The host-specific executable path is normalized to selected-runtime; command ids, schemas, flags, JSON and mutation declarations are unchanged. This fixture verifies CLI examples only and is not live host qualification.

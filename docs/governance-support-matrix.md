@@ -100,3 +100,10 @@ The source checks establish the committed contracts and fixtures only. To
 inspect a real selected profile, an owner must supply that profile to
 `dacli native serve` or the documented host-specific probe; never edit a live
 authority to make a version or host appear supported.
+
+
+### Capacity facts and current guidance
+
+#1228 adds exact21 host-capacity facts and an explicit owner20→21 upgrade. Current source selection is6–21, while legacy compatibility/doctor authentication remains deliberately bounded6–19 and signed-role exact20 readers retain their own boundary. Unknown21 fields and unknown20 migration input refuse. New owner/scoped capacity commands do not activate live21 or admit additional workers. The live workspace remains10.
+
+#1213 diagnoses reviewed instruction bytes and declared capability manifests. A supplied manifest is unverified runtime metadata; fresh process and cached connection state remain unknown until separately observed. Both refresh preview and apply require explicit owner configuration and are local-only. File replacement preserves checked private backups and recovery identity; it does not reconnect a host. No current App Server or Antigravity qualification is inferred.

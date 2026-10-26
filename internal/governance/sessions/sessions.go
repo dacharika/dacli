@@ -11,11 +11,13 @@
 package sessions
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -104,26 +106,31 @@ type state struct {
 	DispatchIntents          map[string]DispatchIntent
 	DispatchIntentOperations map[string]DispatchIntentReceipt
 
-	SwarmPolicies        map[string]SwarmPolicy
-	Dispatches           map[string]DispatchReservation
-	SwarmOperations      map[string]SwarmReceipt
-	Version              int
-	Binding              Binding
-	OwnerHash            string
-	Sessions             map[string]record
-	Tasks                map[string]TaskBinding
-	Attempts             map[string]Attempt
-	Leases               map[string]Lease
-	Operations           map[string]operation
-	Fence                uint64
-	Revisions            map[string][]AttemptRevision
-	Grants               map[string]VerificationGrant
-	Evidence             map[string]Evidence
-	ReviewGrants         map[string]ReviewGrant
-	Reviews              map[string]Review
-	PublicationPolicies  map[string][]PublicationPolicy
-	PublicationDecisions map[string]PublicationDecision
-	PublicationConsumed  map[string]PublicationConsumption
+	SwarmPolicies   map[string]SwarmPolicy
+	Dispatches      map[string]DispatchReservation
+	SwarmOperations map[string]SwarmReceipt
+
+	CapacityPolicies       map[string]HostCapacityPolicy
+	CapacityObservers      map[string]HostCapacityObserver
+	CapacityObservations   map[string]HostCapacityObservation
+	CapacityQualifications map[string]HostCapacityQualification
+	Version                int
+	Binding                Binding
+	OwnerHash              string
+	Sessions               map[string]record
+	Tasks                  map[string]TaskBinding
+	Attempts               map[string]Attempt
+	Leases                 map[string]Lease
+	Operations             map[string]operation
+	Fence                  uint64
+	Revisions              map[string][]AttemptRevision
+	Grants                 map[string]VerificationGrant
+	Evidence               map[string]Evidence
+	ReviewGrants           map[string]ReviewGrant
+	Reviews                map[string]Review
+	PublicationPolicies    map[string][]PublicationPolicy
+	PublicationDecisions   map[string]PublicationDecision
+	PublicationConsumed    map[string]PublicationConsumption
 }
 
 // Authority contains no cached authority snapshot; each operation reloads under lock.
@@ -131,6 +138,7 @@ type Authority struct {
 	path            string
 	binding         Binding
 	version         int
+	strictRead      bool
 	admission       LeaseAdmission
 	reviewObserver  ReviewObserver
 	persistOverride func([]byte) error // private fault-injection seam; nil uses atomic file persistence
@@ -174,7 +182,7 @@ func OpenCurrent(path string, binding Binding, admission ...LeaseAdmission) (*Au
 	var version struct {
 		Version int
 	}
-	if json.Unmarshal(data, &version) != nil || version.Version < 6 || version.Version > 20 {
+	if json.Unmarshal(data, &version) != nil || version.Version < 6 || version.Version > 21 {
 		return nil, ErrStorage
 	}
 	a.version = version.Version
@@ -264,12 +272,15 @@ func (a *Authority) transaction(create bool, write bool, fn func(*state) error) 
 	if a.version >= 7 {
 		initializeSwarms(&s)
 	}
+	if a.version >= 21 {
+		initializeCapacity(&s)
+	}
 	data, err := readAuthority(a.path, create)
 	if err != nil {
 		return err
 	}
 	if !create {
-		s, err = decodeAuthorityState(data, a.binding, a.version)
+		s, err = decodeAuthorityStateMode(data, a.binding, a.version, a.strictRead || a.version >= 21)
 		if err != nil {
 			return err
 		}
@@ -459,8 +470,29 @@ func (a *Authority) Revoke(owner, id string) error {
 
 // decodeAuthorityState shares the exact supported schema interpreter with bounded readers.
 func decodeAuthorityState(data []byte, binding Binding, version int) (state, error) {
+	return decodeAuthorityStateMode(data, binding, version, version >= 21)
+}
+
+func decodeAuthorityStateMode(data []byte, binding Binding, version int, strict bool) (state, error) {
 	var s state
-	if json.Unmarshal(data, &s) != nil || (s.Version != version && !((version >= 6 && version <= 12) && s.Version >= version && s.Version <= 19)) || s.Binding != binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version >= 3 && (s.Leases == nil || s.Operations == nil)) || (s.Version >= 4 && (s.Revisions == nil || s.Grants == nil || s.Evidence == nil)) || (s.Version >= 5 && (s.ReviewGrants == nil || s.Reviews == nil)) || (s.Version >= 6 && (s.PublicationPolicies == nil || s.PublicationDecisions == nil || s.PublicationConsumed == nil)) {
+	var decoded error
+	if strict {
+		decoder := json.NewDecoder(bytes.NewReader(data))
+		decoder.DisallowUnknownFields()
+		decoded = decoder.Decode(&s)
+		if decoded == nil {
+			if trailingErr := decoder.Decode(new(any)); trailingErr != io.EOF {
+				if trailingErr == nil {
+					decoded = ErrStorage
+				} else {
+					decoded = trailingErr
+				}
+			}
+		}
+	} else {
+		decoded = json.Unmarshal(data, &s)
+	}
+	if decoded != nil || (s.Version != version && !((version >= 6 && version <= 12) && s.Version >= version && s.Version <= 19)) || s.Binding != binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version >= 3 && (s.Leases == nil || s.Operations == nil)) || (s.Version >= 4 && (s.Revisions == nil || s.Grants == nil || s.Evidence == nil)) || (s.Version >= 5 && (s.ReviewGrants == nil || s.Reviews == nil)) || (s.Version >= 6 && (s.PublicationPolicies == nil || s.PublicationDecisions == nil || s.PublicationConsumed == nil)) {
 		return state{}, ErrStorage
 	}
 	if e := validateAuthorityMaps(&s); e != nil {
@@ -469,6 +501,16 @@ func decodeAuthorityState(data []byte, binding Binding, version int) (state, err
 	return s, nil
 }
 func validateAuthorityMaps(s *state) error {
+	if s.Version < 21 && (s.CapacityPolicies != nil || s.CapacityObservers != nil || s.CapacityObservations != nil || s.CapacityQualifications != nil) {
+		return ErrStorage
+	}
+	if s.Version >= 21 && (s.CapacityPolicies == nil || s.CapacityObservers == nil || s.CapacityObservations == nil || s.CapacityQualifications == nil) {
+		return ErrStorage
+	}
+	if s.Version >= 21 && validateHostCapacityState(s) != nil {
+		return ErrStorage
+	}
+
 	if s.Version < 19 && (s.NativeExternalPolicies != nil || s.NativeExternalHistory != nil || s.NativeExternalOperations != nil) {
 		return ErrStorage
 	}

@@ -164,3 +164,71 @@ Until that exact checklist is completed and owner-recorded, report those
 capabilities as `unqualified` or `unsupported`. Codex is the current manual
 compatibility target; other hosts require their own qualification. No live host
 execution was performed for this contract.
+
+## Four independent facts
+
+Schema 1 keeps these values separate:
+
+1. **Requested concurrency** is an owner configured policy for one exact
+   workspace, installation, host, runtime, build, and host session.
+2. **Host declaration** is the selected host's stated slot total.
+3. **Observed capacity** is a fresh observer report of occupied and available
+   slots. A known zero is different from unknown or unsupported.
+4. **Qualified concurrency** is a separately owner authenticated qualification
+   with an evidence digest and expiry. An observer cannot qualify itself.
+
+Each fact has an explicit `known`, `unknown`, or `unsupported` state. Readers
+may diagnose `stale` and `contradictory` combinations. Unknown, unsupported,
+stale, contradictory, or unqualified facts never produce positive capacity
+evidence. The aggregate classification is informational and is not scheduler
+admission.
+
+The `consistency_state` diagnostic is independent from freshness, so a stale
+observation can still report whether its declared and measured totals agreed.
+
+## Observation identity and freshness
+
+An owner enrolls a separate observer session for an exact host, runtime, build,
+capability digest, observed executor process instance, and existing executor
+host session. The process instance is explicit and is not inferred from the
+host label, build, or authority session ID. The observer credential has only
+the `capacity.observe` action and exact host/instance/workspace/session
+resources. The executor host session is not the observer principal. Both
+session ancestry and the observer enrollment are checked again for each write
+and read. Policy, observations, and independent qualification bind the same
+instance. A replacement instance cannot inherit the previous instance's
+qualification or observations.
+
+An observation binds the same host/runtime/build/session/instance/digest, an
+immutable operation key, a strictly increasing sequence, and source time. The authority
+sets received time. Identical operation replay returns the old receipt and
+does not refresh freshness; changed replay, stale sequence, future source time,
+identity substitution, revocation, expiry, negative values, and arithmetic
+overflow are refused. A mismatch between the declared total and the observed
+occupied plus available count is retained as contradictory evidence and is
+never positive.
+
+The adapter contract contains no bearer credentials. Credentials, owner
+enrollment, persistence, locking, and replay checks remain in the sessions
+authority. The `executor` package depends on `sessions`; `sessions` does not
+depend on `executor`.
+
+## Schema and compatibility
+
+Capacity facts require authority schema 21. Existing schema 20 is opened with
+its exact reader and can be upgraded only through the explicit owner-authenticated
+20-to-21 migration. The migration refuses unknown source fields before
+rewriting schema 20. Schema-21 readers refuse unknown top-level and nested
+fields, future versions, and missing required capacity collections. Incoming
+owner contract versions other than the supported version are refused. That
+migration initializes the four capacity collections and preserves all
+existing records. An already-open schema-20 handle continues
+to refuse schema 21. `OpenCurrent` selects the exact current schema; legacy
+`Open` remains bounded at schema 19. Schema 6 through 19 compatibility remains
+bounded by each reader's explicit version gates. No authority is upgraded on
+open.
+
+Schema 10 is the currently observed live authority and is not migrated by this
+feature. Its existing manual host workflow remains manual. Schema-21 support
+here is source and fixture behavior only; it does not prove a live host
+observer, install an observer, or change dispatch/admission authority.

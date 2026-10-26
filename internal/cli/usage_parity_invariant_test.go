@@ -14,6 +14,7 @@ import (
 // cannot exercise their optional flags or explanatory continuation. Keep each
 // exception here rather than weakening the invariant for every command.
 var handlerUsageVariants = map[string]string{
+	"github issue link": "dacli github issue link <project> <issue-number[=task-id]>... --dry-run",
 	"new":               "dacli new \"<product name>\" --goal \"<what it is>\" [--slug s] [--stack go|python|typescript|rust|auto] [--template solo|standard|product] [--out-of-scope x]... [--success \"criterion\"]... [--no-ci] [--gitignore-workspace]",
 	"project add":       "dacli project add <title> [--slug s] [--goal g] [--stage definition|elicitation|approach|design]",
 	"project show":      "dacli project show <slug>",
@@ -39,7 +40,8 @@ var handlerUsageProbes = map[string]bool{
 // only knows its own flags, while the command table must still advertise every
 // flag forwarded by the composite command.
 var exactUsageExtensions = map[string]string{
-	"github sync": "dacli github sync <project> [task-ref...] [--since <dur>] [--findings-as-issues] [--with-tasks] [--include-internal] [--dry-run] [--limit N] [--cursor N] [--include-acceptance]",
+	"github issue link": "dacli github issue link <project> <issue-number[=task-id]>... --dry-run | dacli github issue link --apply <plan-id> --owner-config <private-file>",
+	"github sync":       "dacli github sync <project> [task-ref...] [--since <dur>] [--findings-as-issues] [--with-tasks] [--include-internal] [--dry-run] [--limit N] [--cursor N] [--include-acceptance]",
 }
 
 // TestCommandUsageMatchesHandlerUsage keeps the command table — the shared
