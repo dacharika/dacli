@@ -2,7 +2,7 @@
 
 The native host creates, delegates, routes, and reviews coding agents. Register
 an externally created clean checkout as an attempt, then acquire and renew its
-scoped lease through the selected governance tools. A shared MCP connection
+scoped leases through the selected governance tools. A shared MCP connection
 has one session identity even when native children call it. Independent review
 requires separately eligible credential families and explicit grants. Never
 wrap a coding CLI to simulate native delegation.

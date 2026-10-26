@@ -590,7 +590,7 @@ func TestPreviewRejectsHardlinkedManagedTarget(t *testing.T) {
 		t.Skipf("hard links unavailable: %v", err)
 	}
 	if _, err := Preview(root, ReviewedSourceID); err == nil || !strings.Contains(err.Error(), "single-link") {
-		t.Fatalf("hardlinked guidance target was not refused: %v", err)
+		t.Fatalf("hard-linked guidance target was not refused: %v", err)
 	}
 }
 

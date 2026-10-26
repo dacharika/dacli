@@ -177,7 +177,7 @@ func checkedRegular(path string, limit int64) ([]byte, os.FileInfo, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	defer dir.Close()
+	defer func() { _ = dir.Close() }()
 	return dir.ReadRegular(filepath.Base(path), limit)
 }
 
@@ -189,7 +189,7 @@ func safeRoot(root string) (os.FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer dir.Close()
+	defer func() { _ = dir.Close() }()
 	return dir.Stat()
 }
 
@@ -461,7 +461,7 @@ func writePlan(path string, p Plan, authorize ...func() error) error {
 	if err != nil {
 		return fmt.Errorf("plan parent is unsafe: %w", err)
 	}
-	defer parent.Close()
+	defer func() { _ = parent.Close() }()
 	b, err := json.MarshalIndent(p, "", "  ")
 	if err != nil {
 		return err
@@ -490,19 +490,6 @@ func writePlan(path string, p Plan, authorize ...func() error) error {
 		return err
 	}
 	return f.Close()
-}
-
-func readPlan(path string) (Plan, error) {
-	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
-		return Plan{}, errors.New("plan path must be absolute and clean")
-	}
-	parent, err := openGuidanceDir(filepath.Dir(path))
-	if err != nil {
-		return Plan{}, fmt.Errorf("plan parent is unsafe: %w", err)
-	}
-	defer parent.Close()
-	p, _, err := readPlanFrom(parent, filepath.Base(path))
-	return p, err
 }
 
 func readPlanFrom(parent *guidanceDir, name string) (Plan, os.FileInfo, error) {
@@ -600,7 +587,7 @@ func apply(path string, authorize func() error) (Receipt, error) {
 	if err != nil {
 		return Receipt{}, fmt.Errorf("plan parent is unsafe: %w", err)
 	}
-	defer planParent.Close()
+	defer func() { _ = planParent.Close() }()
 	p, planInfo, err := readPlanFrom(planParent, filepath.Base(path))
 	if err != nil {
 		return Receipt{}, err
@@ -614,7 +601,7 @@ func apply(path string, authorize func() error) (Receipt, error) {
 	if err != nil {
 		return r, recoveryError(&r, "target root cannot be opened safely", err)
 	}
-	defer rootDir.Close()
+	defer func() { _ = rootDir.Close() }()
 	if authorize != nil {
 		if err := authorize(); err != nil {
 			return r, recoveryError(&r, "owner authorization expired before refresh", err)
@@ -630,13 +617,13 @@ func apply(path string, authorize func() error) (Receipt, error) {
 	if err != nil {
 		return r, recoveryError(&r, "backup directory creation failed", err)
 	}
-	defer backupParent.Close()
+	defer func() { _ = backupParent.Close() }()
 	backupRootName := filepath.Base(filepath.Dir(p.Files[0].BackupPath))
 	backupRoot, created, err := ensurePrivateChild(backupParent, backupRootName)
 	if err != nil {
 		return r, recoveryError(&r, "exclusive backup root creation failed", err)
 	}
-	defer backupRoot.Close()
+	defer func() { _ = backupRoot.Close() }()
 	if !created {
 		if handled, recoveryErr := recoverExisting(p, rootDir, backupRoot, &r); handled {
 			return r, recoveryErr

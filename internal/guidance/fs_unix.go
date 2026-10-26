@@ -88,7 +88,7 @@ func (d *guidanceDir) ReadRegular(name string, limit int64) ([]byte, os.FileInfo
 		return nil, nil, err
 	}
 	f := os.NewFile(uintptr(fd), filepath.Join(d.path, name))
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	opened, err := f.Stat()
 	if err != nil || !opened.Mode().IsRegular() || opened.Size() < 0 || opened.Size() > limit {
 		return nil, nil, fmt.Errorf("%s is not a bounded regular file", f.Name())
@@ -141,7 +141,7 @@ func (d *guidanceDir) SamePath() bool {
 	if err != nil {
 		return false
 	}
-	defer current.Close()
+	defer func() { _ = current.Close() }()
 	a, err := d.file.Stat()
 	if err != nil {
 		return false
