@@ -70,9 +70,9 @@ func TestNativeGuidanceRefreshCLIReplacesKnownLegacyAndPreservesAdjacentPrivateB
 	if err := os.WriteFile(configPath, configBytes, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	run(t, workspaceRoot, 0, "native", "bootstrap", "--config", configPath)
+	runGuidanceCLI(t, workspaceRoot, 0, "native", "bootstrap", "--config", configPath)
 	plan := filepath.Join(private, "refresh.plan.json")
-	if out := run(t, workspaceRoot, 2, "native", "guidance", "refresh-preview", "--skill-root", root, "--plan-out", plan, "--json"); !strings.Contains(out, "--config") {
+	if out := runGuidanceCLI(t, workspaceRoot, 2, "native", "guidance", "refresh-preview", "--skill-root", root, "--plan-out", plan, "--json"); !strings.Contains(out, "--config") {
 		t.Fatalf("preview without explicit owner config was not rejected clearly: %s", out)
 	}
 	workerConfig := filepath.Join(private, "worker.json")
@@ -87,14 +87,14 @@ func TestNativeGuidanceRefreshCLIReplacesKnownLegacyAndPreservesAdjacentPrivateB
 	if err := os.WriteFile(workerConfig, workerConfigBytes, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if out := run(t, workspaceRoot, 3, "native", "guidance", "refresh-preview", "--config", workerConfig, "--skill-root", root, "--plan-out", plan, "--json"); !strings.Contains(out, "refused") {
+	if out := runGuidanceCLI(t, workspaceRoot, 3, "native", "guidance", "refresh-preview", "--config", workerConfig, "--skill-root", root, "--plan-out", plan, "--json"); !strings.Contains(out, "refused") {
 		t.Fatalf("invalid worker-owner config was not refused: %s", out)
 	}
 	if _, err := os.Lstat(plan); !os.IsNotExist(err) {
 		t.Fatalf("invalid owner config wrote plan: %v", err)
 	}
 	t.Setenv("DACLI_AGENT", "invalid-legacy-token-does-not-imply-owner")
-	out := run(t, workspaceRoot, 0, "native", "guidance", "refresh-preview", "--config", configPath, "--skill-root", root, "--plan-out", plan, "--json")
+	out := runGuidanceCLI(t, workspaceRoot, 0, "native", "guidance", "refresh-preview", "--config", configPath, "--skill-root", root, "--plan-out", plan, "--json")
 	if !strings.Contains(out, "plan_digest") {
 		t.Fatalf("preview did not return its immutable plan: %s", out)
 	}
@@ -114,7 +114,7 @@ func TestNativeGuidanceRefreshCLIReplacesKnownLegacyAndPreservesAdjacentPrivateB
 	if _, err := os.Stat(filepath.Join(root, ".dacli-guidance-backups")); !os.IsNotExist(err) {
 		t.Fatalf("MCP CLI refusal wrote backups: %v", err)
 	}
-	out = run(t, workspaceRoot, 0, "native", "guidance", "refresh-apply", "--config", configPath, "--plan", plan, "--json")
+	out = runGuidanceCLI(t, workspaceRoot, 0, "native", "guidance", "refresh-apply", "--config", configPath, "--plan", plan, "--json")
 	if !strings.Contains(out, `"state":"completed"`) || !strings.Contains(out, `"backups"`) {
 		t.Fatalf("apply did not return durable receipt: %s", out)
 	}
@@ -171,4 +171,33 @@ func canonicalCLITestTemp(t *testing.T, prefix string) string {
 		t.Fatal(err)
 	}
 	return resolved
+}
+
+// runGuidanceCLI mirrors Main's global --json extraction before crossing invoke.
+// The older generic run helper passes raw flags and cannot prove this JSON path.
+func runGuidanceCLI(t *testing.T, dir string, wantCode int, argv ...string) string {
+	t.Helper()
+	var out, errb bytes.Buffer
+	ctx := &Ctx{Stdout: &out, Stderr: &errb, Cwd: dir}
+	args := make([]string, 0, len(argv))
+	for _, arg := range argv {
+		if arg == "--json" {
+			ctx.JSON = true
+			continue
+		}
+		args = append(args, arg)
+	}
+	command, rest := match(args)
+	if command == nil {
+		t.Fatalf("no such command: %v", args)
+	}
+	err := invoke(ctx, command, rest)
+	if got := exitCode(err); got != wantCode {
+		t.Fatalf("%v exit %d want %d: %v; stdout=%s stderr=%s", argv, got, wantCode, err, out.String(), errb.String())
+	}
+	result := out.String() + errb.String()
+	if err != nil {
+		result += "\n" + err.Error()
+	}
+	return result
 }

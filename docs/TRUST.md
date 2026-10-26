@@ -666,3 +666,24 @@ authority, credentials, private connection paths, check commands or transcripts.
 Nullable provider usage and owner allocation estimates remain separate. See
 [native dashboard](GOVERNANCE_NATIVE_DASHBOARD.md) for unsupported, permission,
 limited and historical states.
+
+
+## Local capacity, issue-link and guidance boundaries
+
+Capacity schema21 is an explicit owner-selected source capability; four independent facts and exact executor-instance scope do not prove physical host capacity or authorize dispatch. Legacy19 and exact20 readers remain bounded, live10 is unchanged, and new current writers refuse unfamiliar state shapes.
+
+`github issue link` uses explicit native owner authority at apply and is local-only through app dispatch. Its selected-only recovery journal cannot import acceptance or replace current native writer protection. Both guidance refresh preview and apply authenticate the explicit owner before effects and are local-only; immutable plan digests do not establish trusted source bytes by themselves. Reviewed manifests, opened directory identities, private backups and final revalidation retain the instruction-only write set. A declared runtime manifest is not observed executable/process capability. No refresh operation reconnects a host or grants agent execution.
+
+
+| Exact command | Authority and effects |
+| --- | --- |
+| `native capacity upgrade` | Explicit owner20→21 migration, never automatic. |
+| `native capacity observer add` | Owner-enrolled exact observer and private credential. |
+| `native capacity policy configure` | Explicit owner policy fact. |
+| `native capacity qualify` | Separate explicit owner qualification fact. |
+| `native capacity observe` | Independently authenticated scoped observer. |
+| `native capacity status` | Scoped read; no admission or renewal. |
+| `native guidance diagnose` | Read-only selected metadata and declared manifest comparison. |
+| `native guidance refresh-preview` | Explicit owner; immutable private plan only. |
+| `native guidance refresh-apply` | Explicit owner; reviewed instruction assets/private backups only. |
+| `github issue link` | Exact local owner apply; selected-only mapping/recovery, no remote writes. |

@@ -1,8 +1,19 @@
 # Native swarm and bounded-loop contract
 
-Contract version: **1 (proposed)**. Delivery: core/588–596, with core/539,
-548, 552 and 575 retained as native implementation work. This document defines
-requirements; it does not announce an implemented swarm controller.
+Contract version: **1**. Native planning, reservations, dispatch intents, lifecycle,
+bounded controller/checkpoints and local integration producers are implemented in
+source. Their use requires the selected role catalog, exact owner profiles and
+explicit schema activation. Live schema10 does not activate newer producers.
+
+An actual historical Codex manual swarm and later manual cancellation were
+qualified within their recorded versions. Host execution/private profile delivery
+is still owner-operated; automatic App Server delivery and termination are not
+qualified. Current structured executor, observed admission and finite driver work
+is tracked in #1217, #1216 and #1218. No coding-CLI wrapper is a fallback.
+
+The remaining original design below is preserved as historical requirements.
+Its proposed action names are not a substitute for the selected current
+`tools/list`, support matrix or explicit activation/qualification records.
 
 ## Present implementation and boundary
 
@@ -16,7 +27,7 @@ lag kernel capability; inspect the installed catalog rather than infer tools
 from this contract. Existing cooperative review is credential separation, not
 proof of distinct human operators or hostile-process containment.
 
-Core/589 adds [native planning and atomic dispatch reservations](GOVERNANCE_NATIVE_SWARM_PLANNING.md), with explicit owner-attested manual native handoff admission and a separate-worker lease conversion. Core/590 adds [cooperative Codex dispatch](GOVERNANCE_NATIVE_DISPATCH_BRIDGE.md): durable intents, sequenced host correlation and atomic acknowledgement by a separately owner-provisioned worker. Unattended public spawn APIs, automatic child connection delivery, bounded loops and loop-driven canonical acceptance remain **unimplemented by these services**. Coding CLI launchers are not a fallback. DACLI owns
+Core/589 adds [native planning and atomic dispatch reservations](GOVERNANCE_NATIVE_SWARM_PLANNING.md), with explicit owner-attested manual native handoff admission and a separate-worker lease conversion. Core/590 adds [cooperative Codex dispatch](GOVERNANCE_NATIVE_DISPATCH_BRIDGE.md): durable intents, sequenced host correlation and atomic acknowledgement by a separately owner-provisioned worker. Unattended public spawn APIs and automatic child connection delivery remain unsupported. Bounded controller and loop-driven producer contracts are implemented in source and require explicit profile/schema activation; an unattended host-effect driver is not delivered by these services. Coding CLI launchers are not a fallback. DACLI owns
 coordination and admission; hosts own agent execution, model selection within
 owner policy, and native cancellation. A controller never runs `codex`,
 `claude`, Antigravity or another coding CLI subprocess. Named verification
@@ -32,8 +43,9 @@ An owner configures the workspace, native host bridge, policy and bounded loop
 limits. A controller has explicit project/task resources and only the new
 coordination actions it needs: `swarm.plan`, `swarm.reserve`, `swarm.dispatch`,
 `swarm.observe`, `swarm.reconcile`, `loop.start`, `loop.advance`, `loop.stop`,
-`dispatch.cancel` and read. These names are proposed new actions, not current
-kernel or MCP capabilities. Different deployments may split controller and
+`dispatch.cancel` and read. These are historical design names. Use the current selected catalog and typed
+controller/checkpoint operations for implemented action names; do not infer a
+callable capability from this historical list. Different deployments may split controller and
 bridge principals; a controller cannot invent authenticated host observations.
 Neither controller nor bridge receives owner bootstrap credentials.
 

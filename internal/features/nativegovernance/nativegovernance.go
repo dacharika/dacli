@@ -19,12 +19,15 @@ import (
 	"github.com/mlnomadpy/dacli/internal/store"
 )
 
-var Commands = append(append(append(append([]clikit.Command{
+var Commands = append(append(append(append(append([]clikit.Command{
 	{Path: "native reader add", Brief: "Owner provisions an independent read-only native governance MCP reader", Mutates: true, Usage: "dacli native reader add --config <owner> (--workspace | --project <exact-slug> | --task <canonical-id>) --connection <new-private-file> --credential <new-private-file> [--expires <duration>]", Run: readerAdd},
 	{Path: "native operator add", Brief: "Owner provisions an independent project-scoped read-only operator", Mutates: true, Usage: "dacli native operator add --config <owner> --project <slug> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]", Run: operatorAdd},
 	{Path: "native task claims preview", Brief: "Owner previews exact canonical task path claims", JSON: true, Usage: "dacli native task claims preview --config <owner> --task <ref> --claims-file <private-file> --json", Run: taskClaimsPreview},
 	{Path: "native task claims apply", Brief: "Owner applies digest-bound canonical task path claims", Mutates: true, JSON: true, Usage: "dacli native task claims apply --config <owner> --plan <private-file> --json", Run: taskClaimsApply},
-	{Path: "native doctor", Brief: "Read-only native runtime, plugin and authority compatibility diagnosis", JSON: true, Usage: "dacli native doctor --plugin-manifest <manifest> [--package-artifact <file>] [--runtime-artifact <executable>] [--connection <private-file>] [--capability-file <private-file> --project <id>] --json", Run: nativeDoctor},
+	{Path: "native doctor", Brief: "Read-only native runtime, plugin and authority compatibility diagnosis", JSON: true, Usage: "dacli native doctor --plugin-manifest <manifest> [--package-artifact <file>] [--runtime-artifact <executable>] [--runtime-capabilities <manifest>] [--skill-root <absolute-dir>] [--connection <private-file>] [--capability-file <private-file> --project <id>] --json", Run: nativeDoctor},
+	{Path: "native guidance diagnose", Brief: "Inspect selected guidance and declared runtime capability requirements", JSON: true, Usage: "dacli native guidance diagnose [--skill-root <absolute-dir>] [--runtime-capabilities <manifest>] --json", Run: nativeGuidanceDiagnose},
+	{Path: "native guidance refresh-preview", Brief: "Owner previews an immutable known-legacy guidance refresh", Mutates: true, JSON: true, Usage: "dacli native guidance refresh-preview --config <owner> --skill-root <absolute-dir> --plan-out <private-file> --json", Run: nativeGuidanceRefreshPreview},
+	{Path: "native guidance refresh-apply", Brief: "Owner applies a reviewed guidance plan with private backups", Mutates: true, JSON: true, Usage: "dacli native guidance refresh-apply --config <owner> --plan <private-file> --json", Run: nativeGuidanceRefreshApply},
 	{Path: "native controller refresh-review", Brief: "Owner refresh exact independent review grant after checklist progress", Mutates: true, JSON: true, Usage: "dacli native controller refresh-review --config <owner> --review-config <private-profile> --request <private-file> --out <new-private-profile> --json", Run: controllerRefreshReview},
 	{Path: "native controller upgrade", Brief: "upgrade durable bounded native controller", Mutates: true, JSON: false, Usage: "dacli native controller upgrade --config <owner>", Run: func(c *clikit.Ctx, a []string) error { return controllerOwner(c, a, "upgrade") }},
 	{Path: "native controller configure", Brief: "configure durable bounded native controller", Mutates: true, JSON: true, Usage: "dacli native controller configure --config <owner> --request <private-file>", Run: func(c *clikit.Ctx, a []string) error { return controllerOwner(c, a, "configure") }},
@@ -94,7 +97,7 @@ var Commands = append(append(append(append([]clikit.Command{
 	{Path: "native serve", Brief: "Serve scoped native governance MCP using a private explicit session connection", Usage: "dacli native serve --connection <private-file> [--runner-config <private-file> | --review-config <private-file> | --orchestration-config <private-file>]", Run: serve},
 	{Path: "native bootstrap", Brief: "Initialize an absent native authority and privately save its owner credential", Mutates: true, Usage: "dacli native bootstrap --config <private-file>", Run: bootstrap},
 	{Path: "native enroll", Brief: "Owner-enroll a scoped native session for an existing canonical task", Mutates: true, Usage: "dacli native enroll --config <private-file> --task <ref> --connection <new-private-file> --credential <new-private-file> [--path <relative-path>]... [--checkout <absolute-checkout>]... [--expires <duration>] [--verification]", Run: enroll},
-}, ModelRoutingCommands()...), IntegrationCommands()...), VerificationRoutingCommands()...), ExternalCommands()...)
+}, ModelRoutingCommands()...), IntegrationCommands()...), VerificationRoutingCommands()...), ExternalCommands()...), CapacityCommands...)
 
 // AuthenticatesExplicitly lists exactly the handlers exempt from the legacy grant gate.
 func AuthenticatesExplicitly(path string) bool {
@@ -102,6 +105,10 @@ func AuthenticatesExplicitly(path string) bool {
 		return true
 	}
 	switch path {
+	case "native guidance refresh-preview", "native guidance refresh-apply":
+		return true
+	case "native capacity observer add", "native capacity policy configure", "native capacity qualify", "native capacity observe", "native capacity status", "native capacity upgrade":
+		return true
 	case "native reader add", "native operator add":
 		return true
 	case "native task claims preview", "native task claims apply":

@@ -262,3 +262,10 @@ permanent regression-corpus entries under `internal/clikit/testdata/fuzz`.
 **Caller action:** only relevant to callers relying on the previous
 mis-parse (none should have been, since it silently dropped arguments); the
 documented escape forms in § 1/§ 2 above are unaffected.
+
+
+## Explicit host-capacity schema 21
+
+Source supports `OpenCurrent` for native schemas6–21. The bounded legacy `Open` reader remains capped19; `OpenNativeRoleRegistry` remains exact20. `OpenHostCapacity` is exact21. Only the authenticated owner command `dacli native capacity upgrade --config <private-owner-file> --json` performs20→21. It refuses unfamiliar source fields and preserves all old populated semantic collections and nested role provenance. Already-open20 handles refuse21; opening never migrates. Schema21 writers reject unknown top-level/nested fields rather than discarding them.
+
+Observer, policy, qualification and report v1 contracts carry the exact owner-selected executor instance and capability binding. Owner CLI request files require explicit contract version1. Capacity observations, host declarations, policy and qualification are separate facts, not automatic dispatch or provider quota. The currently observed live workspace stays schema10; no live upgrade is part of #1228. Admission/queue/driver delivery remains #1229/#1230/#1218.

@@ -365,3 +365,10 @@ The clean way to state the whole picture:
 - **`dacli`** (CLI and MCP) is where agents work.
 
 One markdown store underneath all three. None of them owns it.
+
+
+## Exact existing issue links
+
+Use `dacli github issue link <project> <issue-number[=task-id]>... --dry-run` to preview only the selected existing issues/tasks, then inspect its immutable plan and apply with `dacli github issue link --apply <plan-id> --owner-config <private-file>`. This exact local-owner operation is refused through the generic MCP CLI escape hatch. Apply authenticates the explicit native owner rather than unrelated legacy ambient identity. It refreshes exact remote/source and local repository/consent/mapping bindings and retains native protection through each durable task write. No public issue is created or edited and no acceptance is imported.
+
+Selected file commits have an explicit recoverable local journal, not a distributed GitHub/filesystem transaction. Replay observes current bytes and refuses rollback/third states; partial selected progress retains its recovery identity and never broadens selection. Unselected bytes/history stay unchanged. Acceptance migration is separate. Do not use a broad pull or edit issue titles to force adoption. CI remains manual only.
