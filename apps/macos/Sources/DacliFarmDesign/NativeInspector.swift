@@ -1,11 +1,12 @@
 import SwiftUI
 
 enum InspectorSelection: String, Identifiable {
-    case task, agent, notice, storehouse
+    case task, agent, notice, storehouse, wardrobe
     var id: String { rawValue }
 }
 
 struct NativeInspector: View {
+    @ObservedObject var session: FarmSession
     let farm: ProjectFarm
     let sampleState: SampleState
     let projection: FixtureProjection
@@ -23,6 +24,7 @@ struct NativeInspector: View {
         case .agent: "Farmhand"
         case .notice: "Notice board"
         case .storehouse: "Storehouse"
+        case .wardrobe: "Wardrobe & shop"
         }
     }
     private var symbol: String {
@@ -31,6 +33,7 @@ struct NativeInspector: View {
         case .agent: "person.crop.square"
         case .notice: "note.text"
         case .storehouse: "shippingbox"
+        case .wardrobe: "tshirt"
         }
     }
 
@@ -85,6 +88,7 @@ struct NativeInspector: View {
             if selection == .agent { agentPage }
             if selection == .notice { noticePage }
             if selection == .storehouse { storehousePage }
+            if selection == .wardrobe { FarmWardrobe(session: session) }
         }
         .padding(.horizontal, 23).padding(.top, 23).padding(.bottom, 25)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -94,7 +98,7 @@ struct NativeInspector: View {
     private var taskPage: some View {
         Group {
             HStack {
-                reference(projection.task.id)
+                reference("\(projection.task.kind.rawValue) \(projection.task.id)")
                 Spacer(minLength: 2)
                 StateBadge(state: projection.status)
             }
@@ -103,10 +107,10 @@ struct NativeInspector: View {
             rule
             Button(action: onAgentSelected) {
                 HStack(spacing: 11) {
-                    PixelAnimal(species: projection.agent.species).frame(width: 42, height: 42)
+                    PixelAnimal(species: session.appearance(for: projection.agent).species, skin: session.appearance(for: projection.agent).skin).frame(width: 42, height: 42)
                         .background(Color(hex: 0xE5CE9B)).overlay { Rectangle().strokeBorder(FarmStyle.honey, lineWidth: 1) }
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Assigned agent").font(.system(size: 10, weight: .medium)).foregroundStyle(FarmStyle.muted)
+                        Text("Assigned \(projection.agent.role.rawValue.lowercased())").font(.system(size: 10, weight: .medium)).foregroundStyle(FarmStyle.muted)
                         Text(projection.agent.name).font(.system(size: 13, weight: .bold))
                     }
                     Spacer()
@@ -124,25 +128,33 @@ struct NativeInspector: View {
     private var agentPage: some View {
         Group {
             HStack(alignment: .center, spacing: 15) {
-                PixelAnimal(species: agent.species).frame(width: 72, height: 70)
+                PixelAnimal(species: session.appearance(for: agent).species, skin: session.appearance(for: agent).skin).frame(width: 72, height: 70)
                     .background(Color(hex: 0xE3CD98)).modifier(BevelFrame())
                 VStack(alignment: .leading, spacing: 5) {
                     Text(agent.name).font(FarmStyle.title(25))
-                    Text("\(agent.species.rawValue) agent").font(.system(size: 12)).foregroundStyle(FarmStyle.muted)
+                    Label(agent.role.rawValue, systemImage: agent.role.symbol).font(.system(size: 12)).foregroundStyle(FarmStyle.muted)
                 }
             }
             reference(agent.id)
-            if let task = farm.tasks.first(where: { $0.agentID == agent.id }) {
+            if agent.id.contains("-adopt-") {
+                Text("Adoption preview · new agent").font(.system(size: 11, weight: .semibold)).foregroundStyle(FarmStyle.muted)
+            }
+            usagePanel
+            Button { session.open(.wardrobe) } label: {
+                Label("Open wardrobe & shop preview", systemImage: "tshirt").font(.system(size: 12, weight: .semibold))
+            }.buttonStyle(.bordered).controlSize(.small)
+            let task = farm.currentTask(agentID: agent.id, state: sampleState, harvest: session.harvestPhase)
+            Group {
                 let state = FixtureProjection.taskStatus(farm: farm, state: sampleState, taskKey: task.key)
                 StateBadge(state: state)
                 rule
-                heading("Current task", symbol: "leaf")
-                reference(task.id)
+                heading(state == .accepted ? "Harvested delivery" : "Current task", symbol: "leaf")
+                reference("\(task.kind.rawValue) \(task.id) · \(state == .accepted ? "Done" : "Open")")
                 Text(task.title).font(FarmStyle.title(19)).fixedSize(horizontal: false, vertical: true)
                 Text(task.summary).font(.system(size: 13)).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
             }
             rule
-            Text("Name, species, and clothing are cosmetic. Permissions come from dacli.")
+            Text("\(agent.role.rawValue) defaults to a \(agent.species.rawValue.lowercased()). Appearance is cosmetic; changing animals or skins cannot change the role or permissions.")
                 .font(.system(size: 12)).foregroundStyle(FarmStyle.muted).lineSpacing(3)
         }
     }
@@ -171,6 +183,10 @@ struct NativeInspector: View {
             Text("Owner acceptance belongs to a specific revision and digest.")
                 .font(.system(size: 13)).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
             acceptanceStamp(farm.acceptance)
+            heading("Harvested work", symbol: "archivebox")
+            reference("\(farm.task(for: "primary").kind.rawValue) \(farm.task(for: "primary").id) · Done")
+            Text(farm.task(for: "primary").title).font(.system(size: 13, weight: .semibold))
+            Text("Completed work stays in history. A new open issue uses a different ID when it takes the freed land.").font(.system(size: 12)).lineSpacing(3).foregroundStyle(FarmStyle.muted)
             rule
             heading("Review receipt", symbol: "doc.text.magnifyingglass")
             reference(farm.acceptance.reviewReceipt)
@@ -179,6 +195,23 @@ struct NativeInspector: View {
             rule
             reference(farm.acceptance.id)
         }
+    }
+
+    private var usagePanel: some View {
+        let usage = session.usage(for: agent)
+        return VStack(alignment: .leading, spacing: 8) {
+            heading("Growth from output", symbol: "leaf")
+            Text(usage.growth?.rawValue ?? "Growth unavailable").font(FarmStyle.title(19))
+            Text(usage.caption).font(.system(size: 12, weight: .semibold))
+            if let attempt = usage.attemptID {
+                reference(attempt)
+                Text("Attributed output in this sample. Growth is cosmetic; it does not grant a role, permission, or acceptance.")
+                    .font(.system(size: 11)).lineSpacing(3).foregroundStyle(FarmStyle.muted)
+            } else {
+                Text("No attributed output sample is available. A neutral sprite is shown; no growth stage is inferred.")
+                    .font(.system(size: 11)).lineSpacing(3).foregroundStyle(FarmStyle.muted)
+            }
+        }.padding(12).background(Color(hex: 0xE5D9AA)).overlay { Rectangle().strokeBorder(FarmStyle.honey.opacity(0.6), lineWidth: 1) }
     }
 
     private func evidence(_ items: [FarmEvidence]) -> some View {

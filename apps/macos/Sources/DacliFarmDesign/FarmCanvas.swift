@@ -3,9 +3,11 @@ import SwiftUI
 // Original artwork, authored on a 400×340 pixel coordinate system. All primitive
 // edges are snapped to whole logical points; no game sprites or assets are used.
 struct FarmLandscape: View {
+    var harvest: HarvestPhase? = nil
+    var hasAdoption = false
     var body: some View {
         Canvas { context, size in
-            var art = PixelFarmPainter(context: context, size: size)
+            var art = PixelFarmPainter(context: context, size: size, harvest: harvest, hasAdoption: hasAdoption)
             art.draw()
         }
         .accessibilityHidden(true)
@@ -15,6 +17,8 @@ struct FarmLandscape: View {
 private struct PixelFarmPainter {
     var context: GraphicsContext
     let size: CGSize
+    var harvest: HarvestPhase?
+    var hasAdoption: Bool
     private var sx: CGFloat { size.width / 400 }
     private var sy: CGFloat { size.height / 340 }
 
@@ -50,7 +54,12 @@ private struct PixelFarmPainter {
             tree(x: -14, y: y, pine: true)
             tree(x: 380, y: y + 10, pine: false)
         }
-        for (index, x) in [CGFloat(50), 153, 256].enumerated() { plot(x: x, y: 179, stage: index) }
+        for (index, x) in [CGFloat(50), 153, 256].enumerated() {
+            let stage = index == 0 && harvest != nil ? (harvest == .harvested ? -1 : harvest == .fallow ? -2 : -3) : index
+            plot(x: x, y: 179, stage: stage)
+        }
+        workshopProps()
+        if hasAdoption { plot(x: 153, y: 59, stage: -3) }
         // Vegetable crates, path stones, tools, and flowers give the farm scale.
         crate(x: 125, y: 101); crate(x: 137, y: 105)
         rect(126, 97, 3, 4, 0xC46B36); rect(131, 98, 4, 3, 0xD7A33B)
@@ -194,12 +203,37 @@ private struct PixelFarmPainter {
             rect(x + 2, y + CGFloat(row * 11 + 9), 78, 2, 0x63452D)
             for col in 0..<7 {
                 let xx = x + CGFloat(col * 11 + 7), yy = y + CGFloat(row * 11 + 4)
+                if stage == -2 { continue }
+                if stage == -1 { rect(xx, yy + 3, 2, 3, 0xC3A157); continue }
+                if stage == -3 { rect(xx, yy + 3, 2, 3, 0x86A856); rect(xx - 2, yy + 2, 2, 1, 0xB5C775); continue }
                 rect(xx, yy + 3, 2, 4, 0x385731)
                 rect(xx - 3, yy, 4, 3, 0x599344); rect(xx + 2, yy - 2, 3, 4, 0x75AA4C)
                 if stage == 2 { rect(xx - 1, yy - 1, 4, 4, 0xCC8D3C); rect(xx, yy - 2, 2, 2, 0xEBBC55) }
                 if stage == 0 { rect(xx - 2, yy + 1, 4, 3, 0x88B258) }
             }
         }
+    }
+
+    mutating func workshopProps() {
+        // A builder's bench, planner's map table and review shelf belong to
+        // roles visually; none of these props grant capabilities.
+        rect(121, 267, 25, 4, 0xA67842); rect(123, 271, 3, 12, 0x69482C); rect(141, 271, 3, 12, 0x69482C)
+        rect(126, 264, 3, 4, 0x8D9690); rect(132, 263, 8, 3, 0xB9B69A)
+        rect(211, 255, 21, 3, 0xA67842); rect(213, 258, 2, 12, 0x69482C); rect(228, 258, 2, 12, 0x69482C)
+        rect(214, 251, 14, 5, 0xF4DCA2); rect(219, 252, 2, 3, 0x6F8C4C); rect(223, 253, 3, 1, 0x4C9298)
+        rect(350, 226, 17, 3, 0x815B34); rect(351, 229, 2, 12, 0x69482C); rect(364, 229, 2, 12, 0x69482C)
+        rect(354, 215, 10, 11, 0xE8CD92); rect(356, 218, 6, 1, 0xAC915D); rect(356, 221, 4, 1, 0xAC915D)
+        for index in 0..<24 {
+            rect(CGFloat(38 + index * 6), CGFloat(252 + index % 3), 4, 2, 0xA6A16A)
+        }
+        if harvest == .harvested {
+            crate(x: 42, y: 239); crate(x: 55, y: 242)
+            rect(44, 237, 7, 3, 0xE3BA57); rect(57, 239, 7, 3, 0xD68D3A)
+        }
+        // Seed sacks and a wheelbarrow on the southern trail.
+        rect(236, 300, 9, 11, 0xC3A66A); rect(238, 298, 5, 3, 0x9B804D)
+        rect(147, 293, 18, 6, 0x8F6840); rect(149, 290, 14, 4, 0xB6BD78); rect(151, 299, 4, 4, 0x4D4B36)
+        rect(164, 292, 7, 2, 0xAD8E52)
     }
 
     mutating func crate(x: CGFloat, y: CGFloat) {
@@ -213,108 +247,85 @@ private struct PixelFarmPainter {
 }
 
 struct FarmCanvas: View {
-    let farm: ProjectFarm
-    let sampleState: SampleState
+    @ObservedObject var session: FarmSession
     let palette: FarmPalette
-    @Binding var selectedTaskKey: String
-    @Binding var selectedAgentID: String
     @FocusState.Binding var focusedTaskID: String?
+    let motionAllowed: Bool
+    let artifactRender: Bool
     let onInspect: (InspectorSelection) -> Void
+    private var farm: ProjectFarm { session.farm }
 
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .topLeading) {
-                FarmLandscape()
-                // World controls are native buttons. Art underneath remains decorative.
+                FarmLandscape(harvest: session.sampleState == .accepted ? session.harvestPhase : nil, hasAdoption: session.adoptions[farm.id] != nil)
+                FarmResidents(farm: farm, state: session.sampleState, harvest: session.harvestPhase, appearances: session.appearances, usages: Dictionary(uniqueKeysWithValues: farm.agents.map { ($0.id, session.usage(for: $0)) }), selectedAgentID: session.selectedAgentID, motionAllowed: motionAllowed, artifactRender: artifactRender) { agent in
+                    session.selectedAgentID = agent.id
+                    session.selectedTaskKey = farm.currentTask(agentID: agent.id, state: session.sampleState, harvest: session.harvestPhase).key
+                    onInspect(.agent)
+                }
                 worldButton("Notice board", systemImage: "note.text", x: 0.60, y: 0.355, size: geometry.size) { onInspect(.notice) }
                 worldButton("Storehouse", systemImage: "shippingbox", x: 0.82, y: 0.355, size: geometry.size) { onInspect(.storehouse) }
-                ForEach(Array(farm.tasks.enumerated()), id: \.element.id) { index, task in
-                    let state = FixtureProjection.taskStatus(farm: farm, state: sampleState, taskKey: task.key)
-                    TaskPlotSign(task: task, state: state, selected: selectedTaskKey == task.key, width: max(92, min(130, geometry.size.width * 0.225)), palette: palette) { select(task) }
-                    .modifier(TaskKeyboardFocus(taskID: task.id, palette: palette, focusedTaskID: $focusedTaskID) { select(task) })
-                    .position(x: geometry.size.width * (0.225 + CGFloat(index) * 0.2575), y: geometry.size.height * 0.485)
-                    .accessibilityLabel("Task plot \(task.id), \(task.title), \(state.title). Select for evidence.")
-                    Button {
-                        selectedAgentID = task.agentID
-                        selectedTaskKey = task.key
-                        onInspect(.agent)
-                    } label: {
-                        PixelAnimal(species: farm.agent(for: task.agentID).species)
-                            .frame(width: 48, height: 48)
-                            .background(alignment: .bottom) { Ellipse().fill(.black.opacity(0.13)).frame(width: 29, height: 8).offset(y: -2) }
+                ForEach(Array(farm.landTasks(state: session.sampleState, harvest: session.harvestPhase).enumerated()), id: \.offset) { index, item in
+                    if let task = item {
+                        let state = FixtureProjection.taskStatus(farm: farm, state: session.sampleState, taskKey: task.key)
+                        TaskPlotSign(task: task, state: state, selected: session.selectedTaskKey == task.key, width: max(92, min(130, geometry.size.width * 0.225)), palette: palette) { select(task) }
+                            .modifier(TaskKeyboardFocus(taskID: task.id, palette: palette, focusedTaskID: $focusedTaskID) { select(task) })
+                            .position(x: geometry.size.width * (index == 3 ? 0.49 : 0.225 + CGFloat(index) * 0.2575), y: geometry.size.height * (index == 3 ? 0.18 : 0.485))
+                            .accessibilityLabel("\(task.kind.rawValue) plot \(task.id), \(task.title), \(state == .accepted ? "Done, harvested" : "Open, " + state.title). Select for evidence.")
+                    } else {
+                        fallowSign.position(x: geometry.size.width * 0.225, y: geometry.size.height * 0.485)
                     }
-                    .buttonStyle(.plain)
-                    .position(x: geometry.size.width * (0.28 + CGFloat(index) * 0.2575), y: geometry.size.height * 0.745)
-                    .accessibilityLabel("\(farm.agent(for: task.agentID).name), \(state.title). Open agent details.")
                 }
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("\(farm.title) Farm").font(FarmStyle.title(17))
-                    Text("3 task plots · \(farm.projectName)").font(.system(size: 11, weight: .medium))
+                    Text("\(farm.title) Farm").font(FarmStyle.title(14))
+                    Text("\(session.activeTasks.count) open work plots · \(farm.projectName)").font(.system(size: 11, weight: .medium))
                 }
-                .foregroundStyle(FarmStyle.cream)
-                .padding(.horizontal, 12).padding(.vertical, 9)
-                .background { TimberSurface(dark: true) }
-                .modifier(BevelFrame())
-                .padding(14)
-                HStack(spacing: 4) {
-                    Image(systemName: "cursorarrow")
-                    Text("Select a plot to open its journal")
+                .frame(width: 155, alignment: .leading)
+                .foregroundStyle(FarmStyle.cream).padding(.horizontal, 12).padding(.vertical, 9)
+                .background { TimberSurface(dark: true) }.modifier(BevelFrame()).padding(14)
+                VStack(alignment: .leading, spacing: 6) {
+                    if session.sampleState == .accepted {
+                        HStack(spacing: 6) {
+                            Text("Sample lifecycle: \(session.harvestPhase.rawValue)").font(.system(size: 10, weight: .bold))
+                            if session.harvestPhase == .harvested || (session.harvestPhase == .fallow && farm.nextOpenTask != nil) {
+                                Button(session.harvestPhase == .harvested ? "Free land" : "Plant queued issue") { session.advanceHarvestPreview() }
+                                    .font(.system(size: 10, weight: .bold)).buttonStyle(.bordered).controlSize(.mini)
+                            } else if farm.nextOpenTask == nil {
+                                Text("Backlog empty").font(.system(size: 10, weight: .semibold))
+                            }
+                        }.padding(7).background(FarmStyle.cream).overlay { Rectangle().strokeBorder(FarmStyle.wood, lineWidth: 1) }
+                    }
+                    HStack(spacing: 4) {
+                        Image(systemName: "cursorarrow")
+                        Text(artifactRender ? "Sample walking pose · farmhands are selectable" : motionAllowed ? "Click a farmhand or plot · agents are moving" : "Select a farmhand or plot · motion paused")
+                    }.font(.system(size: 10, weight: .medium)).padding(.horizontal, 9).padding(.vertical, 6)
+                        .background(FarmStyle.cream.opacity(0.95)).overlay { Rectangle().strokeBorder(FarmStyle.wood, lineWidth: 1) }
                 }
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(palette.ink)
-                .padding(.horizontal, 9).padding(.vertical, 6)
-                .background(FarmStyle.cream.opacity(0.95))
-                .overlay { Rectangle().strokeBorder(FarmStyle.wood, lineWidth: 1) }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                .padding(12)
+                .foregroundStyle(palette.ink).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading).padding(12)
             }
-            .clipped()
-            .overlay { Rectangle().strokeBorder(FarmStyle.darkWood, lineWidth: 3).allowsHitTesting(false) }
+            .clipped().overlay { Rectangle().strokeBorder(FarmStyle.darkWood, lineWidth: 3).allowsHitTesting(false) }
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(farm.title) task farm")
+        .accessibilityElement(children: .contain).accessibilityLabel("\(farm.title) task farm, \(session.activeTasks.count) open work plots")
     }
 
-    private func select(_ task: FarmTask) {
-        selectedTaskKey = task.key
-        selectedAgentID = task.agentID
-        onInspect(.task)
+    @ViewBuilder
+    private var fallowSign: some View {
+        if farm.nextOpenTask != nil {
+            Button { session.advanceHarvestPreview() } label: { FallowLandSign(empty: false, palette: palette) }
+                .buttonStyle(.plain).accessibilityLabel("Fallow land. Preview the next queued open issue on this freed plot.")
+        } else {
+            FallowLandSign(empty: true, palette: palette)
+                .accessibilityElement(children: .combine).accessibilityLabel("Fallow land. Backlog empty; no queued open work.")
+        }
     }
+
+    private func select(_ task: FarmTask) { session.select(task); onInspect(.task) }
     private func worldButton(_ title: String, systemImage: String, x: CGFloat, y: CGFloat, size: CGSize, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(palette.ink)
-                .padding(5).background(FarmStyle.cream)
-                .overlay { Rectangle().strokeBorder(FarmStyle.wood, lineWidth: 1) }
+            Label(title, systemImage: systemImage).font(.system(size: 10, weight: .semibold)).foregroundStyle(palette.ink)
+                .padding(5).background(FarmStyle.cream).overlay { Rectangle().strokeBorder(FarmStyle.wood, lineWidth: 1) }
         }.buttonStyle(.plain).position(x: size.width * x, y: size.height * y)
-    }
-}
-
-struct PixelAnimal: View {
-    let species: AnimalSpecies
-    private var rows: [String] {
-        switch species {
-        case .fox:
-            ["..RR........RR..", "..RLR......RLR..", "..RLLR....RLLR..", "..RRRRRRRRRRRR..", "...RRRRRRRRRR...", "...RMRRRRMRRR...", "...RDDRRDDDRR...", "....DDDMDDD.....", "....RDDDGRR.....", "....RGGGGGRR.RR.", "....RGGGGGRRRRL.", "....RRGRGRR.RLD.", "....RRR.RRR..DD.", "...MMM..MMM....."]
-        case .rabbit:
-            ["...CC....CC.....", "...CK....KC.....", "...CKC..CKC.....", "...CKC..CKC.....", "...CCCCCCCC.....", "..CCCCCCCCCC....", "..CCMCCCMCCC....", "..CCCCDCCCCC....", "...CDDDDDCC.....", "....CBBBBC......", "...CBBBBBBC.....", "..DCBBBBBBCD....", "...CCB..BCC.....", "..MMM....MMM...."]
-        case .raccoon:
-            ["..SS........SS..", "..SDS......SDS..", "..SSSSSSSSSSSS..", "...SSSSSSSSSS...", "..SMMMMMMMMMMS..", "..SMDMSSMDMMMS..", "..SSDDDMD DDSS..".replacingOccurrences(of: " ", with: ""), "...SSDDDDDSS....", "....SAAAASS.....", "....SAAAASS.SS..", "...SSAAAASSSMMS.", "....SSASASS.SSS.", "....SSS.SSS.MMS.", "...MMM..MMM....."]
-        }
-    }
-    var body: some View {
-        Canvas { context, size in
-            let cell = max(1, floor(min(size.width / 16, size.height / 14)))
-            let ox = floor((size.width - cell * 16) / 2), oy = floor((size.height - cell * 14) / 2)
-            let colors: [Character: UInt32] = ["R": 0xC46C37, "L": 0xECA857, "D": 0xF9DFA9, "M": 0x3D3027, "C": 0xDDCCAA, "K": 0xC78A8D, "S": 0x879087, "G": 0x5A7E58, "B": 0x7F8FA2, "A": 0xAF7654]
-            for (y, row) in rows.enumerated() {
-                for (x, character) in row.enumerated() {
-                    guard let color = colors[character] else { continue }
-                    context.fill(Path(CGRect(x: ox + CGFloat(x) * cell, y: oy + CGFloat(y) * cell, width: cell, height: cell)), with: .color(Color(hex: color)))
-                }
-            }
-        }.accessibilityHidden(true)
     }
 }
 
@@ -329,9 +340,9 @@ private struct TaskPlotSign: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: 3) {
-                Text(task.id).font(.system(size: 10, weight: .bold, design: .monospaced))
+                Text("\(state == .accepted ? "Done" : "Open") \(task.kind.rawValue) \(task.id)").font(.system(size: 8, weight: .bold, design: .monospaced))
                 Text(task.plotTitle).font(.system(size: 12, weight: .bold)).lineLimit(2).multilineTextAlignment(.center)
-                Label(state.title, systemImage: state.symbol).font(.system(size: 10, weight: .semibold)).lineLimit(1)
+                Label(state == .accepted ? "Harvested" : state.title, systemImage: state.symbol).font(.system(size: 10, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
             }
             .foregroundStyle(palette.ink)
             .padding(.horizontal, 7).padding(.vertical, 6)
@@ -344,5 +355,17 @@ private struct TaskPlotSign: View {
                 }
             }
         }.buttonStyle(.plain)
+    }
+}
+
+private struct FallowLandSign: View {
+    let empty: Bool
+    let palette: FarmPalette
+    var body: some View {
+        VStack(spacing: 4) {
+            Label("Fallow land", systemImage: "leaf")
+            Text(empty ? "No queued open work" : "Ready for a queued issue").font(.system(size: 10))
+        }.font(.system(size: 12, weight: .bold)).foregroundStyle(palette.ink).padding(9)
+            .background(FarmStyle.cream).modifier(BevelFrame())
     }
 }
