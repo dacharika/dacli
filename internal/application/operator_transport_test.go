@@ -94,7 +94,7 @@ func TestServeOperatorTransportCancellationAndBlockedPipeDeadlines(t *testing.T)
 	_ = pipeWriter.Close()
 
 	outputReader, outputWriter := io.Pipe()
-	defer outputReader.Close()
+	defer func() { _ = outputReader.Close() }()
 	server := transportServer()
 	server.Deadline = 25 * time.Millisecond
 	request, _ := json.Marshal(operatorv1.Request{SchemaVersion: 1, RequestID: "blocked-output", Operation: "tasks.list", WorkspaceID: "ws-local", ProjectID: "operator"})
