@@ -210,6 +210,8 @@ func (p *NativeOutputUsageProducer) record(sample NativeUsageSample, source, ava
 
 // Read returns usage only after the same fresh project/task read proves the
 // requested attempt is the current attempt owned by its enrolled session.
+// Persisted observations remain unchanged; measured totals are available only
+// when their stored agent profile still matches the selected native profile.
 func (p *NativeOutputUsageProducer) Read(project, task, attempt string) ([]usage.Observation, usage.Totals, error) {
 	if p == nil || p.workspace == nil || p.reader == nil {
 		return nil, usage.Totals{}, sessions.ErrDenied
@@ -237,7 +239,46 @@ func (p *NativeOutputUsageProducer) Read(project, task, attempt string) ([]usage
 	if !unambiguous || current.ID != attempt || current.ActorID != p.reader.SessionID() {
 		return nil, usage.Totals{}, sessions.ErrDenied
 	}
-	return p.store.Read(p.workspace.ID, project, task, attempt)
+	rows, totals, err := p.store.Read(p.workspace.ID, project, task, attempt)
+	if err != nil {
+		return nil, usage.Totals{}, err
+	}
+	totals = applyCurrentProfileBinding(totals, rows, p.profiles, p.workspace.ID, project, p.reader.SessionID(), task, attempt)
+	return rows, totals, nil
+}
+
+func applyCurrentProfileBinding(totals usage.Totals, rows []usage.Observation, profiles NativeAgentProfileResolver, workspaceID, projectID, sessionID, taskID, attemptID string) usage.Totals {
+	var profileID string
+	cause := ""
+	if profiles == nil {
+		cause = "agent-profile-resolver-unavailable"
+	} else {
+		var available bool
+		var err error
+		profileID, available, err = profiles.ProfileFor(workspaceID, projectID, sessionID, taskID, attemptID)
+		switch {
+		case err != nil:
+			cause = "agent-profile-resolution-failed"
+		case !available || profileID == "":
+			cause = "agent-profile-unavailable"
+		default:
+			for _, row := range rows {
+				if row.Availability == "measured" && row.AgentProfileID != profileID {
+					cause = "agent-profile-mismatch"
+					break
+				}
+			}
+		}
+	}
+	if cause == "" {
+		return totals
+	}
+	totals.MeasuredOutputTokens = 0
+	totals.MeasuredInputTokens = 0
+	totals.MeasuredOutputAvailable = false
+	totals.MeasuredInputAvailable = false
+	totals.MeasuredUnavailableCause = cause
+	return totals
 }
 
 func newestAttempt(attempts []sessions.DashboardRecord) (sessions.DashboardRecord, bool) {

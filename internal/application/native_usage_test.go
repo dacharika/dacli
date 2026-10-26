@@ -39,6 +39,16 @@ func (f usageProfileFixture) ProfileFor(workspaceID, projectID, sessionID, taskI
 	return string(f), true, nil
 }
 
+type usageProfileStateFixture struct {
+	profileID string
+	available bool
+	err       error
+}
+
+func (f usageProfileStateFixture) ProfileFor(workspaceID, projectID, sessionID, taskID, attemptID string) (string, bool, error) {
+	return f.profileID, f.available, f.err
+}
+
 func usageAttempt(id, actor string, at time.Time) sessions.DashboardRecord {
 	return sessions.DashboardRecord{Kind: "attempt", ID: id, TaskID: "task-1", ActorID: actor, State: "registered", Freshness: "historical", ObservedAt: at}
 }
@@ -436,6 +446,63 @@ func TestNativeUsageProducerDoesNotTrustUnresolvedProfileClaim(t *testing.T) {
 	event.AgentProfileID = "agent-forged"
 	if err = producer.RecordProviderCallback(nativeSample(event)); !errors.Is(err, sessions.ErrDenied) {
 		t.Fatalf("unresolved profile claim error = %v, want denied", err)
+	}
+}
+
+func TestNativeUsageReadRevalidatesCurrentProfileAndKeepsDeclaredLane(t *testing.T) {
+	now := time.Now().UTC()
+	snapshot := sessions.DashboardSnapshot{State: "ready", Project: "project-1", Records: []sessions.DashboardRecord{usageAttempt("attempt-2", "session-1", now), usageSession("session-1")}}
+	w := &workspace.Workspace{ID: "workspace-1", Root: t.TempDir()}
+	reader := usageReaderFixture{snapshot: snapshot, root: w.Root}
+	producerA, err := NewNativeOutputUsageProducer(w, reader, usageProfileStateFixture{profileID: "agent-a", available: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	measured := measuredUsage("profile-a-measured", 1, "cumulative", 42)
+	if err := producerA.RecordProviderCallback(nativeSample(measured)); err != nil {
+		t.Fatal(err)
+	}
+	declared := measuredUsage("profile-a-declared", 1, "cumulative", 9)
+	if err := producerA.RecordAgentDeclared(nativeSample(declared)); err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		name    string
+		profile NativeAgentProfileResolver
+		cause   string
+	}{
+		{name: "profile changed", profile: usageProfileStateFixture{profileID: "agent-b", available: true}, cause: "agent-profile-mismatch"},
+		{name: "profile unavailable", profile: usageProfileStateFixture{available: false}, cause: "agent-profile-unavailable"},
+		{name: "profile resolution failed", profile: usageProfileStateFixture{err: errors.New("host profile lookup failed")}, cause: "agent-profile-resolution-failed"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			currentProducer, err := NewNativeOutputUsageProducer(w, reader, tc.profile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rows, totals, err := currentProducer.Read("project-1", "task-1", "attempt-2")
+			if err != nil || len(rows) != 2 || totals.MeasuredOutputTokens != 0 || totals.MeasuredOutputAvailable || totals.MeasuredUnavailableCause != tc.cause {
+				t.Fatalf("stale profile read = rows %+v totals %+v err %v; measured total must be unavailable with cause %q", rows, totals, err, tc.cause)
+			}
+			if totals.DeclaredOutputTokens != 9 || !totals.DeclaredOutputAvailable {
+				t.Fatalf("profile change altered declared lane: totals %+v", totals)
+			}
+			foundStoredMeasured := false
+			for _, row := range rows {
+				if row.SourceEventID == "profile-a-measured" && row.AgentProfileID == "agent-a" && row.OutputTokens != nil && row.OutputTokens.Value == 42 {
+					foundStoredMeasured = true
+				}
+			}
+			if !foundStoredMeasured {
+				t.Fatalf("read should preserve the original immutable profile-A fact: %+v", rows)
+			}
+		})
+	}
+	storedRows, storedTotals, err := (usage.Store{Root: w.Root}).Read("workspace-1", "project-1", "task-1", "attempt-2")
+	if err != nil || len(storedRows) != 2 || storedTotals.MeasuredOutputTokens != 42 || !storedTotals.MeasuredOutputAvailable || storedTotals.DeclaredOutputTokens != 9 {
+		t.Fatalf("profile revalidation modified the append-only store: rows %+v totals %+v err %v", storedRows, storedTotals, err)
 	}
 }
 

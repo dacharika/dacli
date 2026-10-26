@@ -69,21 +69,22 @@ type Observation struct {
 }
 
 type Totals struct {
-	SchemaVersion           int    `json:"schema_version"`
-	WorkspaceID             string `json:"workspace_id"`
-	ProjectID               string `json:"project_id"`
-	TaskID                  string `json:"task_id"`
-	AttemptID               string `json:"attempt_id"`
-	MeasuredOutputTokens    int64  `json:"measured_output_tokens"`
-	MeasuredInputTokens     int64  `json:"measured_input_tokens"`
-	DeclaredOutputTokens    int64  `json:"declared_output_tokens"`
-	DeclaredInputTokens     int64  `json:"declared_input_tokens"`
-	MeasuredOutputAvailable bool   `json:"measured_output_available"`
-	MeasuredInputAvailable  bool   `json:"measured_input_available"`
-	DeclaredOutputAvailable bool   `json:"declared_output_available"`
-	DeclaredInputAvailable  bool   `json:"declared_input_available"`
-	UnavailableObservations int    `json:"unavailable_observations"`
-	ObservationCount        int    `json:"observation_count"`
+	SchemaVersion            int    `json:"schema_version"`
+	WorkspaceID              string `json:"workspace_id"`
+	ProjectID                string `json:"project_id"`
+	TaskID                   string `json:"task_id"`
+	AttemptID                string `json:"attempt_id"`
+	MeasuredOutputTokens     int64  `json:"measured_output_tokens"`
+	MeasuredInputTokens      int64  `json:"measured_input_tokens"`
+	DeclaredOutputTokens     int64  `json:"declared_output_tokens"`
+	DeclaredInputTokens      int64  `json:"declared_input_tokens"`
+	MeasuredOutputAvailable  bool   `json:"measured_output_available"`
+	MeasuredInputAvailable   bool   `json:"measured_input_available"`
+	DeclaredOutputAvailable  bool   `json:"declared_output_available"`
+	DeclaredInputAvailable   bool   `json:"declared_input_available"`
+	MeasuredUnavailableCause string `json:"measured_unavailable_cause,omitempty"` // current profile binding that blocks measured totals
+	UnavailableObservations  int    `json:"unavailable_observations"`
+	ObservationCount         int    `json:"observation_count"`
 }
 
 // Store writes under the workspace's ignored local usage directory. A store
