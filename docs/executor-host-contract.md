@@ -115,6 +115,16 @@ or checkpoint ledger and no implicit schema migration. A future adapter with
 only in-memory binding state must requalify registration after every restart
 and refuse dispatch/callbacks until it does.
 
+The existing operations have these minimum native authority storage schemas:
+swarm reservations require schema 7, dispatch intents require schema 8, and
+lifecycle callbacks and cancellation require schema 9. The current manual
+workflow against live schema 10 remains unchanged. These are prerequisites of
+the existing native operations; this contract adds no executor storage schema,
+reader, or writer. Any later persisted executor feature must retain the support
+and migration prerequisites recorded in the [governance support matrix](governance-support-matrix.md)
+and the [native sessions compatibility ledger](../internal/governance/sessions/compatibility.go),
+along with `docs/COMPATIBILITY.md`.
+
 The version-1 fake adapter tests exercise contract binding, profile limits,
 original-key lookup after a simulated lost response, duplicate and changed-key
 dispatch, monotonic callbacks, and unknown cancellation. Integration cases use
