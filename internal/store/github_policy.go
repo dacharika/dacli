@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -298,19 +299,34 @@ func newRequiredCheckPolicy(repo, branch string, configured []string, now time.T
 
 func mergeGitHubRequiredChecks(policy *GitHubRequiredCheckPolicy, legacyRaw, rulesRaw []byte) error {
 	if len(strings.TrimSpace(string(legacyRaw))) > 0 {
-		var legacy struct {
-			Contexts []string `json:"contexts"`
-			Checks   []struct {
-				Context string `json:"context"`
-			} `json:"checks"`
-		}
+		var legacy map[string]json.RawMessage
 		if err := json.Unmarshal(legacyRaw, &legacy); err != nil {
 			return fmt.Errorf("decode legacy branch protection required checks: %w", err)
 		}
-		for _, name := range legacy.Contexts {
+		if legacy == nil {
+			return fmt.Errorf("decode legacy branch protection required checks: response must be an object")
+		}
+		var contexts []string
+		if raw, ok := legacy["contexts"]; !ok || json.Unmarshal(raw, &contexts) != nil || contexts == nil {
+			return fmt.Errorf("decode legacy branch protection required checks: contexts is missing or malformed")
+		}
+		var checkRecords []json.RawMessage
+		if raw, ok := legacy["checks"]; !ok || json.Unmarshal(raw, &checkRecords) != nil || checkRecords == nil {
+			return fmt.Errorf("decode legacy branch protection required checks: checks is missing or malformed")
+		}
+		for _, name := range contexts {
+			if strings.TrimSpace(name) == "" {
+				return fmt.Errorf("decode legacy branch protection required checks: context is empty")
+			}
 			addRequiredCheck(policy, name, RequiredCheckSource{Kind: "legacy_branch_protection"})
 		}
-		for _, check := range legacy.Checks {
+		for checkIndex, raw := range checkRecords {
+			var check struct {
+				Context string `json:"context"`
+			}
+			if err := json.Unmarshal(raw, &check); err != nil || strings.TrimSpace(check.Context) == "" {
+				return fmt.Errorf("decode legacy branch protection required checks: check %d is malformed", checkIndex+1)
+			}
 			addRequiredCheck(policy, check.Context, RequiredCheckSource{Kind: "legacy_branch_protection"})
 		}
 	}
@@ -325,16 +341,16 @@ func mergeGitHubRequiredChecks(policy *GitHubRequiredCheckPolicy, legacyRaw, rul
 		RulesetSourceType string `json:"ruleset_source_type"`
 		RulesetSource     string `json:"ruleset_source"`
 	}
-	var pages [][]branchRule
-	if err := json.Unmarshal(rulesRaw, &pages); err != nil {
-		var rules []branchRule
-		if directErr := json.Unmarshal(rulesRaw, &rules); directErr != nil {
-			return fmt.Errorf("decode applicable GitHub ruleset checks: %w", err)
-		}
-		pages = [][]branchRule{rules}
+	pages, err := decodeApplicableGitHubRulesets(rulesRaw)
+	if err != nil {
+		return err
 	}
 	for _, rules := range pages {
-		for _, rule := range rules {
+		for _, raw := range rules {
+			var rule branchRule
+			if err := json.Unmarshal(raw, &rule); err != nil {
+				return fmt.Errorf("decode applicable GitHub ruleset checks: %w", err)
+			}
 			if rule.Type != "required_status_checks" {
 				continue
 			}
@@ -350,6 +366,64 @@ func mergeGitHubRequiredChecks(policy *GitHubRequiredCheckPolicy, legacyRaw, rul
 			x, y := policy.Requirements[i].Sources[a], policy.Requirements[i].Sources[b]
 			return fmt.Sprintf("%s/%020d/%s/%s", x.Kind, x.RulesetID, x.RulesetSourceType, x.RulesetSource) < fmt.Sprintf("%s/%020d/%s/%s", y.Kind, y.RulesetID, y.RulesetSourceType, y.RulesetSource)
 		})
+	}
+	return nil
+}
+
+func decodeApplicableGitHubRulesets(raw []byte) ([][]json.RawMessage, error) {
+	var top []json.RawMessage
+	if err := json.Unmarshal(raw, &top); err != nil || top == nil {
+		return nil, fmt.Errorf("decode applicable GitHub ruleset checks: response must be a complete JSON page array")
+	}
+	pages := [][]json.RawMessage{}
+	if len(top) > 0 && len(bytes.TrimSpace(top[0])) > 0 && bytes.TrimSpace(top[0])[0] == '[' {
+		for pageIndex, pageRaw := range top {
+			var page []json.RawMessage
+			if err := json.Unmarshal(pageRaw, &page); err != nil || page == nil {
+				return nil, fmt.Errorf("decode applicable GitHub ruleset checks: page %d is malformed or null", pageIndex+1)
+			}
+			if err := validateGitHubBranchRules(page, pageIndex+1); err != nil {
+				return nil, err
+			}
+			pages = append(pages, page)
+		}
+		return pages, nil
+	}
+	if err := validateGitHubBranchRules(top, 1); err != nil {
+		return nil, err
+	}
+	return [][]json.RawMessage{top}, nil
+}
+
+func validateGitHubBranchRules(rules []json.RawMessage, page int) error {
+	for ruleIndex, raw := range rules {
+		var object map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &object); err != nil || object == nil {
+			return fmt.Errorf("decode applicable GitHub ruleset checks: page %d rule %d is malformed or null", page, ruleIndex+1)
+		}
+		var ruleType string
+		if err := json.Unmarshal(object["type"], &ruleType); err != nil || strings.TrimSpace(ruleType) == "" {
+			return fmt.Errorf("decode applicable GitHub ruleset checks: page %d rule %d has no valid type", page, ruleIndex+1)
+		}
+		var parameters map[string]json.RawMessage
+		if err := json.Unmarshal(object["parameters"], &parameters); err != nil || parameters == nil {
+			return fmt.Errorf("decode applicable GitHub ruleset checks: page %d rule %d has malformed parameters", page, ruleIndex+1)
+		}
+		if ruleType != "required_status_checks" {
+			continue
+		}
+		var checks []json.RawMessage
+		if err := json.Unmarshal(parameters["required_status_checks"], &checks); err != nil || checks == nil {
+			return fmt.Errorf("decode applicable GitHub ruleset checks: page %d required_status_checks rule %d has malformed checks", page, ruleIndex+1)
+		}
+		for checkIndex, checkRaw := range checks {
+			var check struct {
+				Context string `json:"context"`
+			}
+			if err := json.Unmarshal(checkRaw, &check); err != nil || strings.TrimSpace(check.Context) == "" {
+				return fmt.Errorf("decode applicable GitHub ruleset checks: page %d required_status_checks rule %d check %d is malformed", page, ruleIndex+1, checkIndex+1)
+			}
+		}
 	}
 	return nil
 }
