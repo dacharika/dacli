@@ -113,3 +113,29 @@ func TestNativeReadyFrontierNarrowScopesAndFreshAuthorizationRemainEnforced(t *t
 		t.Fatal("expired workspace-scoped session read a task brief")
 	}
 }
+
+func TestOrchestrationReadyFrontierDefaultsToPinnedProject(t *testing.T) {
+	for _, role := range []string{"worker", "controller", "bridge"} {
+		t.Run(role, func(t *testing.T) {
+			f := orchestrationFixture(t, role)
+			foreign, err := store.CreateProject(mustWorkspace(t, f), "root", "Foreign", "foreign", "foreign goal", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			foreignTask, err := store.CreateTask(mustWorkspace(t, f), "root", foreign.Slug, "Foreign ready task", store.TaskOpts{})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			frontier := call(t, f, "ready_frontier", frontierArgs{version{1}, "", "", 100}).(application.NativeReadyFrontier)
+			if frontier.Scope != "project" || frontier.Project != "p" {
+				t.Fatalf("%s profile unfiltered frontier was not scoped to its pinned project: %+v", role, frontier)
+			}
+			for _, item := range append(append([]application.NativeTaskItem{}, frontier.Ready...), frontier.Blocked...) {
+				if item.Project != "p" || item.ID == foreignTask.ID {
+					t.Fatalf("%s profile frontier disclosed a foreign task: %+v", role, item)
+				}
+			}
+		})
+	}
+}

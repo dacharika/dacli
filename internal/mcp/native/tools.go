@@ -313,6 +313,9 @@ func (s *Server) call(name string, raw json.RawMessage) (any, error) {
 			// available for filtered reads.
 			if s.orchestration != nil {
 				project := s.orchestration.Project()
+				if x.Project == "" && x.Task == "" {
+					x.Project = project
+				}
 				if x.Project != "" && x.Project != project {
 					return nil, ErrDenied
 				}
