@@ -652,3 +652,46 @@ func TestApplyReplayAfterPartialReplacementRetainsExactRecoverySubset(t *testing
 		t.Fatalf("partial replay lost verified progress: receipt=%+v err=%v", replay, replayErr)
 	}
 }
+
+func TestApplyReplayAfterMissingPartialTargetRetainsRecoveryBoundary(t *testing.T) {
+	root := fixtureTree(t, "legacy")
+	p, err := Preview(root, ReviewedSourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan := filepath.Join(tempDir(t), "missing-target-replay-plan.json")
+	if err := writePlan(plan, p); err != nil {
+		t.Fatal(err)
+	}
+	checks := 0
+	first, err := ApplyAuthorized(plan, func() error {
+		checks++
+		if checks == 4 {
+			return errors.New("stop after first replacement")
+		}
+		return nil
+	})
+	if err == nil || first.State != "recovery_required" || len(first.Replaced) != 1 || len(first.Backups) != 1 {
+		t.Fatalf("partial replacement fixture did not stop after one replacement: receipt=%+v err=%v", first, err)
+	}
+	missing := first.Replaced[0]
+	if err := os.Remove(missing); err != nil {
+		t.Fatal(err)
+	}
+	available := filepath.Join(root, filepath.FromSlash(p.Files[1].Path))
+	availableBefore, err := os.ReadFile(available)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replay, replayErr := ApplyAuthorized(plan, func() error { return nil })
+	if replayErr == nil || replay.State != "recovery_required" || len(replay.Backups) != 1 || !equalStrings(replay.Backups, first.Backups) || replay.RecoveryPath != missing {
+		t.Fatalf("missing partial target lost its recovery boundary: receipt=%+v first=%+v err=%v", replay, first, replayErr)
+	}
+	if _, err := os.Lstat(missing); !os.IsNotExist(err) {
+		t.Fatalf("replay replaced or recreated missing target: %v", err)
+	}
+	availableAfter, err := os.ReadFile(available)
+	if err != nil || !bytes.Equal(availableAfter, availableBefore) {
+		t.Fatalf("replay changed available neighboring guidance: err=%v", err)
+	}
+}

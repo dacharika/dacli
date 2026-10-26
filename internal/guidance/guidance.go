@@ -936,19 +936,6 @@ func recoverExisting(plan Plan, root, backupRoot *guidanceDir, r *Receipt) (bool
 		r.RecoveryPath = backupRoot.path
 		return true, err
 	}
-	currentFiles := map[string][]byte{}
-	for _, entry := range plan.Files {
-		targetParent, err := root.OpenDir(filepath.ToSlash(filepath.Dir(filepath.FromSlash(entry.Path))))
-		if err != nil {
-			return true, err
-		}
-		current, _, readErr := targetParent.ReadRegular(filepath.Base(filepath.FromSlash(entry.Path)), maxSkillFile)
-		_ = targetParent.Close()
-		if readErr != nil {
-			return true, readErr
-		}
-		currentFiles[entry.Path] = current
-	}
 	progress := false
 	complete := true
 	for _, entry := range plan.Files {
@@ -979,7 +966,21 @@ func recoverExisting(plan Plan, root, backupRoot *guidanceDir, r *Receipt) (bool
 				}
 			}
 		}
-		targetDigest := digest(currentFiles[entry.Path])
+		targetParent, targetErr := root.OpenDir(filepath.ToSlash(filepath.Dir(filepath.FromSlash(entry.Path))))
+		var current []byte
+		if targetErr == nil {
+			current, _, targetErr = targetParent.ReadRegular(filepath.Base(filepath.FromSlash(entry.Path)), maxSkillFile)
+			_ = targetParent.Close()
+		}
+		if targetErr != nil {
+			complete = false
+			progress = true
+			if r.RecoveryPath == "" {
+				r.RecoveryPath = filepath.Join(plan.Root, filepath.FromSlash(entry.Path))
+			}
+			continue
+		}
+		targetDigest := digest(current)
 		if targetDigest == entry.After {
 			r.Replaced = append(r.Replaced, filepath.Join(plan.Root, filepath.FromSlash(entry.Path)))
 			progress = true
