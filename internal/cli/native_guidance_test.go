@@ -115,8 +115,20 @@ func TestNativeGuidanceRefreshCLIReplacesKnownLegacyAndPreservesAdjacentPrivateB
 		t.Fatalf("MCP CLI refusal wrote backups: %v", err)
 	}
 	out = runGuidanceCLI(t, workspaceRoot, 0, "native", "guidance", "refresh-apply", "--config", configPath, "--plan", plan, "--json")
-	if !strings.Contains(out, `"state":"completed"`) || !strings.Contains(out, `"backups"`) {
-		t.Fatalf("apply did not return durable receipt: %s", out)
+	var receipt guidance.Receipt
+	if err := json.Unmarshal([]byte(out), &receipt); err != nil {
+		t.Fatalf("apply did not return a JSON receipt: %v: %s", err, out)
+	}
+	planBytes, err := os.ReadFile(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var reviewed guidance.Plan
+	if err := json.Unmarshal(planBytes, &reviewed); err != nil {
+		t.Fatal(err)
+	}
+	if receipt.Schema != guidance.Schema || receipt.State != "completed" || receipt.PlanDigest != reviewed.PlanDigest || len(receipt.Backups) != len(guidance.KnownFiles()) || len(receipt.Replaced) != len(guidance.KnownFiles()) {
+		t.Fatalf("apply receipt does not bind the completed reviewed refresh: %+v", receipt)
 	}
 	canonical := filepath.Join(repo, "skills", "dacli")
 	for _, rel := range guidance.KnownFiles() {
