@@ -71,6 +71,9 @@ func fillFixtureValue(v reflect.Value, depth int) {
 	switch v.Kind() {
 	case reflect.Struct:
 		for i := 0; i < v.NumField(); i++ {
+			if schema22OnlyFixtureField(v.Type().Field(i).Name) {
+				continue
+			}
 			fillFixtureValue(v.Field(i), depth+1)
 		}
 	case reflect.Map:
@@ -100,6 +103,15 @@ func fillFixtureValue(v reflect.Value, depth int) {
 		v.SetUint(1)
 	case reflect.Float32, reflect.Float64:
 		v.SetFloat(1)
+	}
+}
+
+func schema22OnlyFixtureField(name string) bool {
+	switch name {
+	case "HostSlots", "HostSlot", "Census", "HostSlotTerminal", "ExecutionConcurrency", "ExecutionConcurrencyKnown", "HostSlotAdmission":
+		return true
+	default:
+		return false
 	}
 }
 

@@ -20,6 +20,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -182,7 +183,7 @@ func OpenCurrent(path string, binding Binding, admission ...LeaseAdmission) (*Au
 	var version struct {
 		Version int
 	}
-	if json.Unmarshal(data, &version) != nil || version.Version < 6 || version.Version > 21 {
+	if json.Unmarshal(data, &version) != nil || version.Version < 6 || version.Version > 22 {
 		return nil, ErrStorage
 	}
 	a.version = version.Version
@@ -495,11 +496,163 @@ func decodeAuthorityStateMode(data []byte, binding Binding, version int, strict 
 	if decoded != nil || (s.Version != version && !((version >= 6 && version <= 12) && s.Version >= version && s.Version <= 19)) || s.Binding != binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version >= 3 && (s.Leases == nil || s.Operations == nil)) || (s.Version >= 4 && (s.Revisions == nil || s.Grants == nil || s.Evidence == nil)) || (s.Version >= 5 && (s.ReviewGrants == nil || s.Reviews == nil)) || (s.Version >= 6 && (s.PublicationPolicies == nil || s.PublicationDecisions == nil || s.PublicationConsumed == nil)) {
 		return state{}, ErrStorage
 	}
+	// Mutation check: disabled the explicit-presence guard.
 	if e := validateAuthorityMaps(&s); e != nil {
 		return state{}, e
 	}
 	return s, nil
 }
+
+func rawObjectField(raw json.RawMessage, name string) (json.RawMessage, bool) {
+	var object map[string]json.RawMessage
+	if json.Unmarshal(raw, &object) != nil {
+		return nil, false
+	}
+	var found json.RawMessage
+	count := 0
+	for key, value := range object {
+		if strings.EqualFold(key, name) {
+			found = value
+			count++
+		}
+	}
+	if count > 1 {
+		// A nil value with present=true marks an ambiguous typed key. Every
+		// structural caller treats this as a refusal, and leaf checks already
+		// treat presence as schema-22 data.
+		return nil, true
+	}
+	return found, count == 1
+}
+
+func rawMapValues(raw json.RawMessage, visit func(json.RawMessage) bool) bool {
+	var values map[string]json.RawMessage
+	if json.Unmarshal(raw, &values) != nil {
+		return false
+	}
+	for _, value := range values {
+		if visit(value) {
+			return true
+		}
+	}
+	return false
+}
+
+func rawArrayValues(raw json.RawMessage, visit func(json.RawMessage) bool) bool {
+	var values []json.RawMessage
+	if json.Unmarshal(raw, &values) != nil {
+		return false
+	}
+	for _, value := range values {
+		if visit(value) {
+			return true
+		}
+	}
+	return false
+}
+
+func rawHasField(raw json.RawMessage, name string) bool {
+	_, ok := rawObjectField(raw, name)
+	return ok
+}
+
+func rawHasFieldInMap(raw json.RawMessage, name string) bool {
+	return rawMapValues(raw, func(value json.RawMessage) bool { return rawHasField(value, name) })
+}
+
+func rawHasFieldInArrayMap(raw json.RawMessage, name string) bool {
+	return rawArrayValues(raw, func(value json.RawMessage) bool { return rawHasField(value, name) })
+}
+
+// authorityHasSchema22Fields inspects only typed state paths that acquired
+// schema-22 fields. Arbitrary nested evidence/context JSON is intentionally
+// opaque, so matching key text inside user payloads does not affect old readers.
+func authorityHasSchema22Fields(data []byte) bool {
+	var root map[string]json.RawMessage
+	if json.Unmarshal(data, &root) != nil {
+		return false
+	}
+	for _, name := range []string{"SwarmPolicies", "Dispatches", "CapacityObservations", "LifecycleObservations", "LifecycleOperations", "SwarmOperations", "DispatchIntents", "DispatchIntentOperations", "ControllerInvocations", "ControllerOperations", "ControllerHistory"} {
+		count := 0
+		for key := range root {
+			if strings.EqualFold(key, name) {
+				count++
+			}
+		}
+		if count > 1 {
+			return true
+		}
+	}
+	topField := func(name string) json.RawMessage {
+		for key, value := range root {
+			if strings.EqualFold(key, name) {
+				return value
+			}
+		}
+		return nil
+	}
+	if rawHasFieldInMap(topField("SwarmPolicies"), "HostSlots") || rawHasFieldInMap(topField("Dispatches"), "HostSlot") || rawHasFieldInMap(topField("CapacityObservations"), "Census") {
+		return true
+	}
+	if rawMapValues(topField("LifecycleObservations"), func(value json.RawMessage) bool { return rawHasFieldInArrayMap(value, "host_slot_terminal") }) {
+		return true
+	}
+	if rawMapValues(topField("LifecycleOperations"), func(value json.RawMessage) bool {
+		observation, ok := rawObjectField(value, "Observation")
+		return ok && (observation == nil || rawHasField(observation, "host_slot_terminal"))
+	}) {
+		return true
+	}
+	if rawMapValues(topField("SwarmOperations"), func(value json.RawMessage) bool {
+		wave, ok := rawObjectField(value, "Wave")
+		if !ok {
+			return false
+		}
+		if wave == nil {
+			return true
+		}
+		dispatches, ok := rawObjectField(wave, "Dispatches")
+		return ok && (dispatches == nil || rawHasFieldInArrayMap(dispatches, "HostSlot"))
+	}) {
+		return true
+	}
+	intentOperationHasSlot := func(value json.RawMessage) bool {
+		intent, ok := rawObjectField(value, "Intent")
+		if !ok {
+			return false
+		}
+		if intent == nil {
+			return true
+		}
+		reservation, ok := rawObjectField(intent, "Reservation")
+		return ok && (reservation == nil || rawHasField(reservation, "HostSlot"))
+	}
+	if rawMapValues(topField("DispatchIntents"), func(value json.RawMessage) bool {
+		reservation, ok := rawObjectField(value, "Reservation")
+		return ok && (reservation == nil || rawHasField(reservation, "HostSlot"))
+	}) || rawMapValues(topField("DispatchIntentOperations"), intentOperationHasSlot) {
+		return true
+	}
+	statusHasSlotFields := func(value json.RawMessage) bool {
+		status, ok := rawObjectField(value, "Status")
+		if !ok {
+			return false
+		}
+		if status == nil {
+			return true
+		}
+		return rawHasField(status, "ExecutionConcurrency") || rawHasField(status, "ExecutionConcurrencyKnown") || rawHasField(status, "HostSlotAdmission")
+	}
+	if rawMapValues(topField("ControllerInvocations"), statusHasSlotFields) || rawMapValues(topField("ControllerOperations"), statusHasSlotFields) {
+		return true
+	}
+	return rawMapValues(topField("ControllerHistory"), func(value json.RawMessage) bool {
+		return rawArrayValues(value, func(status json.RawMessage) bool {
+			return rawHasField(status, "ExecutionConcurrency") || rawHasField(status, "ExecutionConcurrencyKnown") || rawHasField(status, "HostSlotAdmission")
+		})
+	})
+}
+
 func validateAuthorityMaps(s *state) error {
 	if s.Version < 21 && (s.CapacityPolicies != nil || s.CapacityObservers != nil || s.CapacityObservations != nil || s.CapacityQualifications != nil) {
 		return ErrStorage
@@ -509,6 +662,84 @@ func validateAuthorityMaps(s *state) error {
 	}
 	if s.Version >= 21 && validateHostCapacityState(s) != nil {
 		return ErrStorage
+	}
+	if s.Version < 22 {
+		for _, policy := range s.SwarmPolicies {
+			if policy.HostSlots != nil {
+				return ErrStorage
+			}
+		}
+		for _, dispatch := range s.Dispatches {
+			if dispatch.HostSlot != nil {
+				return ErrStorage
+			}
+		}
+		for _, observation := range s.CapacityObservations {
+			if observation.Census != nil || observation.SchemaVersion != 1 {
+				return ErrStorage
+			}
+		}
+		for _, observations := range s.LifecycleObservations {
+			for _, observation := range observations {
+				if observation.HostSlotTerminal != nil {
+					return ErrStorage
+				}
+			}
+		}
+		for _, invocation := range s.ControllerInvocations {
+			if invocation.Status.ExecutionConcurrency != 0 || invocation.Status.ExecutionConcurrencyKnown || invocation.Status.HostSlotAdmission != nil {
+				return ErrStorage
+			}
+		}
+		for _, history := range s.ControllerHistory {
+			for _, status := range history {
+				if status.ExecutionConcurrency != 0 || status.ExecutionConcurrencyKnown || status.HostSlotAdmission != nil {
+					return ErrStorage
+				}
+			}
+		}
+		for _, receipt := range s.ControllerOperations {
+			if receipt.Status.ExecutionConcurrency != 0 || receipt.Status.ExecutionConcurrencyKnown || receipt.Status.HostSlotAdmission != nil {
+				return ErrStorage
+			}
+		}
+	} else {
+		for _, policy := range s.SwarmPolicies {
+			if policy.HostSlots != nil && !hostSlotPolicyShapeValid(s, *policy.HostSlots) {
+				return ErrStorage
+			}
+		}
+		for id, dispatch := range s.Dispatches {
+			if dispatch.ID != id || !validateHostSlotClaim(dispatch) {
+				return ErrStorage
+			}
+			configured, policyExists := s.SwarmPolicies[dispatch.ProjectID+"\x00"+dispatch.PolicyRevision]
+			if !policyExists || (configured.HostSlots != nil && configured.HostSlots.Mode == HostSlotSingleAuthority) != (dispatch.HostSlot != nil) {
+				return ErrStorage
+			}
+			if claim := dispatch.HostSlot; claim != nil {
+				receipt, ok := s.SwarmOperations[claim.ReserveOperationKey]
+				found := false
+				if ok && receipt.Wave != nil {
+					for _, reserved := range receipt.Wave.Dispatches {
+						if reserved.ID == dispatch.ID && reserved.Reservation.Fence == dispatch.Reservation.Fence && reserved.HostSlot != nil && *reserved.HostSlot == *claim {
+							found = true
+							break
+						}
+					}
+				}
+				if !found {
+					return ErrStorage
+				}
+			}
+		}
+		for _, observations := range s.LifecycleObservations {
+			for _, observation := range observations {
+				if observation.HostSlotTerminal != nil && !validHostSlotTerminalObservation(s, observation) {
+					return ErrStorage
+				}
+			}
+		}
 	}
 
 	if s.Version < 19 && (s.NativeExternalPolicies != nil || s.NativeExternalHistory != nil || s.NativeExternalOperations != nil) {
