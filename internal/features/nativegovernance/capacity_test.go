@@ -145,3 +145,16 @@ func TestCapacityCLIRejectsFutureOwnerContractVersions(t *testing.T) {
 		t.Fatalf("future-version CLI requests changed authority: err=%v", err)
 	}
 }
+
+func TestCapacityReportVersionPeekRoutesOnlyKnownVersions(t *testing.T) {
+	for _, tc := range []struct {
+		input string
+		want  int
+		ok    bool
+	}{{`{"schema_version":1,"ignored":"for strict decoder"}`, 1, true}, {`{"schema_version":2}`, 2, true}, {`{"schema_version":3}`, 3, true}, {`{}`, 0, false}, {`{"schema_version":null}`, 0, false}, {`{"schema_version":"2"}`, 0, false}, {`{"schema_version":2}{}`, 0, false}, {`{"schema_version":2,"schema_version":1}`, 0, false}, {`{"schema_version":1,"schema_version":1}`, 0, false}} {
+		got, err := capacityReportVersion([]byte(tc.input))
+		if (err == nil) != tc.ok || (tc.ok && got != tc.want) {
+			t.Fatalf("capacityReportVersion(%s)=(%d,%v), want (%d, ok=%v)", tc.input, got, err, tc.want, tc.ok)
+		}
+	}
+}

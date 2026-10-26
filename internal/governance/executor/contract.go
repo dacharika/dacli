@@ -295,6 +295,9 @@ func (c Coordinator) DispatchOnce(req Dispatch, enrolled AuthenticatedBinding, n
 		return HostResult{}, ErrDenied
 	}
 	reservation := permit.Intent.Reservation
+	if !hostSlotClaimMatchesWorker(reservation.HostSlot, req, enrolled.binding) {
+		return HostResult{}, ErrDenied
+	}
 	if permit.Intent.OperationKey != req.OperationKey || permit.Intent.DispatchID != req.DispatchID || permit.Intent.BridgeSessionID != req.BridgeSession || permit.Intent.WorkerSessionID != enrolled.binding.Session || permit.Intent.PromptSpecDigest != req.PromptSpecDigest || reservation.Reservation.Fence != req.ExpectedFence || reservation.ProjectID != enrolled.binding.Project || reservation.Reservation.TaskID != enrolled.binding.Task || reservation.Reservation.Checkout != enrolled.attempt.Observation.Locator || reservation.Reservation.Repository != enrolled.attempt.Observation.Repository {
 		return HostResult{}, ErrDenied
 	}
@@ -314,6 +317,17 @@ func (c Coordinator) DispatchOnce(req Dispatch, enrolled AuthenticatedBinding, n
 		return lookup, nil
 	}
 	return HostResult{}, ErrUncertain
+}
+
+// hostSlotClaimMatchesWorker checks the authority-returned claim against the
+// independently authenticated worker enrollment before any host call. Manual
+// mode is represented by a nil claim; a present claim must bind this exact
+// dispatch and fence to the worker's host, session and instance.
+func hostSlotClaimMatchesWorker(claim *sessions.HostSlotClaim, req Dispatch, worker Binding) bool {
+	if claim == nil {
+		return true
+	}
+	return claim.SchemaVersion == 1 && claim.AuthorityDomainID != "" && claim.DispatchID == req.DispatchID && claim.DispatchFence == req.ExpectedFence && claim.HostID == worker.Host && claim.HostSessionID == worker.Session && claim.ExecutorInstanceID == worker.Instance && claim.CapabilityDigest != "" && claim.Units == 1
 }
 
 func hostResultMatches(result HostResult, req Dispatch) bool {

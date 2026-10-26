@@ -1,8 +1,10 @@
 package nativegovernance
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -43,7 +45,7 @@ func capacityOwner(ctx *clikit.Ctx, configPath string, requireCapacity bool) (*s
 	}
 	var a *sessions.Authority
 	if requireCapacity {
-		a, err = sessions.OpenHostCapacity(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID})
+		a, err = sessions.OpenCapacityCurrent(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID})
 	} else {
 		a, err = sessions.OpenCurrent(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID})
 	}
@@ -178,6 +180,51 @@ func capacityConnection(path string) (nativeconfig.Connection, *workspace.Worksp
 	return c, w, nil
 }
 
+// capacityReportVersion only chooses the strict version-specific decoder;
+// all report fields are validated by that decoder before any authority call.
+func capacityReportVersion(data []byte) (int, error) {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	opening, err := decoder.Token()
+	if err != nil || opening != json.Delim('{') {
+		return 0, sessions.ErrDenied
+	}
+	seen := make(map[string]struct{})
+	var versionJSON json.RawMessage
+	for decoder.More() {
+		token, err := decoder.Token()
+		key, ok := token.(string)
+		if err != nil || !ok {
+			return 0, sessions.ErrDenied
+		}
+		if _, exists := seen[key]; exists {
+			return 0, sessions.ErrDenied
+		}
+		seen[key] = struct{}{}
+		var value json.RawMessage
+		if decoder.Decode(&value) != nil {
+			return 0, sessions.ErrDenied
+		}
+		if key == "schema_version" {
+			versionJSON = value
+		}
+	}
+	closing, err := decoder.Token()
+	if err != nil || closing != json.Delim('}') {
+		return 0, sessions.ErrDenied
+	}
+	if _, err = decoder.Token(); err != io.EOF {
+		return 0, sessions.ErrDenied
+	}
+	if versionJSON == nil || bytes.Equal(bytes.TrimSpace(versionJSON), []byte("null")) {
+		return 0, sessions.ErrDenied
+	}
+	var version int
+	if json.Unmarshal(versionJSON, &version) != nil {
+		return 0, sessions.ErrDenied
+	}
+	return version, nil
+}
+
 func capacityObserve(ctx *clikit.Ctx, args []string) error {
 	f, err := flags(args, "connection", "request")
 	if err != nil {
@@ -198,11 +245,28 @@ func capacityObserve(ctx *clikit.Ctx, args []string) error {
 	if err != nil {
 		return denied()
 	}
-	report, err := executor.DecodeCapacityReport(data)
+	version, err := capacityReportVersion(data)
 	if err != nil {
 		return clikit.Refusedf("unknown or unsupported capacity report contract")
 	}
-	receipt, duplicate, err := access.Observe(report)
+	var receipt sessions.HostCapacityObservation
+	var duplicate bool
+	switch version {
+	case 1:
+		report, decodeErr := executor.DecodeCapacityReport(data)
+		if decodeErr != nil {
+			return clikit.Refusedf("unknown or unsupported capacity report contract")
+		}
+		receipt, duplicate, err = access.Observe(report)
+	case 2:
+		report, decodeErr := executor.DecodeCapacityReportV2(data)
+		if decodeErr != nil {
+			return clikit.Refusedf("unknown or unsupported capacity report contract")
+		}
+		receipt, duplicate, err = access.ObserveV2(report)
+	default:
+		return clikit.Refusedf("unknown or unsupported capacity report contract")
+	}
 	if err != nil {
 		return clikit.Refusedf("capacity observation refused by current observer enrollment or freshness checks")
 	}

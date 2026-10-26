@@ -555,3 +555,30 @@ func TestExpiredBridgeCannotAcceptRunningLifecycleObservation(t *testing.T) {
 		t.Fatal("expired bridge accepted observation for a running lifecycle")
 	}
 }
+
+func TestHostSlotClaimMustMatchAuthenticatedWorkerScope(t *testing.T) {
+	worker := Binding{Host: "host-a", Session: "worker-session-a", Instance: "executor-a"}
+	req := Dispatch{DispatchID: "dispatch-a", ExpectedFence: 9}
+	claim := &sessions.HostSlotClaim{SchemaVersion: 1, AuthorityDomainID: "domain-a", HostID: "host-a", HostSessionID: "worker-session-a", ExecutorInstanceID: "executor-a", CapabilityDigest: strings.Repeat("a", 64), DispatchID: "dispatch-a", DispatchFence: 9, Units: 1}
+	if !hostSlotClaimMatchesWorker(claim, req, worker) {
+		t.Fatal("exact authority-returned host-slot claim did not match the authenticated worker")
+	}
+	for name, mutate := range map[string]func(*sessions.HostSlotClaim){
+		"host":     func(c *sessions.HostSlotClaim) { c.HostID = "host-b" },
+		"session":  func(c *sessions.HostSlotClaim) { c.HostSessionID = "worker-session-b" },
+		"instance": func(c *sessions.HostSlotClaim) { c.ExecutorInstanceID = "executor-b" },
+		"dispatch": func(c *sessions.HostSlotClaim) { c.DispatchID = "dispatch-b" },
+		"fence":    func(c *sessions.HostSlotClaim) { c.DispatchFence++ },
+	} {
+		t.Run(name, func(t *testing.T) {
+			changed := *claim
+			mutate(&changed)
+			if hostSlotClaimMatchesWorker(&changed, req, worker) {
+				t.Fatalf("substituted %s claim passed worker-scope check", name)
+			}
+		})
+	}
+	if !hostSlotClaimMatchesWorker(nil, req, worker) {
+		t.Fatal("legacy manual reservation was not preserved")
+	}
+}

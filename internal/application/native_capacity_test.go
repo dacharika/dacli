@@ -165,3 +165,49 @@ func TestNativeCapacityRequiresSchema21AndExactConnection(t *testing.T) {
 		t.Fatal("un-enrolled host session opened as observer")
 	}
 }
+
+func TestNativeCapacityCurrentReaderAndOwnerUpgradeSlots(t *testing.T) {
+	w, path, ownerToken, _, host, _ := capacityApplicationFixture(t)
+	profile := writeCapacityOwnerProfile(t, w, path, ownerToken)
+	owner, err := OpenNativeCapacityOwner(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := owner.Upgrade(); err != nil {
+		t.Fatalf("explicit schema-20 to 21 migration: %v", err)
+	}
+	binding := sessions.Binding{Workspace: w.ID, Installation: "capacity-installation"}
+	if _, err := sessions.OpenCapacityCurrent(path, binding); err != nil {
+		t.Fatalf("current capacity reader did not select schema 21: %v", err)
+	}
+	if err := owner.UpgradeSlots(); err != nil {
+		t.Fatalf("explicit schema-21 to 22 migration: %v", err)
+	}
+	if _, err := sessions.OpenHostCapacity(path, binding); err == nil {
+		t.Fatal("legacy exact-21 opener silently selected schema 22")
+	}
+	if _, err := sessions.OpenHostSlots(path, binding); err != nil {
+		t.Fatalf("schema-22 slot opener refused migrated authority: %v", err)
+	}
+	observer, observerToken, err := owner.EnrollObserver(sessions.HostCapacityObserver{SchemaVersion: 1, HostSessionID: host.ID, ExecutorInstanceID: "executor-2", HostID: "host-a", Runtime: "codex", Build: "build-1", CapabilityDigest: strings.Repeat("a", 64), ExpiresAt: time.Now().Add(30 * time.Minute)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	private := t.TempDir()
+	credential := filepath.Join(private, "observer.token")
+	connectionPath := filepath.Join(private, "connection.json")
+	if err := os.WriteFile(credential, []byte(observerToken), 0600); err != nil {
+		t.Fatal(err)
+	}
+	connection := nativeconfig.Connection{SchemaVersion: 1, Workspace: w.Root, WorkspaceID: w.ID, Authority: path, InstallationID: "capacity-installation", SessionID: observer.ObserverSessionID, CredentialFile: credential}
+	encoded, err := json.Marshal(connection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(connectionPath, encoded, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := OpenNativeCapacity(connectionPath, w); err != nil {
+		t.Fatalf("authenticated current capacity reader refused schema 22: %v", err)
+	}
+}
