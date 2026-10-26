@@ -154,7 +154,7 @@ struct NativeInspector: View {
                 Text(task.summary).font(.system(size: 13)).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
             }
             rule
-            Text("\(agent.role.rawValue) defaults to a \(agent.species.rawValue.lowercased()). Appearance is cosmetic; changing animals or skins cannot change the role or permissions.")
+            Text("\(agent.role.rawValue) defaults to a \(agent.species.rawValue.lowercased()). Skins change appearance without changing this agent’s role or work. Adopt a new animal to add another agent.")
                 .font(.system(size: 12)).foregroundStyle(FarmStyle.muted).lineSpacing(3)
         }
     }

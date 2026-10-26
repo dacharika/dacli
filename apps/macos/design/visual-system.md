@@ -108,7 +108,7 @@ The checks above qualify these fixture interactions and supported-size captures 
 
 ## Living farm interaction contract
 
-This later product steering adds genuine resident animation, roles, output-driven cosmetic growth, accepted land turnover, adoption and skins. The historical native captures above show the preceding static revision; they do not verify the new animation or shop/lifecycle flows. The new native binary requires fresh CUA qualification. The earlier toolbar-only contrast adjustment was insufficient in an actual window capture; the living revision requests a dark window preferred scheme and a light content environment, with its native titlebar contrast still pending actual capture.
+This later product steering adds genuine resident animation, roles, output-driven cosmetic growth, accepted land turnover, adoption and skins. The historical native captures above show the preceding static revision; they do not verify the new animation or shop/lifecycle flows. The current native qualification is recorded below. The earlier toolbar-only contrast adjustment was insufficient in an actual window capture. The living revision instead requests a dark window preferred scheme and a light content environment; root’s subsequent actual capture confirmed readable white native title text.
 
 ### Roles, movement and emotion
 
@@ -160,7 +160,32 @@ Skins dresses an existing selected agent. Work clothes and Meadow scarf are samp
 
 The focused Swift suite now contains twelve tests, including the five earlier tests unchanged. New checks cover an empty queue remaining fallow without invented work; distinct role defaults; output-only thresholds and unknown usage; accepted-only land turnover and replacement identity; reversible cosmetics without authority changes; independent adoption identity/work and non-reused IDs; and bounded moving paths with stationary reduced-motion poses. Path tests verify the motion calculation, not actual native frame delivery or mouse activation.
 
-The expanded debug renderer exports farm compact/wide, role/usage detail, adoption, Animals/Skins, harvested/fallow/replacement and two sampled motion times. Native Menu/Picker wrappers have labeled static adapters in these artifacts, as do the earlier List/ScrollView wrappers. These are deterministic content renders, never a substitute for live motion, click targets, focus, menus, titlebar, VoiceOver or performance checks. Fresh native animation, adoption, lifecycle, growth-control and titlebar results remain pending root's CUA review. Full VoiceOver, macOS 14 runtime, runtime performance and live usage/commerce integration remain unverified.
+The expanded debug renderer exports farm compact/wide, role/usage detail, adoption, Animals/Skins, harvested/fallow/replacement and two sampled motion times. Native Menu/Picker wrappers have labeled static adapters in these artifacts, as do the earlier List/ScrollView wrappers. These are deterministic content renders, never a substitute for live motion, click targets, focus, menus, titlebar, VoiceOver or performance checks. Root’s subsequent native animation, adoption, lifecycle, growth-control and titlebar checks are recorded below. Full VoiceOver, macOS 14 runtime, runtime performance and live usage/commerce integration remain unverified.
 
 
 Causal mutation evidence for the living revision: allowing Review needed to free land produced three assertion failures; inferring Sprout for unavailable usage produced five; forcing reused adoption IDs produced two; disabling path movement produced four; and making Planner reuse Fox produced three; and inventing an empty-queue fallback (also admitting foreign/done queue items) produced five. Each probe exited 1, its source was restored, and the complete focused suite returned green. These probes qualify model/kinematic guards; actual native animation and interaction remain a separate runtime check.
+
+
+## Current living-farm native qualification — 2026-10-26 UTC
+
+Root completed native CUA review at 00:30:45 UTC against source commit `e296bf72e8a2269050976c470c9c5dd2abf725c0` and binary SHA-256 `f0b644d6ea6a09f9a8e5fe9056b829e2a731208499b9ebe4032d66337ead0f24`. The review recorded sixteen positive checks. A separate Luna model review reported no actionable findings. The final copy edit clarifies that Skins dresses an existing agent while adopting an animal adds another agent; it changes no behavior.
+
+| Area | Actual native observations |
+| --- | --- |
+| Residents and roles | Two successive native frames showed real roaming. Running/work, Waiting and Review cues were visible. A screenshot-coordinate click opened the moving Mallow. Builder/Planner/Reviewer retained their distinct Fox/Rabbit/Raccoon defaults. |
+| Adoption and skins | Adopting Pip added Planner `wildflower-adopt-1` with independent task `CORE-P001` and a fourth plot. Trying a skin retained the existing agent ID, role and task. |
+| Attributed growth | Changing only the selected agent’s output sample from 18,400 to 42,000 changed only that agent’s growth. Unavailable usage kept the neutral sprite with no inferred stage. |
+| Open land and history | Accepted CORE-318 left the active count. Harvested → Fallow → queued CORE-321 used a distinct open ID. An empty queue stayed fallow and created no work. Historical owner acceptance and review evidence remained separate. |
+| Motion and keyboard | The local motion pause retained state and stationary cues. Closing the native List inspector then Space reopened the selected issue; closing Garden details then Return reopened the selected issue. |
+| Project isolation and chrome | Moonrise retained its baseline three agents while Wildflower retained its four-agent adoption preview across switches. The native title was white and readable on the dark chrome. |
+
+### Current sample images and their scope
+
+| Image | Format and measured raster | Qualification |
+| --- | --- | --- |
+| [Four agents in the actual native app](captures/four-agents-live-native.jpg) | Untouched JPEG, 3024×1896 pixels | Actual host window capture, corresponding to the reported 1512×948 host extent at 2×. It demonstrates the current native farm and chrome; it is not exact current Compact/Wide preset evidence. |
+| [Current compact four-agent content render](captures/four-agents-1024-content-render.png) | Untouched PNG, 2048×1492 pixels | Deterministic `ImageRenderer` export at 2× of 1024×746 content points. It qualifies the compact visual-spec sample with the documented native wrapper adapters; it is not a window capture or a native titlebar sample. |
+
+Both current files are byte-for-byte copies of the reviewed source images, with no conversion, resizing, cropping or retouching. Actual native capture SHA-256: `b2fc5c6653acd8298226b8723245b3e821d3c55b10801f3953421aa97858238e`; compact content render SHA-256: `badf86c1fd2b46a89908ef2183e694bc795801e1a7c27bef9ec9f8f75b30d711`. The two earlier exact-size native captures above remain explicitly historical. Current fixed-width 1024/1440 content exports cover the visual-spec sizes, but exact current new-process native preset dimensions were not requalified by this host capture. Misnamed private compact frames are not exact-size evidence.
+
+The system Reduce Motion preference was not changed during this audit. The local pause control was exercised; source gating and kinematic tests cover the stationary path. A private four-agent `ps` diagnostic observed 10.7% process-average CPU and RSS 155,152 KiB while capture activity was present. This is not a renderer benchmark, measured frame rate, frame-time distribution or performance qualification. The 3/20/100-agent performance work remains open under #1161. Full VoiceOver, macOS 14 runtime compatibility, live output metering, commerce/entitlements and actual agent enrollment remain unverified or separately scoped. No skill/tool usage statistics were invented in this fixture.
