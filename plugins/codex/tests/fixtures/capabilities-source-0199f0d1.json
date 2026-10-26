@@ -1,0 +1,6217 @@
+{
+  "schema_version": 1,
+  "binary": {
+    "name": "dacli",
+    "version": "dev",
+    "path": "selected-runtime",
+    "goos": "darwin",
+    "goarch": "arm64"
+  },
+  "state_schemas": [
+    {
+      "id": "state.event",
+      "schema_version": 1
+    },
+    {
+      "id": "state.role-skill",
+      "schema_version": 1
+    },
+    {
+      "id": "state.root-handoff",
+      "schema_version": 1
+    },
+    {
+      "id": "state.workspace",
+      "schema_version": 0
+    }
+  ],
+  "commands": [
+    {
+      "id": "cli.command.accept",
+      "path": "accept",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.accept.flag.all",
+          "name": "--all",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.accept.flag.allow-unlanded",
+          "name": "--allow-unlanded",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.accept.flag.allow-unobservable-check-policy",
+          "name": "--allow-unobservable-check-policy",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.accept.flag.allow-unverified",
+          "name": "--allow-unverified",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.accept.flag.defer-landing",
+          "name": "--defer-landing",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.accept.flag.final-commit",
+          "name": "--final-commit",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.accept.flag.final-tree",
+          "name": "--final-tree",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.accept.flag.force",
+          "name": "--force",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.accept.flag.full-output",
+          "name": "--full-output",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.accept.flag.into",
+          "name": "--into",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.accept.flag.require-independent",
+          "name": "--require-independent",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.accept.flag.require-verify",
+          "name": "--require-verify",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.accept.flag.verify",
+          "name": "--verify",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli accept <ref> [--verify \"cmd\"] [--full-output] [--final-commit SHA --final-tree SHA] [--require-verify] [--require-independent] [--allow-unverified] [--allow-unlanded] [--allow-unobservable-check-policy] [--defer-landing] [--force] [--into BRANCH] | dacli accept --all [--verify \"cmd\"] [--full-output] [--final-commit SHA --final-tree SHA] [--require-verify] [--require-independent] [--allow-unverified] [--allow-unlanded] [--allow-unobservable-check-policy] [--defer-landing] [--force] [--into BRANCH]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.accept.apply",
+      "path": "accept apply",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.accept.apply.flag.allow-unlanded",
+          "name": "--allow-unlanded",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.accept.apply.flag.defer-landing",
+          "name": "--defer-landing",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.accept.apply.flag.into",
+          "name": "--into",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.accept.apply.flag.proposal",
+          "name": "--proposal",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli accept apply <task> --proposal <id> [--allow-unlanded | --defer-landing] [--into BRANCH]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.accept.apply-native",
+      "path": "accept apply-native",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.accept.apply-native.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.accept.apply-native.flag.decision",
+          "name": "--decision",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.accept.apply-native.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.accept.apply-native.flag.review-policy",
+          "name": "--review-policy",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli accept apply-native --config <owner> --review-policy <policy> --request <input> [--decision <id>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.accept.propose",
+      "path": "accept propose",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.accept.propose.flag.full-output",
+          "name": "--full-output",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.accept.propose.flag.verify",
+          "name": "--verify",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli accept propose <task> --verify \"cmd\" [--full-output]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.adopt",
+      "path": "adopt",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.adopt.flag.gitignore-workspace",
+          "name": "--gitignore-workspace",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.adopt.flag.goal",
+          "name": "--goal",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.adopt.flag.name",
+          "name": "--name",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.adopt.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.adopt.flag.provision-roles",
+          "name": "--provision-roles",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.adopt.flag.todos",
+          "name": "--todos",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli adopt [--name n] [--project slug] [--goal text] [--todos] [--provision-roles] [--gitignore-workspace]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.agent.retire",
+      "path": "agent retire",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli agent retire <agent-id>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.agent.show",
+      "path": "agent show",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli agent show <agent-id>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.agent.spawn",
+      "path": "agent spawn",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.agent.spawn.flag.grant",
+          "name": "--grant",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.agent.spawn.flag.role",
+          "name": "--role",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli agent spawn [--role r] [--grant ro|rw]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.agent.tree",
+      "path": "agent tree",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli agent tree",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.agents",
+      "path": "agents",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.agents.flag.active-only",
+          "name": "--active-only",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.agents.flag.cursor",
+          "name": "--cursor",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.agents.flag.history",
+          "name": "--history",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.agents.flag.limit",
+          "name": "--limit",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.agents.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli agents [--project slug] [--active-only | --history] [--limit N] [--cursor RUN_ID]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.answer",
+      "path": "answer",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.answer.flag.as",
+          "name": "--as",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.answer.flag.because",
+          "name": "--because",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.answer.flag.rejected",
+          "name": "--rejected",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli answer <question-id-prefix> <answer...> [--as decision|finding] [--rejected text --because text]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.ask",
+      "path": "ask",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli ask \\",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.auth.login",
+      "path": "auth login",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.auth.login.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.auth.login.flag.name",
+          "name": "--name",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.auth.login.flag.provider",
+          "name": "--provider",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.auth.login.flag.tenant",
+          "name": "--tenant",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli auth login --provider URL --tenant ID --name NAME [--json]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.auth.logout",
+      "path": "auth logout",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.auth.logout.flag.device",
+          "name": "--device",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.auth.logout.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.auth.logout.flag.provider",
+          "name": "--provider",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.auth.logout.flag.tenant",
+          "name": "--tenant",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli auth logout --provider URL --tenant ID --device ID [--json]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.auth.whoami",
+      "path": "auth whoami",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.auth.whoami.flag.device",
+          "name": "--device",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.auth.whoami.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.auth.whoami.flag.provider",
+          "name": "--provider",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.auth.whoami.flag.tenant",
+          "name": "--tenant",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli auth whoami --provider URL --tenant ID --device ID [--json]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.blame",
+      "path": "blame",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli blame <file>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.branches.audit",
+      "path": "branches audit",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.branches.audit.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli branches audit --project <slug>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.branches.prune",
+      "path": "branches prune",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.branches.prune.flag.apply-safe",
+          "name": "--apply-safe",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.branches.prune.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli branches prune --project <slug> --apply-safe <plan-id>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.burndown",
+      "path": "burndown",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.burndown.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli burndown [--project slug]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.calibrate",
+      "path": "calibrate",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli calibrate",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.capabilities",
+      "path": "capabilities",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.capabilities.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli capabilities [--json]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.catalog",
+      "path": "catalog",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.catalog.flag.out",
+          "name": "--out",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.catalog.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.catalog.flag.publish-wiki",
+          "name": "--publish-wiki",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli catalog [--project slug] [--out path] [--publish-wiki]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.catchup",
+      "path": "catchup",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.catchup.flag.about",
+          "name": "--about",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.catchup.flag.mine",
+          "name": "--mine",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.catchup.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.catchup.flag.since",
+          "name": "--since",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli catchup [--since DUR] [--project slug] [--about ref] [--mine]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.cleanup",
+      "path": "cleanup",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.cleanup.flag.apply-safe",
+          "name": "--apply-safe",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.cleanup.flag.artifact",
+          "name": "--artifact",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.cleanup.flag.dry-run",
+          "name": "--dry-run",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.cleanup.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.cleanup.flag.restore",
+          "name": "--restore",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli cleanup --project <slug> (--dry-run | --apply-safe <plan-id> | --restore <plan-id> --artifact <identity>)",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.commit",
+      "path": "commit",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.commit.flag.force",
+          "name": "--force",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.commit.flag.no-add",
+          "name": "--no-add",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.commit.flag.task",
+          "name": "--task",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli commit \"<message>\" [--task ref] [--no-add] [--force]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.context",
+      "path": "context",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.context.flag.budget",
+          "name": "--budget",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.context.flag.record",
+          "name": "--record",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli context <task-ref> [--budget N] [--record]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.contrib",
+      "path": "contrib",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli contrib",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.critical-path",
+      "path": "critical-path",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.critical-path.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli critical-path [--project slug]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.dashboard",
+      "path": "dashboard",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.dashboard.flag.native-connection",
+          "name": "--native-connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.dashboard.flag.port",
+          "name": "--port",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli dashboard [--port N] [--native-connection FILE]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.doctor",
+      "path": "doctor",
+      "aliases": [],
+      "flags": [],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli doctor",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.escalate",
+      "path": "escalate",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli escalate \\",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.estimate",
+      "path": "estimate",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli estimate <task-ref>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.events.dismiss",
+      "path": "events dismiss",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.events.dismiss.flag.reason",
+          "name": "--reason",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli events dismiss <event-id> --reason <why>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.events.pending",
+      "path": "events pending",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli events pending",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.events.reconcile",
+      "path": "events reconcile",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.events.reconcile.flag.apply-safe",
+          "name": "--apply-safe",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.events.reconcile.flag.archive-class",
+          "name": "--archive-class",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.events.reconcile.flag.dry-run",
+          "name": "--dry-run",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.events.reconcile.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli events reconcile --project <slug> [--archive-class complete-journal] (--dry-run | --apply-safe <plan-id>)",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.events.tail",
+      "path": "events tail",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.events.tail.flag.limit",
+          "name": "--limit",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli events tail [--limit N]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.explain",
+      "path": "explain",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.explain.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli explain [<task>] [--project <slug>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.github.codeowners",
+      "path": "github codeowners",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.github.codeowners.flag.dry-run",
+          "name": "--dry-run",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.codeowners.flag.owner",
+          "name": "--owner",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.codeowners.flag.stdout",
+          "name": "--stdout",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli github codeowners <project> [--owner org] [--stdout] [--dry-run]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.github.doctor",
+      "path": "github doctor",
+      "aliases": [],
+      "flags": [],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli github doctor",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.github.link",
+      "path": "github link",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.github.link.flag.allow-internal",
+          "name": "--allow-internal",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.link.flag.allow-public",
+          "name": "--allow-public",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli github link <project> [--allow-public [--allow-internal]]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.github.project",
+      "path": "github project",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.github.project.flag.dry-run",
+          "name": "--dry-run",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli github project <project> [--dry-run]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.github.projection",
+      "path": "github projection",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.github.projection.flag.include-internal",
+          "name": "--include-internal",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.projection.flag.terminal",
+          "name": "--terminal",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli github projection <project> [--include-internal] [--terminal]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.github.pull",
+      "path": "github pull",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.github.pull.flag.cursor",
+          "name": "--cursor",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.pull.flag.dry-run",
+          "name": "--dry-run",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.pull.flag.include-acceptance",
+          "name": "--include-acceptance",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.pull.flag.limit",
+          "name": "--limit",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli github pull <project> [--dry-run] [--limit N] [--cursor N] [--include-acceptance]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.github.push",
+      "path": "github push",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.github.push.flag.closure-only",
+          "name": "--closure-only",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.push.flag.dry-run",
+          "name": "--dry-run",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.push.flag.findings-as-issues",
+          "name": "--findings-as-issues",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.push.flag.include-internal",
+          "name": "--include-internal",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.push.flag.milestone-plan",
+          "name": "--milestone-plan",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.push.flag.since",
+          "name": "--since",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli github push <project> [task-ref...] [--since <dur>] [--milestone-plan <file>] [--findings-as-issues | --closure-only] [--include-internal] [--dry-run]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.github.release",
+      "path": "github release",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.github.release.flag.draft",
+          "name": "--draft",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.release.flag.dry-run",
+          "name": "--dry-run",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.release.flag.notes",
+          "name": "--notes",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.release.flag.prerelease",
+          "name": "--prerelease",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.release.flag.target",
+          "name": "--target",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.release.flag.title",
+          "name": "--title",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli github release <project> <tag> [--title t] [--notes text] [--target ref] [--draft] [--prerelease] [--dry-run]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.github.sync",
+      "path": "github sync",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.github.sync.flag.cursor",
+          "name": "--cursor",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.sync.flag.dry-run",
+          "name": "--dry-run",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.sync.flag.findings-as-issues",
+          "name": "--findings-as-issues",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.sync.flag.include-acceptance",
+          "name": "--include-acceptance",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.sync.flag.include-internal",
+          "name": "--include-internal",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.sync.flag.limit",
+          "name": "--limit",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.sync.flag.since",
+          "name": "--since",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.github.sync.flag.with-tasks",
+          "name": "--with-tasks",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli github sync <project> [task-ref...] [--since <dur>] [--findings-as-issues] [--with-tasks] [--include-internal] [--dry-run] [--limit N] [--cursor N] [--include-acceptance]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.glossary",
+      "path": "glossary",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.glossary.flag.def",
+          "name": "--def",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.glossary.flag.term",
+          "name": "--term",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli glossary <project> [--term t --def text]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.handoff.consume",
+      "path": "handoff consume",
+      "aliases": [],
+      "flags": [],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli handoff consume <run-id>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.handoff.show",
+      "path": "handoff show",
+      "aliases": [],
+      "flags": [],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli handoff show <run-id>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.init",
+      "path": "init",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.init.flag.gitignore-workspace",
+          "name": "--gitignore-workspace",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.init.flag.name",
+          "name": "--name",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.init.flag.roster",
+          "name": "--roster",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.init.flag.template",
+          "name": "--template",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli init [--name n] [--template t] [--roster r] [--gitignore-workspace]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.integrate",
+      "path": "integrate",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.integrate.flag.auto",
+          "name": "--auto",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.integrate.flag.force",
+          "name": "--force",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.integrate.flag.into",
+          "name": "--into",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.integrate.flag.landing-base",
+          "name": "--landing-base",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.integrate.flag.landing-mode",
+          "name": "--landing-mode",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.integrate.flag.merge",
+          "name": "--merge",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.integrate.flag.no-merge",
+          "name": "--no-merge",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.integrate.flag.pr",
+          "name": "--pr",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.integrate.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.integrate.flag.tasks",
+          "name": "--tasks",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli integrate [--tasks refs] [--project slug] [--pr | --landing-mode local] [--into BRANCH | --landing-base BRANCH] [--auto] [--merge] [--no-merge] [--force]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.lint",
+      "path": "lint",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.lint.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli lint [<task-ref>] [--project slug]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.logs",
+      "path": "logs",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.logs.flag.cursor",
+          "name": "--cursor",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.logs.flag.full",
+          "name": "--full",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.logs.flag.limit",
+          "name": "--limit",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.logs.flag.short-f",
+          "name": "-f",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.logs.flag.tail",
+          "name": "--tail",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli logs <run-id-prefix|child-id> [-f] [--tail N] [--cursor BYTE] [--limit BYTES] [--full]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.mcp.serve",
+      "path": "mcp serve",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.mcp.serve.flag.operator",
+          "name": "--operator",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli mcp serve [--operator]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.merge",
+      "path": "merge",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.merge.flag.into",
+          "name": "--into",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.merge.flag.task",
+          "name": "--task",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli merge --task <ref> [--into BRANCH]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.metrics",
+      "path": "metrics",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.metrics.flag.name",
+          "name": "--name",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.metrics.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.metrics.flag.since",
+          "name": "--since",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli metrics [--project slug] [--since DUR] [--name NAME]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.acceptance.candidate",
+      "path": "native acceptance candidate",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.acceptance.candidate.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.acceptance.candidate.flag.review",
+          "name": "--review",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.acceptance.candidate.flag.review-config",
+          "name": "--review-config",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli native acceptance candidate --connection <reviewer> --review-config <profile> --review <id>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.acceptance.upgrade",
+      "path": "native acceptance upgrade",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.acceptance.upgrade.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native acceptance upgrade --config <owner>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.bootstrap",
+      "path": "native bootstrap",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.bootstrap.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native bootstrap --config <private-file>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.budget.configure",
+      "path": "native budget configure",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.budget.configure.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.budget.configure.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.budget.configure.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native budget configure --config <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.budget.controller.add",
+      "path": "native budget controller add",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.budget.controller.add.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.budget.controller.add.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.budget.controller.add.flag.credential",
+          "name": "--credential",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.budget.controller.add.flag.expires",
+          "name": "--expires",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.budget.controller.add.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native budget controller add --config <private-file> --project <project> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.budget.quote",
+      "path": "native budget quote",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.budget.quote.flag.capability-file",
+          "name": "--capability-file",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.budget.quote.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.budget.quote.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.budget.quote.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli native budget quote --connection <private-file> --capability-file <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.budget.settle",
+      "path": "native budget settle",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.budget.settle.flag.capability-file",
+          "name": "--capability-file",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.budget.settle.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.budget.settle.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.budget.settle.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native budget settle --connection <private-file> --capability-file <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.budget.status",
+      "path": "native budget status",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.budget.status.flag.capability-file",
+          "name": "--capability-file",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.budget.status.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.budget.status.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.budget.status.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli native budget status --connection <private-file> --capability-file <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.budget.upgrade",
+      "path": "native budget upgrade",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.budget.upgrade.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native budget upgrade --config <private-file>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.checkpoint.configure",
+      "path": "native checkpoint configure",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.checkpoint.configure.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.checkpoint.configure.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.checkpoint.configure.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native checkpoint configure --config <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.checkpoint.controller.add",
+      "path": "native checkpoint controller add",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.checkpoint.controller.add.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.checkpoint.controller.add.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.checkpoint.controller.add.flag.credential",
+          "name": "--credential",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.checkpoint.controller.add.flag.expires",
+          "name": "--expires",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.checkpoint.controller.add.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native checkpoint controller add --config <private-file> --project <project> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.checkpoint.reconcile",
+      "path": "native checkpoint reconcile",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.checkpoint.reconcile.flag.capability-file",
+          "name": "--capability-file",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.checkpoint.reconcile.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.checkpoint.reconcile.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.checkpoint.reconcile.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native checkpoint reconcile --connection <private-file> --capability-file <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.checkpoint.record",
+      "path": "native checkpoint record",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.checkpoint.record.flag.capability-file",
+          "name": "--capability-file",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.checkpoint.record.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.checkpoint.record.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.checkpoint.record.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native checkpoint record --connection <private-file> --capability-file <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.checkpoint.status",
+      "path": "native checkpoint status",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.checkpoint.status.flag.capability-file",
+          "name": "--capability-file",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.checkpoint.status.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.checkpoint.status.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.checkpoint.status.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli native checkpoint status --connection <private-file> --capability-file <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.checkpoint.upgrade",
+      "path": "native checkpoint upgrade",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.checkpoint.upgrade.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native checkpoint upgrade --config <private-file>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.controller.configure",
+      "path": "native controller configure",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.controller.configure.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.controller.configure.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native controller configure --config <owner> --request <private-file>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.controller.enroll",
+      "path": "native controller enroll",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.controller.enroll.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.controller.enroll.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.controller.enroll.flag.credential",
+          "name": "--credential",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.controller.enroll.flag.expires",
+          "name": "--expires",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.controller.enroll.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native controller enroll --config <owner> --project <id> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.controller.reconcile",
+      "path": "native controller reconcile",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.controller.reconcile.flag.capability-file",
+          "name": "--capability-file",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.controller.reconcile.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.controller.reconcile.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native controller reconcile --connection <private-file> --capability-file <private-file> --request <private-file>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.controller.refresh-review",
+      "path": "native controller refresh-review",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.controller.refresh-review.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.controller.refresh-review.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.controller.refresh-review.flag.out",
+          "name": "--out",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.controller.refresh-review.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.controller.refresh-review.flag.review-config",
+          "name": "--review-config",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native controller refresh-review --config <owner> --review-config <private-profile> --request <private-file> --out <new-private-profile> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.controller.start",
+      "path": "native controller start",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.controller.start.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.controller.start.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native controller start --config <owner> --request <private-file>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.controller.status",
+      "path": "native controller status",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.controller.status.flag.capability-file",
+          "name": "--capability-file",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.controller.status.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.controller.status.flag.invocation",
+          "name": "--invocation",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.controller.status.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli native controller status --connection <private-file> --capability-file <private-file> --project <id> --invocation <id>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.controller.step",
+      "path": "native controller step",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.controller.step.flag.capability-file",
+          "name": "--capability-file",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.controller.step.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.controller.step.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native controller step --connection <private-file> --capability-file <private-file> --request <private-file>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.controller.upgrade",
+      "path": "native controller upgrade",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.controller.upgrade.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native controller upgrade --config <owner>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.dispatch.acknowledge",
+      "path": "native dispatch acknowledge",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.dispatch.acknowledge.flag.capability-file",
+          "name": "--capability-file",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.dispatch.acknowledge.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.dispatch.acknowledge.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.dispatch.acknowledge.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native dispatch acknowledge --connection <private-file> --capability-file <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.dispatch.bridge.add",
+      "path": "native dispatch bridge add",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.dispatch.bridge.add.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.dispatch.bridge.add.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.dispatch.bridge.add.flag.credential",
+          "name": "--credential",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.dispatch.bridge.add.flag.expires",
+          "name": "--expires",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.dispatch.bridge.add.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native dispatch bridge add --config <private-file> --project <project> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.dispatch.correlate",
+      "path": "native dispatch correlate",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.dispatch.correlate.flag.capability-file",
+          "name": "--capability-file",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.dispatch.correlate.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.dispatch.correlate.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.dispatch.correlate.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native dispatch correlate --connection <private-file> --capability-file <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.dispatch.request",
+      "path": "native dispatch request",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.dispatch.request.flag.capability-file",
+          "name": "--capability-file",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.dispatch.request.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.dispatch.request.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.dispatch.request.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native dispatch request --connection <private-file> --capability-file <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.dispatch.status",
+      "path": "native dispatch status",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.dispatch.status.flag.capability-file",
+          "name": "--capability-file",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.dispatch.status.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.dispatch.status.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.dispatch.status.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli native dispatch status --connection <private-file> --capability-file <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.dispatch.upgrade",
+      "path": "native dispatch upgrade",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.dispatch.upgrade.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native dispatch upgrade --config <private-file>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.doctor",
+      "path": "native doctor",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.doctor.flag.capability-file",
+          "name": "--capability-file",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.doctor.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.doctor.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.doctor.flag.package-artifact",
+          "name": "--package-artifact",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.doctor.flag.plugin-manifest",
+          "name": "--plugin-manifest",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.doctor.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.doctor.flag.runtime-artifact",
+          "name": "--runtime-artifact",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli native doctor --plugin-manifest <manifest> [--package-artifact <file>] [--runtime-artifact <executable>] [--connection <private-file>] [--capability-file <private-file> --project <id>] --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.enroll",
+      "path": "native enroll",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.enroll.flag.checkout",
+          "name": "--checkout",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.enroll.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.enroll.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.enroll.flag.credential",
+          "name": "--credential",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.enroll.flag.expires",
+          "name": "--expires",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.enroll.flag.path",
+          "name": "--path",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.enroll.flag.task",
+          "name": "--task",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.enroll.flag.verification",
+          "name": "--verification",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native enroll --config <private-file> --task <ref> --connection <new-private-file> --credential <new-private-file> [--path <relative-path>]... [--checkout <absolute-checkout>]... [--expires <duration>] [--verification]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.external.apply",
+      "path": "native external apply",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.external.apply.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.external.apply.flag.external-profile",
+          "name": "--external-profile",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.external.apply.flag.operation",
+          "name": "--operation",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.external.apply.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.external.apply.flag.review-policy",
+          "name": "--review-policy",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native external apply --config <private-owner> [--review-policy <private-file> --external-profile <private-file> --request <private-file> --operation <id>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.external.configure",
+      "path": "native external configure",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.external.configure.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.external.configure.flag.external-profile",
+          "name": "--external-profile",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.external.configure.flag.operation",
+          "name": "--operation",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.external.configure.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.external.configure.flag.review-policy",
+          "name": "--review-policy",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native external configure --config <private-owner> [--review-policy <private-file> --external-profile <private-file> --request <private-file> --operation <id>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.external.inspect",
+      "path": "native external inspect",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.external.inspect.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.external.inspect.flag.external-profile",
+          "name": "--external-profile",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.external.inspect.flag.operation",
+          "name": "--operation",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.external.inspect.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.external.inspect.flag.review-policy",
+          "name": "--review-policy",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli native external inspect --config <private-owner> [--review-policy <private-file> --external-profile <private-file> --request <private-file> --operation <id>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.external.reconcile",
+      "path": "native external reconcile",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.external.reconcile.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.external.reconcile.flag.external-profile",
+          "name": "--external-profile",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.external.reconcile.flag.operation",
+          "name": "--operation",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.external.reconcile.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.external.reconcile.flag.review-policy",
+          "name": "--review-policy",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native external reconcile --config <private-owner> [--review-policy <private-file> --external-profile <private-file> --request <private-file> --operation <id>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.external.upgrade",
+      "path": "native external upgrade",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.external.upgrade.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.external.upgrade.flag.external-profile",
+          "name": "--external-profile",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.external.upgrade.flag.operation",
+          "name": "--operation",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.external.upgrade.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.external.upgrade.flag.review-policy",
+          "name": "--review-policy",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native external upgrade --config <private-owner> [--review-policy <private-file> --external-profile <private-file> --request <private-file> --operation <id>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.integration.apply",
+      "path": "native integration apply",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.integration.apply.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.integration.apply.flag.integration-policy",
+          "name": "--integration-policy",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.integration.apply.flag.operation",
+          "name": "--operation",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.integration.apply.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.integration.apply.flag.review-policy",
+          "name": "--review-policy",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native integration apply --config <private-owner> [--review-policy <private-file> --integration-policy <private-file> --request <private-file> --operation <id>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.integration.configure",
+      "path": "native integration configure",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.integration.configure.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.integration.configure.flag.integration-policy",
+          "name": "--integration-policy",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.integration.configure.flag.operation",
+          "name": "--operation",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.integration.configure.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.integration.configure.flag.review-policy",
+          "name": "--review-policy",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native integration configure --config <private-owner> [--review-policy <private-file> --integration-policy <private-file> --request <private-file> --operation <id>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.integration.inspect",
+      "path": "native integration inspect",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.integration.inspect.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.integration.inspect.flag.integration-policy",
+          "name": "--integration-policy",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.integration.inspect.flag.operation",
+          "name": "--operation",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.integration.inspect.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.integration.inspect.flag.review-policy",
+          "name": "--review-policy",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli native integration inspect --config <private-owner> [--review-policy <private-file> --integration-policy <private-file> --request <private-file> --operation <id>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.integration.reconcile",
+      "path": "native integration reconcile",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.integration.reconcile.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.integration.reconcile.flag.integration-policy",
+          "name": "--integration-policy",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.integration.reconcile.flag.operation",
+          "name": "--operation",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.integration.reconcile.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.integration.reconcile.flag.review-policy",
+          "name": "--review-policy",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native integration reconcile --config <private-owner> [--review-policy <private-file> --integration-policy <private-file> --request <private-file> --operation <id>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.integration.upgrade",
+      "path": "native integration upgrade",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.integration.upgrade.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.integration.upgrade.flag.integration-policy",
+          "name": "--integration-policy",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.integration.upgrade.flag.operation",
+          "name": "--operation",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.integration.upgrade.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.integration.upgrade.flag.review-policy",
+          "name": "--review-policy",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native integration upgrade --config <private-owner> [--review-policy <private-file> --integration-policy <private-file> --request <private-file> --operation <id>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.lifecycle.bridge.add",
+      "path": "native lifecycle bridge add",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.lifecycle.bridge.add.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.lifecycle.bridge.add.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.lifecycle.bridge.add.flag.credential",
+          "name": "--credential",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.lifecycle.bridge.add.flag.expires",
+          "name": "--expires",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.lifecycle.bridge.add.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native lifecycle bridge add --config <private-file> --project <project> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.lifecycle.cancel",
+      "path": "native lifecycle cancel",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.lifecycle.cancel.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.lifecycle.cancel.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.lifecycle.cancel.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native lifecycle cancel --connection <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.lifecycle.cancel-ack",
+      "path": "native lifecycle cancel-ack",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.lifecycle.cancel-ack.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.lifecycle.cancel-ack.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.lifecycle.cancel-ack.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native lifecycle cancel-ack --connection <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.lifecycle.configure",
+      "path": "native lifecycle configure",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.lifecycle.configure.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.lifecycle.configure.flag.policy-file",
+          "name": "--policy-file",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native lifecycle configure --config <private-file> --policy-file <private-file>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.lifecycle.controller.add",
+      "path": "native lifecycle controller add",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.lifecycle.controller.add.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.lifecycle.controller.add.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.lifecycle.controller.add.flag.credential",
+          "name": "--credential",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.lifecycle.controller.add.flag.expires",
+          "name": "--expires",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.lifecycle.controller.add.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native lifecycle controller add --config <private-file> --project <project> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.lifecycle.observe",
+      "path": "native lifecycle observe",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.lifecycle.observe.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.lifecycle.observe.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.lifecycle.observe.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native lifecycle observe --connection <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.lifecycle.status",
+      "path": "native lifecycle status",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.lifecycle.status.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.lifecycle.status.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.lifecycle.status.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli native lifecycle status --connection <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.lifecycle.upgrade",
+      "path": "native lifecycle upgrade",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.lifecycle.upgrade.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native lifecycle upgrade --config <private-file>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.model-routing.configure",
+      "path": "native model-routing configure",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.model-routing.configure.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.model-routing.configure.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.model-routing.configure.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native model-routing configure --config <private-owner> --request <policy-json> [--json]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.model-routing.upgrade",
+      "path": "native model-routing upgrade",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.model-routing.upgrade.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native model-routing upgrade --config <private-owner>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.operator.add",
+      "path": "native operator add",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.operator.add.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.operator.add.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.operator.add.flag.credential",
+          "name": "--credential",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.operator.add.flag.expires",
+          "name": "--expires",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.operator.add.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native operator add --config <owner> --project <slug> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.policy.approve",
+      "path": "native policy approve",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.policy.approve.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.policy.approve.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native policy approve --config <owner> --request <approval>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.policy.configure",
+      "path": "native policy configure",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.policy.configure.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.policy.configure.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native policy configure --config <owner> --request <policy>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.policy.evaluate",
+      "path": "native policy evaluate",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.policy.evaluate.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.policy.evaluate.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.policy.evaluate.flag.review-policy",
+          "name": "--review-policy",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native policy evaluate --config <owner> --review-policy <policy> --request <evaluation>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.policy.status",
+      "path": "native policy status",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.policy.status.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.policy.status.flag.decision",
+          "name": "--decision",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli native policy status --config <owner> --decision <id>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.policy.upgrade",
+      "path": "native policy upgrade",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.policy.upgrade.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native policy upgrade --config <owner>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.preflight.check",
+      "path": "native preflight check",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.preflight.check.flag.capability-file",
+          "name": "--capability-file",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.preflight.check.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.preflight.check.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.preflight.check.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native preflight check --connection <private-file> --capability-file <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.preflight.configure",
+      "path": "native preflight configure",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.preflight.configure.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.preflight.configure.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.preflight.configure.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native preflight configure --config <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.preflight.override",
+      "path": "native preflight override",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.preflight.override.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.preflight.override.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.preflight.override.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native preflight override --config <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.preflight.upgrade",
+      "path": "native preflight upgrade",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.preflight.upgrade.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native preflight upgrade --config <private-file>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.reader.add",
+      "path": "native reader add",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.reader.add.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.reader.add.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.reader.add.flag.credential",
+          "name": "--credential",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.reader.add.flag.expires",
+          "name": "--expires",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.reader.add.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.reader.add.flag.task",
+          "name": "--task",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.reader.add.flag.workspace",
+          "name": "--workspace",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native reader add --config <owner> (--workspace | --project <exact-slug> | --task <canonical-id>) --connection <new-private-file> --credential <new-private-file> [--expires <duration>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.recovery.apply",
+      "path": "native recovery apply",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.recovery.apply.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.recovery.apply.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.recovery.apply.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native recovery apply --config <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.recovery.configure",
+      "path": "native recovery configure",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.recovery.configure.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.recovery.configure.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.recovery.configure.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native recovery configure --config <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.recovery.preview",
+      "path": "native recovery preview",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.recovery.preview.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.recovery.preview.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.recovery.preview.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli native recovery preview --config <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.recovery.upgrade",
+      "path": "native recovery upgrade",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.recovery.upgrade.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native recovery upgrade --config <private-file>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.reviewer.add",
+      "path": "native reviewer add",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.reviewer.add.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.reviewer.add.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.reviewer.add.flag.credential",
+          "name": "--credential",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.reviewer.add.flag.expires",
+          "name": "--expires",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.reviewer.add.flag.policy-out",
+          "name": "--policy-out",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.reviewer.add.flag.policy-revision",
+          "name": "--policy-revision",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.reviewer.add.flag.review-config",
+          "name": "--review-config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.reviewer.add.flag.runner-config",
+          "name": "--runner-config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.reviewer.add.flag.task",
+          "name": "--task",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.reviewer.add.flag.worker-session",
+          "name": "--worker-session",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native reviewer add --config <private-file> --task <ref> --worker-session <id> --runner-config <private-file> --policy-revision <id> --policy-out <new-private-file> --review-config <new-private-file> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.revoke",
+      "path": "native revoke",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.revoke.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.revoke.flag.session",
+          "name": "--session",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native revoke --config <private-file> --session <session-id>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.role.registry.upgrade",
+      "path": "native role registry upgrade",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.role.registry.upgrade.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native role registry upgrade --config <owner>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.serve",
+      "path": "native serve",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.serve.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.serve.flag.orchestration-config",
+          "name": "--orchestration-config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.serve.flag.review-config",
+          "name": "--review-config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.serve.flag.runner-config",
+          "name": "--runner-config",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli native serve --connection <private-file> [--runner-config <private-file> | --review-config <private-file> | --orchestration-config <private-file>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.storage.experiment",
+      "path": "native storage experiment",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.storage.experiment.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.storage.experiment.flag.destination",
+          "name": "--destination",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.storage.experiment.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.storage.experiment.flag.mode",
+          "name": "--mode",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native storage experiment --config <private-file> --destination <separate-private-dir> --mode projection-only --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.storage.observe",
+      "path": "native storage observe",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.storage.observe.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.storage.observe.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli native storage observe --config <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.storage.retention",
+      "path": "native storage retention",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.storage.retention.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.storage.retention.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.storage.retention.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli native storage retention --config <private-file> --project <id> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.swarm.admit",
+      "path": "native swarm admit",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.swarm.admit.flag.capability-file",
+          "name": "--capability-file",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.swarm.admit.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.swarm.admit.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.swarm.admit.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli native swarm admit --connection <private-file> --capability-file <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.swarm.configure",
+      "path": "native swarm configure",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.swarm.configure.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.swarm.configure.flag.policy-file",
+          "name": "--policy-file",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native swarm configure --config <private-file> --policy-file <private-file>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.swarm.controller.add",
+      "path": "native swarm controller add",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.swarm.controller.add.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.swarm.controller.add.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.swarm.controller.add.flag.credential",
+          "name": "--credential",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.swarm.controller.add.flag.expires",
+          "name": "--expires",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.swarm.controller.add.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native swarm controller add --config <private-file> --project <project> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.swarm.handoff",
+      "path": "native swarm handoff",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.swarm.handoff.flag.capability-file",
+          "name": "--capability-file",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.swarm.handoff.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.swarm.handoff.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.swarm.handoff.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native swarm handoff --connection <private-file> --capability-file <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.swarm.plan",
+      "path": "native swarm plan",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.swarm.plan.flag.capability-file",
+          "name": "--capability-file",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.swarm.plan.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.swarm.plan.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.swarm.plan.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli native swarm plan --connection <private-file> --capability-file <private-file> --project <project> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.swarm.reserve",
+      "path": "native swarm reserve",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.swarm.reserve.flag.capability-file",
+          "name": "--capability-file",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.swarm.reserve.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.swarm.reserve.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.swarm.reserve.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native swarm reserve --connection <private-file> --capability-file <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.swarm.upgrade",
+      "path": "native swarm upgrade",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.swarm.upgrade.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native swarm upgrade --config <private-file>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.task.claims.apply",
+      "path": "native task claims apply",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.task.claims.apply.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.task.claims.apply.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.task.claims.apply.flag.plan",
+          "name": "--plan",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native task claims apply --config <owner> --plan <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.task.claims.preview",
+      "path": "native task claims preview",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.task.claims.preview.flag.claims-file",
+          "name": "--claims-file",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.task.claims.preview.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.task.claims.preview.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.task.claims.preview.flag.task",
+          "name": "--task",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli native task claims preview --config <owner> --task <ref> --claims-file <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.upgrade",
+      "path": "native upgrade",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.upgrade.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native upgrade --config <private-file>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.verifier.add",
+      "path": "native verifier add",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.verifier.add.flag.checks-file",
+          "name": "--checks-file",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.verifier.add.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.verifier.add.flag.credential",
+          "name": "--credential",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.verifier.add.flag.expires",
+          "name": "--expires",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.verifier.add.flag.out",
+          "name": "--out",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.verifier.add.flag.task",
+          "name": "--task",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native verifier add --config <private-file> --task <ref> --checks-file <private-file> --out <new-private-file> --credential <new-private-file> [--expires <duration>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.verifier.inspect",
+      "path": "native verifier inspect",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.verifier.inspect.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.verifier.inspect.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.verifier.inspect.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.verifier.inspect.flag.runner-config",
+          "name": "--runner-config",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli native verifier inspect --connection <worker> --runner-config <runner> --request <exact-revision> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.verifier.review-policy",
+      "path": "native verifier review-policy",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.verifier.review-policy.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.verifier.review-policy.flag.out",
+          "name": "--out",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.verifier.review-policy.flag.revision",
+          "name": "--revision",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.verifier.review-policy.flag.runner-config",
+          "name": "--runner-config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.verifier.review-policy.flag.task",
+          "name": "--task",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli native verifier review-policy --config <owner> --task <ref> --runner-config <profile> --revision <id> --out <new-private-policy>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.native.verify",
+      "path": "native verify",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.native.verify.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.verify.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.verify.flag.request",
+          "name": "--request",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.native.verify.flag.runner-config",
+          "name": "--runner-config",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli native verify --connection <private-file> --runner-config <private-file> --request <private-file> --json",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.new",
+      "path": "new",
+      "aliases": [],
+      "flags": [],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli new \\",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.next",
+      "path": "next",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.next.flag.critical-path",
+          "name": "--critical-path",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.next.flag.parallel",
+          "name": "--parallel",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.next.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli next [--project slug] [--parallel N] [--critical-path]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.note.add",
+      "path": "note add",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.note.add.flag.about",
+          "name": "--about",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.note.add.flag.against",
+          "name": "--against",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.note.add.flag.because",
+          "name": "--because",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.note.add.flag.body",
+          "name": "--body",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.note.add.flag.origin",
+          "name": "--origin",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.note.add.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.note.add.flag.rejected",
+          "name": "--rejected",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.note.add.flag.scope",
+          "name": "--scope",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.note.add.flag.severity",
+          "name": "--severity",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli note add <decision|finding|metric|ref> <title> --project <slug> [--about ref] [--body text] [--rejected text --because text] [--severity major|moderate|minor] [--scope project|workspace] [--origin file:x] [--against agent-id]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.operator.serve",
+      "path": "operator serve",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.operator.serve.flag.connection",
+          "name": "--connection",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli operator serve --connection <private-file>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.overview",
+      "path": "overview",
+      "aliases": [],
+      "flags": [],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli overview",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.pr",
+      "path": "pr",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.pr.flag.approve",
+          "name": "--approve",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.pr.flag.auto",
+          "name": "--auto",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.pr.flag.base",
+          "name": "--base",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.pr.flag.draft",
+          "name": "--draft",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.pr.flag.dry-run",
+          "name": "--dry-run",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.pr.flag.request-changes",
+          "name": "--request-changes",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.pr.flag.slice",
+          "name": "--slice",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.pr.flag.task",
+          "name": "--task",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.pr.flag.with-verdicts",
+          "name": "--with-verdicts",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli pr [--task ref | --slice parent/generation] [--base BRANCH] [--with-verdicts] [--auto] [--draft] [--approve] [--request-changes] [--dry-run]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.pr.diagnose",
+      "path": "pr diagnose",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.pr.diagnose.flag.task",
+          "name": "--task",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli pr diagnose --task <ref>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.pr.land",
+      "path": "pr land",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.pr.land.flag.auto",
+          "name": "--auto",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.pr.land.flag.base",
+          "name": "--base",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.pr.land.flag.merge",
+          "name": "--merge",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.pr.land.flag.task",
+          "name": "--task",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli pr land --task <ref> [--base BRANCH] [--auto] [--merge]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.pr.status",
+      "path": "pr status",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.pr.status.flag.into",
+          "name": "--into",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.pr.status.flag.task",
+          "name": "--task",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli pr status [--task ref] [--into BRANCH]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.pr.wait",
+      "path": "pr wait",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.pr.wait.flag.interval",
+          "name": "--interval",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.pr.wait.flag.task",
+          "name": "--task",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.pr.wait.flag.timeout",
+          "name": "--timeout",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli pr wait --task <ref> [--timeout SEC] [--interval SEC]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.project.add",
+      "path": "project add",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.project.add.flag.goal",
+          "name": "--goal",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.project.add.flag.landing-base",
+          "name": "--landing-base",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.project.add.flag.landing-mode",
+          "name": "--landing-mode",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.project.add.flag.slug",
+          "name": "--slug",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.project.add.flag.stage",
+          "name": "--stage",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli project add <title> [--slug s] [--goal g] [--stage definition|elicitation|approach|design] [--landing-mode local|pr] [--landing-base BRANCH]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.project.connect",
+      "path": "project connect",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.project.connect.flag.device",
+          "name": "--device",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.project.connect.flag.environment",
+          "name": "--environment",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.project.connect.flag.provider",
+          "name": "--provider",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.project.connect.flag.remote-project",
+          "name": "--remote-project",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.project.connect.flag.repository",
+          "name": "--repository",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.project.connect.flag.tenant",
+          "name": "--tenant",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli project connect <slug> --provider <url> --tenant <id> --device <id> --remote-project <id> --environment <id> --repository <id>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.project.disconnect",
+      "path": "project disconnect",
+      "aliases": [],
+      "flags": [],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli project disconnect <slug>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.project.list",
+      "path": "project list",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli project list",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.project.rm",
+      "path": "project rm",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.project.rm.flag.force",
+          "name": "--force",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli project rm <slug> --force",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.project.show",
+      "path": "project show",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.project.show.flag.landing-base",
+          "name": "--landing-base",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.project.show.flag.landing-mode",
+          "name": "--landing-mode",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli project show <slug> [--landing-mode local|pr] [--landing-base BRANCH]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.project.status",
+      "path": "project status",
+      "aliases": [],
+      "flags": [],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli project status <slug>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.project.sync",
+      "path": "project sync",
+      "aliases": [],
+      "flags": [],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli project sync <slug>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.prompt.list",
+      "path": "prompt list",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli prompt list",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.prompt.show",
+      "path": "prompt show",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli prompt show <name>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.push",
+      "path": "push",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.push.flag.task",
+          "name": "--task",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli push <ref> | dacli push --task <ref>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.queue.add",
+      "path": "queue add",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.queue.add.flag.step",
+          "name": "--step",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.queue.add.flag.title",
+          "name": "--title",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli queue add <slug> --step 'cmd or instruction'... [--title t]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.queue.advance",
+      "path": "queue advance",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.queue.advance.flag.fail",
+          "name": "--fail",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.queue.advance.flag.key",
+          "name": "--key",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.queue.advance.flag.retry",
+          "name": "--retry",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.queue.advance.flag.terminal",
+          "name": "--terminal",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli queue advance <slug> [--key id] [--retry reason|--terminal reason|--fail reason]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.queue.list",
+      "path": "queue list",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli queue list",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.queue.next",
+      "path": "queue next",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli queue next <slug>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.queue.rm",
+      "path": "queue rm",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli queue rm <name>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.reconcile",
+      "path": "reconcile",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.reconcile.flag.apply-safe",
+          "name": "--apply-safe",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.reconcile.flag.dry-run",
+          "name": "--dry-run",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.reconcile.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli reconcile --project <slug> [--dry-run | --apply-safe <plan-id>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.release.train",
+      "path": "release train",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.release.train.flag.apply",
+          "name": "--apply",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.release.train.flag.dry-run",
+          "name": "--dry-run",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.release.train.flag.merge",
+          "name": "--merge",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.release.train.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.release.train.flag.required-artifact",
+          "name": "--required-artifact",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.release.train.flag.required-check",
+          "name": "--required-check",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.release.train.flag.required-reviews",
+          "name": "--required-reviews",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.release.train.flag.source",
+          "name": "--source",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.release.train.flag.target",
+          "name": "--target",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli release train --project SLUG --source BRANCH --target BRANCH (--dry-run | --apply) [--required-check NAME] [--required-artifact NAME] [--required-reviews N] [--merge]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.release.train.authority",
+      "path": "release train authority",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.release.train.authority.flag.allow-merge",
+          "name": "--allow-merge",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.release.train.authority.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.release.train.authority.flag.revoke-merge",
+          "name": "--revoke-merge",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli release train authority --project SLUG (--allow-merge | --revoke-merge)",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.replay",
+      "path": "replay",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.replay.flag.full",
+          "name": "--full",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.replay.flag.task",
+          "name": "--task",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli replay <run-id-prefix> | dacli replay --task <ref> [--full]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.report",
+      "path": "report",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli report \\",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.retro",
+      "path": "retro",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.retro.flag.bad",
+          "name": "--bad",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.retro.flag.improve",
+          "name": "--improve",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.retro.flag.well",
+          "name": "--well",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli retro <task-or-project-ref> --well x [--well ...] --bad y --improve z",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.review.projection",
+      "path": "review projection",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.review.projection.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.review.projection.flag.task",
+          "name": "--task",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli review projection --task <ref> [--json]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.review.record",
+      "path": "review record",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.review.record.flag.result",
+          "name": "--result",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.review.record.flag.task",
+          "name": "--task",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli review record --task <ref> --result <JSON>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.risk.add",
+      "path": "risk add",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.risk.add.flag.action",
+          "name": "--action",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.risk.add.flag.impact",
+          "name": "--impact",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.risk.add.flag.indicator",
+          "name": "--indicator",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.risk.add.flag.likelihood",
+          "name": "--likelihood",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.risk.add.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli risk add <title> --project <slug> --impact high|medium|low --likelihood high|medium|low [--indicator text]... [--action text]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.risk.list",
+      "path": "risk list",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli risk list <project>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.role.add",
+      "path": "role add",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.role.add.flag.capability-tag",
+          "name": "--capability-tag",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.add.flag.context-limit",
+          "name": "--context-limit",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.add.flag.cost-tier",
+          "name": "--cost-tier",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.add.flag.max-task-points",
+          "name": "--max-task-points",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.add.flag.model-id",
+          "name": "--model-id",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.add.flag.runtime",
+          "name": "--runtime",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli role add <name> [--runtime rt] [--model-id id] [--cost-tier 1..98] [--max-task-points N] [--context-limit N] [--capability-tag tag]...",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.role.bump",
+      "path": "role bump",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli role bump <name>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.role.list",
+      "path": "role list",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli role list",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.role.registry.diff",
+      "path": "role registry diff",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.role.registry.diff.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.diff.flag.digest",
+          "name": "--digest",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.diff.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.diff.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.diff.flag.role",
+          "name": "--role",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.diff.flag.version",
+          "name": "--version",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli role registry diff --config <private-owner> --project <slug> --role <id> --version <semver> --digest <sha256:...> [--json]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.role.registry.import",
+      "path": "role registry import",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.role.registry.import.flag.catalog-export",
+          "name": "--catalog-export",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.import.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.import.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.import.flag.lifecycle",
+          "name": "--lifecycle",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.import.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.import.flag.release",
+          "name": "--release",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli role registry import --config <private-owner> --project <slug> (--release <file> --lifecycle <file> | --catalog-export <file>) [--json]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.role.registry.outcomes",
+      "path": "role registry outcomes",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.role.registry.outcomes.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.outcomes.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.outcomes.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli role registry outcomes --config <private-owner> --project <slug> [--json]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.role.registry.pin",
+      "path": "role registry pin",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.role.registry.pin.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.pin.flag.digest",
+          "name": "--digest",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.pin.flag.expected-generation",
+          "name": "--expected-generation",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.pin.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.pin.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.pin.flag.reason",
+          "name": "--reason",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.pin.flag.role",
+          "name": "--role",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.pin.flag.version",
+          "name": "--version",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli role registry pin --config <private-owner> --project <slug> --role <id> --version <semver> --digest <sha256:...> --expected-generation <n> --reason <text> [--json]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.role.registry.rollback",
+      "path": "role registry rollback",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.role.registry.rollback.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.rollback.flag.digest",
+          "name": "--digest",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.rollback.flag.expected-digest",
+          "name": "--expected-digest",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.rollback.flag.expected-generation",
+          "name": "--expected-generation",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.rollback.flag.expected-version",
+          "name": "--expected-version",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.rollback.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.rollback.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.rollback.flag.reason",
+          "name": "--reason",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.rollback.flag.role",
+          "name": "--role",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.rollback.flag.version",
+          "name": "--version",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli role registry rollback --config <private-owner> --project <slug> --role <id> --version <semver> --digest <sha256:...> --expected-generation <n> --expected-version <semver> --expected-digest <sha256:...> --reason <text> [--json]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.role.registry.upgrade",
+      "path": "role registry upgrade",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.role.registry.upgrade.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.upgrade.flag.digest",
+          "name": "--digest",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.upgrade.flag.expected-digest",
+          "name": "--expected-digest",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.upgrade.flag.expected-generation",
+          "name": "--expected-generation",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.upgrade.flag.expected-version",
+          "name": "--expected-version",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.upgrade.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.upgrade.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.upgrade.flag.reason",
+          "name": "--reason",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.upgrade.flag.role",
+          "name": "--role",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.upgrade.flag.version",
+          "name": "--version",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli role registry upgrade --config <private-owner> --project <slug> --role <id> --version <semver> --digest <sha256:...> --expected-generation <n> --expected-version <semver> --expected-digest <sha256:...> --reason <text> [--json]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.role.registry.verify",
+      "path": "role registry verify",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.role.registry.verify.flag.config",
+          "name": "--config",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.verify.flag.digest",
+          "name": "--digest",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.verify.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.verify.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.verify.flag.role",
+          "name": "--role",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.role.registry.verify.flag.version",
+          "name": "--version",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli role registry verify --config <private-owner> --project <slug> --role <id> --version <semver> --digest <sha256:...> [--json]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.role.rm",
+      "path": "role rm",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli role rm <name>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.role.show",
+      "path": "role show",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli role show <name>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.route",
+      "path": "route",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.route.flag.from",
+          "name": "--from",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli route <path> [--from role]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.run",
+      "path": "run",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.run.flag.cmd",
+          "name": "--cmd",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.run.flag.confirm",
+          "name": "--confirm",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.run.flag.dry-run",
+          "name": "--dry-run",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.run.flag.list",
+          "name": "--list",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli run <name> [--<param> value]... [--dry-run] [--confirm] | dacli run --cmd '<command>' [--dry-run] | dacli run --list",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.runs.list",
+      "path": "runs list",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli runs list",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.runs.show",
+      "path": "runs show",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli runs show <run-id-prefix>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.ship",
+      "path": "ship",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.ship.flag.auto",
+          "name": "--auto",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.ship.flag.dry-run",
+          "name": "--dry-run",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.ship.flag.into",
+          "name": "--into",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.ship.flag.landing-base",
+          "name": "--landing-base",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.ship.flag.landing-mode",
+          "name": "--landing-mode",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.ship.flag.merge",
+          "name": "--merge",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.ship.flag.no-accept",
+          "name": "--no-accept",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.ship.flag.no-integrate",
+          "name": "--no-integrate",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.ship.flag.no-merge",
+          "name": "--no-merge",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.ship.flag.pr",
+          "name": "--pr",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.ship.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.ship.flag.push",
+          "name": "--push",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.ship.flag.record-branch",
+          "name": "--record-branch",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.ship.flag.release",
+          "name": "--release",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.ship.flag.tasks",
+          "name": "--tasks",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.ship.flag.verify",
+          "name": "--verify",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli ship [--project slug] [--tasks refs] [--pr | --landing-mode local] [--into BRANCH | --landing-base BRANCH] [--verify \"cmd\"] [--no-accept] [--no-integrate] [--auto] [--merge] [--no-merge] [--record-branch BRANCH] [--push] [--release TAG] [--dry-run]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.shortcut.add",
+      "path": "shortcut add",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.shortcut.add.flag.command",
+          "name": "--command",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.shortcut.add.flag.effect",
+          "name": "--effect",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.shortcut.add.flag.param",
+          "name": "--param",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.shortcut.add.flag.role",
+          "name": "--role",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.shortcut.add.flag.summary",
+          "name": "--summary",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.shortcut.add.flag.why",
+          "name": "--why",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli shortcut add <name> --command 'tmpl {{p}}' --effect read|write|destructive [--summary s] [--param name=default]... [--role r]... [--why text]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.shortcut.promote",
+      "path": "shortcut promote",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.shortcut.promote.flag.effect",
+          "name": "--effect",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.shortcut.promote.flag.from-event",
+          "name": "--from-event",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.shortcut.promote.flag.param",
+          "name": "--param",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.shortcut.promote.flag.role",
+          "name": "--role",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.shortcut.promote.flag.summary",
+          "name": "--summary",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.shortcut.promote.flag.why",
+          "name": "--why",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli shortcut promote <name> --from-event <run-event-id> --effect read|write|destructive [--summary s] [--param name=default]... [--role r]... [--why text]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.shortcut.rm",
+      "path": "shortcut rm",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli shortcut rm <name>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.skill.add",
+      "path": "skill add",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.skill.add.flag.body",
+          "name": "--body",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.skill.add.flag.desc",
+          "name": "--desc",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.skill.add.flag.min-delivery",
+          "name": "--min-delivery",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli skill add <name> --desc \"trigger description\" [--body text] [--min-delivery native|context|inline]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.skill.bump",
+      "path": "skill bump",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli skill bump <name>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.skill.compile",
+      "path": "skill compile",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.skill.compile.flag.dry-run",
+          "name": "--dry-run",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.skill.compile.flag.role",
+          "name": "--role",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.skill.compile.flag.runtime",
+          "name": "--runtime",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli skill compile --runtime <rt> [--role <r>] [--dry-run]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.skill.fetch",
+      "path": "skill fetch",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli skill fetch <owner/repo>   (from skills.sh, e.g. mattpocock/skills)",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.skill.import",
+      "path": "skill import",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli skill import <dir>   (e.g. ~/.claude/skills)",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.skill.list",
+      "path": "skill list",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli skill list",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.skill.promote",
+      "path": "skill promote",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.skill.promote.flag.name",
+          "name": "--name",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli skill promote <lesson-ref> [--name <skill-name>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.skill.show",
+      "path": "skill show",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli skill show <name>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.slice.add",
+      "path": "slice add",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.slice.add.flag.accept",
+          "name": "--accept",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.slice.add.flag.optional",
+          "name": "--optional",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.slice.add.flag.task",
+          "name": "--task",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.slice.add.flag.terminal",
+          "name": "--terminal",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.slice.add.flag.title",
+          "name": "--title",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli slice add --task <ref> --title <title> --accept <criterion>... [--optional] [--terminal]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.slice.reconcile",
+      "path": "slice reconcile",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.slice.reconcile.flag.task",
+          "name": "--task",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli slice reconcile --task <parent-ref>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.stage",
+      "path": "stage",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli stage <project>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.stage.advance",
+      "path": "stage advance",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.stage.advance.flag.key",
+          "name": "--key",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.stage.advance.flag.retry",
+          "name": "--retry",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.stage.advance.flag.terminal",
+          "name": "--terminal",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli stage advance <project> [--key id] [--retry reason|--terminal reason]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.standup",
+      "path": "standup",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli standup",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.status",
+      "path": "status",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.status.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli status [--project slug]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.sync",
+      "path": "sync",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli sync",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.taint",
+      "path": "taint",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli taint <origin>   (e.g. file:cron/settle.go, external:someuser, or just file: for all)",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.task.acceptance.migrate",
+      "path": "task acceptance migrate",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.task.acceptance.migrate.flag.apply",
+          "name": "--apply",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.task.acceptance.migrate.flag.dry-run",
+          "name": "--dry-run",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.task.acceptance.migrate.flag.from-section",
+          "name": "--from-section",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli task acceptance migrate <ref> [--from-section \"Acceptance criteria\"] (--dry-run | --apply plan-id)",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.task.add",
+      "path": "task add",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.task.add.flag.accept",
+          "name": "--accept",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.task.add.flag.depends-on",
+          "name": "--depends-on",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.task.add.flag.estimate",
+          "name": "--estimate",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.task.add.flag.force",
+          "name": "--force",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.task.add.flag.parent",
+          "name": "--parent",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.task.add.flag.priority",
+          "name": "--priority",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.task.add.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.task.add.flag.so-that",
+          "name": "--so-that",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli task add <title> --project <slug> [--priority must|should|could|wont] [--estimate o,m,p] [--accept criterion]... [--so-that why] [--parent ref] [--depends-on ref[:TYPE]]... [--force]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.task.aggregate",
+      "path": "task aggregate",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.task.aggregate.flag.apply",
+          "name": "--apply",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.task.aggregate.flag.dry-run",
+          "name": "--dry-run",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli task aggregate <ref> (--dry-run | --apply plan-id)",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.task.block",
+      "path": "task block",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.task.block.flag.by",
+          "name": "--by",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.task.block.flag.why",
+          "name": "--why",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli task block <ref> [--by ref] [--why text]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.task.check",
+      "path": "task check",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.task.check.flag.all",
+          "name": "--all",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.task.check.flag.full-output",
+          "name": "--full-output",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.task.check.flag.n",
+          "name": "--n",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.task.check.flag.verify",
+          "name": "--verify",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli task check <ref> [--n N | --all] [--verify command] [--full-output]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.task.claim",
+      "path": "task claim",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli task claim <ref>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.task.decompose",
+      "path": "task decompose",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.task.decompose.flag.apply",
+          "name": "--apply",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.task.decompose.flag.dry-run",
+          "name": "--dry-run",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": true,
+      "usage": "dacli task decompose <ref> (--dry-run | --apply plan-id)",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.task.depend",
+      "path": "task depend",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.task.depend.flag.add",
+          "name": "--add",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.task.depend.flag.remove",
+          "name": "--remove",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli task depend <ref> [--add dep[:FS|SS|FF|SF]]... [--remove dep[:FS|SS|FF|SF]]...",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.task.done",
+      "path": "task done",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.task.done.flag.allow-unverified",
+          "name": "--allow-unverified",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli task done <ref> [--allow-unverified]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.task.estimate",
+      "path": "task estimate",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.task.estimate.flag.estimate",
+          "name": "--estimate",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.task.estimate.flag.force",
+          "name": "--force",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli task estimate <ref> --estimate o,m,p [--force]   (optimistic,probable,pessimistic)",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.task.list",
+      "path": "task list",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.task.list.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.task.list.flag.status",
+          "name": "--status",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli task list [--project slug] [--status open|active|blocked|done]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.task.progress",
+      "path": "task progress",
+      "aliases": [],
+      "flags": [],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli task progress <ref>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.task.reopen",
+      "path": "task reopen",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.task.reopen.flag.reason",
+          "name": "--reason",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli task reopen <ref> --reason \"<what makes the close wrong>\"",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.task.rm",
+      "path": "task rm",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.task.rm.flag.force",
+          "name": "--force",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli task rm <ref> [--force]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.task.show",
+      "path": "task show",
+      "aliases": [],
+      "flags": [],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli task show <ref>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.task.status",
+      "path": "task status",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.task.status.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli task status <task> [--project <slug>]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.task.takeover",
+      "path": "task takeover",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.task.takeover.flag.force",
+          "name": "--force",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.task.takeover.flag.reason",
+          "name": "--reason",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli task takeover <ref> --force --reason \"why recovery is safe\"",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.team",
+      "path": "team",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli team",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.team.assign",
+      "path": "team assign",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.team.assign.flag.kind",
+          "name": "--kind",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli team assign <task-ref> [--kind implementer|reviewer|researcher|planner|designer]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.team.route",
+      "path": "team route",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.team.route.flag.from",
+          "name": "--from",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli team route <path> [--from role]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.template.add",
+      "path": "template add",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli template add <name>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.template.list",
+      "path": "template list",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli template list",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.template.show",
+      "path": "template show",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli template show <name>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.threads",
+      "path": "threads",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli threads",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.velocity",
+      "path": "velocity",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli velocity",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.version",
+      "path": "version",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.version.flag.compatibility",
+          "name": "--compatibility",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.version.flag.json",
+          "name": "--json",
+          "schema_version": 1
+        }
+      ],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli version [--compatibility [requirements.json]] [--json]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.wbs",
+      "path": "wbs",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.wbs.flag.project",
+          "name": "--project",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli wbs [--project slug]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.whoami",
+      "path": "whoami",
+      "aliases": [],
+      "flags": [],
+      "json": true,
+      "mutates": false,
+      "usage": "dacli whoami",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.worktree.add",
+      "path": "worktree add",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.worktree.add.flag.task",
+          "name": "--task",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli worktree add --task <ref>",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.worktree.list",
+      "path": "worktree list",
+      "aliases": [],
+      "flags": [],
+      "json": false,
+      "mutates": false,
+      "usage": "dacli worktree list",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.worktree.prune",
+      "path": "worktree prune",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.worktree.prune.flag.dry-run",
+          "name": "--dry-run",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.worktree.prune.flag.into",
+          "name": "--into",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli worktree prune [--into BRANCH] [--dry-run]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.worktree.reclaim",
+      "path": "worktree reclaim",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.worktree.reclaim.flag.apply",
+          "name": "--apply",
+          "schema_version": 1
+        },
+        {
+          "id": "cli.command.worktree.reclaim.flag.claim",
+          "name": "--claim",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli worktree reclaim --claim path,path [--apply]",
+      "schema_version": 1
+    },
+    {
+      "id": "cli.command.worktree.remove",
+      "path": "worktree remove",
+      "aliases": [],
+      "flags": [
+        {
+          "id": "cli.command.worktree.remove.flag.task",
+          "name": "--task",
+          "schema_version": 1
+        }
+      ],
+      "json": false,
+      "mutates": true,
+      "usage": "dacli worktree remove --task <ref>",
+      "schema_version": 1
+    }
+  ],
+  "mcp": {
+    "protocol_version": "2025-06-18",
+    "server_version": "0.3",
+    "tool_schema_version": 1,
+    "tools": [
+      {
+        "id": "mcp.tool.add-note",
+        "schema_version": 1
+      },
+      {
+        "id": "mcp.tool.add-task",
+        "schema_version": 1
+      },
+      {
+        "id": "mcp.tool.answer",
+        "schema_version": 1
+      },
+      {
+        "id": "mcp.tool.ask",
+        "schema_version": 1
+      },
+      {
+        "id": "mcp.tool.block-task",
+        "schema_version": 1
+      },
+      {
+        "id": "mcp.tool.check-task",
+        "schema_version": 1
+      },
+      {
+        "id": "mcp.tool.claim-task",
+        "schema_version": 1
+      },
+      {
+        "id": "mcp.tool.cleanup-repository",
+        "schema_version": 1
+      },
+      {
+        "id": "mcp.tool.cli",
+        "schema_version": 1
+      },
+      {
+        "id": "mcp.tool.diagnose-pr",
+        "schema_version": 1
+      },
+      {
+        "id": "mcp.tool.finish-task",
+        "schema_version": 1
+      },
+      {
+        "id": "mcp.tool.get-context",
+        "schema_version": 1
+      },
+      {
+        "id": "mcp.tool.github-projection",
+        "schema_version": 1
+      },
+      {
+        "id": "mcp.tool.list-tasks",
+        "schema_version": 1
+      },
+      {
+        "id": "mcp.tool.queue-advance",
+        "schema_version": 1
+      },
+      {
+        "id": "mcp.tool.queue-next",
+        "schema_version": 1
+      },
+      {
+        "id": "mcp.tool.reconcile-delivery",
+        "schema_version": 1
+      },
+      {
+        "id": "mcp.tool.reconcile-event-journal",
+        "schema_version": 1
+      },
+      {
+        "id": "mcp.tool.release-train",
+        "schema_version": 1
+      },
+      {
+        "id": "mcp.tool.run-shortcut",
+        "schema_version": 1
+      },
+      {
+        "id": "mcp.tool.status",
+        "schema_version": 1
+      },
+      {
+        "id": "mcp.tool.whoami",
+        "schema_version": 1
+      }
+    ]
+  },
+  "prompt": {
+    "schema": "dacli-prompt/v1",
+    "version": "native-governance/v1"
+  },
+  "runtime_adapters": {
+    "schema_version": 1,
+    "capabilities": []
+  }
+}

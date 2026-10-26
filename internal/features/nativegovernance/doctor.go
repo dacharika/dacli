@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -20,9 +21,11 @@ import (
 
 	"github.com/mlnomadpy/dacli/internal/application"
 	"github.com/mlnomadpy/dacli/internal/buildinfo"
+	"github.com/mlnomadpy/dacli/internal/capabilities"
 	"github.com/mlnomadpy/dacli/internal/clikit"
 	"github.com/mlnomadpy/dacli/internal/governance/nativeconfig"
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
+	"github.com/mlnomadpy/dacli/internal/guidance"
 	"github.com/mlnomadpy/dacli/internal/mcp/native"
 )
 
@@ -126,15 +129,23 @@ type nativeDoctorResult struct {
 		CapabilityEvidence      string `json:"capability_evidence"`
 		CapabilityNextAction    string `json:"capability_next_action"`
 	} `json:"observations"`
+	Guidance           guidance.Diagnosis `json:"guidance"`
+	GuidanceNextAction string             `json:"guidance_next_action"`
 }
 
 func nativeDoctor(ctx *clikit.Ctx, args []string) error {
-	f, err := flags(args, "plugin-manifest", "package-artifact", "runtime-artifact", "connection", "capability-file", "project")
+	f, err := flags(args, "plugin-manifest", "package-artifact", "runtime-artifact", "runtime-capabilities", "skill-root", "connection", "capability-file", "project")
 	if err != nil {
 		return err
 	}
 	if f.Get("plugin-manifest") == "" {
 		return clikit.Usagef("--plugin-manifest is required")
+	}
+	if f.Get("skill-root") != "" && !filepath.IsAbs(f.Get("skill-root")) {
+		return clikit.Usagef("--skill-root must be an absolute selected installation directory")
+	}
+	if f.Get("runtime-capabilities") != "" && !filepath.IsAbs(f.Get("runtime-capabilities")) {
+		return clikit.Usagef("--runtime-capabilities must be an absolute selected manifest path")
 	}
 	if f.Get("capability-file") != "" && (f.Get("connection") == "" || f.Get("project") == "") {
 		return clikit.Usagef("--capability-file requires --connection and --project for binding")
@@ -168,6 +179,7 @@ func nativeDoctor(ctx *clikit.Ctx, args []string) error {
 	result.Observations.HostExecutionNextAction = "Run a separately authorized host execution probe and review its versioned receipt; metadata and discovery alone do not prove execution."
 	result.Observations.CapabilityEvidence = "not_selected"
 	result.Observations.CapabilityNextAction = "Select an owner-observed capability receipt with --capability-file to inspect its age and host label."
+	result.GuidanceNextAction = "Review selected skill copies and compare their declared requirements with an explicitly selected runtime capability manifest; a fresh host process and cached connection must be observed separately."
 
 	manifest, err := nativeconfig.ReadMetadata(f.Get("plugin-manifest"), doctorManifestLimit)
 	var packageInput pluginManifestInput
@@ -204,6 +216,7 @@ func nativeDoctor(ctx *clikit.Ctx, args []string) error {
 		}
 		result.Observations.CapabilityEvidence, result.Observations.CapabilityNextAction = inspectCapability(f.Get("capability-file"), time.Now().UTC(), workspaceID, f.Get("project"))
 	}
+	result.Guidance = inspectInstalledGuidance(f.Get("skill-root"), f.Get("runtime-capabilities"))
 	if f.Get("connection") != "" {
 		inspectNativeConnection(f.Get("connection"), &result)
 	} else {
@@ -426,4 +439,116 @@ func nextAuthorityAction(status string) string {
 	default:
 		return "Ask the authority owner to inspect the native authority schema and use its documented migration path."
 	}
+}
+
+func inspectInstalledGuidance(selectedRoot, runtimeManifestPath string) guidance.Diagnosis {
+	home, _ := os.UserHomeDir()
+	roots := guidance.DefaultRoots(home, selectedRoot)
+	runtimeID, runtimeDigest := "not_selected", "unknown"
+	capabilityStatus, capabilitySummary := "not_selected", "Select the capability manifest emitted by the intended runtime with --runtime-capabilities."
+	var manifest capabilities.Manifest
+	if runtimeManifestPath != "" {
+		raw, err := nativeconfig.ReadMetadata(runtimeManifestPath, 1<<20)
+		if err != nil || !decodeStrictManifest(raw, &manifest) || !validSelectedCapabilityManifest(manifest) {
+			capabilityStatus, capabilitySummary = "unsupported_or_invalid", "The selected runtime capability manifest is unreadable or does not match the supported strict schema."
+		} else {
+			runtimeID = manifest.Binary.Path
+			sum := sha256.Sum256(raw)
+			runtimeDigest = "sha256:" + hex.EncodeToString(sum[:])
+			capabilityStatus, capabilitySummary = "requirements_unavailable", "No discoverable selected skill requirement document was readable."
+		}
+	}
+	diagnosis := guidance.Diagnose(roots, runtimeID, runtimeDigest, capabilityStatus, capabilitySummary)
+	if runtimeManifestPath == "" || capabilityStatus == "unsupported_or_invalid" {
+		return diagnosis
+	}
+	var summaries []string
+	seenRequirementDigests := map[string]bool{}
+	for _, copy := range diagnosis.Copies {
+		if copy.Status == guidance.StatusMissing {
+			continue
+		}
+		path := filepath.Join(copy.Root, "capabilities.json")
+		raw, err := nativeconfig.ReadMetadata(path, doctorCapabilityLimit)
+		if err != nil {
+			summaries = append(summaries, string(copy.Status)+": requirements unreadable")
+			continue
+		}
+		var requirements capabilities.Requirements
+		if !decodeStrictManifest(raw, &requirements) || !validSelectedRequirements(requirements) {
+			summaries = append(summaries, string(copy.Status)+": requirements schema unsupported or malformed")
+			continue
+		}
+		sum := sha256.Sum256(raw)
+		reqDigest := hex.EncodeToString(sum[:])
+		seenRequirementDigests[reqDigest] = true
+		d, err := capabilities.Diagnose(manifest, requirements, "selected installed skill")
+		if err != nil {
+			summaries = append(summaries, string(copy.Status)+": requirements refused")
+			continue
+		}
+		missing := 0
+		for _, finding := range d.Findings {
+			if finding.Kind == "required" && finding.Status != "supported" {
+				missing++
+			}
+		}
+		if d.Compatible {
+			summaries = append(summaries, string(copy.Status)+": runtime satisfies declared required capabilities")
+		} else {
+			summaries = append(summaries, fmt.Sprintf("%s: %d required capabilities missing or incompatible", copy.Status, missing))
+		}
+	}
+	if len(seenRequirementDigests) > 1 {
+		diagnosis.CapabilityStatus = "conflicting_requirements"
+		diagnosis.CapabilitySummary = "Selected skill copies declare different capability requirements; review each copy without choosing the first."
+	} else if len(summaries) > 0 {
+		diagnosis.CapabilitySummary = strings.Join(summaries, "; ")
+		diagnosis.CapabilityStatus = "compatible"
+		for _, summary := range summaries {
+			if strings.Contains(summary, "missing") || strings.Contains(summary, "unreadable") || strings.Contains(summary, "unsupported") || strings.Contains(summary, "refused") {
+				diagnosis.CapabilityStatus = "incompatible_or_unverified"
+			}
+		}
+	} else {
+		diagnosis.CapabilityStatus = "requirements_missing"
+	}
+	return diagnosis
+}
+
+func validSelectedCapabilityManifest(m capabilities.Manifest) bool {
+	if m.SchemaVersion != capabilities.ManifestSchema || m.Binary.Name != "dacli" || m.Binary.Version == "" || !filepath.IsAbs(m.Binary.Path) || m.Binary.GOOS == "" || m.Binary.GOARCH == "" || len(m.Commands) == 0 {
+		return false
+	}
+	ids, paths := map[string]bool{}, map[string]bool{}
+	for _, command := range m.Commands {
+		if command.ID == "" || command.Path == "" || command.SchemaVersion <= 0 || ids[command.ID] || paths[command.Path] {
+			return false
+		}
+		ids[command.ID], paths[command.Path] = true, true
+		flags := map[string]bool{}
+		for _, flag := range command.Flags {
+			if flag.ID == "" || flag.Name == "" || flag.SchemaVersion <= 0 || flags[flag.ID] {
+				return false
+			}
+			flags[flag.ID] = true
+		}
+	}
+	return true
+}
+
+func validSelectedRequirements(r capabilities.Requirements) bool {
+	if r.SchemaVersion != capabilities.RequirementsSchema || len(r.Required) == 0 {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, group := range [][]capabilities.Requirement{r.Required, r.Optional} {
+		for _, item := range group {
+			if item.ID == "" || item.SchemaVersion < 0 || seen[item.ID] {
+				return false
+			}
+			seen[item.ID] = true
+		}
+	}
+	return true
 }

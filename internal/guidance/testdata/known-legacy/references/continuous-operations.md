@@ -1,0 +1,7 @@
+# Continuous operations and recovery
+
+Long-running means many finite cycles. Use a rolling budget, fixed WIP, idle backoff, and `touch .dacli/STOP` for a checkpointed stop. Leases/heartbeats are represented by the live agent and run records observed with `agents`, `runs list`, `runs show`, and `loop status`; do not reclaim a writer merely because a transcript is quiet. The cycle and landing journals are recovery ledgers: after a restart, inspect status, the recorded runs, PR state, and trunk before resuming a partial cycle.
+
+Shipped local safeguards include finite cycle limits, rolling token windows, idle/no-progress halts, runtime health cooldowns, STOP, and durable run/landing records. A persisted cooldown becomes inactive after its recorded deadline, but no dedicated manual cooldown-clear or expiry command is shipped. Record observability in the event log, transcripts, findings, `doctor`, and `retro`. Recover by fixing the named condition, then resume the bounded transaction.
+
+Generic queue and stage commands ship terminal dead-letter transitions. An always-on service additionally needs automatic circuit breakers across repeated failures and loop-integrated dead-letter routing, inspection, and recovery. Those service-level controls are future control-plane requirements. Running the local CLI on a VPS changes only its host; it does not grant those service guarantees or broader authority. Publication remains default-off: a loop may prepare and land ordinary PRs under policy, but never publishes a release without explicit authority.
