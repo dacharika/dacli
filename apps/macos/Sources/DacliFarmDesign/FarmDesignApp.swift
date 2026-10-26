@@ -17,7 +17,48 @@ final class FarmSession: ObservableObject {
     @Published var usagePreviews: [String: UsagePreview] = [:]
     @Published var adoptions: [String: AdoptionPreview] = [:]
     @Published private(set) var queueEmptyPreview = false
+    @Published private(set) var shellState: ShellState = .ready
+    private var snapshotFarmID: String? = ProjectFarm.samples[0].id
+    private var restoration: ShellSelection?
     private var nextAdoptionSerial = 1
+
+    var shellShowsContent: Bool {
+        (shellState == .ready || shellState.retainsSnapshot) && snapshotFarmID == selectedFarmID
+    }
+    var visibleProjection: FixtureProjection? { shellShowsContent ? projection : nil }
+
+    private func rememberSelection() {
+        guard shellShowsContent,
+              let task = (farm.tasks + farm.queuedTasks).first(where: { $0.key == selectedTaskKey }),
+              farm.agents.contains(where: { $0.id == selectedAgentID }) else { return }
+        restoration = ShellSelection(farmID: farm.id, taskID: task.id, taskKey: task.key,
+            agentID: selectedAgentID, inspector: inspectorSelection, inspectorPresented: inspectorPresented)
+    }
+
+    func selectShellState(_ state: ShellState) {
+        rememberSelection()
+        shellState = state
+        if state == .ready {
+            snapshotFarmID = selectedFarmID
+            if let saved = restoration, saved.isValid(in: farm) {
+                selectedTaskKey = saved.taskKey
+                selectedAgentID = saved.agentID
+                inspectorSelection = saved.inspector
+                inspectorPresented = saved.inspectorPresented
+            } else {
+                select(farm.task(for: sampleState.fixtureTaskKey))
+            }
+        } else if !state.retainsSnapshot || snapshotFarmID != selectedFarmID {
+            snapshotFarmID = nil
+            selectedTaskKey = ""
+            selectedAgentID = ""
+            inspectorPresented = false
+            inspectorSelection = .task
+            // Loading may restore a validated selection; terminal empty/denied/
+            // unsupported responses invalidate it and cannot reveal old details.
+            if state != .loading { restoration = nil }
+        }
+    }
 
     func previewAdoption(role: AgentRole, state: SampleState) {
         guard adoptions[selectedFarmID] == nil else { return }
@@ -53,7 +94,7 @@ final class FarmSession: ObservableObject {
         (usagePreviews[agent.id] ?? .recorded).usage(for: agent, code: farm.code)
     }
 
-    var activeTasks: [FarmTask] { farm.activeTasks(state: sampleState, harvest: harvestPhase) }
+    var activeTasks: [FarmTask] { shellShowsContent ? farm.activeTasks(state: sampleState, harvest: harvestPhase) : [] }
     func appearance(for agent: FarmAgent) -> AgentAppearance { appearances[agent.id] ?? .roleDefault(agent) }
     func preview(_ appearance: AgentAppearance, for agent: FarmAgent) { appearances[agent.id] = appearance }
     func restoreAppearance(for agent: FarmAgent) { appearances.removeValue(forKey: agent.id) }
@@ -82,19 +123,29 @@ final class FarmSession: ObservableObject {
     var projection: FixtureProjection { FixtureProjection.make(farm: farm, state: sampleState, selectedTaskKey: selectedTaskKey) }
 
     func select(_ task: FarmTask) {
+        guard shellShowsContent, (farm.tasks + farm.queuedTasks).contains(where: { $0.id == task.id && $0.agentID == task.agentID }) else { return }
         selectedTaskKey = task.key
         selectedAgentID = task.agentID
         open(.task)
     }
     func open(_ selection: InspectorSelection) {
+        guard shellShowsContent else { return }
         inspectorSelection = selection
         inspectorPresented = true
     }
     func selectFarm(_ farm: ProjectFarm) {
+        guard ProjectFarm.samples.contains(where: { $0.id == farm.id }), farm.id != selectedFarmID else { return }
         selectedFarmID = farm.id
-        select(self.farm.task(for: sampleState.fixtureTaskKey))
+        snapshotFarmID = nil
+        restoration = nil
+        selectedTaskKey = ""
+        selectedAgentID = ""
+        inspectorPresented = false
+        inspectorSelection = .task
+        if shellState == .ready { selectShellState(.ready) }
     }
     func selectState(_ state: SampleState) {
+        guard shellShowsContent else { return }
         sampleState = state
         harvestPhase = .harvested
         select(farm.task(for: state.fixtureTaskKey))
@@ -127,9 +178,13 @@ struct DacliFarmDesignApp: App {
         .defaultSize(width: 1440, height: 900)
         .commands {
             CommandMenu("Fixture") {
+                Picker("Shell availability (synthetic)", selection: Binding(get: { session.shellState }, set: { session.selectShellState($0) })) {
+                    ForEach(ShellState.allCases) { state in Text(state.title).tag(state) }
+                }
+                Divider()
                 Picker("Sample state", selection: Binding(get: { session.sampleState }, set: { session.selectState($0) })) {
                     ForEach(SampleState.allCases) { state in Text(state.title).tag(state) }
-                }
+                }.disabled(!session.shellShowsContent)
                 Divider()
                 Toggle("High contrast", isOn: $session.highContrast)
                 Toggle("Farm animation", isOn: $session.allowMotion)
@@ -147,7 +202,7 @@ struct DacliFarmDesignApp: App {
             CommandMenu("Farm") {
                 Button("Show farm") { session.listMode = false }.keyboardShortcut("1", modifiers: .command)
                 Button("Open task journal") { session.listMode = true }.keyboardShortcut("2", modifiers: .command)
-                Button("Toggle details") { session.inspectorPresented.toggle() }.keyboardShortcut("i", modifiers: [.command, .option])
+                Button("Toggle details") { if session.shellShowsContent { session.inspectorPresented.toggle() } }.keyboardShortcut("i", modifiers: [.command, .option])
             }
         }
     }
@@ -193,25 +248,30 @@ struct FarmDesignView: View {
             farmRail.frame(width: 174)
             VStack(spacing: 0) {
                 toolbar
-                HStack(spacing: 0) {
-                    VStack(spacing: 0) {
-                        statusStrip
-                        if session.listMode { journalList } else {
-                            FarmCanvas(session: session, palette: palette, focusedTaskID: $focusedTaskID, motionAllowed: session.allowMotion && !reduceMotion && scenePhase == .active, artifactRender: artifactRender) { selection in
-                                focusedTaskID = nil
-                                session.open(selection)
+                if session.shellShowsContent {
+                    HStack(spacing: 0) {
+                        VStack(spacing: 0) {
+                            if session.shellState.retainsSnapshot { retainedSnapshotBanner }
+                            statusStrip
+                            if session.listMode { journalList } else {
+                                FarmCanvas(session: session, palette: palette, focusedTaskID: $focusedTaskID, motionAllowed: session.allowMotion && !reduceMotion && scenePhase == .active, artifactRender: artifactRender) { selection in
+                                    focusedTaskID = nil
+                                    session.open(selection)
+                                }
+                                .padding(10)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                             }
-                            .padding(10)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            agentInventory
                         }
-                        agentInventory
+                        .frame(minWidth: 440, maxWidth: .infinity, maxHeight: .infinity)
+                        .background { TimberSurface() }
+                        if session.inspectorPresented {
+                            NativeInspector(session: session, farm: farm, sampleState: session.sampleState, projection: session.projection, selection: session.inspectorSelection, selectedAgentID: session.selectedAgentID, palette: palette, onClose: closeInspector, onAgentSelected: { session.selectedAgentID = session.projection.agent.id; session.open(.agent) })
+                                .frame(width: 320)
+                        }
                     }
-                    .frame(minWidth: 440, maxWidth: .infinity, maxHeight: .infinity)
-                    .background { TimberSurface() }
-                    if session.inspectorPresented {
-                        NativeInspector(session: session, farm: farm, sampleState: session.sampleState, projection: session.projection, selection: session.inspectorSelection, selectedAgentID: session.selectedAgentID, palette: palette, onClose: closeInspector, onAgentSelected: { session.selectedAgentID = session.projection.agent.id; session.open(.agent) })
-                            .frame(width: 320)
-                    }
+                } else {
+                    ShellAvailabilityView(state: session.shellState, hasSnapshot: false) { session.selectShellState(.ready) }
                 }
                 footer
             }
@@ -220,8 +280,10 @@ struct FarmDesignView: View {
         .foregroundStyle(palette.ink)
         .tint(palette.creek)
         .environment(\.colorScheme, .light)
+        .onChange(of: session.shellState) { _, _ in focusedTaskID = nil }
+        .onChange(of: session.selectedFarmID) { _, _ in focusedTaskID = nil }
         .onChange(of: session.inspectorPresented) { _, presented in
-            guard !presented else { return }
+            guard !presented, session.shellShowsContent else { return }
             focusedTaskID = nil
             DispatchQueue.main.async { focusedTaskID = (session.activeTasks.first(where: { $0.key == session.selectedTaskKey }) ?? session.activeTasks.first)?.id }
         }
@@ -258,20 +320,22 @@ struct FarmDesignView: View {
                     .background(project.id == session.selectedFarmID ? FarmStyle.paper : .clear)
                     .overlay(alignment: .leading) { if project.id == session.selectedFarmID { Rectangle().fill(FarmStyle.gold).frame(width: 3) } }
                 }.buttonStyle(.plain).padding(.horizontal, 7).padding(.bottom, 5)
-                .accessibilityLabel("\(project.title), \(project.projectName), \(project.attentionLabel)")
+                .accessibilityLabel("\(project.title), \(project.projectName), synthetic project" + (session.shellShowsContent && project.id == session.selectedFarmID ? ", \(project.attentionLabel)" : ""))
             }
             Divider().overlay(FarmStyle.lightWood.opacity(0.3)).padding(17)
-            railLink("Task journal", symbol: "book.closed", shortcut: "⌘2", selected: session.listMode) { session.listMode = true }
-            railLink("Notice board", symbol: "note.text", shortcut: "1", selected: session.inspectorSelection == .notice && session.inspectorPresented) { session.open(.notice) }
-            railLink("Wardrobe & shop", symbol: "tshirt", shortcut: "", selected: session.inspectorSelection == .wardrobe && session.inspectorPresented) { session.open(.wardrobe) }
-            railLink("Storehouse", symbol: "shippingbox", shortcut: "", selected: session.inspectorSelection == .storehouse && session.inspectorPresented) { session.open(.storehouse) }
+            Group {
+                railLink("Task journal", symbol: "book.closed", shortcut: "⌘2", selected: session.listMode) { session.listMode = true }
+                railLink("Notice board", symbol: "note.text", shortcut: "1", selected: session.inspectorSelection == .notice && session.inspectorPresented) { session.open(.notice) }
+                railLink("Wardrobe & shop", symbol: "tshirt", shortcut: "", selected: session.inspectorSelection == .wardrobe && session.inspectorPresented) { session.open(.wardrobe) }
+                railLink("Storehouse", symbol: "shippingbox", shortcut: "", selected: session.inspectorSelection == .storehouse && session.inspectorPresented) { session.open(.storehouse) }
+            }.disabled(!session.shellShowsContent)
             Spacer(minLength: 12)
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 5) {
                     Image(systemName: "eye").font(.system(size: 11))
-                    Text("1 task needs review").font(.system(size: 11, weight: .semibold))
+                    Text(session.shellShowsContent ? "1 task needs review" : "Attention unavailable").font(.system(size: 11, weight: .semibold))
                 }.foregroundStyle(FarmStyle.gold)
-                Text("Open the notice board\nto see the evidence.")
+                Text(session.shellShowsContent ? "Synthetic attention\nOpen the notice board." : "No task details loaded.")
                     .font(.system(size: 11)).lineSpacing(3).foregroundStyle(Color(hex: 0xD3B98D))
             }.padding(15)
             Rectangle().fill(FarmStyle.lightWood.opacity(0.25)).frame(height: 1)
@@ -319,11 +383,21 @@ struct FarmDesignView: View {
             } label: {
                 Image(systemName: "sidebar.right").font(.system(size: 14)).frame(width: 18)
             }.buttonStyle(FarmButtonStyle(selected: session.inspectorPresented))
+            .disabled(!session.shellShowsContent)
             .help("Toggle details (⌥⌘I)").accessibilityLabel("Toggle details inspector")
         }
         .padding(.horizontal, 15).padding(.vertical, 12)
         .background { TimberSurface() }
         .overlay(alignment: .bottom) { Rectangle().fill(FarmStyle.darkWood).frame(height: 3) }
+    }
+
+    private var retainedSnapshotBanner: some View {
+        Label(session.shellState.message, systemImage: session.shellState.symbol)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(FarmStyle.ink).padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(FarmStyle.cream)
+            .accessibilityElement(children: .combine)
     }
 
     private var statusStrip: some View {
@@ -460,8 +534,12 @@ struct FarmDesignView: View {
 
     private var footer: some View {
         HStack {
-            Image(systemName: session.sampleState == .disconnected ? "wifi.slash" : "clock")
-            Text(session.sampleState == .disconnected ? "Last sample · 10:38 · connection unavailable" : "Snapshot · 10:42")
+            Image(systemName: session.shellState == .ready && session.sampleState == .disconnected ? "wifi.slash" : session.shellState.symbol)
+            if session.shellState == .ready {
+                Text(session.sampleState == .disconnected ? "Synthetic · last sample 10:38 · provider unavailable" : "Synthetic workspace · Ready · snapshot 10:42")
+            } else {
+                Text("Synthetic workspace · \(session.shellState.title)" + (session.shellState.retainsSnapshot && session.shellShowsContent ? " · last snapshot 10:42 sample time" : ""))
+            }
             Spacer()
             Text("Open work and harvest history")
         }

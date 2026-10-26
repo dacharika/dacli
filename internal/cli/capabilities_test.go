@@ -35,7 +35,7 @@ import (
 // Native task claims add owner-only preview/apply commands and explicit private inputs;
 // preview is read-only, apply mutates canonical task claims, and no MCP tool is added.
 // Digest generated from the assembled CLI artifact; behavioral checks are separate.
-const capabilityRegistryGolden = "104e9f64c07403c2314bcde904bf152500ce244fa242d6c2c588867932af715f"
+const capabilityRegistryGolden = "c7efc320188ed994599fec2d82fe8c14cb0cb4866687f631000cce5fcc255f28"
 
 func TestCapabilityRegistryGolden(t *testing.T) {
 	m := capabilityManifest()

@@ -8,11 +8,14 @@ enum FarmPreviewExport {
     static func runIfRequested() {
         #if DEBUG
         let arguments = CommandLine.arguments
-        guard let index = arguments.firstIndex(of: "--render-preview"), arguments.count > index + 1 else { return }
+        let shellOnly = arguments.contains("--render-shell-preview")
+        guard let index = arguments.firstIndex(of: shellOnly ? "--render-shell-preview" : "--render-preview"), arguments.count > index + 1 else { return }
         let directory = URL(fileURLWithPath: arguments[index + 1], isDirectory: true)
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let variants: [(String, CGFloat, CGFloat, SampleState, Bool, InspectorSelection)] = [
+            let variants: [(String, CGFloat, CGFloat, SampleState, Bool, InspectorSelection)] = shellOnly ? ShellState.allCases.filter { $0 != .ready }.map {
+                ("shell-\($0.rawValue)", 1024, 746, .reviewNeeded, true, .task)
+            } : [
                 ("farm-wide", 1440, 878, .running, false, .task),
                 ("farm-compact", 1024, 746, .running, false, .task),
                 ("journal-wide", 1440, 878, .reviewNeeded, true, .task),
@@ -38,6 +41,7 @@ enum FarmPreviewExport {
                 if name == "fallow-compact" { session.harvestPhase = .fallow }
                 if name == "next-issue-wide", let queued = session.farm.nextOpenTask { session.harvestPhase = .nextOpen; session.select(queued) }
                 if name == "empty-backlog-compact" { session.setQueuePreviewEmpty(true) }
+                if name.hasPrefix("shell-"), let state = ShellState(rawValue: String(name.dropFirst(6))) { session.selectShellState(state) }
                 let view = FarmDesignView(session: session).frame(width: width, height: height).environment(\.colorScheme, .light).environment(\.farmArtifactRender, true).environment(\.farmRenderSkins, name == "skins-wide").environment(\.farmRenderTime, name == "motion-frame-b" ? 6 : 2)
                 let renderer = ImageRenderer(content: view)
                 renderer.scale = 2

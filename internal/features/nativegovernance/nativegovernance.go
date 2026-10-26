@@ -20,6 +20,7 @@ import (
 )
 
 var Commands = append(append(append(append([]clikit.Command{
+	{Path: "native operator add", Brief: "Owner provisions an independent project-scoped read-only operator", Mutates: true, Usage: "dacli native operator add --config <owner> --project <slug> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]", Run: operatorAdd},
 	{Path: "native task claims preview", Brief: "Owner previews exact canonical task path claims", JSON: true, Usage: "dacli native task claims preview --config <owner> --task <ref> --claims-file <private-file> --json", Run: taskClaimsPreview},
 	{Path: "native task claims apply", Brief: "Owner applies digest-bound canonical task path claims", Mutates: true, JSON: true, Usage: "dacli native task claims apply --config <owner> --plan <private-file> --json", Run: taskClaimsApply},
 	{Path: "native doctor", Brief: "Read-only native runtime, plugin and authority compatibility diagnosis", JSON: true, Usage: "dacli native doctor --plugin-manifest <manifest> [--package-artifact <file>] [--runtime-artifact <executable>] [--connection <private-file>] [--capability-file <private-file> --project <id>] --json", Run: nativeDoctor},
@@ -100,6 +101,8 @@ func AuthenticatesExplicitly(path string) bool {
 		return true
 	}
 	switch path {
+	case "native operator add":
+		return true
 	case "native task claims preview", "native task claims apply":
 		return true
 	case "native storage observe", "native storage experiment", "native storage retention":
