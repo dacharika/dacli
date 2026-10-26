@@ -1,7 +1,11 @@
 package application
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,6 +55,15 @@ func measuredUsage(eventID string, sequence uint64, basis string, value int64) u
 	}
 }
 
+func nativeSample(o usage.Observation) NativeUsageSample {
+	return NativeUsageSample{
+		SchemaVersion: o.SchemaVersion, WorkspaceID: o.WorkspaceID, ProjectID: o.ProjectID, AgentProfileID: o.AgentProfileID,
+		SessionID: o.SessionID, TaskID: o.TaskID, AttemptID: o.AttemptID, Provider: o.Provider, Model: o.Model,
+		StreamID: o.StreamID, SourceEventID: o.SourceEventID, ObservedAt: o.ObservedAt, OutputTokens: o.OutputTokens,
+		InputTokens: o.InputTokens, Supersedes: o.Supersedes,
+	}
+}
+
 func TestNativeUsageAppendReconcilesReplaySupersessionAndOutOfOrder(t *testing.T) {
 	store := usage.Store{Root: t.TempDir()}
 	first := measuredUsage("event-2", 2, "delta", 25)
@@ -69,7 +82,7 @@ func TestNativeUsageAppendReconcilesReplaySupersessionAndOutOfOrder(t *testing.T
 		t.Fatal(err)
 	}
 	_, totals, err := store.Read("workspace-1", "project-1", "task-1", "attempt-2")
-	if err != nil || totals.MeasuredOutputTokens != 35 || !totals.OutputAvailable {
+	if err != nil || totals.MeasuredOutputTokens != 35 || !totals.MeasuredOutputAvailable {
 		t.Fatalf("out-of-order deltas = %+v, %v; want 35 available", totals, err)
 	}
 	final := measuredUsage("event-final", 3, "cumulative", 42)
@@ -112,8 +125,44 @@ func TestNativeUsageRejectsWrongUnitAndKeepsMissingUsageUnavailable(t *testing.T
 		t.Fatalf("store explicit unavailable event: %v", err)
 	}
 	rows, totals, err := store.Read("workspace-1", "project-1", "task-1", "attempt-2")
-	if err != nil || totals.MeasuredOutputTokens != 0 || totals.OutputAvailable || totals.UnavailableObservations != 1 || len(rows) != 1 {
+	if err != nil || totals.MeasuredOutputTokens != 0 || totals.MeasuredOutputAvailable || totals.UnavailableObservations != 1 || len(rows) != 1 {
 		t.Fatalf("missing usage became a count: rows=%+v totals=%+v err=%v", rows, totals, err)
+	}
+}
+
+func TestNativeUsageCallbackSampleRejectsSelfAssertedProvenance(t *testing.T) {
+	base := `{"schema_version":1,"workspace_id":"workspace-1","project_id":"project-1","session_id":"session-1","task_id":"task-1","attempt_id":"attempt-2","provider":"provider-a","model":"model-a","stream_id":"turn-1","source_event_id":"event-1","observed_at":"2026-10-26T09:00:00Z","source":"provider","availability":"measured","output_tokens":{"value":7,"unit":"tokens","basis":"delta","sequence":1}}`
+	if _, err := DecodeNativeUsageSample([]byte(base)); !errors.Is(err, usage.ErrInvalid) {
+		t.Fatalf("self-asserted provenance decoded: %v", err)
+	}
+	valid := strings.Replace(base, `,"source":"provider","availability":"measured"`, "", 1)
+	if sample, err := DecodeNativeUsageSample([]byte(valid)); err != nil || sample.SourceEventID != "event-1" || sample.OutputTokens == nil {
+		t.Fatalf("valid callback envelope = %+v, %v", sample, err)
+	}
+	for _, field := range []string{`"credential":"secret"`, `"prompt":"private"`, `"raw_output":"private"`} {
+		payload := strings.TrimSuffix(base, "}") + "," + field + "}"
+		if _, err := DecodeNativeUsageSample([]byte(payload)); !errors.Is(err, usage.ErrInvalid) {
+			t.Errorf("unsafe field %s decoded: %v", field, err)
+		}
+	}
+}
+
+func TestNativeUsageCallbacksSetProvenanceAndKeepUnavailableExplicit(t *testing.T) {
+	now := time.Now().UTC()
+	snapshot := sessions.DashboardSnapshot{State: "ready", Project: "project-1", Records: []sessions.DashboardRecord{usageAttempt("attempt-2", "session-1", now), usageSession("session-1")}}
+	w := &workspace.Workspace{ID: "workspace-1", Root: t.TempDir()}
+	producer, err := NewNativeOutputUsageProducer(w, usageReaderFixture{snapshot: snapshot, root: w.Root}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	missing := nativeSample(measuredUsage("missing", 0, "", 0))
+	missing.OutputTokens = nil
+	if err := producer.RecordProviderUnavailable(missing, "usage-callback-unavailable"); err != nil {
+		t.Fatal(err)
+	}
+	rows, totals, err := producer.Read("project-1", "task-1", "attempt-2")
+	if err != nil || len(rows) != 1 || rows[0].Source != "provider" || rows[0].Availability != "unavailable" || rows[0].UnavailableCause != "usage-callback-unavailable" || totals.MeasuredOutputAvailable || totals.UnavailableObservations != 1 {
+		t.Fatalf("explicit unavailable callback = rows %+v totals %+v err %v", rows, totals, err)
 	}
 }
 
@@ -129,8 +178,171 @@ func TestNativeUsageSeparatesAgentDeclaredCounts(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, totals, err := store.Read("workspace-1", "project-1", "task-1", "attempt-2")
-	if err != nil || totals.MeasuredOutputTokens != 12 || totals.DeclaredOutputTokens != 90 {
+	if err != nil || totals.MeasuredOutputTokens != 12 || totals.DeclaredOutputTokens != 90 || !totals.MeasuredOutputAvailable || !totals.DeclaredOutputAvailable {
 		t.Fatalf("declared count mixed with measured: %+v, %v", totals, err)
+	}
+}
+
+func TestNativeUsageSupersessionCannotCrossMeasuredDeclaredLanes(t *testing.T) {
+	store := usage.Store{Root: t.TempDir()}
+	measured := measuredUsage("measured-fact", 1, "cumulative", 42)
+	if err := store.Append(measured); err != nil {
+		t.Fatal(err)
+	}
+	declaredCorrection := measuredUsage("declared-correction", 2, "cumulative", 99)
+	declaredCorrection.Source, declaredCorrection.Availability = "agent-declared", "declared"
+	declaredCorrection.Supersedes = []string{measured.SourceEventID}
+	if err := store.Append(declaredCorrection); !errors.Is(err, usage.ErrConflict) {
+		t.Fatalf("cross-lane correction error = %v, want ErrConflict", err)
+	}
+	_, totals, err := store.Read("workspace-1", "project-1", "task-1", "attempt-2")
+	if err != nil || totals.MeasuredOutputTokens != 42 || totals.DeclaredOutputTokens != 0 {
+		t.Fatalf("measured fact after refused correction = %+v, %v; measured 42 must remain active", totals, err)
+	}
+
+	corruptStore := usage.Store{Root: t.TempDir()}
+	measured = measuredUsage("stored-measured", 1, "cumulative", 42)
+	declared := measuredUsage("stored-declared", 1, "cumulative", 99)
+	declared.Source, declared.Availability = "agent-declared", "declared"
+	if err := corruptStore.Append(measured); err != nil {
+		t.Fatal(err)
+	}
+	if err := corruptStore.Append(declared); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(corruptStore.Root, ".dacli", "build", "output-usage", "v1", "project-1", "task-1", "attempt-2")
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) != 2 {
+		t.Fatalf("event directory = %v, %v", entries, err)
+	}
+	for _, entry := range entries {
+		path := filepath.Join(dir, entry.Name())
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		var observation usage.Observation
+		if err := json.Unmarshal(data, &observation); err != nil {
+			t.Fatal(err)
+		}
+		if observation.SourceEventID == declared.SourceEventID {
+			observation.Supersedes = []string{measured.SourceEventID}
+			changed, marshalErr := json.Marshal(observation)
+			if marshalErr != nil {
+				t.Fatal(marshalErr)
+			}
+			if err := os.WriteFile(path, changed, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if _, _, err := corruptStore.Read("workspace-1", "project-1", "task-1", "attempt-2"); !errors.Is(err, usage.ErrUnavailable) {
+		t.Fatalf("cross-lane stored supersession error = %v, want ErrUnavailable", err)
+	}
+}
+
+func TestNativeUsageReconcilesInputOutputAndIndependentStreams(t *testing.T) {
+	store := usage.Store{Root: t.TempDir()}
+	late := measuredUsage("turn-1-final", 2, "cumulative", 25)
+	late.Source = "native-harness"
+	late.InputTokens = &usage.Count{Value: 30, Unit: "tokens", Basis: "cumulative", Sequence: 2}
+	if err := store.Append(late); err != nil {
+		t.Fatal(err)
+	}
+	duplicateSequence := measuredUsage("turn-1-duplicate", 2, "delta", 4)
+	duplicateSequence.Source = "provider"
+	if err := store.Append(duplicateSequence); !errors.Is(err, usage.ErrConflict) {
+		t.Fatalf("cross-source repeated sequence error = %v, want ErrConflict", err)
+	}
+	earlier := measuredUsage("turn-1-delta", 1, "delta", 10)
+	earlier.Source = "provider"
+	earlier.InputTokens = &usage.Count{Value: 7, Unit: "tokens", Basis: "delta", Sequence: 1}
+	if err := store.Append(earlier); err != nil {
+		t.Fatal(err)
+	}
+	otherStream := measuredUsage("turn-2", 1, "cumulative", 12)
+	otherStream.StreamID = "turn-2"
+	if err := store.Append(otherStream); err != nil {
+		t.Fatal(err)
+	}
+	_, totals, err := store.Read("workspace-1", "project-1", "task-1", "attempt-2")
+	if err != nil || totals.MeasuredOutputTokens != 37 || totals.MeasuredInputTokens != 30 || !totals.MeasuredOutputAvailable || !totals.MeasuredInputAvailable {
+		t.Fatalf("mixed token streams = %+v, %v; want output 37 and input 30", totals, err)
+	}
+}
+
+func TestNativeUsageCumulativeTotalsArePerStreamAndAvailabilityIsPerClass(t *testing.T) {
+	store := usage.Store{Root: t.TempDir()}
+	observations := []usage.Observation{
+		measuredUsage("measured-a-1", 1, "delta", 3),
+		measuredUsage("measured-a-2", 2, "cumulative", 10),
+		measuredUsage("measured-b", 1, "cumulative", 20),
+	}
+	observations[2].StreamID = "stream-b"
+	declaredA := measuredUsage("declared-a", 1, "cumulative", 4)
+	declaredA.Source, declaredA.Availability = "agent-declared", "declared"
+	declaredB := measuredUsage("declared-b", 1, "cumulative", 6)
+	declaredB.Source, declaredB.Availability, declaredB.StreamID = "agent-declared", "declared", "declared-stream-b"
+	observations = append(observations, declaredA, declaredB)
+	for _, observation := range observations {
+		if err := store.Append(observation); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, totals, err := store.Read("workspace-1", "project-1", "task-1", "attempt-2")
+	if err != nil || totals.MeasuredOutputTokens != 30 || totals.DeclaredOutputTokens != 10 || !totals.MeasuredOutputAvailable || !totals.DeclaredOutputAvailable {
+		t.Fatalf("per-stream cumulative totals = %+v, %v; want measured 30 and declared 10 with separate availability", totals, err)
+	}
+	declaredOnlyStore := usage.Store{Root: t.TempDir()}
+	if err := declaredOnlyStore.Append(declaredA); err != nil {
+		t.Fatal(err)
+	}
+	_, declaredOnly, err := declaredOnlyStore.Read("workspace-1", "project-1", "task-1", "attempt-2")
+	if err != nil || declaredOnly.MeasuredOutputAvailable || !declaredOnly.DeclaredOutputAvailable {
+		t.Fatalf("declared-only availability = %+v, %v; declared must not imply measured availability", declaredOnly, err)
+	}
+}
+
+func TestNativeUsageAmbiguousSequenceDoesNotExposePartialCount(t *testing.T) {
+	root := t.TempDir()
+	store := usage.Store{Root: root}
+	first := measuredUsage("sequence-one", 1, "delta", 5)
+	second := measuredUsage("sequence-two", 2, "delta", 7)
+	if err := store.Append(first); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Append(second); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(root, ".dacli", "build", "output-usage", "v1", "project-1", "task-1", "attempt-2")
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) != 2 {
+		t.Fatalf("event directory = %v, %v", entries, err)
+	}
+	for _, entry := range entries {
+		path := filepath.Join(dir, entry.Name())
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		var observation usage.Observation
+		if err := json.Unmarshal(data, &observation); err != nil {
+			t.Fatal(err)
+		}
+		if observation.SourceEventID == "sequence-two" {
+			observation.OutputTokens.Sequence = 1 // simulate a corrupted/ambiguous persisted stream
+			changed, marshalErr := json.Marshal(observation)
+			if marshalErr != nil {
+				t.Fatal(marshalErr)
+			}
+			if err := os.WriteFile(path, changed, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	_, totals, err := store.Read("workspace-1", "project-1", "task-1", "attempt-2")
+	if err != nil || totals.MeasuredOutputAvailable || totals.MeasuredOutputTokens != 0 {
+		t.Fatalf("ambiguous sequence total = %+v, %v; must be unavailable, not a partial count", totals, err)
 	}
 }
 
@@ -155,23 +367,40 @@ func TestNativeUsageProducerRejectsRolloverForgedProfileAndForeignProject(t *tes
 	}
 	stale := measuredUsage("stale", 1, "delta", 1)
 	stale.AttemptID = "attempt-1"
-	if err = producer.Record(stale); !errors.Is(err, sessions.ErrDenied) {
+	if err = producer.RecordProviderCallback(nativeSample(stale)); !errors.Is(err, sessions.ErrDenied) {
 		t.Fatalf("stale attempt error = %v, want denied", err)
 	}
 	forged := measuredUsage("forged-profile", 1, "delta", 1)
 	forged.AgentProfileID = "agent-other"
-	if err = producer.Record(forged); !errors.Is(err, sessions.ErrDenied) {
+	if err = producer.RecordProviderCallback(nativeSample(forged)); !errors.Is(err, sessions.ErrDenied) {
 		t.Fatalf("forged profile error = %v, want denied", err)
 	}
 	foreign := measuredUsage("foreign-project", 1, "delta", 1)
 	foreign.ProjectID = "project-2"
-	if err = producer.Record(foreign); !errors.Is(err, sessions.ErrDenied) {
+	if err = producer.RecordProviderCallback(nativeSample(foreign)); !errors.Is(err, sessions.ErrDenied) {
 		t.Fatalf("foreign project error = %v, want denied", err)
 	}
 	foreignSession := measuredUsage("foreign-session", 1, "delta", 1)
 	foreignSession.SessionID = "session-2"
-	if err = producer.Record(foreignSession); !errors.Is(err, sessions.ErrDenied) {
+	if err = producer.RecordProviderCallback(nativeSample(foreignSession)); !errors.Is(err, sessions.ErrDenied) {
 		t.Fatalf("foreign session error = %v, want denied", err)
+	}
+	expired := base
+	expired.Records = append([]sessions.DashboardRecord(nil), base.Records...)
+	for i := range expired.Records {
+		if expired.Records[i].Kind == "session" {
+			expired.Records[i].Freshness = "stale"
+		}
+	}
+	expiredProducer, err := NewNativeOutputUsageProducer(w, usageReaderFixture{snapshot: expired, root: w.Root}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = expiredProducer.RecordProviderCallback(nativeSample(measuredUsage("expired-session", 1, "delta", 1))); !errors.Is(err, sessions.ErrDenied) {
+		t.Fatalf("expired attempt session error = %v, want denied", err)
+	}
+	if _, _, err = expiredProducer.Read("project-1", "task-1", "attempt-2"); !errors.Is(err, sessions.ErrDenied) {
+		t.Fatalf("expired session read error = %v, want denied", err)
 	}
 	ambiguous := base
 	ambiguous.Records = append(append([]sessions.DashboardRecord(nil), base.Records...), usageAttempt("attempt-3", "session-1", now))
@@ -179,15 +408,15 @@ func TestNativeUsageProducerRejectsRolloverForgedProfileAndForeignProject(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = ambiguousProducer.Record(measuredUsage("ambiguous-attempt", 1, "delta", 1)); !errors.Is(err, sessions.ErrDenied) {
+	if err = ambiguousProducer.RecordProviderCallback(nativeSample(measuredUsage("ambiguous-attempt", 1, "delta", 1))); !errors.Is(err, sessions.ErrDenied) {
 		t.Fatalf("tied latest attempts error = %v, want denied", err)
 	}
 	good := measuredUsage("good", 1, "delta", 7)
-	if err = producer.Record(good); err != nil {
+	if err = producer.RecordProviderCallback(nativeSample(good)); err != nil {
 		t.Fatalf("valid observation: %v", err)
 	}
 	rows, totals, err := producer.Read("project-1", "task-1", "attempt-2")
-	if err != nil || len(rows) != 1 || rows[0].AgentProfileID != "agent-good" || totals.MeasuredOutputTokens != 7 {
+	if err != nil || len(rows) != 1 || rows[0].AgentProfileID != "agent-good" || rows[0].Source != "provider" || rows[0].Availability != "measured" || totals.MeasuredOutputTokens != 7 {
 		t.Fatalf("bound read = rows %+v totals %+v err %v", rows, totals, err)
 	}
 	if _, _, err = producer.Read("project-2", "task-1", "attempt-2"); !errors.Is(err, sessions.ErrDenied) {
@@ -205,7 +434,7 @@ func TestNativeUsageProducerDoesNotTrustUnresolvedProfileClaim(t *testing.T) {
 	}
 	event := measuredUsage("profile-claim", 1, "delta", 1)
 	event.AgentProfileID = "agent-forged"
-	if err = producer.Record(event); !errors.Is(err, sessions.ErrDenied) {
+	if err = producer.RecordProviderCallback(nativeSample(event)); !errors.Is(err, sessions.ErrDenied) {
 		t.Fatalf("unresolved profile claim error = %v, want denied", err)
 	}
 }
@@ -238,6 +467,68 @@ func TestNativeUsageStoreIsBoundedAndRejectsUnknownFields(t *testing.T) {
 	}
 	if _, _, err = store.Read("workspace-1", "project-1", "task-1", "attempt-2"); !errors.Is(err, usage.ErrUnavailable) {
 		t.Fatalf("unknown raw-output field error = %v, want unavailable", err)
+	}
+}
+
+func TestNativeUsageRejectsTraversalIdentifiersAndOversizedStoredEvents(t *testing.T) {
+	root := t.TempDir()
+	store := usage.Store{Root: root}
+	for _, id := range []string{".", ".."} {
+		observation := measuredUsage("traversal", 1, "delta", 1)
+		observation.ProjectID = id
+		if err := store.Append(observation); !errors.Is(err, usage.ErrInvalid) {
+			t.Errorf("Append project %q error = %v, want ErrInvalid", id, err)
+		}
+		if _, _, err := store.Read("workspace-1", id, "task-1", "attempt-2"); !errors.Is(err, usage.ErrInvalid) {
+			t.Errorf("Read project %q error = %v, want ErrInvalid", id, err)
+		}
+	}
+	if err := store.Append(measuredUsage("bounded", 1, "delta", 1)); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(root, ".dacli", "build", "output-usage", "v1", "project-1", "task-1", "attempt-2")
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("event directory = %v, %v", entries, err)
+	}
+	path := filepath.Join(dir, entries[0].Name())
+	if err := os.WriteFile(path, make([]byte, usage.MaxEventBytes+1), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := store.Read("workspace-1", "project-1", "task-1", "attempt-2"); !errors.Is(err, usage.ErrUnavailable) {
+		t.Fatalf("oversized stored event error = %v, want ErrUnavailable", err)
+	}
+}
+
+func TestNativeUsageFullStoreRetainsHistoryAndRejectsNextAppend(t *testing.T) {
+	root := t.TempDir()
+	store := usage.Store{Root: root}
+	dir := filepath.Join(root, ".dacli", "build", "output-usage", "v1", "project-1", "task-1", "attempt-2")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < usage.MaxEvents; i++ {
+		row := measuredUsage(fmt.Sprintf("retained-%d", i), uint64(i+1), "delta", 1)
+		data, err := json.Marshal(row)
+		if err != nil {
+			t.Fatal(err)
+		}
+		identity := strings.Join([]string{row.WorkspaceID, row.ProjectID, row.TaskID, row.AttemptID, row.SourceEventID}, "\x00")
+		name := sha256.Sum256([]byte(identity))
+		if err := os.WriteFile(filepath.Join(dir, hex.EncodeToString(name[:])+".json"), data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rows, totals, err := store.Read("workspace-1", "project-1", "task-1", "attempt-2")
+	if err != nil || len(rows) != usage.MaxEvents || totals.MeasuredOutputTokens != usage.MaxEvents {
+		t.Fatalf("full store read = %d rows, %+v, %v; history must remain readable", len(rows), totals, err)
+	}
+	if err := store.Append(measuredUsage("beyond-retention", usage.MaxEvents+1, "delta", 1)); !errors.Is(err, usage.ErrLimit) {
+		t.Fatalf("full-store append error = %v, want ErrLimit", err)
+	}
+	rows, _, err = store.Read("workspace-1", "project-1", "task-1", "attempt-2")
+	if err != nil || len(rows) != usage.MaxEvents {
+		t.Fatalf("full store after rejected append = %d rows, %v; retention must preserve history", len(rows), err)
 	}
 }
 

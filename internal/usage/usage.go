@@ -78,8 +78,10 @@ type Totals struct {
 	MeasuredInputTokens     int64  `json:"measured_input_tokens"`
 	DeclaredOutputTokens    int64  `json:"declared_output_tokens"`
 	DeclaredInputTokens     int64  `json:"declared_input_tokens"`
-	OutputAvailable         bool   `json:"output_available"`
-	InputAvailable          bool   `json:"input_available"`
+	MeasuredOutputAvailable bool   `json:"measured_output_available"`
+	MeasuredInputAvailable  bool   `json:"measured_input_available"`
+	DeclaredOutputAvailable bool   `json:"declared_output_available"`
+	DeclaredInputAvailable  bool   `json:"declared_input_available"`
 	UnavailableObservations int    `json:"unavailable_observations"`
 	ObservationCount        int    `json:"observation_count"`
 }
@@ -97,7 +99,7 @@ func (s Store) base() (string, error) {
 }
 
 func validID(s string) bool {
-	if s == "" || len(s) > maxIdentifier || strings.TrimSpace(s) != s {
+	if s == "" || s == "." || s == ".." || len(s) > maxIdentifier || strings.TrimSpace(s) != s {
 		return false
 	}
 	for _, r := range s {
@@ -223,9 +225,14 @@ func (s Store) Append(o Observation) error {
 	if len(rows) >= MaxEvents || total+int64(len(data)) > MaxStoreBytes {
 		return ErrLimit
 	}
+	if err := validateSupersedes(rows, o); err != nil {
+		return err
+	}
 	for _, oldID := range o.Supersedes {
-		if _, ok := rows[oldID]; !ok {
-			return ErrInvalid
+		for _, old := range rows {
+			if supersedes(old, oldID) {
+				return ErrConflict
+			}
 		}
 	}
 	for _, old := range rows {
@@ -262,7 +269,23 @@ func (s Store) lock(o Observation) (func(), error) {
 }
 
 func sameStream(left, right Observation) bool {
-	return left.Source == right.Source && left.Availability == right.Availability && left.Provider == right.Provider && left.Model == right.Model && left.StreamID == right.StreamID && left.AgentProfileID == right.AgentProfileID
+	return usageClass(left) == usageClass(right) && sourceLane(left) == sourceLane(right) && left.Provider == right.Provider && left.Model == right.Model && left.StreamID == right.StreamID && left.AgentProfileID == right.AgentProfileID
+}
+
+// sourceLane keeps agent declarations isolated while intentionally sharing the
+// measured sequence lane between provider and native-harness callbacks.
+func sourceLane(o Observation) string {
+	if o.Source == "agent-declared" {
+		return "agent-declared"
+	}
+	return "measured-callback"
+}
+
+func usageClass(o Observation) string {
+	if o.Availability == "declared" {
+		return "declared"
+	}
+	return "measured"
 }
 
 func supersedes(o Observation, id string) bool {
@@ -272,6 +295,25 @@ func supersedes(o Observation, id string) bool {
 		}
 	}
 	return false
+}
+
+func validateSupersedes(rows map[string]Observation, next Observation) error {
+	for _, oldID := range next.Supersedes {
+		old, ok := rows[oldID]
+		if !ok {
+			return ErrInvalid
+		}
+		if !sameStream(old, next) {
+			return ErrConflict
+		}
+		if old.OutputTokens != nil && (next.OutputTokens == nil && next.Availability != "unavailable" || next.OutputTokens != nil && next.OutputTokens.Sequence < old.OutputTokens.Sequence) {
+			return ErrConflict
+		}
+		if old.InputTokens != nil && (next.InputTokens == nil && next.Availability != "unavailable" || next.InputTokens != nil && next.InputTokens.Sequence < old.InputTokens.Sequence) {
+			return ErrConflict
+		}
+	}
+	return nil
 }
 
 func secureMkdirAll(root, path string) (string, error) {
@@ -293,7 +335,8 @@ func secureMkdirAll(root, path string) (string, error) {
 		return "", ErrUnavailable
 	}
 	path = filepath.Join(root, relToRoot)
-	rel, err := filepath.Rel(filepath.Join(root, workspace.Dir), path)
+	usageRoot := filepath.Join(root, workspace.Dir, "build", "output-usage", "v1")
+	rel, err := filepath.Rel(usageRoot, path)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
 		return "", ErrUnavailable
 	}
@@ -305,7 +348,7 @@ func secureMkdirAll(root, path string) (string, error) {
 	if statErr != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return "", ErrUnavailable
 	}
-	for _, part := range strings.Split(rel, string(filepath.Separator)) {
+	for _, part := range strings.Split(filepath.Join("build", "output-usage", "v1", rel), string(filepath.Separator)) {
 		if part == "" || part == "." {
 			continue
 		}
@@ -408,11 +451,42 @@ func (s Store) readAttempt(o Observation) (map[string]Observation, int64, error)
 		}
 		rows[got.SourceEventID] = got
 	}
+	supersededBy := map[string]string{}
 	for _, row := range rows {
+		if validateSupersedes(rows, row) != nil {
+			return nil, 0, ErrUnavailable
+		}
 		for _, previous := range row.Supersedes {
 			if _, ok := rows[previous]; !ok {
 				return nil, 0, ErrUnavailable
 			}
+			if prior, duplicate := supersededBy[previous]; duplicate && prior != row.SourceEventID {
+				return nil, 0, ErrUnavailable
+			}
+			supersededBy[previous] = row.SourceEventID
+		}
+	}
+	visitState := map[string]uint8{}
+	var visit func(string) bool
+	visit = func(id string) bool {
+		if visitState[id] == 1 {
+			return false
+		}
+		if visitState[id] == 2 {
+			return true
+		}
+		visitState[id] = 1
+		for _, previous := range rows[id].Supersedes {
+			if !visit(previous) {
+				return false
+			}
+		}
+		visitState[id] = 2
+		return true
+	}
+	for id := range rows {
+		if !visit(id) {
+			return nil, 0, ErrUnavailable
 		}
 	}
 	return rows, total, nil
@@ -469,12 +543,13 @@ func reconcile(workspaceID, projectID, taskID, attemptID string, rows []Observat
 	// streams add together; late callbacks are replayed by provider sequence.
 	streams := map[string][]Observation{}
 	for _, row := range active {
-		key := strings.Join([]string{row.Source, row.Provider, row.Model, row.StreamID, row.AgentProfileID, row.Availability}, "\x00")
+		key := strings.Join([]string{usageClass(row), row.Provider, row.Model, row.StreamID, row.AgentProfileID}, "\x00")
 		streams[key] = append(streams[key], row)
 	}
 	for _, metric := range []string{"output", "input"} {
 		var measured, declared int64
-		available := false
+		measuredAvailable, declaredAvailable := false, false
+		measuredInvalid, declaredInvalid := false, false
 		for _, stream := range streams {
 			selected := make([]struct {
 				id    string
@@ -503,30 +578,59 @@ func reconcile(workspaceID, projectID, taskID, attemptID string, rows []Observat
 				return selected[i].count.Sequence < selected[j].count.Sequence
 			})
 			var seenSeq = map[uint64]string{}
+			var streamTotal int64
+			streamInvalid := false
 			for _, item := range selected {
 				if prior, ok := seenSeq[item.count.Sequence]; ok && prior != item.id {
-					// Ambiguous stream ordering is not safe to aggregate. Keep the totals
-					// explicitly unavailable rather than choosing an arrival winner.
-					continue
+					streamInvalid = true
+					break
 				}
 				seenSeq[item.count.Sequence] = item.id
-				available = true
-				if item.decl {
-					declared = applyCount(declared, item.count)
-				} else {
-					measured = applyCount(measured, item.count)
-				}
+				streamTotal = applyCount(streamTotal, item.count)
 			}
+			if len(selected) == 0 {
+				continue
+			}
+			isDeclared := selected[0].decl
+			if streamInvalid {
+				if isDeclared {
+					declaredInvalid = true
+				} else {
+					measuredInvalid = true
+				}
+				continue
+			}
+			if isDeclared {
+				declared = addTotals(declared, streamTotal)
+				declaredAvailable = true
+			} else {
+				measured = addTotals(measured, streamTotal)
+				measuredAvailable = true
+			}
+		}
+		if measuredInvalid {
+			measured, measuredAvailable = 0, false
+		}
+		if declaredInvalid {
+			declared, declaredAvailable = 0, false
 		}
 		if metric == "output" {
 			t.MeasuredOutputTokens, t.DeclaredOutputTokens = measured, declared
-			t.OutputAvailable = available
+			t.MeasuredOutputAvailable, t.DeclaredOutputAvailable = measuredAvailable, declaredAvailable
 		} else {
 			t.MeasuredInputTokens, t.DeclaredInputTokens = measured, declared
-			t.InputAvailable = available
+			t.MeasuredInputAvailable, t.DeclaredInputAvailable = measuredAvailable, declaredAvailable
 		}
 	}
 	return t
+}
+
+func addTotals(total, add int64) int64 {
+	const maxInt64 = int64(^uint64(0) >> 1)
+	if total > maxInt64-add {
+		return maxInt64
+	}
+	return total + add
 }
 
 func applyCount(total int64, c Count) int64 {

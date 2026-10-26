@@ -1,8 +1,12 @@
 package application
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"io"
 	"path/filepath"
+	"time"
 
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
 	"github.com/mlnomadpy/dacli/internal/usage"
@@ -17,6 +21,43 @@ type NativeUsageReader interface {
 	SessionID() string
 	WorkspaceID() string
 	WorkspaceRoot() string
+}
+
+// NativeUsageSample is the metadata delivered by a selected native callback.
+// Source and availability are deliberately absent: the producer determines
+// those from the callback method, never from fields supplied by the event.
+type NativeUsageSample struct {
+	SchemaVersion  int          `json:"schema_version"`
+	WorkspaceID    string       `json:"workspace_id"`
+	ProjectID      string       `json:"project_id"`
+	AgentProfileID string       `json:"agent_profile_id,omitempty"`
+	SessionID      string       `json:"session_id"`
+	TaskID         string       `json:"task_id"`
+	AttemptID      string       `json:"attempt_id"`
+	Provider       string       `json:"provider"`
+	Model          string       `json:"model"`
+	StreamID       string       `json:"stream_id"`
+	SourceEventID  string       `json:"source_event_id"`
+	ObservedAt     time.Time    `json:"observed_at"`
+	OutputTokens   *usage.Count `json:"output_tokens,omitempty"`
+	InputTokens    *usage.Count `json:"input_tokens,omitempty"`
+	Supersedes     []string     `json:"supersedes,omitempty"`
+}
+
+// DecodeNativeUsageSample strictly decodes the callback envelope. It rejects
+// unknown fields, including caller-supplied source/availability labels and any
+// attempt to attach prompts, credentials, or raw output.
+func DecodeNativeUsageSample(data []byte) (NativeUsageSample, error) {
+	if len(data) == 0 || len(data) > usage.MaxEventBytes {
+		return NativeUsageSample{}, usage.ErrInvalid
+	}
+	var sample NativeUsageSample
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&sample) != nil || decoder.Decode(new(any)) != io.EOF {
+		return NativeUsageSample{}, usage.ErrInvalid
+	}
+	return sample, nil
 }
 
 // SessionID exposes the already selected dashboard connection's enrolled
@@ -77,25 +118,54 @@ func sameWorkspaceRoot(left, right string) bool {
 	return leftErr == nil && rightErr == nil && filepath.Clean(left) == filepath.Clean(right)
 }
 
-// Record binds an observation to a freshly authenticated authority snapshot.
-// Caller-supplied workspace/project/session/task/attempt/profile claims are
-// checked against that snapshot before the local append-only store is touched.
-func (p *NativeOutputUsageProducer) Record(event usage.Observation) error {
-	if p == nil || p.workspace == nil || p.reader == nil || event.WorkspaceID != p.workspace.ID || event.ProjectID == "" || event.TaskID == "" || event.AttemptID == "" || event.SessionID == "" || event.SessionID != p.reader.SessionID() {
+// RecordProviderCallback accepts counts only from the provider callback path.
+// It sets provenance itself; the sample has no Source or Availability field.
+func (p *NativeOutputUsageProducer) RecordProviderCallback(sample NativeUsageSample) error {
+	return p.record(sample, "provider", "measured", "")
+}
+
+// RecordHarnessCallback accepts counts only from the native harness callback
+// path and labels them as measured harness observations.
+func (p *NativeOutputUsageProducer) RecordHarnessCallback(sample NativeUsageSample) error {
+	return p.record(sample, "native-harness", "measured", "")
+}
+
+// RecordAgentDeclared preserves an agent's own count separately from measured
+// provider and harness observations.
+func (p *NativeOutputUsageProducer) RecordAgentDeclared(sample NativeUsageSample) error {
+	return p.record(sample, "agent-declared", "declared", "")
+}
+
+// RecordProviderUnavailable records an explicit unsupported/missing provider
+// callback. It cannot turn absent usage into a measured zero.
+func (p *NativeOutputUsageProducer) RecordProviderUnavailable(sample NativeUsageSample, cause string) error {
+	return p.record(sample, "provider", "unavailable", cause)
+}
+
+// RecordHarnessUnavailable records an explicit unsupported/missing harness
+// callback. It cannot turn absent usage into a measured zero.
+func (p *NativeOutputUsageProducer) RecordHarnessUnavailable(sample NativeUsageSample, cause string) error {
+	return p.record(sample, "native-harness", "unavailable", cause)
+}
+
+// record binds the callback sample to a freshly authenticated authority
+// snapshot before the local append-only store is touched.
+func (p *NativeOutputUsageProducer) record(sample NativeUsageSample, source, availability, unavailableCause string) error {
+	if p == nil || p.workspace == nil || p.reader == nil || sample.SchemaVersion != 1 || sample.WorkspaceID != p.workspace.ID || sample.ProjectID == "" || sample.TaskID == "" || sample.AttemptID == "" || sample.SessionID == "" || sample.SessionID != p.reader.SessionID() {
 		return sessions.ErrDenied
 	}
-	snapshot, err := p.reader.Read(event.ProjectID, event.TaskID)
-	if err != nil || snapshot.Project != event.ProjectID || snapshot.State != "ready" || snapshot.Limited {
+	snapshot, err := p.reader.Read(sample.ProjectID, sample.TaskID)
+	if err != nil || snapshot.Project != sample.ProjectID || snapshot.State != "ready" || snapshot.Limited {
 		return sessions.ErrDenied
 	}
 	var attempts []sessions.DashboardRecord
 	var actorState *sessions.DashboardRecord
 	for i := range snapshot.Records {
 		r := &snapshot.Records[i]
-		if r.Kind == "attempt" && r.TaskID == event.TaskID {
+		if r.Kind == "attempt" && r.TaskID == sample.TaskID {
 			attempts = append(attempts, *r)
 		}
-		if r.Kind == "session" && r.ID == event.SessionID && r.TaskID == event.TaskID {
+		if r.Kind == "session" && r.ID == sample.SessionID && r.TaskID == sample.TaskID {
 			actorState = r
 		}
 	}
@@ -103,26 +173,32 @@ func (p *NativeOutputUsageProducer) Record(event usage.Observation) error {
 		return sessions.ErrDenied
 	}
 	current, unambiguous := newestAttempt(attempts)
-	if !unambiguous || current.ID != event.AttemptID || current.ActorID != event.SessionID {
+	if !unambiguous || current.ID != sample.AttemptID || current.ActorID != sample.SessionID {
 		return sessions.ErrDenied
 	}
 	profileID := ""
 	if p.profiles != nil {
 		var available bool
-		profileID, available, err = p.profiles.ProfileFor(event.WorkspaceID, event.ProjectID, event.SessionID, event.TaskID, event.AttemptID)
+		profileID, available, err = p.profiles.ProfileFor(sample.WorkspaceID, sample.ProjectID, sample.SessionID, sample.TaskID, sample.AttemptID)
 		if err != nil {
 			return sessions.ErrDenied
 		}
-		if available && profileID == "" || !available && event.AgentProfileID != "" || available && event.AgentProfileID != "" && event.AgentProfileID != profileID {
+		if available && profileID == "" || !available && sample.AgentProfileID != "" || available && sample.AgentProfileID != "" && sample.AgentProfileID != profileID {
 			return sessions.ErrDenied
 		}
 		if !available {
 			profileID = ""
 		}
-	} else if event.AgentProfileID != "" {
+	} else if sample.AgentProfileID != "" {
 		return sessions.ErrDenied
 	}
-	event.AgentProfileID = profileID
+	event := usage.Observation{
+		SchemaVersion: sample.SchemaVersion, WorkspaceID: sample.WorkspaceID, ProjectID: sample.ProjectID, AgentProfileID: profileID,
+		SessionID: sample.SessionID, TaskID: sample.TaskID, AttemptID: sample.AttemptID, Provider: sample.Provider, Model: sample.Model,
+		StreamID: sample.StreamID, SourceEventID: sample.SourceEventID, ObservedAt: sample.ObservedAt, Source: source,
+		Availability: availability, UnavailableCause: unavailableCause, OutputTokens: sample.OutputTokens, InputTokens: sample.InputTokens,
+		Supersedes: sample.Supersedes,
+	}
 	if err = p.store.Append(event); err != nil {
 		if errors.Is(err, usage.ErrInvalid) || errors.Is(err, usage.ErrConflict) || errors.Is(err, usage.ErrLimit) {
 			return err
@@ -143,12 +219,19 @@ func (p *NativeOutputUsageProducer) Read(project, task, attempt string) ([]usage
 		return nil, usage.Totals{}, sessions.ErrDenied
 	}
 	var attempts []sessions.DashboardRecord
+	var actorState *sessions.DashboardRecord
 	for i := range snapshot.Records {
 		r := &snapshot.Records[i]
 		if r.Kind != "attempt" || r.TaskID != task {
+			if r.Kind == "session" && r.ID == p.reader.SessionID() && r.TaskID == task {
+				actorState = r
+			}
 			continue
 		}
 		attempts = append(attempts, *r)
+	}
+	if actorState == nil || actorState.State != "enrolled" || actorState.Freshness == "stale" {
+		return nil, usage.Totals{}, sessions.ErrDenied
 	}
 	current, unambiguous := newestAttempt(attempts)
 	if !unambiguous || current.ID != attempt || current.ActorID != p.reader.SessionID() {
