@@ -79,7 +79,13 @@ func observeGitHubRequiredCheckPolicy(root, repo, branch string, configured []st
 			// repository, branch, and retained parent protection were confirmed.
 			legacyRaw = nil
 		case githubBranchNotProtected(legacyErr):
-			if err := confirmGitHubRepositoryBranch(run, repo, branch, branchPath); err != nil {
+			_, observedBranch, err := confirmGitHubRepositoryBranch(run, repo, branch, branchPath)
+			if err != nil {
+				policy.State, policy.Error = "unobservable", err.Error()
+				return policy, fmt.Errorf("confirm unprotected branch for %s/%s: %w", repo, branch, err)
+			}
+			if *observedBranch.Protected {
+				err := fmt.Errorf("inconsistent GitHub observations: required checks endpoint reported branch not protected but branch is protected")
 				policy.State, policy.Error = "unobservable", err.Error()
 				return policy, fmt.Errorf("confirm unprotected branch for %s/%s: %w", repo, branch, err)
 			}
@@ -112,8 +118,16 @@ func githubRequiredChecksDisabled(err error) bool {
 }
 
 func confirmDisabledGitHubRequiredChecks(run func(string, ...string) ([]byte, error), repo, branch, branchPath string) error {
-	if err := confirmGitHubRepositoryBranch(run, repo, branch, branchPath); err != nil {
+	repository, observedBranch, err := confirmGitHubRepositoryBranch(run, repo, branch, branchPath)
+	if err != nil {
 		return err
+	}
+	if observedBranch.Protected == nil || !*observedBranch.Protected {
+		return fmt.Errorf("branch observation does not confirm protected=true")
+	}
+	expectedProtectionURL := strings.TrimSuffix(repository.URL, "/") + "/branches/" + branchPath + "/protection"
+	if observedBranch.ProtectionURL != expectedProtectionURL {
+		return fmt.Errorf("branch protection URL does not match the exact repository and branch")
 	}
 	protectionRaw, err := run("confirm GitHub branch protection", "repos/"+repo+"/branches/"+branchPath+"/protection")
 	if err != nil {
@@ -123,73 +137,93 @@ func confirmDisabledGitHubRequiredChecks(run func(string, ...string) ([]byte, er
 	if err := json.Unmarshal(protectionRaw, &protection); err != nil || protection == nil {
 		return fmt.Errorf("parent branch protection is malformed")
 	}
-	// These fields are part of the complete branch-protection response. A
-	// partial response cannot establish that omitted status checks are empty.
-	for _, key := range []string{"enforce_admins", "required_pull_request_reviews", "restrictions"} {
-		if _, ok := protection[key]; !ok {
-			return fmt.Errorf("parent branch protection is partial: missing %s", key)
+	var parent struct {
+		URL                            string          `json:"url"`
+		RequiredSignatures             json.RawMessage `json:"required_signatures"`
+		EnforceAdmins                  json.RawMessage `json:"enforce_admins"`
+		RequiredLinearHistory          json.RawMessage `json:"required_linear_history"`
+		AllowForcePushes               json.RawMessage `json:"allow_force_pushes"`
+		AllowDeletions                 json.RawMessage `json:"allow_deletions"`
+		BlockCreations                 json.RawMessage `json:"block_creations"`
+		RequiredConversationResolution json.RawMessage `json:"required_conversation_resolution"`
+		LockBranch                     json.RawMessage `json:"lock_branch"`
+		AllowForkSyncing               json.RawMessage `json:"allow_fork_syncing"`
+		RequiredPullRequestReviews     json.RawMessage `json:"required_pull_request_reviews"`
+		Restrictions                   json.RawMessage `json:"restrictions"`
+		RequiredStatusChecks           json.RawMessage `json:"required_status_checks"`
+	}
+	if err := json.Unmarshal(protectionRaw, &parent); err != nil || parent.URL != expectedProtectionURL {
+		return fmt.Errorf("parent branch protection URL is malformed or does not match the exact repository and branch")
+	}
+	// GitHub's complete parent response carries these fields even when their
+	// enabled values are false. Review and push restrictions are optional in the
+	// API response, so validate them only when present.
+	otherProtectionFields := []struct {
+		name string
+		raw  json.RawMessage
+	}{
+		{"required_signatures", parent.RequiredSignatures},
+		{"enforce_admins", parent.EnforceAdmins},
+		{"required_linear_history", parent.RequiredLinearHistory},
+		{"allow_force_pushes", parent.AllowForcePushes},
+		{"allow_deletions", parent.AllowDeletions},
+		{"block_creations", parent.BlockCreations},
+		{"required_conversation_resolution", parent.RequiredConversationResolution},
+		{"lock_branch", parent.LockBranch},
+		{"allow_fork_syncing", parent.AllowForkSyncing},
+	}
+	retained := false
+	for _, field := range otherProtectionFields {
+		if len(field.raw) == 0 || jsonNull(field.raw) {
+			return fmt.Errorf("parent branch protection is partial: missing %s", field.name)
 		}
+		var value struct {
+			Enabled *bool `json:"enabled"`
+		}
+		if err := json.Unmarshal(field.raw, &value); err != nil || value.Enabled == nil {
+			return fmt.Errorf("parent branch protection has malformed %s", field.name)
+		}
+		retained = retained || *value.Enabled
 	}
-	var admins struct {
-		Enabled *bool `json:"enabled"`
-	}
-	if err := json.Unmarshal(protection["enforce_admins"], &admins); err != nil || admins.Enabled == nil {
-		return fmt.Errorf("parent branch protection has malformed enforce_admins")
-	}
-	var reviews json.RawMessage = protection["required_pull_request_reviews"]
-	if !jsonNull(reviews) {
+	if !jsonNull(parent.RequiredPullRequestReviews) {
 		var value struct {
 			DismissStaleReviews          *bool `json:"dismiss_stale_reviews"`
 			RequiredApprovingReviewCount *int  `json:"required_approving_review_count"`
 		}
-		if err := json.Unmarshal(reviews, &value); err != nil {
+		if err := json.Unmarshal(parent.RequiredPullRequestReviews, &value); err != nil {
 			return fmt.Errorf("parent branch protection has malformed required_pull_request_reviews")
 		}
 		if value.DismissStaleReviews == nil || value.RequiredApprovingReviewCount == nil || *value.RequiredApprovingReviewCount < 0 {
 			return fmt.Errorf("parent branch protection has partial required_pull_request_reviews")
 		}
+		retained = true
 	}
-	var restrictions json.RawMessage = protection["restrictions"]
-	if !jsonNull(restrictions) {
+	if !jsonNull(parent.Restrictions) {
 		var value struct {
 			Users []json.RawMessage `json:"users"`
 			Teams []json.RawMessage `json:"teams"`
 			Apps  []json.RawMessage `json:"apps"`
 		}
-		if err := json.Unmarshal(restrictions, &value); err != nil {
+		if err := json.Unmarshal(parent.Restrictions, &value); err != nil {
 			return fmt.Errorf("parent branch protection has malformed restrictions")
 		}
 		var fields map[string]json.RawMessage
-		if err := json.Unmarshal(restrictions, &fields); err != nil || fields["users"] == nil || fields["teams"] == nil || fields["apps"] == nil || value.Users == nil || value.Teams == nil || value.Apps == nil {
+		if err := json.Unmarshal(parent.Restrictions, &fields); err != nil || fields["users"] == nil || fields["teams"] == nil || fields["apps"] == nil || value.Users == nil || value.Teams == nil || value.Apps == nil {
 			return fmt.Errorf("parent branch protection has partial restrictions")
 		}
+		retained = true
 	}
-	if raw, ok := protection["required_status_checks"]; ok && !jsonNull(raw) {
+	if !jsonNull(parent.RequiredStatusChecks) {
 		var checks struct {
 			Contexts []string `json:"contexts"`
 			Checks   []struct {
 				Context string `json:"context"`
 			} `json:"checks"`
 		}
-		if err := json.Unmarshal(raw, &checks); err != nil {
+		if err := json.Unmarshal(parent.RequiredStatusChecks, &checks); err != nil {
 			return fmt.Errorf("parent branch protection has malformed required_status_checks")
 		}
 		return fmt.Errorf("inconsistent GitHub observations: required checks endpoint reported disabled but parent protection contains required_status_checks")
-	}
-	// Require evidence that another protection remains active. This prevents a
-	// truncated/empty object from being interpreted as a deliberate disabled
-	// check policy.
-	retained := *admins.Enabled || !jsonNull(reviews) || !jsonNull(restrictions)
-	for _, key := range []string{"required_linear_history", "allow_force_pushes", "allow_deletions", "block_creations", "required_conversation_resolution", "lock_branch", "allow_fork_syncing"} {
-		if raw, ok := protection[key]; ok {
-			var value struct {
-				Enabled *bool `json:"enabled"`
-			}
-			if err := json.Unmarshal(raw, &value); err != nil || value.Enabled == nil {
-				return fmt.Errorf("parent branch protection has malformed %s", key)
-			}
-			retained = retained || *value.Enabled
-		}
 	}
 	if !retained {
 		return fmt.Errorf("parent branch protection does not confirm retained protections")
@@ -197,31 +231,45 @@ func confirmDisabledGitHubRequiredChecks(run func(string, ...string) ([]byte, er
 	return nil
 }
 
-func confirmGitHubRepositoryBranch(run func(string, ...string) ([]byte, error), repo, branch, branchPath string) error {
+type githubRepositoryObservation struct {
+	FullName string `json:"full_name"`
+	URL      string `json:"url"`
+}
+
+type githubBranchObservation struct {
+	Name          string `json:"name"`
+	Protected     *bool  `json:"protected"`
+	ProtectionURL string `json:"protection_url"`
+	Commit        struct {
+		SHA string `json:"sha"`
+	} `json:"commit"`
+}
+
+func confirmGitHubRepositoryBranch(run func(string, ...string) ([]byte, error), repo, branch, branchPath string) (githubRepositoryObservation, githubBranchObservation, error) {
 	repoRaw, err := run("confirm GitHub repository visibility", "repos/"+repo)
 	if err != nil {
-		return fmt.Errorf("repository visibility is unobservable: %w", err)
+		return githubRepositoryObservation{}, githubBranchObservation{}, fmt.Errorf("repository visibility is unobservable: %w", err)
 	}
-	var repository struct {
-		FullName string `json:"full_name"`
-	}
+	var repository githubRepositoryObservation
 	if err := json.Unmarshal(repoRaw, &repository); err != nil || repository.FullName != repo {
-		return fmt.Errorf("repository observation is malformed or does not match %s", repo)
+		return githubRepositoryObservation{}, githubBranchObservation{}, fmt.Errorf("repository observation is malformed or does not match %s", repo)
+	}
+	repoURL, err := url.Parse(repository.URL)
+	if err != nil || repoURL.Scheme != "https" || repoURL.Host == "" || repoURL.RawQuery != "" || repoURL.Fragment != "" || !strings.HasSuffix(strings.TrimSuffix(repoURL.Path, "/"), "/repos/"+repo) {
+		return githubRepositoryObservation{}, githubBranchObservation{}, fmt.Errorf("repository API URL is malformed or does not match %s", repo)
 	}
 	branchRaw, err := run("confirm GitHub branch visibility", "repos/"+repo+"/branches/"+branchPath)
 	if err != nil {
-		return fmt.Errorf("branch visibility is unobservable: %w", err)
+		return githubRepositoryObservation{}, githubBranchObservation{}, fmt.Errorf("branch visibility is unobservable: %w", err)
 	}
-	var observed struct {
-		Name   string `json:"name"`
-		Commit struct {
-			SHA string `json:"sha"`
-		} `json:"commit"`
-	}
+	var observed githubBranchObservation
 	if err := json.Unmarshal(branchRaw, &observed); err != nil || observed.Name != branch || !validGitHubCommitSHA(observed.Commit.SHA) {
-		return fmt.Errorf("branch observation is malformed or does not match %s", branch)
+		return githubRepositoryObservation{}, githubBranchObservation{}, fmt.Errorf("branch observation is malformed or does not match %s", branch)
 	}
-	return nil
+	if observed.Protected == nil {
+		return githubRepositoryObservation{}, githubBranchObservation{}, fmt.Errorf("branch observation is partial: missing protected")
+	}
+	return repository, observed, nil
 }
 
 func validGitHubCommitSHA(value string) bool {

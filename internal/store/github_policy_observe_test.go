@@ -22,16 +22,23 @@ printf '%s\n' "$endpoint" >> "$GH_CALL_LOG"
 case "$endpoint" in
   repos/owner/repo)
     case "$GH_FIXTURE" in concealed-repo) echo 'gh: HTTP 404: Not Found' >&2; exit 1;; esac
-    printf '%s\n' '{"full_name":"owner/repo"}'
+    case "$GH_FIXTURE" in wrong-repository-url) printf '%s\n' '{"full_name":"owner/repo","url":"https://api.github.com/repos/other/repo"}'; exit 0;; esac
+    printf '%s\n' '{"full_name":"owner/repo","url":"https://api.github.com/repos/owner/repo"}'
     ;;
   repos/owner/repo/branches/main)
-	    case "$GH_FIXTURE" in missing-branch) echo 'gh: HTTP 404: Not Found' >&2; exit 1;; wrong-branch) printf '%s\n' '{"name":"other","commit":{"sha":"0123456789012345678901234567890123456789"}}'; exit 0;; esac
-	    printf '%s\n' '{"name":"main","commit":{"sha":"0123456789012345678901234567890123456789"}}'
+    case "$GH_FIXTURE" in
+      missing-branch) echo 'gh: HTTP 404: Not Found' >&2; exit 1;;
+      wrong-branch) printf '%s\n' '{"name":"other","commit":{"sha":"0123456789012345678901234567890123456789"},"protected":true}'; exit 0;;
+      partial-branch) printf '%s\n' '{"name":"main","commit":{"sha":"0123456789012345678901234567890123456789"}}'; exit 0;;
+      unprotected) printf '%s\n' '{"name":"main","commit":{"sha":"0123456789012345678901234567890123456789"},"protected":false}'; exit 0;;
+      wrong-protection-url) printf '%s\n' '{"name":"main","commit":{"sha":"0123456789012345678901234567890123456789"},"protected":true,"protection_url":"https://api.github.com/repos/other/repo/branches/main/protection"}'; exit 0;;
+    esac
+    printf '%s\n' '{"name":"main","commit":{"sha":"0123456789012345678901234567890123456789"},"protected":true,"protection_url":"https://api.github.com/repos/owner/repo/branches/main/protection"}'
     ;;
   repos/owner/repo/branches/main/protection/required_status_checks)
     case "$GH_FIXTURE" in
 	  inherited) printf '%s\n' '{"contexts":[],"checks":[]}';;
-	      disabled|disabled-absent|partial-protection|partial-reviews|malformed-protection|null-protection|no-retained|inconsistent)
+	      disabled|disabled-absent|partial-branch|wrong-protection-url|partial-protection|partial-reviews|malformed-protection|null-protection|no-retained|inconsistent|wrong-repository-url|wrong-parent-url)
         echo 'gh: HTTP 404: Required status checks not enabled for this branch.' >&2; exit 1;;
       generic-404|concealed-repo|missing-branch|wrong-branch)
         echo 'gh: HTTP 404: Not Found' >&2; exit 1;;
@@ -44,14 +51,15 @@ case "$endpoint" in
     ;;
   repos/owner/repo/branches/main/protection)
     case "$GH_FIXTURE" in
-      partial-protection) printf '%s\n' '{"enforce_admins":{"enabled":false}}';;
-	      partial-reviews) printf '%s\n' '{"enforce_admins":{"enabled":false},"required_pull_request_reviews":{"required_approving_review_count":1},"restrictions":null,"required_status_checks":null}';;
+      partial-protection) printf '%s\n' '{"url":"https://api.github.com/repos/owner/repo/branches/main/protection","required_signatures":{"enabled":false},"enforce_admins":{"enabled":false},"required_linear_history":{"enabled":false},"allow_force_pushes":{"enabled":false},"allow_deletions":{"enabled":false},"block_creations":{"enabled":false},"required_conversation_resolution":{"enabled":false},"lock_branch":{"enabled":false}}';;
+	      partial-reviews) printf '%s\n' '{"url":"https://api.github.com/repos/owner/repo/branches/main/protection","required_signatures":{"enabled":false},"enforce_admins":{"enabled":true},"required_linear_history":{"enabled":false},"allow_force_pushes":{"enabled":false},"allow_deletions":{"enabled":false},"block_creations":{"enabled":false},"required_conversation_resolution":{"enabled":false},"lock_branch":{"enabled":false},"allow_fork_syncing":{"enabled":false},"required_pull_request_reviews":{"required_approving_review_count":1}}';;
       malformed-protection) printf '%s\n' '{';;
       null-protection) printf '%s\n' 'null';;
-      no-retained) printf '%s\n' '{"enforce_admins":{"enabled":false},"required_pull_request_reviews":null,"restrictions":null,"required_status_checks":null}';;
-	      inconsistent) printf '%s\n' '{"enforce_admins":{"enabled":false},"required_pull_request_reviews":{"dismiss_stale_reviews":true,"required_approving_review_count":1},"restrictions":null,"required_status_checks":{"contexts":["ci"],"checks":[]} }';;
-	      disabled-absent) printf '%s\n' '{"enforce_admins":{"enabled":false},"required_pull_request_reviews":{"dismiss_stale_reviews":true,"required_approving_review_count":1},"restrictions":null,"required_conversation_resolution":{"enabled":true}}';;
-	      *) printf '%s\n' '{"enforce_admins":{"enabled":false},"required_pull_request_reviews":{"dismiss_stale_reviews":true,"required_approving_review_count":1},"restrictions":null,"required_status_checks":null,"required_conversation_resolution":{"enabled":true}}';;
+	      wrong-parent-url) printf '%s\n' '{"url":"https://api.github.com/repos/other/repo/branches/main/protection","required_signatures":{"enabled":false},"enforce_admins":{"enabled":true},"required_linear_history":{"enabled":false},"allow_force_pushes":{"enabled":false},"allow_deletions":{"enabled":false},"block_creations":{"enabled":false},"required_conversation_resolution":{"enabled":false},"lock_branch":{"enabled":false},"allow_fork_syncing":{"enabled":false}}';;
+      no-retained) printf '%s\n' '{"url":"https://api.github.com/repos/owner/repo/branches/main/protection","required_signatures":{"enabled":false},"enforce_admins":{"enabled":false},"required_linear_history":{"enabled":false},"allow_force_pushes":{"enabled":false},"allow_deletions":{"enabled":false},"block_creations":{"enabled":false},"required_conversation_resolution":{"enabled":false},"lock_branch":{"enabled":false},"allow_fork_syncing":{"enabled":false}}';;
+      inconsistent) printf '%s\n' '{"url":"https://api.github.com/repos/owner/repo/branches/main/protection","required_signatures":{"enabled":false},"enforce_admins":{"enabled":true},"required_linear_history":{"enabled":false},"allow_force_pushes":{"enabled":false},"allow_deletions":{"enabled":false},"block_creations":{"enabled":false},"required_conversation_resolution":{"enabled":false},"lock_branch":{"enabled":false},"allow_fork_syncing":{"enabled":false},"required_status_checks":{"contexts":["ci"],"checks":[]} }';;
+	      disabled-absent) printf '%s\n' '{"url":"https://api.github.com/repos/owner/repo/branches/main/protection","required_signatures":{"url":"https://api.github.com/repos/owner/repo/branches/main/protection/required_signatures","enabled":false},"enforce_admins":{"url":"https://api.github.com/repos/owner/repo/branches/main/protection/enforce_admins","enabled":true},"required_linear_history":{"enabled":false},"allow_force_pushes":{"enabled":false},"allow_deletions":{"enabled":false},"block_creations":{"enabled":false},"required_conversation_resolution":{"enabled":false},"lock_branch":{"enabled":false},"allow_fork_syncing":{"enabled":false}}';;
+	      *) printf '%s\n' '{"url":"https://api.github.com/repos/owner/repo/branches/main/protection","required_signatures":{"url":"https://api.github.com/repos/owner/repo/branches/main/protection/required_signatures","enabled":false},"enforce_admins":{"url":"https://api.github.com/repos/owner/repo/branches/main/protection/enforce_admins","enabled":true},"required_linear_history":{"enabled":false},"allow_force_pushes":{"enabled":false},"allow_deletions":{"enabled":false},"block_creations":{"enabled":false},"required_conversation_resolution":{"enabled":false},"lock_branch":{"enabled":false},"allow_fork_syncing":{"enabled":false}}';;
     esac
     ;;
   repos/owner/repo/rules/branches/main?per_page=100)
@@ -137,7 +145,7 @@ func TestObserveGitHubRequiredCheckPolicyKeepsEnabledAndInheritedChecks(t *testi
 }
 
 func TestObserveGitHubRequiredCheckPolicyFailsClosedOnUnconfirmedDisabledChecks(t *testing.T) {
-	for _, fixture := range []string{"generic-404", "permission", "concealed-repo", "missing-branch", "wrong-branch", "partial-protection", "partial-reviews", "malformed-protection", "null-protection", "no-retained", "inconsistent", "rules-failure", "rules-malformed"} {
+	for _, fixture := range []string{"generic-404", "permission", "concealed-repo", "wrong-repository-url", "missing-branch", "wrong-branch", "partial-branch", "wrong-protection-url", "wrong-parent-url", "partial-protection", "partial-reviews", "malformed-protection", "null-protection", "no-retained", "inconsistent", "rules-failure", "rules-malformed"} {
 		t.Run(fixture, func(t *testing.T) {
 			policy, err, _ := observeRequiredCheckFixture(t, fixture, nil)
 			if err == nil || policy.State != "unobservable" {

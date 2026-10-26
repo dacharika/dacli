@@ -17,13 +17,13 @@ for arg do endpoint=$arg; done
 if [ "$1" = run ]; then printf '%s\n' '[]'; exit 0; fi
 case "$endpoint" in
   repos/owner/repo)
-    printf '%s\n' '{"full_name":"owner/repo"}' ;;
+	    printf '%s\n' '{"full_name":"owner/repo","url":"https://api.github.com/repos/owner/repo"}' ;;
   repos/owner/repo/branches/main)
-	    printf '%s\n' '{"name":"main","commit":{"sha":"0123456789012345678901234567890123456789"}}' ;;
+	    printf '%s\n' '{"name":"main","commit":{"sha":"0123456789012345678901234567890123456789"},"protected":true,"protection_url":"https://api.github.com/repos/owner/repo/branches/main/protection"}' ;;
   repos/owner/repo/branches/main/protection/required_status_checks)
     echo 'gh: HTTP 404: Required status checks not enabled for this branch.' >&2; exit 1 ;;
   repos/owner/repo/branches/main/protection)
-	    printf '%s\n' '{"enforce_admins":{"enabled":false},"required_pull_request_reviews":{"dismiss_stale_reviews":true,"required_approving_review_count":1},"restrictions":null,"required_status_checks":null,"required_conversation_resolution":{"enabled":true}}' ;;
+	    printf '%s\n' '{"url":"https://api.github.com/repos/owner/repo/branches/main/protection","required_signatures":{"url":"https://api.github.com/repos/owner/repo/branches/main/protection/required_signatures","enabled":false},"enforce_admins":{"url":"https://api.github.com/repos/owner/repo/branches/main/protection/enforce_admins","enabled":true},"required_linear_history":{"enabled":false},"allow_force_pushes":{"enabled":false},"allow_deletions":{"enabled":false},"block_creations":{"enabled":false},"required_conversation_resolution":{"enabled":false},"lock_branch":{"enabled":false},"allow_fork_syncing":{"enabled":false}}' ;;
   repos/owner/repo/rules/branches/main?per_page=100)
     printf '%s\n' '[[]]' ;;
   repos/owner/repo/commits/*/check-runs)
