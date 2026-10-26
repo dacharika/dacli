@@ -131,15 +131,16 @@ func validate(o Observation) error {
 	}
 	switch o.Source {
 	case "native-harness", "provider":
-		if o.Availability == "measured" {
+		switch o.Availability {
+		case "measured":
 			if o.UnavailableCause != "" || o.OutputTokens == nil && o.InputTokens == nil {
 				return ErrInvalid
 			}
-		} else if o.Availability == "unavailable" {
+		case "unavailable":
 			if o.OutputTokens != nil || o.InputTokens != nil || !validLabel(o.UnavailableCause, 256) {
 				return ErrInvalid
 			}
-		} else {
+		default:
 			return ErrInvalid
 		}
 	case "agent-declared":
@@ -193,7 +194,7 @@ func (s Store) Append(o Observation) error {
 		return err
 	}
 	if dir, err = secureMkdirAll(s.Root, dir); err != nil {
-		return fmt.Errorf("%w: %v", ErrUnavailable, err)
+		return fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
 	unlock, err := s.lock(o)
 	if err != nil {
@@ -364,13 +365,17 @@ func secureMkdirAll(root, path string) (string, error) {
 	return cur, nil
 }
 
-func createExclusiveAtomic(path string, data []byte) error {
+func createExclusiveAtomic(path string, data []byte) (retErr error) {
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".usage-*")
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrUnavailable, err)
+		return fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
 	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
+	defer func() {
+		if removeErr := os.Remove(tmpName); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			retErr = errors.Join(retErr, fmt.Errorf("remove temporary usage file: %w", removeErr))
+		}
+	}()
 	if err = tmp.Chmod(0o600); err == nil {
 		_, err = tmp.Write(data)
 	}
@@ -382,7 +387,7 @@ func createExclusiveAtomic(path string, data []byte) error {
 		err = closeErr
 	}
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrUnavailable, err)
+		return fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
 	if err = os.Link(tmpName, path); err != nil {
 		if errors.Is(err, os.ErrExist) {
@@ -392,7 +397,7 @@ func createExclusiveAtomic(path string, data []byte) error {
 			}
 			return ErrConflict
 		}
-		return fmt.Errorf("%w: %v", ErrUnavailable, err)
+		return fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
 	return nil
 }
