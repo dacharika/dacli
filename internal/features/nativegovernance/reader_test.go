@@ -32,6 +32,21 @@ func readerRPC(t *testing.T, connection string, calls ...map[string]any) []reade
 	if err != nil {
 		t.Fatalf("open reader server: %v", err)
 	}
+	return readerRPCWithServer(t, server, calls...)
+}
+
+func readerRPCWithServer(t *testing.T, server *native.Server, calls ...map[string]any) []readerRPCResult {
+	t.Helper()
+	call := startReaderMCPProcess(t, server)
+	results := make([]readerRPCResult, 0, len(calls))
+	for i, request := range calls {
+		results = append(results, call(i+2, request))
+	}
+	return results
+}
+
+func startReaderMCPProcess(t *testing.T, server *native.Server) func(int, map[string]any) readerRPCResult {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	in, input := io.Pipe()
 	output, out := io.Pipe()
@@ -41,7 +56,7 @@ func readerRPC(t *testing.T, connection string, calls ...map[string]any) []reade
 		cancel()
 		_ = input.Close()
 		_ = output.Close()
-		if err := <-done; err != nil {
+		if err := <-done; err != nil && !errors.Is(err, native.ErrDenied) {
 			t.Errorf("reader server cleanup: %v", err)
 		}
 	})
@@ -55,24 +70,26 @@ func readerRPC(t *testing.T, connection string, calls ...map[string]any) []reade
 		if err := dec.Decode(&response); err != nil {
 			t.Fatal(err)
 		}
-		if response["error"] != nil {
-			t.Fatalf("unexpected MCP protocol error: %s", response["error"])
-		}
 		return response
 	}
-	exchange(1, "initialize", map[string]any{"protocolVersion": "2025-06-18", "capabilities": map[string]any{}, "clientInfo": map[string]any{"name": "reader-regression", "version": "1"}})
-	results := make([]readerRPCResult, 0, len(calls))
-	for i, call := range calls {
-		response := exchange(i+2, "tools/call", call)
+	initialized := exchange(1, "initialize", map[string]any{"protocolVersion": "2025-06-18", "capabilities": map[string]any{}, "clientInfo": map[string]any{"name": "reader-regression", "version": "1"}})
+	if initialized["error"] != nil {
+		t.Fatalf("MCP process failed to initialize: %s", initialized["error"])
+	}
+	return func(id int, request map[string]any) readerRPCResult {
+		t.Helper()
+		response := exchange(id, "tools/call", request)
+		if response["error"] != nil {
+			return readerRPCResult{IsError: true}
+		}
 		var wire struct {
 			Result readerRPCResult `json:"result"`
 		}
 		if err := json.Unmarshal(mustReaderJSON(response), &wire); err != nil {
 			t.Fatal(err)
 		}
-		results = append(results, wire.Result)
+		return wire.Result
 	}
-	return results
 }
 
 func mustReaderJSON(v any) []byte {
@@ -256,6 +273,33 @@ func TestNativeReaderRefusesOutputCollisionsWithoutIssuing(t *testing.T) {
 	}
 }
 
+func TestNativeReaderRefusesCredentialDestinationCollision(t *testing.T) {
+	f := setupVerification(t, "", false)
+	private := t.TempDir()
+	connection, credential := filepath.Join(private, "reader.json"), filepath.Join(private, "existing.token")
+	if err := os.WriteFile(credential, []byte("keep existing credential"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(filepath.Join(filepath.Dir(f.config), "authority.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := verificationRun(t, f.w, readerAdd, "--config", f.config, "--workspace", "--connection", connection, "--credential", credential)
+	if err == nil || strings.Contains(out, f.owner) {
+		t.Fatal("preexisting credential destination was accepted or leaked a credential")
+	}
+	after, err := os.ReadFile(filepath.Join(filepath.Dir(f.config), "authority.json"))
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatal("credential collision changed authority", err)
+	}
+	if data, err := os.ReadFile(credential); err != nil || string(data) != "keep existing credential" {
+		t.Fatal("credential collision overwrote existing content", err)
+	}
+	if _, err := os.Lstat(connection); !os.IsNotExist(err) {
+		t.Fatal("credential collision left a connection reservation", err)
+	}
+}
+
 func TestNativeReaderPreservesIssuedActorOnPersistenceFailure(t *testing.T) {
 	f := setupVerification(t, "", false)
 	private := t.TempDir()
@@ -296,6 +340,43 @@ func TestNativeReaderPreservesIssuedActorOnPersistenceFailure(t *testing.T) {
 	}
 }
 
+func TestNativeReaderPreservesActorAndReservationsOnFirstCredentialWriteFailure(t *testing.T) {
+	f := setupVerification(t, "", false)
+	private := t.TempDir()
+	connection, credential := filepath.Join(private, "reader.json"), filepath.Join(private, "reader.token")
+	oldWriter := readerWritePrivate
+	t.Cleanup(func() { readerWritePrivate = oldWriter })
+	var issuedToken string
+	readerWritePrivate = func(_ *os.File, data []byte) error {
+		issuedToken = strings.TrimSpace(string(data))
+		return errors.New("injected credential persistence failure")
+	}
+	out, err := verificationRun(t, f.w, readerAdd, "--config", f.config, "--workspace", "--connection", connection, "--credential", credential)
+	if err == nil || clikit.ExitCode(err) != 1 || !strings.Contains(err.Error(), "was issued but output persistence is uncertain") || !strings.Contains(err.Error(), connection) || !strings.Contains(err.Error(), credential) {
+		t.Fatalf("first-write failure did not report uncertain issuance: %v", err)
+	}
+	fields := strings.Fields(err.Error())
+	if len(fields) < 4 || fields[0] != "native" || fields[1] != "MCP" || fields[2] != "reader" {
+		t.Fatalf("reconciliation error omitted a safe session identifier: %v", err)
+	}
+	sessionID := fields[3]
+	if issuedToken == "" || strings.Contains(out, issuedToken) || strings.Contains(err.Error(), issuedToken) {
+		t.Fatal("issued credential leaked or was not observed by the persistence fixture")
+	}
+	if _, err := f.authority.Authenticate(issuedToken, sessionID); err != nil {
+		t.Fatalf("issued actor was not retained for owner reconciliation: %v", err)
+	}
+	for _, path := range []string{connection, credential} {
+		info, err := os.Stat(path)
+		if err != nil || info.Mode().Perm() != 0600 || info.Size() != 0 {
+			t.Fatalf("reserved output was not retained privately: %v %v", info, err)
+		}
+	}
+	if err := f.authority.Revoke(f.owner, sessionID); err != nil {
+		t.Fatalf("owner could not reconcile the issued actor by its reported ID: %v", err)
+	}
+}
+
 func TestNativeReaderExpiryAndRevocationAreRechecked(t *testing.T) {
 	f := setupVerification(t, "", false)
 	private := t.TempDir()
@@ -307,20 +388,32 @@ func TestNativeReaderExpiryAndRevocationAreRechecked(t *testing.T) {
 	if err := privateJSON(connection, &conn); err != nil {
 		t.Fatal(err)
 	}
+	server, err := native.Open(connection)
+	if err != nil {
+		t.Fatalf("open MCP process before revocation: %v", err)
+	}
+	call := startReaderMCPProcess(t, server)
 	if err := f.authority.Revoke(f.owner, conn.SessionID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := native.Open(connection); err == nil {
-		t.Fatal("revoked reader authenticated through native MCP")
+	result := call(2, readerTool("identity", map[string]any{}))
+	if !result.IsError || result.StructuredContent.OK {
+		t.Fatalf("already-open MCP process retained revoked identity: %+v", result)
 	}
 
 	expiredConnection := filepath.Join(private, "expired.json")
 	expiredCredential := filepath.Join(private, "expired.token")
-	if _, err := verificationRun(t, f.w, readerAdd, "--config", f.config, "--workspace", "--connection", expiredConnection, "--credential", expiredCredential, "--expires", "10ms"); err != nil {
+	if _, err := verificationRun(t, f.w, readerAdd, "--config", f.config, "--workspace", "--connection", expiredConnection, "--credential", expiredCredential, "--expires", "1s"); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(20 * time.Millisecond)
-	if _, err := native.Open(expiredConnection); err == nil {
-		t.Fatal("expired reader authenticated through native MCP")
+	expiredServer, err := native.Open(expiredConnection)
+	if err != nil {
+		t.Fatalf("open MCP process before expiry: %v", err)
+	}
+	expiredCall := startReaderMCPProcess(t, expiredServer)
+	time.Sleep(1100 * time.Millisecond)
+	result = expiredCall(2, readerTool("identity", map[string]any{}))
+	if !result.IsError || result.StructuredContent.OK {
+		t.Fatalf("already-open MCP process retained expired identity: %+v", result)
 	}
 }
