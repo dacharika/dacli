@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mlnomadpy/dacli/internal/model"
 	"github.com/mlnomadpy/dacli/internal/procmon"
 	"github.com/mlnomadpy/dacli/internal/team"
 	"github.com/mlnomadpy/dacli/internal/workspace"
@@ -203,6 +204,159 @@ func TestBuildProgressExplainRetainsRejectedRolesAndCanonicalLanding(t *testing.
 	} {
 		if fact.source == "" || fact.at.IsZero() {
 			t.Errorf("%s is missing source/observed time", fact.name)
+		}
+	}
+}
+
+func TestBuildProgressExplainResolvesCompletedCrossProjectDependencies(t *testing.T) {
+	w, prerequisite := explainFixture(t)
+	if err := MoveTask(w, prerequisite, model.StatusDone); err != nil {
+		t.Fatalf("mark core prerequisite done: %v", err)
+	}
+	if _, err := CreateProject(w, "a-root", "Operator", "operator", "goal", ""); err != nil {
+		t.Fatalf("create operator project: %v", err)
+	}
+	qualified, err := CreateTask(w, "a-root", "operator", "qualified dependency", TaskOpts{
+		Accept: []string{"explain cross-project progress"}, Estimate: "1,2,3", Claims: []string{"internal/store"},
+		DependsOn: []string{"core/" + prerequisite.ID},
+	})
+	if err != nil {
+		t.Fatalf("create qualified dependent task: %v", err)
+	}
+	stableID, err := CreateTask(w, "a-root", "operator", "stable ID dependency", TaskOpts{
+		Accept: []string{"explain cross-project progress"}, Estimate: "1,2,3", Claims: []string{"internal/store"},
+		DependsOn: []string{prerequisite.ID},
+	})
+	if err != nil {
+		t.Fatalf("create stable-ID dependent task: %v", err)
+	}
+	at := time.Now().UTC()
+	delivery := DeliveryProjection{Schema: DeliverySchemaVersion, Version: 1, Project: "operator", ObservedAt: at}
+	p, err := BuildProgressExplain(w, "operator", delivery, at)
+	if err != nil {
+		t.Fatalf("build progress explain: %v", err)
+	}
+	if p.Project != "operator" || len(p.Tasks) != 2 {
+		t.Fatalf("project-scoped task rows = %+v", p.Tasks)
+	}
+	byID := make(map[string]TaskExplain, len(p.Tasks))
+	for _, task := range p.Tasks {
+		byID[task.ID.Value] = task
+		if task.ID.Value != qualified.ID && task.ID.Value != stableID.ID {
+			t.Errorf("foreign task row leaked into operator explain: %s", task.ID.Value)
+		}
+	}
+	for _, taskID := range []string{qualified.ID, stableID.ID} {
+		task, ok := byID[taskID]
+		if !ok {
+			t.Fatalf("dependent operator task %s missing from projection", taskID)
+		}
+		if len(task.Blockers.Value) != 0 || strings.HasPrefix(task.NextAction.Value, "resolve:") || strings.Contains(task.NextAction.Value, "dependency") {
+			t.Errorf("completed cross-project dependency was reported as a blocker: task=%s blockers=%v next=%q", taskID, task.Blockers.Value, task.NextAction.Value)
+		}
+		if strings.HasPrefix(task.NextAction.Value, "repair role eligibility") {
+			t.Errorf("task with a satisfied dependency was not recognized as ready: task=%s next=%q", taskID, task.NextAction.Value)
+		}
+		if task.Landing.Value.Classification != "unobserved" || task.Landing.Value.Confidence != DeliveryUnknown {
+			t.Errorf("local dependency resolution implied remote landing success: %+v", task.Landing.Value)
+		}
+	}
+}
+
+func TestBuildProgressExplainEmptyProjectIncludesWorkspaceTasks(t *testing.T) {
+	w, _ := explainFixture(t)
+	if _, err := CreateProject(w, "a-root", "Operator", "operator", "goal", ""); err != nil {
+		t.Fatalf("create operator project: %v", err)
+	}
+	if _, err := CreateTask(w, "a-root", "operator", "workspace task", TaskOpts{Accept: []string{"include in workspace explain"}}); err != nil {
+		t.Fatalf("create operator task: %v", err)
+	}
+	want, err := ListTasks(w, "", "")
+	if err != nil {
+		t.Fatalf("list workspace tasks: %v", err)
+	}
+	at := time.Now().UTC()
+	p, err := BuildProgressExplain(w, "", DeliveryProjection{Schema: DeliverySchemaVersion, Version: 1, ObservedAt: at}, at)
+	if err != nil {
+		t.Fatalf("build workspace progress explain: %v", err)
+	}
+	if len(p.Tasks) != len(want) {
+		t.Fatalf("workspace task rows = %d, want %d", len(p.Tasks), len(want))
+	}
+	wantIDs := make(map[string]bool, len(want))
+	for _, task := range want {
+		wantIDs[task.ID] = true
+	}
+	for _, task := range p.Tasks {
+		if !wantIDs[task.ID.Value] {
+			t.Errorf("workspace explain leaked an unknown task: %s", task.ID.Value)
+		}
+		delete(wantIDs, task.ID.Value)
+	}
+	if len(wantIDs) != 0 {
+		t.Fatalf("empty project filter omitted workspace task IDs: %v", wantIDs)
+	}
+}
+
+func TestBuildProgressExplainKeepsMissingAndAmbiguousDependenciesExplicit(t *testing.T) {
+	w, _ := explainFixture(t)
+	if _, err := CreateProject(w, "a-root", "Operator", "operator", "goal", ""); err != nil {
+		t.Fatalf("create operator project: %v", err)
+	}
+	if _, err := CreateProject(w, "a-root", "Other", "other", "goal", ""); err != nil {
+		t.Fatalf("create other project: %v", err)
+	}
+	for _, project := range []string{"core", "other"} {
+		if _, err := CreateTask(w, "a-root", project, "shared reference", TaskOpts{Accept: []string{"exists"}}); err != nil {
+			t.Fatalf("create ambiguous prerequisite in %s: %v", project, err)
+		}
+	}
+	absent, err := CreateTask(w, "a-root", "operator", "missing prerequisite", TaskOpts{
+		Accept: []string{"surface missing dependency"}, Estimate: "1,2,3", DependsOn: []string{"missing-dep-1210"},
+	})
+	if err != nil {
+		t.Fatalf("create missing dependency task: %v", err)
+	}
+	ambiguous, err := CreateTask(w, "a-root", "operator", "ambiguous prerequisite", TaskOpts{
+		Accept: []string{"surface ambiguous dependency"}, Estimate: "1,2,3", DependsOn: []string{"shared-reference"},
+	})
+	if err != nil {
+		t.Fatalf("create ambiguous dependency task: %v", err)
+	}
+	at := time.Now().UTC()
+	p, err := BuildProgressExplain(w, "operator", DeliveryProjection{Schema: DeliverySchemaVersion, Version: 1, Project: "operator", ObservedAt: at}, at)
+	if err != nil {
+		t.Fatalf("build progress explain: %v", err)
+	}
+	if len(p.Tasks) != 2 {
+		t.Fatalf("project-scoped task rows = %+v", p.Tasks)
+	}
+	byID := make(map[string]TaskExplain, len(p.Tasks))
+	for _, task := range p.Tasks {
+		byID[task.ID.Value] = task
+		if task.ID.Value != absent.ID && task.ID.Value != ambiguous.ID {
+			t.Errorf("foreign task row leaked into operator explain: %s", task.ID.Value)
+		}
+	}
+	for _, tc := range []struct {
+		id, ref, reason string
+	}{{absent.ID, "missing-dep-1210", "not found"}, {ambiguous.ID, "shared-reference", "ambiguous"}} {
+		task := byID[tc.id]
+		blockers := strings.Join(task.Blockers.Value, "\n")
+		if !strings.Contains(blockers, tc.ref) || !strings.Contains(blockers, tc.reason) {
+			t.Errorf("dependency problem was not explicit for %s: blockers=%q", tc.ref, blockers)
+		}
+		problemCount := 0
+		for _, blocker := range task.Blockers.Value {
+			if strings.Contains(blocker, tc.ref) && strings.Contains(blocker, tc.reason) {
+				problemCount++
+			}
+		}
+		if problemCount != 1 {
+			t.Errorf("dependency problem appeared %d times for %s: blockers=%q", problemCount, tc.ref, blockers)
+		}
+		if !strings.HasPrefix(task.NextAction.Value, "resolve:") {
+			t.Errorf("dependency problem did not guide the next action for %s: %q", tc.ref, task.NextAction.Value)
 		}
 	}
 }
