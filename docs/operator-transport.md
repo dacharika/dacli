@@ -16,9 +16,11 @@ dacli native operator add --config <owner-private-config> --project <slug> \
 ```
 
 The owner may choose an expiry with `--expires`. Provisioning writes separate
-private files and enrolls only `read` plus `operator.read` for the selected
+private files and enrolls only `operator.read` for the selected
 workspace and project. Ordinary worker credentials that have `read` do not
-grant operator access. Do not copy the owner credential or worker credential
+grant operator access. The reader has no generic `read` capability, so reusing
+its connection with the native MCP server cannot broaden project access.
+Do not copy the owner credential or worker credential
 into the app. The app receives the connection file path and reads the private
 credential file through dacli; bearer material is never passed in argv,
 environment variables, protocol frames, or logs.
