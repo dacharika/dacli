@@ -109,19 +109,19 @@ esac
 	return log
 }
 
-func observeRequiredCheckFixture(t *testing.T, fixture string, configured []string) (GitHubRequiredCheckPolicy, error, string) {
+func observeRequiredCheckFixture(t *testing.T, fixture string, configured []string) (GitHubRequiredCheckPolicy, string, error) {
 	t.Helper()
 	log := installRequiredCheckFakeGH(t)
 	t.Setenv("GH_FIXTURE", fixture)
 	policy, err := observeGitHubRequiredCheckPolicy(t.TempDir(), "owner/repo", "main", configured, time.Unix(10, 0))
 	calls, _ := os.ReadFile(log)
-	return policy, err, string(calls)
+	return policy, string(calls), err
 }
 
 func TestObserveGitHubRequiredCheckPolicyConfirmsExplicitlyDisabledLegacyChecks(t *testing.T) {
 	for _, fixture := range []string{"disabled", "disabled-absent"} {
 		t.Run(fixture, func(t *testing.T) {
-			policy, err, calls := observeRequiredCheckFixture(t, fixture, []string{"configured-ci"})
+			policy, calls, err := observeRequiredCheckFixture(t, fixture, []string{"configured-ci"})
 			if err != nil {
 				t.Fatalf("explicitly disabled checks were unobservable: %v", err)
 			}
@@ -138,7 +138,7 @@ func TestObserveGitHubRequiredCheckPolicyConfirmsExplicitlyDisabledLegacyChecks(
 }
 
 func TestObserveGitHubRequiredCheckPolicyConfirmsUnprotectedBranch(t *testing.T) {
-	policy, err, calls := observeRequiredCheckFixture(t, "unprotected", nil)
+	policy, calls, err := observeRequiredCheckFixture(t, "unprotected", nil)
 	if err != nil {
 		t.Fatalf("visible unprotected branch was unobservable: %v", err)
 	}
@@ -156,7 +156,7 @@ func TestObserveGitHubRequiredCheckPolicyKeepsEnabledAndInheritedChecks(t *testi
 		"inherited and repository rulesets": {"inherited", []string{"org-ci", "repo-ci"}},
 	} {
 		t.Run(name, func(t *testing.T) {
-			policy, err, calls := observeRequiredCheckFixture(t, tc.fixture, nil)
+			policy, calls, err := observeRequiredCheckFixture(t, tc.fixture, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -171,7 +171,7 @@ func TestObserveGitHubRequiredCheckPolicyKeepsEnabledAndInheritedChecks(t *testi
 }
 
 func TestObserveGitHubRequiredCheckPolicyAllowsParameterlessRules(t *testing.T) {
-	policy, err, _ := observeRequiredCheckFixture(t, "parameterless-only", nil)
+	policy, _, err := observeRequiredCheckFixture(t, "parameterless-only", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestObserveGitHubRequiredCheckPolicyAllowsParameterlessRules(t *testing.T) 
 }
 
 func TestObserveGitHubRequiredCheckPolicyIgnoresWellFormedFutureRules(t *testing.T) {
-	policy, err, _ := observeRequiredCheckFixture(t, "unknown-rule", nil)
+	policy, _, err := observeRequiredCheckFixture(t, "unknown-rule", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +193,7 @@ func TestObserveGitHubRequiredCheckPolicyIgnoresWellFormedFutureRules(t *testing
 func TestObserveGitHubRequiredCheckPolicyFailsClosedOnUnconfirmedDisabledChecks(t *testing.T) {
 	for _, fixture := range []string{"generic-404", "permission", "concealed-repo", "wrong-repository-url", "missing-branch", "wrong-branch", "partial-branch", "wrong-protection-url", "wrong-parent-url", "partial-protection", "partial-reviews", "malformed-protection", "null-protection", "no-retained", "inconsistent", "legacy-partial", "legacy-null", "rules-failure", "rules-later-page-failure", "rules-malformed", "rules-null", "rules-direct-null-rule", "rules-null-page", "rules-null-rule", "rules-null-noncheck-parameters", "rules-null-parameters", "rules-missing-parameters", "rules-missing-checks", "rules-null-checks", "rules-malformed-check"} {
 		t.Run(fixture, func(t *testing.T) {
-			policy, err, _ := observeRequiredCheckFixture(t, fixture, nil)
+			policy, _, err := observeRequiredCheckFixture(t, fixture, nil)
 			if err == nil || policy.State != "unobservable" {
 				t.Fatalf("fixture %s was accepted: policy=%+v err=%v", fixture, policy, err)
 			}
