@@ -174,8 +174,16 @@ func (a *Authority) ConfigureSwarmWithBindings(owner string, p SwarmPolicy, bind
 					if dispatch.HostSlot == nil && (reservationRetained(s, dispatch) || s.DispatchIntents[id].ID != "") {
 						return ErrDenied
 					}
-					if dispatch.HostSlot != nil && dispatch.HostSlot.HostID == p.HostSlots.HostID && dispatch.HostSlot.AuthorityDomainID != p.HostSlots.AuthorityDomainID && !hostSlotTerminalProof(s, dispatch) {
-						return ErrDenied
+					if claim := dispatch.HostSlot; claim != nil && !hostSlotTerminalProof(s, dispatch) {
+						if claim.HostID == p.HostSlots.HostID && claim.AuthorityDomainID != p.HostSlots.AuthorityDomainID {
+							return ErrDenied
+						}
+						if claim.AuthorityDomainID == p.HostSlots.AuthorityDomainID {
+							original, ok := s.SwarmPolicies[dispatch.ProjectID+"\x00"+claim.SwarmPolicyRevision]
+							if !ok || original.HostSlots == nil || !hostSlotScopeEqual(*original.HostSlots, *p.HostSlots) {
+								return ErrDenied
+							}
+						}
 					}
 				}
 				for _, lease := range s.Leases {

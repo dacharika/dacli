@@ -229,9 +229,18 @@ func (a *Authority) ObserveLifecycle(token, bridge string, req ObserveLifecycleR
 			if dispatch, exists := s.Dispatches[i.DispatchID]; exists && dispatch.HostSlot != nil {
 				policy := s.SwarmPolicies[i.Reservation.ProjectID]
 				slots := policy.HostSlots
-				if slots != nil && slots.Mode == HostSlotSingleAuthority && slots.AuthorityDomainID == dispatch.HostSlot.AuthorityDomainID && slots.TerminalObservationSource == req.Source && hostSlotTerminalQualificationCurrent(s, *slots, now) && req.Binding.DispatchID == dispatch.ID && req.Binding.ReservationFence == dispatch.Reservation.Fence && req.Binding.IntentID == i.ID && req.Binding.HostAgentID == i.HostAgentID && req.Binding.WorkerSessionID == i.WorkerSessionID {
-					qualification := *slots.TerminalQualification
-					result.HostSlotTerminal = &HostSlotTerminalProof{AuthorityDomainID: slots.AuthorityDomainID, DispatchID: dispatch.ID, ReservationFence: dispatch.Reservation.Fence, IntentID: i.ID, HostAgentID: i.HostAgentID, WorkerSessionID: i.WorkerSessionID, AttemptID: req.Binding.AttemptID, LeaseID: req.Binding.LeaseID, LeaseFence: req.Binding.LeaseFence, BridgeSessionID: bridge, Source: req.Source, QualificationID: qualification.ID, QualificationDigest: hostSlotTerminalQualificationDigest(qualification), QualificationPolicyRevision: policy.Revision}
+				if slots != nil && slots.Mode == HostSlotSingleAuthority && slots.AuthorityDomainID == dispatch.HostSlot.AuthorityDomainID && slots.TerminalObservationSource == req.Source {
+					claimPolicy, claimPolicyOK := s.SwarmPolicies[dispatch.ProjectID+"\x00"+dispatch.HostSlot.SwarmPolicyRevision]
+					if !claimPolicyOK || claimPolicy.HostSlots == nil || !hostSlotScopeEqual(*claimPolicy.HostSlots, *slots) || !hostSlotClaimMatchesPolicy(dispatch.HostSlot, *claimPolicy.HostSlots) {
+						return ErrDenied
+					}
+					if hostSlotTerminalQualificationCurrent(s, *slots, now) && req.Binding.DispatchID == dispatch.ID && req.Binding.ReservationFence == dispatch.Reservation.Fence && req.Binding.IntentID == i.ID && req.Binding.HostAgentID == i.HostAgentID && req.Binding.WorkerSessionID == i.WorkerSessionID {
+						qualification := *slots.TerminalQualification
+						if !hostSlotScopeMatchesQualification(*slots, qualification) {
+							return ErrDenied
+						}
+						result.HostSlotTerminal = &HostSlotTerminalProof{AuthorityDomainID: slots.AuthorityDomainID, DispatchID: dispatch.ID, ReservationFence: dispatch.Reservation.Fence, IntentID: i.ID, HostAgentID: i.HostAgentID, WorkerSessionID: i.WorkerSessionID, AttemptID: req.Binding.AttemptID, LeaseID: req.Binding.LeaseID, LeaseFence: req.Binding.LeaseFence, BridgeSessionID: bridge, Source: req.Source, QualificationID: qualification.ID, QualificationDigest: hostSlotTerminalQualificationDigest(qualification), QualificationPolicyRevision: policy.Revision}
+					}
 				}
 			}
 		}

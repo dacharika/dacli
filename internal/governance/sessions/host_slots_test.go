@@ -145,6 +145,7 @@ func TestPre22ReaderRejectsExplicitSchema22FieldsOnlyAtTypedPaths(t *testing.T) 
 		"lifecycle observation null pointer":      `{"LifecycleObservations":{"dispatch":[{"host_slot_terminal":null}]}}`,
 		"lifecycle receipt nested null pointer":   `{"LifecycleOperations":{"receipt":{"Observation":{"host_slot_terminal":null}}}}`,
 		"swarm receipt nested reservation":        `{"SwarmOperations":{"receipt":{"Wave":{"Dispatches":[{"hostslot":null}]}}}}`,
+		"swarm receipt direct dispatch":           `{"SwarmOperations":{"receipt":{"Dispatch":{"HostSlot":null}}}}`,
 		"intent current nested reservation":       `{"DispatchIntents":{"dispatch":{"Reservation":{"hostslot":null}}}}`,
 		"intent receipt nested reservation":       `{"DispatchIntentOperations":{"receipt":{"Intent":{"Reservation":{"HostSlot":null}}}}}`,
 		"controller invocation zero integer":      `{"ControllerInvocations":{"invocation":{"Status":{"ExecutionConcurrency":0}}}}`,
@@ -152,6 +153,8 @@ func TestPre22ReaderRejectsExplicitSchema22FieldsOnlyAtTypedPaths(t *testing.T) 
 		"controller receipt null pointer":         `{"ControllerOperations":{"receipt":{"Status":{"HostSlotAdmission":null}}}}`,
 		"ambiguous root field casing":             `{"SwarmPolicies":{},"swarmPolicies":{"project":{"HostSlots":null}}}`,
 		"ambiguous typed structural field casing": `{"SwarmOperations":{"receipt":{"Wave":{},"wave":{"Dispatches":[{"HostSlot":null}]}}}}`,
+		"duplicate exact structural key":          `{"SwarmOperations":{"receipt":{"Dispatch":{"HostSlot":null},"Dispatch":{}}}}`,
+		"duplicate exact map key":                 `{"SwarmOperations":{"receipt":{"Dispatch":{"HostSlot":null}},"receipt":{"Wave":{}}}}`,
 	}
 	for name, fixture := range fixtures {
 		t.Run(name, func(t *testing.T) {
@@ -179,13 +182,13 @@ func TestPre22DecoderRejectsExplicitSchema22Presence(t *testing.T) {
 	if err := json.Unmarshal(raw, &root); err != nil {
 		t.Fatal(err)
 	}
-	root["SwarmPolicies"] = json.RawMessage(`{"project":{"HostSlots":null}}`)
+	root["SwarmOperations"] = json.RawMessage(`{"receipt":{"Dispatch":{"HostSlot":null}}}`)
 	raw, err = json.Marshal(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := decodeAuthorityStateMode(raw, a.binding, 21, true); !errors.Is(err, ErrStorage) {
-		t.Fatalf("schema-21 decoder accepted explicit schema-22 null field: %v", err)
+		t.Fatalf("schema-21 decoder accepted explicit schema-22 receipt copy: %v", err)
 	}
 }
 
@@ -210,7 +213,7 @@ func TestHostSlotCensusRequiresExactUniqueExecutionBindings(t *testing.T) {
 func TestHostSlotCensusBindingRequiresOriginalIntentIdentity(t *testing.T) {
 	qualification := HostSlotTerminalQualification{SchemaVersion: 1, ID: "terminal-qualification", State: "supported", Source: "bridge-terminal", EvidenceDigest: stringsOf('d', 64), AuthorityDomainID: "domain-1", HostID: "host-1", HostSessionID: "host-session", ExecutorInstanceID: "executor-1", Runtime: "codex", Build: "build-1", CapabilityDigest: stringsOf('a', 64), QualifiedAt: time.Now().Add(-time.Minute), ExpiresAt: time.Now().Add(time.Hour)}
 	policy := HostSlotAdmissionPolicy{SchemaVersion: 1, Mode: HostSlotSingleAuthority, Revision: "slot-rev", WorkspaceID: "workspace", InstallationID: "installation", AuthorityDomainID: "domain-1", HostID: "host-1", HostSessionID: "host-session", ExecutorInstanceID: "executor-1", Runtime: "codex", Build: "build-1", CapabilityDigest: stringsOf('a', 64), CapacityPolicyRevision: "capacity-rev", QualificationID: "capacity-qual", TerminalObservationSource: "bridge-terminal", TerminalQualificationID: "terminal-qualification", TerminalQualification: &qualification}
-	dispatch := DispatchReservation{ID: "dispatch-1", ProjectID: "project-1", PolicyRevision: "swarm-rev-1", Reservation: Lease{Fence: 7}, HostSlot: &HostSlotClaim{AuthorityDomainID: policy.AuthorityDomainID, HostID: policy.HostID, HostSessionID: policy.HostSessionID, ExecutorInstanceID: policy.ExecutorInstanceID, CapabilityDigest: policy.CapabilityDigest}}
+	dispatch := DispatchReservation{ID: "dispatch-1", ProjectID: "project-1", PolicyRevision: "swarm-rev-1", Reservation: Lease{Fence: 7}, HostSlot: &HostSlotClaim{AuthorityDomainID: policy.AuthorityDomainID, HostID: policy.HostID, HostSessionID: policy.HostSessionID, ExecutorInstanceID: policy.ExecutorInstanceID, CapabilityDigest: policy.CapabilityDigest, DispatchID: "dispatch-1", DispatchFence: 7, SwarmPolicyRevision: "swarm-rev-1"}}
 	intent := DispatchIntent{ID: "intent-1", OperationKey: "original-intent-op", HostAgentID: "host-agent-1", WorkerSessionID: "worker-1", State: "acknowledged", Reservation: dispatch}
 	policyRecord := SwarmPolicy{ProjectID: "project-1", Revision: "swarm-rev-1", HostSlots: &policy}
 	s := &state{Binding: Binding{Workspace: "workspace", Installation: "installation"}, Sessions: map[string]record{"host-session": {Session: Session{ID: "host-session", ExpiresAt: time.Now().Add(2 * time.Hour)}}}, Dispatches: map[string]DispatchReservation{dispatch.ID: dispatch}, DispatchIntents: map[string]DispatchIntent{dispatch.ID: intent}, SwarmPolicies: map[string]SwarmPolicy{"project-1\x00swarm-rev-1": policyRecord}, LifecycleObservations: map[string][]LifecycleObservation{}}
@@ -239,7 +242,7 @@ func TestHostSlotCensusBindingRequiresOriginalIntentIdentity(t *testing.T) {
 func TestHostSlotTerminalProofFreesExecutionClaimButRetainsWriterLease(t *testing.T) {
 	const dispatchID, projectID, domainID = "dispatch-1", "project-1", "domain-1"
 	qualification := HostSlotTerminalQualification{SchemaVersion: 1, ID: "terminal-qual-1", State: "supported", Source: "owner-bridge-terminal", EvidenceDigest: stringsOf('d', 64), AuthorityDomainID: domainID, HostID: "host-1", HostSessionID: "host-session", ExecutorInstanceID: "executor-1", Runtime: "codex", Build: "build-1", CapabilityDigest: stringsOf('a', 64), QualifiedAt: time.Now().Add(-90 * time.Minute), ExpiresAt: time.Now().Add(-30 * time.Minute)}
-	dispatch := DispatchReservation{ID: dispatchID, ProjectID: projectID, PolicyRevision: "swarm-rev-1", Converted: true, WorkerSessionID: "worker-1", Reservation: Lease{ID: dispatchID, TaskID: "task-1", Fence: 9}, HostSlot: &HostSlotClaim{SchemaVersion: 1, AuthorityDomainID: domainID, HostID: qualification.HostID, HostSessionID: qualification.HostSessionID, ExecutorInstanceID: qualification.ExecutorInstanceID, CapabilityDigest: qualification.CapabilityDigest, DispatchID: dispatchID, DispatchFence: 9, Units: 1}}
+	dispatch := DispatchReservation{ID: dispatchID, ProjectID: projectID, PolicyRevision: "swarm-rev-1", Converted: true, WorkerSessionID: "worker-1", Reservation: Lease{ID: dispatchID, TaskID: "task-1", Fence: 9}, HostSlot: &HostSlotClaim{SchemaVersion: 1, AuthorityDomainID: domainID, HostID: qualification.HostID, HostSessionID: qualification.HostSessionID, ExecutorInstanceID: qualification.ExecutorInstanceID, CapabilityDigest: qualification.CapabilityDigest, DispatchID: dispatchID, DispatchFence: 9, Units: 1, SwarmPolicyRevision: "swarm-rev-1"}}
 	intent := DispatchIntent{ID: "intent-1", DispatchID: dispatchID, HostAgentID: "agent-1", WorkerSessionID: "worker-1"}
 	policySlots := HostSlotAdmissionPolicy{SchemaVersion: 1, Mode: HostSlotSingleAuthority, Revision: "slots-rev-1", WorkspaceID: "workspace", InstallationID: "installation", AuthorityDomainID: domainID, HostID: qualification.HostID, HostSessionID: qualification.HostSessionID, ExecutorInstanceID: qualification.ExecutorInstanceID, Runtime: qualification.Runtime, Build: qualification.Build, CapabilityDigest: qualification.CapabilityDigest, CapacityPolicyRevision: "capacity-rev-1", QualificationID: "capacity-qual-1", TerminalObservationSource: qualification.Source, TerminalQualificationID: qualification.ID, TerminalQualification: &qualification}
 	policy := SwarmPolicy{ProjectID: projectID, Revision: "swarm-rev-1", HostSlots: &policySlots}
@@ -325,11 +328,28 @@ func TestHostSlotQualifiedTerminalIngestionSurvivesBridgeRevocationAndReopen(t *
 	}); err != nil {
 		t.Fatal(err)
 	}
+	renewed := f.p
+	renewed.Revision = "policy-host-slots-renewed"
+	renewed.HostSlots = func() *HostSlotAdmissionPolicy {
+		slots := *f.p.HostSlots
+		slots.Revision = "host-slots-renewed"
+		slots.TerminalQualificationID = "terminal-qualification-renewed"
+		qualification := *f.p.HostSlots.TerminalQualification
+		qualification.ID = slots.TerminalQualificationID
+		qualification.EvidenceDigest = stringsOf('f', 64)
+		qualification.QualifiedAt = time.Now().Add(-time.Minute).UTC()
+		qualification.ExpiresAt = time.Now().Add(10 * time.Minute).UTC()
+		slots.TerminalQualification = &qualification
+		return &slots
+	}()
+	if err := f.a.ConfigureSwarm(f.owner, renewed); err != nil {
+		t.Fatalf("same-scope terminal qualification renewal refused: %v", err)
+	}
 	observation, err := f.a.ObserveLifecycle(bridgeToken, bridge.ID, ObserveLifecycleRequest{OperationKey: "terminal-proof-observation", Binding: lifecycleBinding(intent), ExpectedSequence: 0, HostSequence: 1, State: "completed", Source: "owner-manual-native-host", EvidenceDigest: OutputDigest([]byte("terminal evidence")), SourceTime: time.Now().UTC()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if observation.HostSlotTerminal == nil || observation.HostSlotTerminal.QualificationID != "terminal-qualification-v1" || observation.HostSlotTerminal.QualificationDigest == "" || observation.HostSlotTerminal.QualificationPolicyRevision != f.p.Revision {
+	if observation.HostSlotTerminal == nil || observation.HostSlotTerminal.QualificationID != "terminal-qualification-renewed" || observation.HostSlotTerminal.QualificationDigest == "" || observation.HostSlotTerminal.QualificationPolicyRevision != renewed.Revision {
 		t.Fatalf("accepted terminal observation did not freeze qualified evidence: %+v", observation.HostSlotTerminal)
 	}
 	if err := f.a.transaction(false, true, func(s *state) error {
@@ -337,13 +357,16 @@ func TestHostSlotQualifiedTerminalIngestionSurvivesBridgeRevocationAndReopen(t *
 		record.Revoked = true
 		record.ExpiresAt = time.Now().Add(-time.Minute)
 		s.Sessions[bridge.ID] = record
+		host := s.Sessions[f.p.HostSlots.HostSessionID]
+		host.Revoked = true
+		s.Sessions[f.p.HostSlots.HostSessionID] = host
 		return nil
 	}); err != nil {
-		t.Fatalf("revoke bridge after accepted observation: %v", err)
+		t.Fatalf("revoke bridge and host after accepted observation: %v", err)
 	}
 	reopened, err := OpenHostSlots(f.a.path, f.a.binding)
 	if err != nil {
-		t.Fatalf("reopen after bridge revocation: %v", err)
+		t.Fatalf("reopen after bridge and host revocation: %v", err)
 	}
 	if err := reopened.transaction(false, false, func(s *state) error {
 		if got := hostSlotClaimCount(s, "domain-slots-1"); got != 1 {
@@ -351,6 +374,80 @@ func TestHostSlotQualifiedTerminalIngestionSurvivesBridgeRevocationAndReopen(t *
 		}
 		if !hostSlotTerminalProof(s, s.Dispatches[dispatch.ID]) {
 			t.Fatal("reopened accepted terminal proof no longer validates")
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestHostSlotTerminalCallbackRejectsCurrentPolicyScopeRebind(t *testing.T) {
+	f, workers, tokens := hostSlotSwarmFixture(t, 2)
+	if err := f.a.ConfigureLifecycle(f.owner, LifecyclePolicy{SchemaVersion: 1, ProjectID: "project", Revision: "lifecycle-terminal-scope-v1", Source: "owner-manual-native-host", Freshness: time.Minute, CancellationEnabled: true, CancellationChannel: "owner-manual-native-host"}); err != nil {
+		t.Fatal(err)
+	}
+	plan := swarmPlan(t, f)
+	wave, err := f.a.ReserveWave(f.token, f.s.ID, ReserveWaveRequest{OperationKey: "reserve-terminal-scope", Plan: plan, ExpiresAt: time.Now().Add(10 * time.Minute)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var dispatch DispatchReservation
+	for _, candidate := range wave.Dispatches {
+		if candidate.Reservation.TaskID == "task-a" {
+			dispatch = candidate
+		}
+	}
+	if dispatch.ID == "" {
+		t.Fatal("terminal scope fixture did not include task-a")
+	}
+	resources := []string{"project:project"}
+	for _, resource := range dispatch.Reservation.Resources {
+		resources = append(resources, resource.Kind+":"+resource.Path)
+	}
+	bridge, bridgeToken, err := f.a.Enroll(f.owner, Scope{Actions: []string{"read", "dispatch.correlate", "dispatch.observe"}, Resources: resources}, time.Now().Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker := workers["task-a"]
+	if _, err := f.a.RegisterAttempt(tokens["task-a"], worker.ID, AttemptRequest{RequestID: "terminal-scope-worker", TaskID: "task-a", Checkout: f.dirs[0]}); err != nil {
+		t.Fatal(err)
+	}
+	request := RequestDispatchIntent{OperationKey: "intent-terminal-scope", DispatchID: dispatch.ID, BridgeSessionID: bridge.ID, WorkerSessionID: worker.ID, PromptSpecDigest: "sha256:" + stringsOf('e', 64), ExpectedFence: dispatch.Reservation.Fence}
+	permit, err := f.a.RequestDispatchIntent(f.token, f.s.ID, request)
+	if err != nil || !permit.HostActionAuthorized {
+		t.Fatalf("intent permit: %+v %v", permit, err)
+	}
+	intent, err := f.a.CorrelateDispatchIntent(bridgeToken, bridge.ID, CorrelateDispatchIntent{OperationKey: "correlate-terminal-scope", DispatchID: dispatch.ID, IntentID: permit.Intent.ID, HostAgentID: "host-agent-terminal-scope", State: "host_correlated", ExpectedFence: dispatch.Reservation.Fence, ExpectedSequence: permit.Intent.Sequence})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.a.transaction(false, true, func(s *state) error {
+		current := s.SwarmPolicies["project"]
+		current.Revision = "policy-terminal-scope-rebound"
+		slots := *current.HostSlots
+		slots.Revision = "host-slots-terminal-scope-rebound"
+		slots.Runtime = "codex-rebound"
+		slots.Build = "build-rebound"
+		qualification := *slots.TerminalQualification
+		qualification.Runtime = slots.Runtime
+		qualification.Build = slots.Build
+		slots.TerminalQualification = &qualification
+		current.HostSlots = &slots
+		s.SwarmPolicies["project"] = current
+		return nil
+	}); err != nil {
+		t.Fatalf("fixture scope rebind: %v", err)
+	}
+	observationReq := ObserveLifecycleRequest{OperationKey: "terminal-scope-observation", Binding: lifecycleBinding(intent), ExpectedSequence: 0, HostSequence: 1, State: "completed", Source: "owner-manual-native-host", EvidenceDigest: OutputDigest([]byte("terminal evidence")), SourceTime: time.Now().UTC()}
+	if _, err := f.a.ObserveLifecycle(bridgeToken, bridge.ID, observationReq); !errors.Is(err, ErrDenied) {
+		t.Fatalf("terminal callback accepted a rebound host runtime/build scope: %v", err)
+	}
+	if err := f.a.transaction(false, false, func(s *state) error {
+		if len(s.LifecycleObservations[dispatch.ID]) != 0 {
+			t.Fatal("mismatched scope callback persisted lifecycle observation")
+		}
+		if _, exists := s.LifecycleOperations[observationReq.OperationKey]; exists {
+			t.Fatal("mismatched scope callback persisted lifecycle receipt")
 		}
 		return nil
 	}); err != nil {
@@ -515,6 +612,76 @@ func TestHostSlotFinalIntentGuardRejectsCapacityDriftDuringRoleCallback(t *testi
 	_ = attempt
 }
 
+func TestRevokedHostEnrollmentBlocksReservationAndFinalIntent(t *testing.T) {
+	t.Run("reserve", func(t *testing.T) {
+		f, _, _ := hostSlotSwarmFixture(t, 2)
+		plan := swarmPlan(t, f)
+		if err := f.a.Revoke(f.owner, f.p.HostSlots.HostSessionID); err != nil {
+			t.Fatal(err)
+		}
+		wave, err := f.a.ReserveWave(f.token, f.s.ID, ReserveWaveRequest{OperationKey: "reserve-revoked-host", Plan: plan, ExpiresAt: time.Now().Add(10 * time.Minute)})
+		if !errors.Is(err, ErrDenied) || len(wave.Dispatches) != 0 {
+			t.Fatalf("reservation admitted revoked host enrollment: wave=%+v err=%v", wave, err)
+		}
+		if err := f.a.transaction(false, false, func(s *state) error {
+			if len(s.Dispatches) != 0 || s.SwarmOperations["reserve-revoked-host"].Wave != nil {
+				t.Fatal("revoked host admission left persisted dispatch or receipt")
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("intent", func(t *testing.T) {
+		f, workers, tokens := hostSlotSwarmFixture(t, 2)
+		plan := swarmPlan(t, f)
+		wave, err := f.a.ReserveWave(f.token, f.s.ID, ReserveWaveRequest{OperationKey: "reserve-before-host-revoke", Plan: plan, ExpiresAt: time.Now().Add(10 * time.Minute)})
+		if err != nil {
+			t.Fatalf("reserve current host enrollment: %v", err)
+		}
+		var dispatch DispatchReservation
+		for _, candidate := range wave.Dispatches {
+			if candidate.Reservation.TaskID == "task-a" {
+				dispatch = candidate
+			}
+		}
+		if dispatch.ID == "" {
+			t.Fatal("fixture wave did not include task-a")
+		}
+		resources := []string{"project:project"}
+		for _, resource := range dispatch.Reservation.Resources {
+			resources = append(resources, resource.Kind+":"+resource.Path)
+		}
+		bridge, _, err := f.a.Enroll(f.owner, Scope{Actions: []string{"read", "dispatch.correlate"}, Resources: resources}, time.Now().Add(time.Hour))
+		if err != nil {
+			t.Fatal(err)
+		}
+		worker := workers["task-a"]
+		if _, err := f.a.RegisterAttempt(tokens["task-a"], worker.ID, AttemptRequest{RequestID: "revoked-host-worker", TaskID: "task-a", Checkout: f.dirs[0]}); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.a.Revoke(f.owner, f.p.HostSlots.HostSessionID); err != nil {
+			t.Fatal(err)
+		}
+		req := RequestDispatchIntent{OperationKey: "intent-revoked-host", DispatchID: dispatch.ID, BridgeSessionID: bridge.ID, WorkerSessionID: worker.ID, PromptSpecDigest: "sha256:" + stringsOf('c', 64), ExpectedFence: dispatch.Reservation.Fence}
+		result, err := f.a.RequestDispatchIntent(f.token, f.s.ID, req)
+		if !errors.Is(err, ErrDenied) || result.HostActionAuthorized || result.Intent.ID != "" {
+			t.Fatalf("final intent admitted revoked host enrollment: result=%+v err=%v", result, err)
+		}
+		if err := f.a.transaction(false, false, func(s *state) error {
+			if _, exists := s.DispatchIntents[dispatch.ID]; exists {
+				t.Fatal("revoked host final intent persisted")
+			}
+			if _, exists := s.DispatchIntentOperations[req.OperationKey]; exists {
+				t.Fatal("revoked host intent receipt persisted")
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
 func TestHostSlotPolicyTransitionsCannotRebindOrHideOutstandingClaims(t *testing.T) {
 	f, _, _ := hostSlotSwarmFixture(t, 2)
 	plan := swarmPlan(t, f)
@@ -529,10 +696,43 @@ func TestHostSlotPolicyTransitionsCannotRebindOrHideOutstandingClaims(t *testing
 		policy := *f.p.HostSlots
 		policy.Revision = "host-slots-rev2"
 		policy.AuthorityDomainID = "domain-slots-replacement"
+		qualification := *f.p.HostSlots.TerminalQualification
+		qualification.AuthorityDomainID = policy.AuthorityDomainID
+		policy.TerminalQualification = &qualification
 		return &policy
 	}()
 	if err := f.a.ConfigureSwarm(f.owner, replacement); !errors.Is(err, ErrDenied) {
 		t.Fatalf("domain replacement hid outstanding claims: %v", err)
+	}
+	observer, _, err := f.a.EnrollHostCapacityObserver(f.owner, HostCapacityObserver{SchemaVersion: 1, HostSessionID: f.p.HostSlots.HostSessionID, ExecutorInstanceID: "executor-slots-rebound", HostID: f.p.HostSlots.HostID, Runtime: f.p.HostSlots.Runtime, Build: f.p.HostSlots.Build, CapabilityDigest: f.p.HostSlots.CapabilityDigest, ExpiresAt: time.Now().Add(15 * time.Minute)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	capacityPolicy := HostCapacityPolicy{SchemaVersion: 1, WorkspaceID: f.a.binding.Workspace, InstallationID: f.a.binding.Installation, HostID: observer.HostID, Runtime: observer.Runtime, Build: observer.Build, HostSessionID: observer.HostSessionID, ExecutorInstanceID: observer.ExecutorInstanceID, CapabilityDigest: observer.CapabilityDigest, State: CapacityKnown, RequestedSlots: 2, Freshness: 10 * time.Minute, Revision: "capacity-rebound-v1"}
+	if _, err := f.a.ConfigureHostCapacityPolicy(f.owner, capacityPolicy); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.a.QualifyHostCapacity(f.owner, HostCapacityQualification{SchemaVersion: 1, HostSessionID: observer.HostSessionID, ExecutorInstanceID: observer.ExecutorInstanceID, HostID: observer.HostID, Runtime: observer.Runtime, Build: observer.Build, CapabilityDigest: observer.CapabilityDigest, State: CapacityKnown, EvidenceDigest: stringsOf('e', 64), QualificationID: "qualified-rebound-v1", QualifiedSlots: 2, ExpiresAt: time.Now().Add(10 * time.Minute)}); err != nil {
+		t.Fatal(err)
+	}
+	rebound := f.p
+	rebound.Revision = "host-slot-same-domain-rebound"
+	rebound.HostSlots = func() *HostSlotAdmissionPolicy {
+		policy := *f.p.HostSlots
+		policy.Revision = "host-slots-same-domain-rebound"
+		policy.ExecutorInstanceID = observer.ExecutorInstanceID
+		policy.CapacityPolicyRevision = capacityPolicy.Revision
+		policy.QualificationID = "qualified-rebound-v1"
+		qualification := *f.p.HostSlots.TerminalQualification
+		qualification.ID = "terminal-qualification-rebound-v1"
+		qualification.EvidenceDigest = stringsOf('f', 64)
+		qualification.ExecutorInstanceID = observer.ExecutorInstanceID
+		policy.TerminalQualificationID = qualification.ID
+		policy.TerminalQualification = &qualification
+		return &policy
+	}()
+	if err := f.a.ConfigureSwarm(f.owner, rebound); !errors.Is(err, ErrDenied) {
+		t.Fatalf("same-domain executor rebind hid outstanding claims: %v", err)
 	}
 	manual := f.p
 	manual.Revision = "host-slot-manual-mode"

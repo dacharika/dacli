@@ -496,7 +496,7 @@ func decodeAuthorityStateMode(data []byte, binding Binding, version int, strict 
 	if decoded != nil || (s.Version != version && !((version >= 6 && version <= 12) && s.Version >= version && s.Version <= 19)) || s.Binding != binding || s.OwnerHash == "" || s.Sessions == nil || (s.Version >= 2 && (s.Tasks == nil || s.Attempts == nil)) || (s.Version >= 3 && (s.Leases == nil || s.Operations == nil)) || (s.Version >= 4 && (s.Revisions == nil || s.Grants == nil || s.Evidence == nil)) || (s.Version >= 5 && (s.ReviewGrants == nil || s.Reviews == nil)) || (s.Version >= 6 && (s.PublicationPolicies == nil || s.PublicationDecisions == nil || s.PublicationConsumed == nil)) {
 		return state{}, ErrStorage
 	}
-	if s.Version < 22 && authorityHasSchema22Fields(data) {
+	if strict && s.Version < 22 && authorityHasSchema22Fields(data) {
 		return state{}, ErrStorage
 	}
 	if e := validateAuthorityMaps(&s); e != nil {
@@ -505,154 +505,228 @@ func decodeAuthorityStateMode(data []byte, binding Binding, version int, strict 
 	return s, nil
 }
 
-func rawObjectField(raw json.RawMessage, name string) (json.RawMessage, bool) {
-	var object map[string]json.RawMessage
-	if json.Unmarshal(raw, &object) != nil {
-		return nil, false
+func skipRawJSONValue(decoder *json.Decoder) error {
+	token, err := decoder.Token()
+	if err != nil {
+		return err
 	}
-	var found json.RawMessage
-	count := 0
-	for key, value := range object {
-		if strings.EqualFold(key, name) {
-			found = value
-			count++
-		}
-	}
-	if count > 1 {
-		// A nil value with present=true marks an ambiguous typed key. Every
-		// structural caller treats this as a refusal, and leaf checks already
-		// treat presence as schema-22 data.
-		return nil, true
-	}
-	return found, count == 1
-}
-
-func rawMapValues(raw json.RawMessage, visit func(json.RawMessage) bool) bool {
-	var values map[string]json.RawMessage
-	if json.Unmarshal(raw, &values) != nil {
-		return false
-	}
-	for _, value := range values {
-		if visit(value) {
-			return true
-		}
-	}
-	return false
-}
-
-func rawArrayValues(raw json.RawMessage, visit func(json.RawMessage) bool) bool {
-	var values []json.RawMessage
-	if json.Unmarshal(raw, &values) != nil {
-		return false
-	}
-	for _, value := range values {
-		if visit(value) {
-			return true
-		}
-	}
-	return false
-}
-
-func rawHasField(raw json.RawMessage, name string) bool {
-	_, ok := rawObjectField(raw, name)
-	return ok
-}
-
-func rawHasFieldInMap(raw json.RawMessage, name string) bool {
-	return rawMapValues(raw, func(value json.RawMessage) bool { return rawHasField(value, name) })
-}
-
-func rawHasFieldInArrayMap(raw json.RawMessage, name string) bool {
-	return rawArrayValues(raw, func(value json.RawMessage) bool { return rawHasField(value, name) })
-}
-
-// authorityHasSchema22Fields inspects only typed state paths that acquired
-// schema-22 fields. Arbitrary nested evidence/context JSON is intentionally
-// opaque, so matching key text inside user payloads does not affect old readers.
-func authorityHasSchema22Fields(data []byte) bool {
-	var root map[string]json.RawMessage
-	if json.Unmarshal(data, &root) != nil {
-		return false
-	}
-	for _, name := range []string{"SwarmPolicies", "Dispatches", "CapacityObservations", "LifecycleObservations", "LifecycleOperations", "SwarmOperations", "DispatchIntents", "DispatchIntentOperations", "ControllerInvocations", "ControllerOperations", "ControllerHistory"} {
-		count := 0
-		for key := range root {
-			if strings.EqualFold(key, name) {
-				count++
-			}
-		}
-		if count > 1 {
-			return true
-		}
-	}
-	topField := func(name string) json.RawMessage {
-		for key, value := range root {
-			if strings.EqualFold(key, name) {
-				return value
-			}
-		}
+	delim, ok := token.(json.Delim)
+	if !ok {
 		return nil
 	}
-	if rawHasFieldInMap(topField("SwarmPolicies"), "HostSlots") || rawHasFieldInMap(topField("Dispatches"), "HostSlot") || rawHasFieldInMap(topField("CapacityObservations"), "Census") {
-		return true
+	switch delim {
+	case '{':
+		for decoder.More() {
+			if _, err := decoder.Token(); err != nil {
+				return err
+			}
+			if err := skipRawJSONValue(decoder); err != nil {
+				return err
+			}
+		}
+		_, err = decoder.Token()
+		return err
+	case '[':
+		for decoder.More() {
+			if err := skipRawJSONValue(decoder); err != nil {
+				return err
+			}
+		}
+		_, err = decoder.Token()
+		return err
+	default:
+		return ErrStorage
 	}
-	if rawMapValues(topField("LifecycleObservations"), func(value json.RawMessage) bool { return rawHasFieldInArrayMap(value, "host_slot_terminal") }) {
-		return true
+}
+
+func rawFieldName(name string, fields ...string) bool {
+	for _, field := range fields {
+		if strings.EqualFold(name, field) {
+			return true
+		}
 	}
-	if rawMapValues(topField("LifecycleOperations"), func(value json.RawMessage) bool {
-		observation, ok := rawObjectField(value, "Observation")
-		return ok && (observation == nil || rawHasField(observation, "host_slot_terminal"))
-	}) {
-		return true
+	return false
+}
+
+func scanRawObject(decoder *json.Decoder, leaves []string, nested map[string]func(*json.Decoder) bool) bool {
+	token, err := decoder.Token()
+	if err != nil || token != json.Delim('{') {
+		return false
 	}
-	if rawMapValues(topField("SwarmOperations"), func(value json.RawMessage) bool {
-		wave, ok := rawObjectField(value, "Wave")
+	for decoder.More() {
+		token, err := decoder.Token()
+		if err != nil {
+			return false
+		}
+		name, ok := token.(string)
 		if !ok {
 			return false
 		}
-		if wave == nil {
+		if rawFieldName(name, leaves...) {
 			return true
 		}
-		dispatches, ok := rawObjectField(wave, "Dispatches")
-		return ok && (dispatches == nil || rawHasFieldInArrayMap(dispatches, "HostSlot"))
-	}) {
-		return true
-	}
-	intentOperationHasSlot := func(value json.RawMessage) bool {
-		intent, ok := rawObjectField(value, "Intent")
-		if !ok {
+		var childScanner func(*json.Decoder) bool
+		for nestedName, scanner := range nested {
+			if strings.EqualFold(name, nestedName) {
+				childScanner = scanner
+				break
+			}
+		}
+		if childScanner != nil {
+			if childScanner(decoder) {
+				return true
+			}
+		} else if err := skipRawJSONValue(decoder); err != nil {
 			return false
 		}
-		if intent == nil {
-			return true
-		}
-		reservation, ok := rawObjectField(intent, "Reservation")
-		return ok && (reservation == nil || rawHasField(reservation, "HostSlot"))
 	}
-	if rawMapValues(topField("DispatchIntents"), func(value json.RawMessage) bool {
-		reservation, ok := rawObjectField(value, "Reservation")
-		return ok && (reservation == nil || rawHasField(reservation, "HostSlot"))
-	}) || rawMapValues(topField("DispatchIntentOperations"), intentOperationHasSlot) {
-		return true
+	_, _ = decoder.Token()
+	return false
+}
+
+func scanRawMapValues(decoder *json.Decoder, visit func(*json.Decoder) bool) bool {
+	token, err := decoder.Token()
+	if err != nil || token != json.Delim('{') {
+		return false
 	}
-	statusHasSlotFields := func(value json.RawMessage) bool {
-		status, ok := rawObjectField(value, "Status")
-		if !ok {
+	for decoder.More() {
+		if _, err := decoder.Token(); err != nil {
 			return false
 		}
-		if status == nil {
+		if visit(decoder) {
 			return true
 		}
-		return rawHasField(status, "ExecutionConcurrency") || rawHasField(status, "ExecutionConcurrencyKnown") || rawHasField(status, "HostSlotAdmission")
 	}
-	if rawMapValues(topField("ControllerInvocations"), statusHasSlotFields) || rawMapValues(topField("ControllerOperations"), statusHasSlotFields) {
-		return true
+	_, _ = decoder.Token()
+	return false
+}
+
+func scanRawArrayValues(decoder *json.Decoder, visit func(*json.Decoder) bool) bool {
+	token, err := decoder.Token()
+	if err != nil || token != json.Delim('[') {
+		return false
 	}
-	return rawMapValues(topField("ControllerHistory"), func(value json.RawMessage) bool {
-		return rawArrayValues(value, func(status json.RawMessage) bool {
-			return rawHasField(status, "ExecutionConcurrency") || rawHasField(status, "ExecutionConcurrencyKnown") || rawHasField(status, "HostSlotAdmission")
-		})
+	for decoder.More() {
+		if visit(decoder) {
+			return true
+		}
+	}
+	_, _ = decoder.Token()
+	return false
+}
+
+func scanRawDispatch(decoder *json.Decoder) bool {
+	return scanRawObject(decoder, []string{"HostSlot"}, nil)
+}
+
+func scanRawControllerStatus(decoder *json.Decoder) bool {
+	return scanRawObject(decoder, []string{"ExecutionConcurrency", "ExecutionConcurrencyKnown", "HostSlotAdmission"}, nil)
+}
+
+func scanRawDispatchIntent(decoder *json.Decoder) bool {
+	return scanRawObject(decoder, nil, map[string]func(*json.Decoder) bool{
+		"Reservation": scanRawDispatch,
 	})
+}
+
+func scanRawSwarmReceipt(decoder *json.Decoder) bool {
+	return scanRawObject(decoder, nil, map[string]func(*json.Decoder) bool{
+		"Dispatch": scanRawDispatch,
+		"Wave": func(decoder *json.Decoder) bool {
+			return scanRawObject(decoder, nil, map[string]func(*json.Decoder) bool{
+				"Dispatches": func(decoder *json.Decoder) bool {
+					return scanRawArrayValues(decoder, scanRawDispatch)
+				},
+			})
+		},
+	})
+}
+
+func scanRawIntentReceipt(decoder *json.Decoder) bool {
+	return scanRawObject(decoder, nil, map[string]func(*json.Decoder) bool{
+		"Intent": scanRawDispatchIntent,
+	})
+}
+
+func scanRawLifecycleReceipt(decoder *json.Decoder) bool {
+	return scanRawObject(decoder, nil, map[string]func(*json.Decoder) bool{
+		"Observation": func(decoder *json.Decoder) bool {
+			return scanRawObject(decoder, []string{"host_slot_terminal"}, nil)
+		},
+	})
+}
+
+func scanRawControllerRecord(decoder *json.Decoder) bool {
+	return scanRawObject(decoder, nil, map[string]func(*json.Decoder) bool{
+		"Status": scanRawControllerStatus,
+	})
+}
+
+// authorityHasSchema22Fields streams only schema-typed paths that acquired
+// schema-22 fields. Duplicate keys and map entries remain visible to the
+// traversal; unrelated evidence and context values are skipped without walking.
+func authorityHasSchema22Fields(data []byte) bool {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	token, err := decoder.Token()
+	if err != nil || token != json.Delim('{') {
+		return false
+	}
+	for decoder.More() {
+		token, err := decoder.Token()
+		if err != nil {
+			return false
+		}
+		name, ok := token.(string)
+		if !ok {
+			return false
+		}
+		var scanner func(*json.Decoder) bool
+		switch {
+		case strings.EqualFold(name, "SwarmPolicies"):
+			scanner = func(decoder *json.Decoder) bool {
+				return scanRawMapValues(decoder, func(decoder *json.Decoder) bool { return scanRawObject(decoder, []string{"HostSlots"}, nil) })
+			}
+		case strings.EqualFold(name, "Dispatches"):
+			scanner = func(decoder *json.Decoder) bool {
+				return scanRawMapValues(decoder, scanRawDispatch)
+			}
+		case strings.EqualFold(name, "CapacityObservations"):
+			scanner = func(decoder *json.Decoder) bool {
+				return scanRawMapValues(decoder, func(decoder *json.Decoder) bool { return scanRawObject(decoder, []string{"Census"}, nil) })
+			}
+		case strings.EqualFold(name, "LifecycleObservations"):
+			scanner = func(decoder *json.Decoder) bool {
+				return scanRawMapValues(decoder, func(decoder *json.Decoder) bool {
+					return scanRawArrayValues(decoder, func(decoder *json.Decoder) bool { return scanRawObject(decoder, []string{"host_slot_terminal"}, nil) })
+				})
+			}
+		case strings.EqualFold(name, "LifecycleOperations"):
+			scanner = func(decoder *json.Decoder) bool { return scanRawMapValues(decoder, scanRawLifecycleReceipt) }
+		case strings.EqualFold(name, "SwarmOperations"):
+			scanner = func(decoder *json.Decoder) bool { return scanRawMapValues(decoder, scanRawSwarmReceipt) }
+		case strings.EqualFold(name, "DispatchIntents"):
+			scanner = func(decoder *json.Decoder) bool { return scanRawMapValues(decoder, scanRawDispatchIntent) }
+		case strings.EqualFold(name, "DispatchIntentOperations"):
+			scanner = func(decoder *json.Decoder) bool { return scanRawMapValues(decoder, scanRawIntentReceipt) }
+		case strings.EqualFold(name, "ControllerInvocations"), strings.EqualFold(name, "ControllerOperations"):
+			scanner = func(decoder *json.Decoder) bool { return scanRawMapValues(decoder, scanRawControllerRecord) }
+		case strings.EqualFold(name, "ControllerHistory"):
+			scanner = func(decoder *json.Decoder) bool {
+				return scanRawMapValues(decoder, func(decoder *json.Decoder) bool { return scanRawArrayValues(decoder, scanRawControllerStatus) })
+			}
+		}
+		if scanner != nil {
+			if scanner(decoder) {
+				return true
+			}
+		} else if err := skipRawJSONValue(decoder); err != nil {
+			return false
+		}
+	}
+	if _, err := decoder.Token(); err != nil {
+		return false
+	}
+	return false
 }
 
 func validateAuthorityMaps(s *state) error {

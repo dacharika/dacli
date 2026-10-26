@@ -160,6 +160,21 @@ func hostSlotTerminalQualificationCurrent(s *state, policy HostSlotAdmissionPoli
 	return !qualification.QualifiedAt.After(now) && now.Before(qualification.ExpiresAt)
 }
 
+func hostSlotEnrollmentCurrent(s *state, policy HostSlotAdmissionPolicy, now time.Time) bool {
+	if _, ok := s.Sessions[policy.HostSessionID]; !ok {
+		return false
+	}
+	return authenticateRecord(s, policy.HostSessionID, now) == nil
+}
+
+func hostSlotScopeEqual(a, b HostSlotAdmissionPolicy) bool {
+	return a.WorkspaceID == b.WorkspaceID && a.InstallationID == b.InstallationID && a.AuthorityDomainID == b.AuthorityDomainID && a.HostID == b.HostID && a.HostSessionID == b.HostSessionID && a.ExecutorInstanceID == b.ExecutorInstanceID && a.Runtime == b.Runtime && a.Build == b.Build && rawDigest(a.CapabilityDigest) == rawDigest(b.CapabilityDigest)
+}
+
+func hostSlotClaimMatchesPolicy(claim *HostSlotClaim, policy HostSlotAdmissionPolicy) bool {
+	return claim != nil && claim.AuthorityDomainID == policy.AuthorityDomainID && claim.HostID == policy.HostID && claim.HostSessionID == policy.HostSessionID && claim.ExecutorInstanceID == policy.ExecutorInstanceID && claim.CapabilityDigest == rawDigest(policy.CapabilityDigest)
+}
+
 func hostSlotPolicyValid(s *state, project string, p HostSlotAdmissionPolicy) bool {
 	if !hostSlotPolicyShapeValid(s, p) {
 		return false
@@ -292,7 +307,7 @@ func validateHostSlotDispatchState(s *state, dispatch DispatchReservation, now t
 	key := capacityFactKey(p.HostSessionID, p.ExecutorInstanceID)
 	capacity := s.CapacityPolicies[key]
 	qualification := s.CapacityQualifications[key]
-	if !hostSlotPolicyValid(s, dispatch.ProjectID, *p) || claim.QualificationEvidenceDigest != qualification.EvidenceDigest || (!qualification.ExpiresAt.IsZero() && !now.Before(qualification.ExpiresAt)) {
+	if !hostSlotEnrollmentCurrent(s, *p, now) || !hostSlotPolicyValid(s, dispatch.ProjectID, *p) || claim.QualificationEvidenceDigest != qualification.EvidenceDigest || (!qualification.ExpiresAt.IsZero() && !now.Before(qualification.ExpiresAt)) {
 		return false
 	}
 	source, ok := s.CapacityObservations[claim.ObservationOperationKey]
@@ -306,7 +321,7 @@ func validateHostSlotDispatchState(s *state, dispatch DispatchReservation, now t
 }
 
 func claimHostSlotState(s *state, dispatch DispatchReservation, policy HostSlotAdmissionPolicy, observation HostCapacityObservation, reserveKey string) (*HostSlotClaim, error) {
-	if policy.Mode != HostSlotSingleAuthority || !hostSlotPolicyValid(s, dispatch.ProjectID, policy) || observation.Census == nil || observation.Census.AuthorityDomainID != policy.AuthorityDomainID || !validateHostSlotClaim(dispatch) {
+	if policy.Mode != HostSlotSingleAuthority || !hostSlotEnrollmentCurrent(s, policy, time.Now()) || !hostSlotPolicyValid(s, dispatch.ProjectID, policy) || observation.Census == nil || observation.Census.AuthorityDomainID != policy.AuthorityDomainID || !validateHostSlotClaim(dispatch) {
 		return nil, ErrDenied
 	}
 	return &HostSlotClaim{SchemaVersion: 1, AuthorityDomainID: policy.AuthorityDomainID, HostID: policy.HostID, HostSessionID: policy.HostSessionID, ExecutorInstanceID: policy.ExecutorInstanceID, CapabilityDigest: rawDigest(policy.CapabilityDigest), ReserveOperationKey: reserveKey, DispatchID: dispatch.ID, DispatchFence: dispatch.Reservation.Fence, Units: 1, SwarmPolicyRevision: dispatch.PolicyRevision, CapacityPolicyRevision: policy.CapacityPolicyRevision, QualificationID: policy.QualificationID, QualificationEvidenceDigest: s.CapacityQualifications[capacityFactKey(policy.HostSessionID, policy.ExecutorInstanceID)].EvidenceDigest, ObservationOperationKey: observation.OperationKey, ObservationDigest: observation.InputDigest, ObservationSequence: observation.Sequence}, nil
@@ -346,8 +361,16 @@ func validHostSlotTerminalObservation(s *state, observed LifecycleObservation) b
 	if !ok || policy.HostSlots == nil || policy.HostSlots.Mode != HostSlotSingleAuthority || policy.HostSlots.AuthorityDomainID != proof.AuthorityDomainID || !hostSlotPolicyShapeValid(s, *policy.HostSlots) {
 		return false
 	}
+	claimPolicy, ok := s.SwarmPolicies[dispatch.ProjectID+"\x00"+dispatch.HostSlot.SwarmPolicyRevision]
+	if !ok || claimPolicy.HostSlots == nil || !hostSlotScopeEqual(*claimPolicy.HostSlots, *policy.HostSlots) || !hostSlotClaimMatchesPolicy(dispatch.HostSlot, *claimPolicy.HostSlots) {
+		return false
+	}
 	qualification := policy.HostSlots.TerminalQualification
-	return qualification != nil && qualification.ID == proof.QualificationID && qualification.Source == proof.Source && hostSlotTerminalQualificationDigest(*qualification) == proof.QualificationDigest && !observed.ReceivedAt.Before(qualification.QualifiedAt) && observed.ReceivedAt.Before(qualification.ExpiresAt) && qualification.AuthorityDomainID == proof.AuthorityDomainID && qualification.HostID == dispatch.HostSlot.HostID && qualification.HostSessionID == dispatch.HostSlot.HostSessionID && qualification.ExecutorInstanceID == dispatch.HostSlot.ExecutorInstanceID && rawDigest(qualification.CapabilityDigest) == dispatch.HostSlot.CapabilityDigest
+	return qualification != nil && qualification.ID == proof.QualificationID && qualification.Source == proof.Source && hostSlotScopeMatchesQualification(*policy.HostSlots, *qualification) && hostSlotTerminalQualificationDigest(*qualification) == proof.QualificationDigest && !observed.ReceivedAt.Before(qualification.QualifiedAt) && observed.ReceivedAt.Before(qualification.ExpiresAt) && qualification.AuthorityDomainID == proof.AuthorityDomainID && hostSlotClaimMatchesPolicy(dispatch.HostSlot, *policy.HostSlots)
+}
+
+func hostSlotScopeMatchesQualification(policy HostSlotAdmissionPolicy, qualification HostSlotTerminalQualification) bool {
+	return qualification.AuthorityDomainID == policy.AuthorityDomainID && qualification.HostID == policy.HostID && qualification.HostSessionID == policy.HostSessionID && qualification.ExecutorInstanceID == policy.ExecutorInstanceID && qualification.Runtime == policy.Runtime && qualification.Build == policy.Build && rawDigest(qualification.CapabilityDigest) == rawDigest(policy.CapabilityDigest)
 }
 
 func hostSlotAdmissionView(s *state, project string, now time.Time) HostSlotAdmissionView {
@@ -364,6 +387,10 @@ func hostSlotAdmissionView(s *state, project string, now time.Time) HostSlotAdmi
 	view.ExecutorInstanceID = policy.HostSlots.ExecutorInstanceID
 	if policy.HostSlots.Mode == HostSlotManual {
 		view.Reason = "manual"
+		return view
+	}
+	if !hostSlotEnrollmentCurrent(s, *policy.HostSlots, now) {
+		view.Reason = "host_enrollment_unavailable"
 		return view
 	}
 	if !hostSlotPolicyValid(s, project, *policy.HostSlots) {
