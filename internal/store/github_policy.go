@@ -68,9 +68,26 @@ func observeGitHubRequiredCheckPolicy(root, repo, branch string, configured []st
 	}
 	branchPath := url.PathEscape(branch)
 	legacyRaw, legacyErr := run("observe legacy GitHub required checks", "repos/"+repo+"/branches/"+branchPath+"/protection/required_status_checks")
-	if legacyErr != nil && !githubBranchNotProtected(legacyErr) {
-		policy.State, policy.Error = "unobservable", legacyErr.Error()
-		return policy, fmt.Errorf("observe legacy required checks for %s/%s: %w", repo, branch, legacyErr)
+	if legacyErr != nil {
+		switch {
+		case githubRequiredChecksDisabled(legacyErr):
+			if err := confirmDisabledGitHubRequiredChecks(run, repo, branch, branchPath); err != nil {
+				policy.State, policy.Error = "unobservable", err.Error()
+				return policy, fmt.Errorf("confirm disabled legacy required checks for %s/%s: %w", repo, branch, err)
+			}
+			// The dedicated endpoint's 404 is empty only after the exact visible
+			// repository, branch, and retained parent protection were confirmed.
+			legacyRaw = nil
+		case githubBranchNotProtected(legacyErr):
+			if err := confirmGitHubRepositoryBranch(run, repo, branch, branchPath); err != nil {
+				policy.State, policy.Error = "unobservable", err.Error()
+				return policy, fmt.Errorf("confirm unprotected branch for %s/%s: %w", repo, branch, err)
+			}
+			legacyRaw = nil
+		default:
+			policy.State, policy.Error = "unobservable", legacyErr.Error()
+			return policy, fmt.Errorf("observe legacy required checks for %s/%s: %w", repo, branch, legacyErr)
+		}
 	}
 	rulesRaw, err := run("observe applicable GitHub ruleset checks", "--paginate", "--slurp", "repos/"+repo+"/rules/branches/"+branchPath+"?per_page=100")
 	if err != nil {
@@ -83,6 +100,144 @@ func observeGitHubRequiredCheckPolicy(root, repo, branch string, configured []st
 	}
 	policy.State = "observed"
 	return policy, nil
+}
+
+func githubRequiredChecksDisabled(err error) bool {
+	diagnostic, ok := commandresult.AsDiagnostic(err)
+	if !ok {
+		return false
+	}
+	text := strings.ToLower(diagnostic.StdoutTail + "\n" + diagnostic.StderrTail)
+	return strings.Contains(text, "http 404") && strings.Contains(text, "required status checks not enabled")
+}
+
+func confirmDisabledGitHubRequiredChecks(run func(string, ...string) ([]byte, error), repo, branch, branchPath string) error {
+	if err := confirmGitHubRepositoryBranch(run, repo, branch, branchPath); err != nil {
+		return err
+	}
+	protectionRaw, err := run("confirm GitHub branch protection", "repos/"+repo+"/branches/"+branchPath+"/protection")
+	if err != nil {
+		return fmt.Errorf("parent branch protection is unobservable: %w", err)
+	}
+	var protection map[string]json.RawMessage
+	if err := json.Unmarshal(protectionRaw, &protection); err != nil || protection == nil {
+		return fmt.Errorf("parent branch protection is malformed")
+	}
+	// These fields are part of the complete branch-protection response. A
+	// partial response cannot establish that omitted status checks are empty.
+	for _, key := range []string{"enforce_admins", "required_pull_request_reviews", "restrictions"} {
+		if _, ok := protection[key]; !ok {
+			return fmt.Errorf("parent branch protection is partial: missing %s", key)
+		}
+	}
+	var admins struct {
+		Enabled *bool `json:"enabled"`
+	}
+	if err := json.Unmarshal(protection["enforce_admins"], &admins); err != nil || admins.Enabled == nil {
+		return fmt.Errorf("parent branch protection has malformed enforce_admins")
+	}
+	var reviews json.RawMessage = protection["required_pull_request_reviews"]
+	if !jsonNull(reviews) {
+		var value struct {
+			DismissStaleReviews          *bool `json:"dismiss_stale_reviews"`
+			RequiredApprovingReviewCount *int  `json:"required_approving_review_count"`
+		}
+		if err := json.Unmarshal(reviews, &value); err != nil {
+			return fmt.Errorf("parent branch protection has malformed required_pull_request_reviews")
+		}
+		if value.DismissStaleReviews == nil || value.RequiredApprovingReviewCount == nil || *value.RequiredApprovingReviewCount < 0 {
+			return fmt.Errorf("parent branch protection has partial required_pull_request_reviews")
+		}
+	}
+	var restrictions json.RawMessage = protection["restrictions"]
+	if !jsonNull(restrictions) {
+		var value struct {
+			Users []json.RawMessage `json:"users"`
+			Teams []json.RawMessage `json:"teams"`
+			Apps  []json.RawMessage `json:"apps"`
+		}
+		if err := json.Unmarshal(restrictions, &value); err != nil {
+			return fmt.Errorf("parent branch protection has malformed restrictions")
+		}
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(restrictions, &fields); err != nil || fields["users"] == nil || fields["teams"] == nil || fields["apps"] == nil || value.Users == nil || value.Teams == nil || value.Apps == nil {
+			return fmt.Errorf("parent branch protection has partial restrictions")
+		}
+	}
+	if raw, ok := protection["required_status_checks"]; ok && !jsonNull(raw) {
+		var checks struct {
+			Contexts []string `json:"contexts"`
+			Checks   []struct {
+				Context string `json:"context"`
+			} `json:"checks"`
+		}
+		if err := json.Unmarshal(raw, &checks); err != nil {
+			return fmt.Errorf("parent branch protection has malformed required_status_checks")
+		}
+		return fmt.Errorf("inconsistent GitHub observations: required checks endpoint reported disabled but parent protection contains required_status_checks")
+	}
+	// Require evidence that another protection remains active. This prevents a
+	// truncated/empty object from being interpreted as a deliberate disabled
+	// check policy.
+	retained := *admins.Enabled || !jsonNull(reviews) || !jsonNull(restrictions)
+	for _, key := range []string{"required_linear_history", "allow_force_pushes", "allow_deletions", "block_creations", "required_conversation_resolution", "lock_branch", "allow_fork_syncing"} {
+		if raw, ok := protection[key]; ok {
+			var value struct {
+				Enabled *bool `json:"enabled"`
+			}
+			if err := json.Unmarshal(raw, &value); err != nil || value.Enabled == nil {
+				return fmt.Errorf("parent branch protection has malformed %s", key)
+			}
+			retained = retained || *value.Enabled
+		}
+	}
+	if !retained {
+		return fmt.Errorf("parent branch protection does not confirm retained protections")
+	}
+	return nil
+}
+
+func confirmGitHubRepositoryBranch(run func(string, ...string) ([]byte, error), repo, branch, branchPath string) error {
+	repoRaw, err := run("confirm GitHub repository visibility", "repos/"+repo)
+	if err != nil {
+		return fmt.Errorf("repository visibility is unobservable: %w", err)
+	}
+	var repository struct {
+		FullName string `json:"full_name"`
+	}
+	if err := json.Unmarshal(repoRaw, &repository); err != nil || repository.FullName != repo {
+		return fmt.Errorf("repository observation is malformed or does not match %s", repo)
+	}
+	branchRaw, err := run("confirm GitHub branch visibility", "repos/"+repo+"/branches/"+branchPath)
+	if err != nil {
+		return fmt.Errorf("branch visibility is unobservable: %w", err)
+	}
+	var observed struct {
+		Name   string `json:"name"`
+		Commit struct {
+			SHA string `json:"sha"`
+		} `json:"commit"`
+	}
+	if err := json.Unmarshal(branchRaw, &observed); err != nil || observed.Name != branch || !validGitHubCommitSHA(observed.Commit.SHA) {
+		return fmt.Errorf("branch observation is malformed or does not match %s", branch)
+	}
+	return nil
+}
+
+func validGitHubCommitSHA(value string) bool {
+	if len(value) != 40 && len(value) != 64 {
+		return false
+	}
+	for _, c := range value {
+		if !(c >= '0' && c <= '9') && !(c >= 'a' && c <= 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+func jsonNull(raw json.RawMessage) bool {
+	return len(strings.TrimSpace(string(raw))) == 0 || strings.TrimSpace(string(raw)) == "null"
 }
 
 func newRequiredCheckPolicy(repo, branch string, configured []string, now time.Time) GitHubRequiredCheckPolicy {
@@ -177,5 +332,5 @@ func githubBranchNotProtected(err error) bool {
 		return false
 	}
 	text := strings.ToLower(diagnostic.StdoutTail + "\n" + diagnostic.StderrTail)
-	return strings.Contains(text, "branch not protected")
+	return strings.Contains(text, "http 404") && strings.Contains(text, "branch not protected")
 }
