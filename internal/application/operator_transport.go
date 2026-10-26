@@ -17,9 +17,20 @@ import (
 func ServeOperatorTransport(ctx context.Context, input io.Reader, output io.Writer, server operatorread.Server) error {
 	reader := bufio.NewReaderSize(input, operatorread.MaxRequestBytes+2)
 	writer := bufio.NewWriter(output)
-	defer writer.Flush()
 	for {
-		frame, err := readOperatorFrame(reader)
+		readResult := make(chan operatorFrameResult, 1)
+		go func() {
+			frame, err := readOperatorFrame(reader)
+			readResult <- operatorFrameResult{frame: frame, err: err}
+		}()
+		var frame []byte
+		var err error
+		select {
+		case result := <-readResult:
+			frame, err = result.frame, result.err
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 		if errors.Is(err, io.EOF) && len(frame) == 0 {
 			return nil
 		}
@@ -29,7 +40,7 @@ func ServeOperatorTransport(ctx context.Context, input io.Reader, output io.Writ
 			}
 		}
 		if errors.Is(err, errOperatorFrameTooLarge) {
-			if writeErr := writeOperatorFrame(writer, operatorread.FailureFrame("", operatorv1.CodeLimitExceeded, "request exceeds the bounded operator frame")); writeErr != nil {
+			if writeErr := writeOperatorFrameBounded(ctx, writer, operatorread.FailureFrame("", operatorv1.CodeLimitExceeded, "request exceeds the bounded operator frame"), operatorread.DefaultDeadline); writeErr != nil {
 				return writeErr
 			}
 			return nil
@@ -54,18 +65,23 @@ func ServeOperatorTransport(ctx context.Context, input io.Reader, output io.Writ
 			timer.Stop()
 			return ctx.Err()
 		case <-timer.C:
-			if writeErr := writeOperatorFrame(writer, operatorread.FailureFrame(requestIDFromFrame(frame), operatorv1.CodeInternal, "operator read deadline exceeded")); writeErr != nil {
+			if writeErr := writeOperatorFrameBounded(ctx, writer, operatorread.FailureFrame(requestIDFromFrame(frame), operatorv1.CodeInternal, "operator read deadline exceeded"), operatorread.DefaultDeadline); writeErr != nil {
 				return writeErr
 			}
 			return errors.New("operator read deadline exceeded; owned process must exit")
 		}
-		if writeErr := writeOperatorFrame(writer, response); writeErr != nil {
+		if writeErr := writeOperatorFrameBounded(ctx, writer, response, deadline); writeErr != nil {
 			return writeErr
 		}
 		if errors.Is(err, io.EOF) {
 			return nil
 		}
 	}
+}
+
+type operatorFrameResult struct {
+	frame []byte
+	err   error
 }
 
 var errOperatorFrameTooLarge = errors.New("operator frame too large")
@@ -106,6 +122,21 @@ func writeOperatorFrame(writer *bufio.Writer, raw []byte) error {
 		return err
 	}
 	return writer.Flush()
+}
+
+func writeOperatorFrameBounded(ctx context.Context, writer *bufio.Writer, raw []byte, deadline time.Duration) error {
+	result := make(chan error, 1)
+	go func() { result <- writeOperatorFrame(writer, raw) }()
+	timer := time.NewTimer(deadline)
+	defer timer.Stop()
+	select {
+	case err := <-result:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return errors.New("operator response write deadline exceeded; owned process must exit")
+	}
 }
 
 func requestIDFromFrame(frame []byte) string {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -73,4 +74,41 @@ func TestServeOperatorTransportBoundsInputAndExitsAfterDeadline(t *testing.T) {
 	if err == nil || decodeErr != nil || failure.RequestID != "deadline" || failure.Error.Message != "operator read deadline exceeded" {
 		t.Fatalf("deadline did not end the owned process with a redacted frame: %s %v %v", output.String(), err, decodeErr)
 	}
+}
+
+func TestServeOperatorTransportCancellationAndBlockedPipeDeadlines(t *testing.T) {
+	pipeReader, pipeWriter := io.Pipe()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- ServeOperatorTransport(ctx, pipeReader, &bytes.Buffer{}, transportServer()) }()
+	cancel()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("cancelled idle stdin returned success")
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("context cancellation did not interrupt blocked stdin")
+	}
+	_ = pipeReader.Close()
+	_ = pipeWriter.Close()
+
+	outputReader, outputWriter := io.Pipe()
+	defer outputReader.Close()
+	server := transportServer()
+	server.Deadline = 25 * time.Millisecond
+	request, _ := json.Marshal(operatorv1.Request{SchemaVersion: 1, RequestID: "blocked-output", Operation: "tasks.list", WorkspaceID: "ws-local", ProjectID: "operator"})
+	done = make(chan error, 1)
+	go func() {
+		done <- ServeOperatorTransport(context.Background(), bytes.NewReader(append(request, '\n')), outputWriter, server)
+	}()
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "write deadline") {
+			t.Fatalf("blocked stdout result = %v, want write deadline", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("response write did not honor its deadline")
+	}
+	_ = outputWriter.Close()
 }

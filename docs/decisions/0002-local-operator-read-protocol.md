@@ -1,6 +1,6 @@
 # ADR 0002: Define a local read-only operator protocol
 
-- Status: proposed; not an implementation or host integration
+- Status: accepted; Go transport and operator-read boundary implemented in #1147
 - Date: 2026-10-25
 - Program: [#1146](https://github.com/mlnomadpy/dacli/issues/1146)
 - Prepared against: `8fdca475b4719a9b35949df4eebce66efdf1883c`
@@ -27,11 +27,12 @@ and read one JSON response per line. Stdout would contain protocol frames only;
 diagnostics would go to stderr. The adapter would call canonical Go producers
 directly and would not shell out to existing command output.
 
-This ADR and its fixtures do not implement that process, authenticate a
-request, open a workspace, expose a projection, or authorize any operation. A
-valid fixture proves only contract shape. A future transport implementation
-must authenticate at the actual read boundary using explicitly provisioned
-private credentials; process identity, parent process, app bundle, cwd,
+The original ADR and fixtures did not implement the process, authenticate a
+request, open a workspace, expose a projection, or authorize an operation. The
+#1147 Go implementation adds the app-owned stdio handler, canonical projection
+callbacks, and a distinct owner-provisioned `operator.read` identity. A valid
+fixture still proves only contract shape. The transport authenticates at the
+actual read boundary; process identity, parent process, app bundle, cwd,
 hostname, executable name, or environment are not credentials.
 
 Do not add a listener in the first adapter. Reconsider a private Unix socket
@@ -48,7 +49,7 @@ lifecycle, and replay/revocation behavior; a socket path alone is not identity.
 | `activity.list` | `internal/features/dashboard/detail.go:buildEvents`, backed by `eventlog.List` | Existing dashboard behavior defaults to 50, caps at 500, validates cursor and reports partial/truncated/unreadable state. Preserve event IDs and source times. Event text is data, not trusted instructions. |
 | `attempts.timeline` | `internal/features/dashboard/timeline.go:buildDeliveryTimeline` and `buildDeliveryAttempt` | Reads process-monitor records, phase journal, usage, verification evidence, and PR records. Malformed or project-mismatched journals are refused. The producer currently has no proven resumable page cursor; do not claim complete paging. |
 | `attention.list` | `internal/features/dashboard/attention.go:buildOperatorAttention` and `native.go:buildNativeAttention` | Derived from workspace task/graph/loop facts and native governance attention. Alerts include observed times, freshness, evidence and confidence. A workspace-wide result must not be silently truncated; first adapter should require project scope and report partial state explicitly. |
-| `governance.snapshot`, `evidence.list` | `internal/governance/sessions/native_dashboard.go:Authority.ReadDashboard` | Reads an immutable private authority snapshot; requires `read` plus exact workspace and project scope, and exact task scope for task reads; reauthenticates before return. Records/attention have a deterministic 512-item cap and `limited` state. Sensitive credentials, commands, paths, prompts, transcripts and private bodies are excluded. Evidence eligibility is `historical-not-revalidated`. |
+| `governance.snapshot`, `evidence.list` | `internal/governance/sessions/native_dashboard.go:Authority.ReadOperatorDashboard` | Reads an immutable private authority snapshot; requires both `read` and the separately owner-issued `operator.read` action with exact workspace and project resources, reauthenticates before return, and bounds task filters to the canonical selected project. Records/attention have a deterministic 512-item cap and `limited` state. Sensitive credentials, commands, paths, prompts, transcripts and private bodies are excluded. Evidence eligibility is `historical-not-revalidated`. |
 
 The `internal/governance/contracts` package validates portable governance
 metadata only. It does not authenticate a host or replace the sessions
@@ -133,12 +134,13 @@ scope; that needs a later integration test against the real read boundary.
 
 ## Consequences and exclusions
 
-This slice supplies a versioned Go-readable contract, schema, and deterministic
-golden fixtures with no Swift, Xcode, or Node requirement. It does not add a
-live stdio process, Unix socket, UI, task mutation, sync/acceptance operation,
-attempt registration, lease acquisition, event write, scheduler, provider call,
-cloud action, or authority migration. It does not claim that a host has been
-integrated or authenticated.
+The Go implementation supplies the versioned contract and fixtures, an owned
+stdin/stdout process adapter, canonical projection dispatch, and explicit
+operator reader provisioning without requiring Swift, Xcode, or Node. It does
+not add a Unix socket, UI, task mutation, sync/acceptance operation, attempt
+registration, lease acquisition, event write, scheduler, provider call, cloud
+action, or authority migration. Native app launch integration and supported-Mac
+qualification remain separate work; this Go slice does not claim either.
 
 The contract tests should prove strict version/field/trailing-value rejection,
 stable source and observation identities, error response shape, scope-denial

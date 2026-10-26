@@ -14,15 +14,21 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"sort"
 	"strings"
+	"syscall"
+	"time"
 
+	operatorv1 "github.com/mlnomadpy/dacli/contracts/operator/v1"
 	"github.com/mlnomadpy/dacli/internal/agentid"
+	"github.com/mlnomadpy/dacli/internal/application"
 	"github.com/mlnomadpy/dacli/internal/clikit"
 	"github.com/mlnomadpy/dacli/internal/commandresult"
 	"github.com/mlnomadpy/dacli/internal/features/acceptance"
@@ -54,7 +60,10 @@ import (
 	"github.com/mlnomadpy/dacli/internal/features/teamops"
 	"github.com/mlnomadpy/dacli/internal/features/vcs"
 	"github.com/mlnomadpy/dacli/internal/features/wscore"
+	"github.com/mlnomadpy/dacli/internal/governance/nativeconfig"
+	"github.com/mlnomadpy/dacli/internal/governance/sessions"
 	"github.com/mlnomadpy/dacli/internal/mcp"
+	"github.com/mlnomadpy/dacli/internal/operatorread"
 )
 
 // Ctx and Command are re-exported from the kernel so tests and callers keep
@@ -99,6 +108,7 @@ var commands = aggregate(
 	dashboard.Commands,
 	[]Command{
 		{Path: "capabilities", Brief: "Print the generated CLI, MCP, schema and prompt capability manifest", JSON: true, Usage: "dacli capabilities [--json]", Run: cmdCapabilities},
+		{Path: "operator serve", Brief: "Serve authenticated operator reads over app-owned local JSON lines", JSON: true, Usage: "dacli operator serve --connection <private-file>", Run: cmdOperatorServe},
 		{Path: "mcp serve", Brief: "Serve MCP over stdio with DACLI_AGENT identity; --operator explicitly permits local root when no token is set", Usage: "dacli mcp serve [--operator]", Run: cmdMcpServe},
 	},
 )
@@ -591,7 +601,7 @@ func executor(cwd string) mcp.Executor {
 		}
 		// Owner provisioning and stdio transport are local-only, including through
 		// the legacy MCP CLI escape hatch. Native tools have their own narrow catalog.
-		if !hasHelp(rest) && (cmd.Path == "native serve" || nativegovernance.AuthenticatesExplicitly(cmd.Path) || deviceauth.AuthenticatesExplicitly(cmd.Path) || rolemanagement.AuthenticatesExplicitly(cmd.Path)) {
+		if !hasHelp(rest) && (cmd.Path == "native serve" || cmd.Path == "operator serve" || nativegovernance.AuthenticatesExplicitly(cmd.Path) || deviceauth.AuthenticatesExplicitly(cmd.Path) || rolemanagement.AuthenticatesExplicitly(cmd.Path)) {
 			if err := refuseUnsupportedJSON(cmd, jsonMode); err != nil {
 				return "", marshalErrorDetails(clikit.DescribeError(err)), exitCode(err)
 			}
@@ -663,4 +673,149 @@ func cmdMcpServe(ctx *Ctx, args []string) error {
 	}
 	fmt.Fprintf(ctx.Stderr, "dacli mcp: serving on stdio (%s)\n", mode)
 	return mcp.Serve(os.Stdin, ctx.Stdout, executor(ctx.Cwd), cmdDescription())
+}
+
+func cmdOperatorServe(ctx *Ctx, args []string) error {
+	f, err := clikit.ParseFlags(args)
+	if err != nil {
+		return err
+	}
+	if err := f.Reject("connection"); err != nil {
+		return err
+	}
+	if len(f.All("connection")) > 1 {
+		return clikit.Usagef("--connection must appear once")
+	}
+	if len(f.Pos) != 0 {
+		return clikit.Usagef("operator serve accepts no positional arguments")
+	}
+	connection := f.Get("connection")
+	if connection == "" {
+		return clikit.Usagef("--connection is required")
+	}
+	reader, err := application.OpenOperatorRead(connection)
+	if err != nil {
+		return clikit.Refusedf("operator connection is unavailable or denied")
+	}
+	w := reader.Workspace()
+	if w == nil {
+		return clikit.Refusedf("operator connection is unavailable or denied")
+	}
+	server := operatorread.Server{
+		WorkspaceID: w.ID,
+		Deadline:    operatorread.DefaultDeadline,
+		Authorize:   reader.Authorize,
+		Project: func(ctx context.Context, request operatorv1.Request) (operatorread.Projection, error) {
+			if err := ctx.Err(); err != nil {
+				return operatorread.Projection{}, operatorread.ErrStale
+			}
+			var data any
+			var projectionPage *operatorv1.Page
+			switch request.Operation {
+			case "governance.snapshot", "evidence.list":
+				snapshot, err := reader.ReadOperator(request.ProjectID, "")
+				if err != nil {
+					return operatorread.Projection{}, operatorReadError(err)
+				}
+				if request.TaskID != "" {
+					records := snapshot.Records[:0]
+					for _, record := range snapshot.Records {
+						if record.TaskID == request.TaskID {
+							records = append(records, record)
+						}
+					}
+					snapshot.Records = records
+					attention := snapshot.Attention[:0]
+					for _, item := range snapshot.Attention {
+						if item.TaskID == request.TaskID {
+							attention = append(attention, item)
+						}
+					}
+					snapshot.Attention = attention
+					snapshot.Spend = sessions.DashboardSpend{State: "unavailable", Provenance: "unavailable", Enforcement: "unavailable", Unit: "owner-estimated tokens"}
+				}
+				if request.Operation == "evidence.list" {
+					records := snapshot.Records[:0]
+					for _, record := range snapshot.Records {
+						if record.Kind == "evidence" {
+							records = append(records, record)
+						}
+					}
+					snapshot.Records = records
+				}
+				data = snapshot
+			default:
+				var err error
+				var projection dashboard.OperatorProjectionResult
+				projection, err = dashboard.OperatorProjection(w, request.Operation, request.ProjectID, request.TaskID, request.Cursor, requestLimit(request), request.Filters.Kind, request.Filters.State, request.Filters.Range)
+				if err != nil {
+					if errors.Is(err, dashboard.ErrOperatorNotFound) {
+						return operatorread.Projection{}, operatorread.ErrNotFound
+					}
+					return operatorread.Projection{}, operatorread.ErrUnavailable
+				}
+				data = projection.Data
+				if projection.Page != nil {
+					page := *projection.Page
+					projectionPage = &page
+				}
+			}
+			producer, schema, observedAt := operatorSource(request.Operation, data)
+			return operatorread.Projection{Data: data, Page: projectionPage, Source: operatorv1.Source{Producer: producer, Schema: schema, ObservedAt: observedAt}}, nil
+		},
+	}
+	ctxSignal, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	return application.ServeOperatorTransport(ctxSignal, os.Stdin, ctx.Stdout, server)
+}
+
+func requestLimit(request operatorv1.Request) int {
+	if request.Limit != nil {
+		return *request.Limit
+	}
+	if request.Operation == "governance.snapshot" || request.Operation == "evidence.list" {
+		return 512
+	}
+	return 50
+}
+
+func operatorSource(operation string, data any) (producer, schema, observedAt string) {
+	producers := map[string][2]string{
+		"tasks.list":          {"dashboard.buildTasks", "dashboard-tasks/v1"},
+		"tasks.get":           {"dashboard.buildTaskDetail", "dashboard-task-detail/v1"},
+		"activity.list":       {"dashboard.buildEvents", "dashboard-events/v1"},
+		"attempts.timeline":   {"dashboard.buildDeliveryTimeline", "delivery-attempt-timeline/v1"},
+		"attention.list":      {"dashboard.buildOperatorAttention", "operator-attention/v1"},
+		"governance.snapshot": {"sessions.ReadOperatorDashboard", "native-dashboard/v1"},
+		"evidence.list":       {"sessions.ReadOperatorDashboard", "native-dashboard/v1"},
+	}
+	identity := producers[operation]
+	observedAt = time.Now().UTC().Format(time.RFC3339Nano)
+	raw, err := json.Marshal(data)
+	if err == nil {
+		var source struct {
+			Generated  string    `json:"generated"`
+			ObservedAt time.Time `json:"observed_at"`
+		}
+		if json.Unmarshal(raw, &source) == nil {
+			if !source.ObservedAt.IsZero() {
+				observedAt = source.ObservedAt.UTC().Format(time.RFC3339Nano)
+			} else if source.Generated != "" {
+				if parsed, parseErr := time.Parse(time.RFC3339Nano, source.Generated); parseErr == nil {
+					observedAt = parsed.UTC().Format(time.RFC3339Nano)
+				}
+			}
+		}
+	}
+	return identity[0], identity[1], observedAt
+}
+
+func operatorReadError(err error) error {
+	if errors.Is(err, sessions.ErrDenied) || errors.Is(err, nativeconfig.ErrDenied) {
+		return operatorread.ErrDenied
+	}
+	if errors.Is(err, sessions.ErrStorage) {
+		return operatorread.ErrUnavailable
+	}
+	return err
 }
