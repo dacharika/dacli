@@ -34,7 +34,7 @@ class ReleaseRefError(ValueError):
 
 def validate_workflow_context(workflow_ref: str, default_branch: str, repository: str) -> None:
     """Require the workflow definition to come from this repository's default branch."""
-    if not default_branch or "/" in default_branch or "@" in default_branch:
+    if not default_branch or "\n" in default_branch or "\r" in default_branch:
         raise ReleaseRefError("default branch is invalid")
     expected_prefix = repository + "/.github/workflows/release.yml@"
     if not repository or not workflow_ref.startswith(expected_prefix):
@@ -43,13 +43,11 @@ def validate_workflow_context(workflow_ref: str, default_branch: str, repository
         raise ReleaseRefError("release workflow must be dispatched from the default branch")
 
 
-def validate_inputs(tag: str, expected_commit: str, confirmation: str) -> tuple[str, str]:
+def validate_inputs(tag: str, expected_commit: str) -> tuple[str, str]:
     if not TAG_RE.fullmatch(tag):
         raise ReleaseRefError("tag must be a release version such as v1.2.3")
     if not SHA_RE.fullmatch(expected_commit):
         raise ReleaseRefError("expected commit must be a full 40-character SHA")
-    if confirmation != tag:
-        raise ReleaseRefError("confirmation must exactly match the selected tag")
     return tag, expected_commit.lower()
 
 
@@ -166,7 +164,6 @@ def main(argv: list[str] | None = None, opener=urllib.request.urlopen) -> int:
     parser.add_argument("--tag", required=True)
     parser.add_argument("--expected-commit", required=True)
     parser.add_argument("--expected-tag-object")
-    parser.add_argument("--confirmation", required=True)
     parser.add_argument("--workflow-ref", required=True)
     parser.add_argument("--default-branch", required=True)
     parser.add_argument("--repository", required=True)
@@ -176,7 +173,7 @@ def main(argv: list[str] | None = None, opener=urllib.request.urlopen) -> int:
     args = parser.parse_args(argv)
     try:
         validate_workflow_context(args.workflow_ref, args.default_branch, args.repository)
-        tag, expected = validate_inputs(args.tag, args.expected_commit, args.confirmation)
+        tag, expected = validate_inputs(args.tag, args.expected_commit)
         if not args.token:
             raise ReleaseRefError("GitHub API token is required")
         tag_object, commit = check_ref(

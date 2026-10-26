@@ -239,7 +239,7 @@ func TestTagReleaseIsManualAndPortableSnapshotCannotPublish(t *testing.T) {
 	if len(events) != 1 || events[0][1] != "workflow_dispatch" {
 		t.Fatalf("release workflow events = %v, want only workflow_dispatch", events)
 	}
-	for _, input := range []string{"tag", "expected_commit", "confirm_tag"} {
+	for _, input := range []string{"tag", "expected_commit"} {
 		block := regexp.MustCompile(`(?m)^      ` + regexp.QuoteMeta(input) + `:\n((?:        [^\n]*\n)+)`).FindStringSubmatch(on)
 		if block == nil || !strings.Contains(block[1], "        required: true\n") {
 			t.Errorf("manual release must require the %s input", strings.TrimSuffix(input, ":"))
@@ -258,8 +258,8 @@ func TestTagReleaseIsManualAndPortableSnapshotCannotPublish(t *testing.T) {
 	if strings.Contains(validation, "ref: ${{ inputs.expected_commit }}") || strings.Contains(validation, "ref: ${{ github.sha }}") {
 		t.Fatal("release validation must not check out the unvalidated dispatch SHA or input")
 	}
-	if !strings.Contains(validation, "EXPECTED_COMMIT: ${{ inputs.expected_commit }}") || !strings.Contains(validation, "CONFIRM_TAG: ${{ inputs.confirm_tag }}") {
-		t.Fatal("release validation must bind the explicit commit and typed publication confirmation")
+	if !strings.Contains(validation, "EXPECTED_COMMIT: ${{ inputs.expected_commit }}") {
+		t.Fatal("release validation must bind the explicit expected commit")
 	}
 	if !strings.Contains(jobBlock(t, workflow, "validate-release-ref"), "tag_object: ${{ steps.validate.outputs.tag_object }}") {
 		t.Fatal("release validation must export the exact tag ref object SHA for move detection")

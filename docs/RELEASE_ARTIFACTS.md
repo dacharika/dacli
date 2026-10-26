@@ -27,10 +27,10 @@ used only on macOS and does not inherit a portable-build environment override.
 
 Publication remains a separate maintainer action. `.github/workflows/release.yml`
 has no tag-push trigger: a maintainer manually dispatches it from the default
-branch with an existing `vX.Y.Z` tag, the full commit SHA that tag is expected
-to name, and a confirmation that repeats the tag. A resolver checked out at the
-trusted workflow revision peels lightweight and annotated tags through the
-GitHub API, verifies the exact SHA before checking out release source, and pins
+branch with an existing `vX.Y.Z` tag and the full commit SHA that tag is expected
+to name. A resolver checked out at the trusted workflow revision peels
+lightweight and annotated tags through the GitHub API, verifies the exact SHA
+before checking out release source, and pins
 the tag ref object as well as the peeled commit. It rechecks both before release
 work and immediately before GoReleaser. The source checkout is pinned to that
 SHA and GoReleaser receives the selected tag explicitly. A moved, deleted,

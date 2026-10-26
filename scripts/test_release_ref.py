@@ -127,18 +127,21 @@ class ReleaseRefTests(unittest.TestCase):
         with self.assertRaisesRegex(release_ref.ReleaseRefError, "cycle"):
             self.resolve()
 
-    def test_rejects_bad_version_sha_and_confirmation(self):
+    def test_rejects_bad_version_and_sha(self):
         with self.assertRaisesRegex(release_ref.ReleaseRefError, "release version"):
-            release_ref.validate_inputs("main", COMMIT, "main")
+            release_ref.validate_inputs("main", COMMIT)
         with self.assertRaisesRegex(release_ref.ReleaseRefError, "full 40-character"):
-            release_ref.validate_inputs("v1.2.3", "abc", "v1.2.3")
-        with self.assertRaisesRegex(release_ref.ReleaseRefError, "confirmation"):
-            release_ref.validate_inputs("v1.2.3", COMMIT, "v1.2.4")
+            release_ref.validate_inputs("v1.2.3", "abc")
 
     def test_requires_trusted_default_branch_workflow_revision(self):
         release_ref.validate_workflow_context(
             "dacharika/dacli/.github/workflows/release.yml@refs/heads/main",
             "main",
+            "dacharika/dacli",
+        )
+        release_ref.validate_workflow_context(
+            "dacharika/dacli/.github/workflows/release.yml@refs/heads/release/stable",
+            "release/stable",
             "dacharika/dacli",
         )
         for workflow_ref in (
@@ -156,7 +159,6 @@ class ReleaseRefTests(unittest.TestCase):
                 [
                     "--tag", "v1.2.3",
                     "--expected-commit", COMMIT,
-                    "--confirmation", "v1.2.3",
                     "--workflow-ref", "dacharika/dacli/.github/workflows/release.yml@refs/heads/main",
                     "--default-branch", "main",
                     "--repository", "dacharika/dacli",
@@ -186,7 +188,6 @@ class ReleaseRefTests(unittest.TestCase):
                         "--tag", "v1.2.3",
                         "--expected-commit", COMMIT,
                         "--expected-tag-object", INNER_TAG_OBJECT,
-                        "--confirmation", "v1.2.3",
                         "--workflow-ref", "dacharika/dacli/.github/workflows/release.yml@refs/heads/main",
                         "--default-branch", "main",
                         "--repository", "dacharika/dacli",
