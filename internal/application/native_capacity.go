@@ -86,7 +86,7 @@ func (p *NativeCapacityAccess) Read(hostSessionID string) (executor.CapacityFact
 		return executor.CapacityFacts{}, err
 	}
 	return executor.CapacityFacts{
-		SchemaVersion: 1, RequestedState: view.Policy.State, DeclarationState: view.DeclarationState,
+		SchemaVersion: 1, ExecutorInstanceID: view.ExecutorInstanceID, RequestedState: view.Policy.State, DeclarationState: view.DeclarationState,
 		ObservationState: view.ObservationState, QualificationState: view.QualificationState, ConsistencyState: view.ConsistencyState,
 		RequestedSlots: view.Policy.RequestedSlots, DeclaredSlots: view.DeclaredSlots,
 		OccupiedSlots: view.OccupiedSlots, AvailableSlots: view.AvailableSlots,

@@ -19,52 +19,55 @@ const (
 // HostCapacityPolicy is the owner-requested concurrency fact. It is stored
 // independently from host declarations and measured observations.
 type HostCapacityPolicy struct {
-	SchemaVersion    int           `json:"schema_version"`
-	WorkspaceID      string        `json:"workspace_id"`
-	InstallationID   string        `json:"installation_id"`
-	HostID           string        `json:"host_id"`
-	Runtime          string        `json:"runtime"`
-	Build            string        `json:"build"`
-	HostSessionID    string        `json:"host_session_id"`
-	CapabilityDigest string        `json:"capability_digest"`
-	State            string        `json:"state"`
-	RequestedSlots   int           `json:"requested_slots"`
-	Freshness        time.Duration `json:"freshness"`
-	Revision         string        `json:"revision"`
-	ConfiguredAt     time.Time     `json:"configured_at"`
+	SchemaVersion      int           `json:"schema_version"`
+	WorkspaceID        string        `json:"workspace_id"`
+	InstallationID     string        `json:"installation_id"`
+	HostID             string        `json:"host_id"`
+	Runtime            string        `json:"runtime"`
+	Build              string        `json:"build"`
+	HostSessionID      string        `json:"host_session_id"`
+	ExecutorInstanceID string        `json:"executor_instance_id"`
+	CapabilityDigest   string        `json:"capability_digest"`
+	State              string        `json:"state"`
+	RequestedSlots     int           `json:"requested_slots"`
+	Freshness          time.Duration `json:"freshness"`
+	Revision           string        `json:"revision"`
+	ConfiguredAt       time.Time     `json:"configured_at"`
 }
 
 // HostCapacityObserver is an owner-enrolled observation principal, separate
 // from the executor session whose capacity it observes.
 type HostCapacityObserver struct {
-	SchemaVersion     int       `json:"schema_version"`
-	ObserverSessionID string    `json:"observer_session_id"`
-	HostSessionID     string    `json:"host_session_id"`
-	HostID            string    `json:"host_id"`
-	Runtime           string    `json:"runtime"`
-	Build             string    `json:"build"`
-	CapabilityDigest  string    `json:"capability_digest"`
-	ExpiresAt         time.Time `json:"expires_at"`
-	EnrolledAt        time.Time `json:"enrolled_at"`
+	SchemaVersion      int       `json:"schema_version"`
+	ObserverSessionID  string    `json:"observer_session_id"`
+	HostSessionID      string    `json:"host_session_id"`
+	ExecutorInstanceID string    `json:"executor_instance_id"`
+	HostID             string    `json:"host_id"`
+	Runtime            string    `json:"runtime"`
+	Build              string    `json:"build"`
+	CapabilityDigest   string    `json:"capability_digest"`
+	ExpiresAt          time.Time `json:"expires_at"`
+	EnrolledAt         time.Time `json:"enrolled_at"`
 }
 
 // HostCapacityObservationRequest contains two independent host facts: the
 // host's declared total and the observer's measured occupied/available slots.
 type HostCapacityObservationRequest struct {
-	SchemaVersion    int       `json:"schema_version"`
-	OperationKey     string    `json:"operation_key"`
-	HostID           string    `json:"host_id"`
-	Runtime          string    `json:"runtime"`
-	Build            string    `json:"build"`
-	HostSessionID    string    `json:"host_session_id"`
-	CapabilityDigest string    `json:"capability_digest"`
-	Sequence         uint64    `json:"sequence"`
-	DeclarationState string    `json:"declaration_state"`
-	DeclaredSlots    int       `json:"declared_slots"`
-	ObservedState    string    `json:"observed_state"`
-	OccupiedSlots    int       `json:"occupied_slots"`
-	AvailableSlots   int       `json:"available_slots"`
-	ObservedAt       time.Time `json:"observed_at"`
+	SchemaVersion      int       `json:"schema_version"`
+	OperationKey       string    `json:"operation_key"`
+	HostID             string    `json:"host_id"`
+	Runtime            string    `json:"runtime"`
+	Build              string    `json:"build"`
+	HostSessionID      string    `json:"host_session_id"`
+	ExecutorInstanceID string    `json:"executor_instance_id"`
+	CapabilityDigest   string    `json:"capability_digest"`
+	Sequence           uint64    `json:"sequence"`
+	DeclarationState   string    `json:"declaration_state"`
+	DeclaredSlots      int       `json:"declared_slots"`
+	ObservedState      string    `json:"observed_state"`
+	OccupiedSlots      int       `json:"occupied_slots"`
+	AvailableSlots     int       `json:"available_slots"`
+	ObservedAt         time.Time `json:"observed_at"`
 }
 
 // HostCapacityObservation is the immutable, authenticated receipt for one
@@ -77,18 +80,19 @@ type HostCapacityObservation struct {
 }
 
 type HostCapacityQualification struct {
-	SchemaVersion    int       `json:"schema_version"`
-	HostSessionID    string    `json:"host_session_id"`
-	HostID           string    `json:"host_id"`
-	Runtime          string    `json:"runtime"`
-	Build            string    `json:"build"`
-	CapabilityDigest string    `json:"capability_digest"`
-	State            string    `json:"state"`
-	EvidenceDigest   string    `json:"evidence_digest"`
-	QualificationID  string    `json:"qualification_id"`
-	QualifiedSlots   int       `json:"qualified_slots"`
-	ExpiresAt        time.Time `json:"expires_at"`
-	QualifiedAt      time.Time `json:"qualified_at"`
+	SchemaVersion      int       `json:"schema_version"`
+	HostSessionID      string    `json:"host_session_id"`
+	ExecutorInstanceID string    `json:"executor_instance_id"`
+	HostID             string    `json:"host_id"`
+	Runtime            string    `json:"runtime"`
+	Build              string    `json:"build"`
+	CapabilityDigest   string    `json:"capability_digest"`
+	State              string    `json:"state"`
+	EvidenceDigest     string    `json:"evidence_digest"`
+	QualificationID    string    `json:"qualification_id"`
+	QualifiedSlots     int       `json:"qualified_slots"`
+	ExpiresAt          time.Time `json:"expires_at"`
+	QualifiedAt        time.Time `json:"qualified_at"`
 }
 
 type HostCapacityView struct {
@@ -106,6 +110,7 @@ type HostCapacityView struct {
 	ReceivedAt             time.Time          `json:"received_at"`
 	QualificationExpiresAt time.Time          `json:"qualification_expires_at"`
 	Sequence               uint64             `json:"sequence"`
+	ExecutorInstanceID     string             `json:"executor_instance_id"`
 	Eligible               bool               `json:"eligible"`
 }
 
@@ -116,10 +121,17 @@ func initializeCapacity(s *state) {
 	s.CapacityQualifications = map[string]HostCapacityQualification{}
 }
 
+func capacityFactKey(hostSessionID, executorInstanceID string) string {
+	return identity("dacli-host-capacity-instance/v1", "", struct {
+		HostSessionID      string
+		ExecutorInstanceID string
+	}{HostSessionID: hostSessionID, ExecutorInstanceID: executorInstanceID})
+}
+
 func validateHostCapacityState(s *state) error {
 	for id, observer := range s.CapacityObservers {
 		session, ok := s.Sessions[id]
-		if !ok || observer.SchemaVersion != 1 || observer.ObserverSessionID != id || !validID(id) || !validID(observer.HostSessionID) || !validID(observer.HostID) || !validID(observer.Runtime) || !validID(observer.Build) || len(observer.CapabilityDigest) != 64 || strings.Trim(observer.CapabilityDigest, "0123456789abcdef") != "" || observer.EnrolledAt.IsZero() || !observer.ExpiresAt.After(observer.EnrolledAt) || observer.ExpiresAt.After(session.ExpiresAt) || !validCapacityObserverScope(s, id, observer) {
+		if !ok || observer.SchemaVersion != 1 || observer.ObserverSessionID != id || !validID(id) || !validID(observer.HostSessionID) || !validID(observer.ExecutorInstanceID) || !validID(observer.HostID) || !validID(observer.Runtime) || !validID(observer.Build) || len(observer.CapabilityDigest) != 64 || strings.Trim(observer.CapabilityDigest, "0123456789abcdef") != "" || observer.EnrolledAt.IsZero() || !observer.ExpiresAt.After(observer.EnrolledAt) || observer.ExpiresAt.After(session.ExpiresAt) || !validCapacityObserverScope(s, id, observer) {
 			return ErrStorage
 		}
 		if _, ok := s.Sessions[observer.HostSessionID]; !ok {
@@ -127,12 +139,12 @@ func validateHostCapacityState(s *state) error {
 		}
 	}
 	for key, policy := range s.CapacityPolicies {
-		if key != policy.HostSessionID || policy.SchemaVersion != 1 || policy.WorkspaceID != s.Binding.Workspace || policy.InstallationID != s.Binding.Installation || !validID(policy.HostID) || !validID(policy.Runtime) || !validID(policy.Build) || len(policy.CapabilityDigest) != 64 || strings.Trim(policy.CapabilityDigest, "0123456789abcdef") != "" || !capacityStateValid(policy.State, policy.RequestedSlots) || policy.Freshness <= 0 || policy.Freshness > 24*time.Hour || !validID(policy.Revision) || policy.ConfiguredAt.IsZero() {
+		if key != capacityFactKey(policy.HostSessionID, policy.ExecutorInstanceID) || policy.SchemaVersion != 1 || policy.WorkspaceID != s.Binding.Workspace || policy.InstallationID != s.Binding.Installation || !validID(policy.HostID) || !validID(policy.Runtime) || !validID(policy.Build) || !validID(policy.ExecutorInstanceID) || len(policy.CapabilityDigest) != 64 || strings.Trim(policy.CapabilityDigest, "0123456789abcdef") != "" || !capacityStateValid(policy.State, policy.RequestedSlots) || policy.Freshness <= 0 || policy.Freshness > 24*time.Hour || !validID(policy.Revision) || policy.ConfiguredAt.IsZero() {
 			return ErrStorage
 		}
 		bound := false
 		for _, observer := range s.CapacityObservers {
-			if observer.HostSessionID == key && observer.HostID == policy.HostID && observer.Runtime == policy.Runtime && observer.Build == policy.Build && observer.CapabilityDigest == policy.CapabilityDigest {
+			if observer.HostSessionID == policy.HostSessionID && observer.ExecutorInstanceID == policy.ExecutorInstanceID && observer.HostID == policy.HostID && observer.Runtime == policy.Runtime && observer.Build == policy.Build && observer.CapabilityDigest == policy.CapabilityDigest {
 				bound = true
 				break
 			}
@@ -145,13 +157,14 @@ func validateHostCapacityState(s *state) error {
 	for key, observation := range s.CapacityObservations {
 		r := observation.HostCapacityObservationRequest
 		observer, ok := s.CapacityObservers[observation.ObserverSessionID]
-		if key != r.OperationKey || !validateCapacityObservation(r) || observation.InputDigest != identity("dacli-host-capacity-observation/v1", observation.ObserverSessionID, r) || observation.ReceivedAt.IsZero() || r.ObservedAt.After(observation.ReceivedAt) || !ok || observer.HostSessionID != r.HostSessionID || observer.HostID != r.HostID || observer.Runtime != r.Runtime || observer.Build != r.Build || observer.CapabilityDigest != r.CapabilityDigest {
+		if key != r.OperationKey || !validateCapacityObservation(r) || observation.InputDigest != identity("dacli-host-capacity-observation/v1", observation.ObserverSessionID, r) || observation.ReceivedAt.IsZero() || r.ObservedAt.After(observation.ReceivedAt) || !ok || observer.HostSessionID != r.HostSessionID || observer.ExecutorInstanceID != r.ExecutorInstanceID || observer.HostID != r.HostID || observer.Runtime != r.Runtime || observer.Build != r.Build || observer.CapabilityDigest != r.CapabilityDigest {
 			return ErrStorage
 		}
-		seen := sequences[r.HostSessionID]
+		sequenceKey := capacityFactKey(r.HostSessionID, r.ExecutorInstanceID)
+		seen := sequences[sequenceKey]
 		if seen == nil {
 			seen = map[uint64]time.Time{}
-			sequences[r.HostSessionID] = seen
+			sequences[sequenceKey] = seen
 		}
 		if _, duplicate := seen[r.Sequence]; duplicate {
 			return ErrStorage
@@ -164,13 +177,13 @@ func validateHostCapacityState(s *state) error {
 		seen[r.Sequence] = observation.ReceivedAt
 	}
 	for key, qualification := range s.CapacityQualifications {
-		host, hostOK := s.Sessions[key]
-		if !hostOK || key != qualification.HostSessionID || qualification.SchemaVersion != 1 || !validID(key) || !validID(qualification.HostID) || !validID(qualification.Runtime) || !validID(qualification.Build) || len(qualification.CapabilityDigest) != 64 || strings.Trim(qualification.CapabilityDigest, "0123456789abcdef") != "" || !validID(qualification.QualificationID) || !capacityStateValid(qualification.State, qualification.QualifiedSlots) || qualification.QualifiedAt.IsZero() || (qualification.State == CapacityKnown && (len(qualification.EvidenceDigest) != 64 || strings.Trim(qualification.EvidenceDigest, "0123456789abcdef") != "")) || (qualification.State != CapacityKnown && qualification.EvidenceDigest != "") || (!qualification.ExpiresAt.IsZero() && (!qualification.ExpiresAt.After(qualification.QualifiedAt) || qualification.ExpiresAt.After(host.ExpiresAt))) {
+		host, hostOK := s.Sessions[qualification.HostSessionID]
+		if !hostOK || key != capacityFactKey(qualification.HostSessionID, qualification.ExecutorInstanceID) || qualification.SchemaVersion != 1 || !validID(qualification.HostSessionID) || !validID(qualification.ExecutorInstanceID) || !validID(qualification.HostID) || !validID(qualification.Runtime) || !validID(qualification.Build) || len(qualification.CapabilityDigest) != 64 || strings.Trim(qualification.CapabilityDigest, "0123456789abcdef") != "" || !validID(qualification.QualificationID) || !capacityStateValid(qualification.State, qualification.QualifiedSlots) || qualification.QualifiedAt.IsZero() || (qualification.State == CapacityKnown && (len(qualification.EvidenceDigest) != 64 || strings.Trim(qualification.EvidenceDigest, "0123456789abcdef") != "")) || (qualification.State != CapacityKnown && qualification.EvidenceDigest != "") || (!qualification.ExpiresAt.IsZero() && (!qualification.ExpiresAt.After(qualification.QualifiedAt) || qualification.ExpiresAt.After(host.ExpiresAt))) {
 			return ErrStorage
 		}
 		bound := false
 		for _, observer := range s.CapacityObservers {
-			if observer.HostSessionID == key && observer.HostID == qualification.HostID && observer.Runtime == qualification.Runtime && observer.Build == qualification.Build && observer.CapabilityDigest == qualification.CapabilityDigest {
+			if observer.HostSessionID == qualification.HostSessionID && observer.ExecutorInstanceID == qualification.ExecutorInstanceID && observer.HostID == qualification.HostID && observer.Runtime == qualification.Runtime && observer.Build == qualification.Build && observer.CapabilityDigest == qualification.CapabilityDigest {
 				bound = true
 				break
 			}
@@ -188,6 +201,7 @@ func validateHostCapacityState(s *state) error {
 func (a *Authority) UpgradeHostCapacity(owner string) error {
 	old := *a
 	old.version = 20
+	old.strictRead = true
 	err := old.transaction(false, true, func(s *state) error {
 		if s.Version != 20 || len(owner) != 64 || hash(owner) != s.OwnerHash {
 			return ErrDenied
@@ -236,7 +250,7 @@ func validCapacityObserverScope(s *state, sessionID string, observer HostCapacit
 	if !ok || r.ID != sessionID || r.Parent != "" || r.Scope.Actions == nil || !reflect.DeepEqual(r.Scope.Actions, []string{"capacity.observe"}) {
 		return false
 	}
-	want := []string{"host:" + observer.HostID, "session:" + observer.HostSessionID, "workspace:" + s.Binding.Workspace}
+	want := []string{"host:" + observer.HostID, "instance:" + observer.ExecutorInstanceID, "session:" + observer.HostSessionID, "workspace:" + s.Binding.Workspace}
 	return reflect.DeepEqual(r.Scope.Resources, want)
 }
 
@@ -244,6 +258,9 @@ func validCapacityObserverScope(s *state, sessionID string, observer HostCapacit
 // credential with only the exact host/session observation scope.
 func (a *Authority) EnrollHostCapacityObserver(owner string, in HostCapacityObserver) (HostCapacityObserver, string, error) {
 	var out HostCapacityObserver
+	if in.SchemaVersion != 1 {
+		return out, "", ErrDenied
+	}
 	token, err := mint()
 	if err != nil {
 		return out, "", err
@@ -258,11 +275,11 @@ func (a *Authority) EnrollHostCapacityObserver(owner string, in HostCapacityObse
 	in.ExpiresAt = in.ExpiresAt.Round(0).UTC()
 	err = a.transaction(false, true, func(s *state) error {
 		host, ok := s.Sessions[in.HostSessionID]
-		if s.Version != 21 || len(owner) != 64 || hash(owner) != s.OwnerHash || !ok || authenticateRecord(s, in.HostSessionID, time.Now()) != nil || in.HostSessionID == "" || in.HostID == "" || !validID(in.HostID) || !validID(in.Runtime) || !validID(in.Build) || len(in.CapabilityDigest) != 64 || strings.Trim(in.CapabilityDigest, "0123456789abcdef") != "" || !in.ExpiresAt.After(time.Now()) || in.ExpiresAt.After(host.ExpiresAt) {
+		if s.Version != 21 || len(owner) != 64 || hash(owner) != s.OwnerHash || !ok || authenticateRecord(s, in.HostSessionID, time.Now()) != nil || in.HostSessionID == "" || !validID(in.ExecutorInstanceID) || in.HostID == "" || !validID(in.HostID) || !validID(in.Runtime) || !validID(in.Build) || len(in.CapabilityDigest) != 64 || strings.Trim(in.CapabilityDigest, "0123456789abcdef") != "" || !in.ExpiresAt.After(time.Now()) || in.ExpiresAt.After(host.ExpiresAt) {
 			return ErrDenied
 		}
-		observer := HostCapacityObserver{SchemaVersion: 1, ObserverSessionID: id, HostSessionID: in.HostSessionID, HostID: in.HostID, Runtime: in.Runtime, Build: in.Build, CapabilityDigest: in.CapabilityDigest, ExpiresAt: in.ExpiresAt, EnrolledAt: in.EnrolledAt}
-		scope := Scope{Actions: []string{"capacity.observe"}, Resources: []string{"host:" + in.HostID, "session:" + in.HostSessionID, "workspace:" + s.Binding.Workspace}}
+		observer := HostCapacityObserver{SchemaVersion: 1, ObserverSessionID: id, HostSessionID: in.HostSessionID, ExecutorInstanceID: in.ExecutorInstanceID, HostID: in.HostID, Runtime: in.Runtime, Build: in.Build, CapabilityDigest: in.CapabilityDigest, ExpiresAt: in.ExpiresAt, EnrolledAt: in.EnrolledAt}
+		scope := Scope{Actions: []string{"capacity.observe"}, Resources: []string{"host:" + in.HostID, "instance:" + in.ExecutorInstanceID, "session:" + in.HostSessionID, "workspace:" + s.Binding.Workspace}}
 		s.Sessions[id] = record{Session: Session{ID: id, Scope: scope, ExpiresAt: in.ExpiresAt}, Hash: hash(token)}
 		s.CapacityObservers[id] = observer
 		out = observer
@@ -292,10 +309,13 @@ func authenticateRecord(s *state, id string, now time.Time) error {
 
 func (a *Authority) ConfigureHostCapacityPolicy(owner string, p HostCapacityPolicy) (HostCapacityPolicy, error) {
 	var out HostCapacityPolicy
+	if p.SchemaVersion != 1 {
+		return out, ErrDenied
+	}
 	p.SchemaVersion = 1
 	p.ConfiguredAt = time.Now().UTC()
 	err := a.transaction(false, true, func(s *state) error {
-		if s.Version != 21 || len(owner) != 64 || hash(owner) != s.OwnerHash || p.WorkspaceID != s.Binding.Workspace || p.InstallationID != s.Binding.Installation || !validID(p.HostID) || !validID(p.Runtime) || !validID(p.Build) || !validID(p.HostSessionID) || len(p.CapabilityDigest) != 64 || strings.Trim(p.CapabilityDigest, "0123456789abcdef") != "" || !capacityStateValid(p.State, p.RequestedSlots) || p.Freshness <= 0 || p.Freshness > 24*time.Hour || !validID(p.Revision) {
+		if s.Version != 21 || len(owner) != 64 || hash(owner) != s.OwnerHash || p.WorkspaceID != s.Binding.Workspace || p.InstallationID != s.Binding.Installation || !validID(p.HostID) || !validID(p.Runtime) || !validID(p.Build) || !validID(p.HostSessionID) || !validID(p.ExecutorInstanceID) || len(p.CapabilityDigest) != 64 || strings.Trim(p.CapabilityDigest, "0123456789abcdef") != "" || !capacityStateValid(p.State, p.RequestedSlots) || p.Freshness <= 0 || p.Freshness > 24*time.Hour || !validID(p.Revision) {
 			return ErrDenied
 		}
 		if _, ok := s.Sessions[p.HostSessionID]; !ok || authenticateRecord(s, p.HostSessionID, time.Now()) != nil {
@@ -303,7 +323,7 @@ func (a *Authority) ConfigureHostCapacityPolicy(owner string, p HostCapacityPoli
 		}
 		bound := false
 		for _, observer := range s.CapacityObservers {
-			if observer.HostSessionID == p.HostSessionID && observer.HostID == p.HostID && observer.Runtime == p.Runtime && observer.Build == p.Build && observer.CapabilityDigest == p.CapabilityDigest {
+			if observer.HostSessionID == p.HostSessionID && observer.ExecutorInstanceID == p.ExecutorInstanceID && observer.HostID == p.HostID && observer.Runtime == p.Runtime && observer.Build == p.Build && observer.CapabilityDigest == p.CapabilityDigest {
 				bound = true
 				break
 			}
@@ -311,7 +331,7 @@ func (a *Authority) ConfigureHostCapacityPolicy(owner string, p HostCapacityPoli
 		if !bound {
 			return ErrDenied
 		}
-		s.CapacityPolicies[p.HostSessionID] = p
+		s.CapacityPolicies[capacityFactKey(p.HostSessionID, p.ExecutorInstanceID)] = p
 		out = p
 		return nil
 	})
@@ -319,7 +339,7 @@ func (a *Authority) ConfigureHostCapacityPolicy(owner string, p HostCapacityPoli
 }
 
 func validateCapacityObservation(r HostCapacityObservationRequest) bool {
-	if r.SchemaVersion != 1 || !validID(r.OperationKey) || !validID(r.HostID) || !validID(r.Runtime) || !validID(r.Build) || !validID(r.HostSessionID) || len(r.CapabilityDigest) != 64 || strings.Trim(r.CapabilityDigest, "0123456789abcdef") != "" || r.Sequence == 0 || r.ObservedAt.IsZero() || !capacityStateValid(r.DeclarationState, r.DeclaredSlots) || !capacityStateValid(r.ObservedState, r.OccupiedSlots) {
+	if r.SchemaVersion != 1 || !validID(r.OperationKey) || !validID(r.HostID) || !validID(r.Runtime) || !validID(r.Build) || !validID(r.HostSessionID) || !validID(r.ExecutorInstanceID) || len(r.CapabilityDigest) != 64 || strings.Trim(r.CapabilityDigest, "0123456789abcdef") != "" || r.Sequence == 0 || r.ObservedAt.IsZero() || !capacityStateValid(r.DeclarationState, r.DeclaredSlots) || !capacityStateValid(r.ObservedState, r.OccupiedSlots) {
 		return false
 	}
 	if r.ObservedState == CapacityKnown {
@@ -341,7 +361,7 @@ func (a *Authority) RecordHostCapacityObservation(token, observerSessionID strin
 			return ErrDenied
 		}
 		observer, ok := s.CapacityObservers[observerSessionID]
-		if !ok || observer.ObserverSessionID != observerSessionID || observer.HostID != r.HostID || observer.Runtime != r.Runtime || observer.Build != r.Build || observer.HostSessionID != r.HostSessionID || observer.CapabilityDigest != r.CapabilityDigest || !time.Now().Before(observer.ExpiresAt) || !validObserverCredentialScope(s, token, observerSessionID, observer) {
+		if !ok || observer.ObserverSessionID != observerSessionID || observer.HostID != r.HostID || observer.Runtime != r.Runtime || observer.Build != r.Build || observer.HostSessionID != r.HostSessionID || observer.ExecutorInstanceID != r.ExecutorInstanceID || observer.CapabilityDigest != r.CapabilityDigest || !time.Now().Before(observer.ExpiresAt) || !validObserverCredentialScope(s, token, observerSessionID, observer) {
 			return ErrDenied
 		}
 		if err := authenticateRecord(s, observer.HostSessionID, time.Now()); err != nil {
@@ -358,7 +378,7 @@ func (a *Authority) RecordHostCapacityObservation(token, observerSessionID strin
 			return nil
 		}
 		for _, old := range s.CapacityObservations {
-			if old.HostSessionID == r.HostSessionID && r.Sequence <= old.Sequence {
+			if old.HostSessionID == r.HostSessionID && old.ExecutorInstanceID == r.ExecutorInstanceID && r.Sequence <= old.Sequence {
 				return ErrDenied
 			}
 		}
@@ -378,10 +398,13 @@ func validObserverCredentialScope(s *state, token, id string, observer HostCapac
 // observer-supplied facts cannot assert qualification.
 func (a *Authority) QualifyHostCapacity(owner string, q HostCapacityQualification) (HostCapacityQualification, error) {
 	var out HostCapacityQualification
+	if q.SchemaVersion != 1 {
+		return out, ErrDenied
+	}
 	q.SchemaVersion = 1
 	q.QualifiedAt = time.Now().UTC()
 	err := a.transaction(false, true, func(s *state) error {
-		if s.Version != 21 || len(owner) != 64 || hash(owner) != s.OwnerHash || !validID(q.HostSessionID) || !validID(q.HostID) || !validID(q.Runtime) || !validID(q.Build) || len(q.CapabilityDigest) != 64 || strings.Trim(q.CapabilityDigest, "0123456789abcdef") != "" || !validID(q.QualificationID) || !capacityStateValid(q.State, q.QualifiedSlots) {
+		if s.Version != 21 || len(owner) != 64 || hash(owner) != s.OwnerHash || !validID(q.HostSessionID) || !validID(q.ExecutorInstanceID) || !validID(q.HostID) || !validID(q.Runtime) || !validID(q.Build) || len(q.CapabilityDigest) != 64 || strings.Trim(q.CapabilityDigest, "0123456789abcdef") != "" || !validID(q.QualificationID) || !capacityStateValid(q.State, q.QualifiedSlots) {
 			return ErrDenied
 		}
 		if q.State == CapacityKnown && (len(q.EvidenceDigest) != 64 || strings.Trim(q.EvidenceDigest, "0123456789abcdef") != "") {
@@ -402,7 +425,7 @@ func (a *Authority) QualifyHostCapacity(owner string, q HostCapacityQualificatio
 		}
 		bound := false
 		for _, observer := range s.CapacityObservers {
-			if observer.HostSessionID == q.HostSessionID && observer.HostID == q.HostID && observer.Runtime == q.Runtime && observer.Build == q.Build && observer.CapabilityDigest == q.CapabilityDigest {
+			if observer.HostSessionID == q.HostSessionID && observer.ExecutorInstanceID == q.ExecutorInstanceID && observer.HostID == q.HostID && observer.Runtime == q.Runtime && observer.Build == q.Build && observer.CapabilityDigest == q.CapabilityDigest {
 				bound = true
 				break
 			}
@@ -410,7 +433,7 @@ func (a *Authority) QualifyHostCapacity(owner string, q HostCapacityQualificatio
 		if !bound {
 			return ErrDenied
 		}
-		s.CapacityQualifications[q.HostSessionID] = q
+		s.CapacityQualifications[capacityFactKey(q.HostSessionID, q.ExecutorInstanceID)] = q
 		out = q
 		return nil
 	})
@@ -424,25 +447,26 @@ func (a *Authority) ReadHostCapacity(token, observerSessionID, hostSessionID str
 		if s.Version != 21 || !ok || observer.HostSessionID != hostSessionID || !validObserverCredentialScope(s, token, observerSessionID, observer) || authenticateRecord(s, hostSessionID, time.Now()) != nil {
 			return ErrDenied
 		}
-		policy, policyOK := s.CapacityPolicies[hostSessionID]
-		qualification, qualificationOK := s.CapacityQualifications[hostSessionID]
+		factKey := capacityFactKey(hostSessionID, observer.ExecutorInstanceID)
+		policy, policyOK := s.CapacityPolicies[factKey]
+		qualification, qualificationOK := s.CapacityQualifications[factKey]
 		var latest HostCapacityObservation
 		for _, fact := range s.CapacityObservations {
-			if fact.HostSessionID == hostSessionID && fact.Sequence > latest.Sequence {
+			if fact.HostSessionID == hostSessionID && fact.ExecutorInstanceID == observer.ExecutorInstanceID && fact.Sequence > latest.Sequence {
 				latest = fact
 			}
 		}
-		out = HostCapacityView{SchemaVersion: 1, DeclarationState: CapacityUnknown, ObservationState: CapacityUnknown, QualificationState: CapacityUnknown, ConsistencyState: CapacityUnknown}
+		out = HostCapacityView{SchemaVersion: 1, Policy: HostCapacityPolicy{SchemaVersion: 1, State: CapacityUnknown}, DeclarationState: CapacityUnknown, ObservationState: CapacityUnknown, QualificationState: CapacityUnknown, ConsistencyState: CapacityUnknown, ExecutorInstanceID: observer.ExecutorInstanceID}
 		if policyOK {
 			out.Policy = policy
-			if policy.WorkspaceID != s.Binding.Workspace || policy.InstallationID != s.Binding.Installation || policy.HostID != observer.HostID || policy.Runtime != observer.Runtime || policy.Build != observer.Build || policy.CapabilityDigest != observer.CapabilityDigest {
+			if policy.WorkspaceID != s.Binding.Workspace || policy.InstallationID != s.Binding.Installation || policy.ExecutorInstanceID != observer.ExecutorInstanceID || policy.HostID != observer.HostID || policy.Runtime != observer.Runtime || policy.Build != observer.Build || policy.CapabilityDigest != observer.CapabilityDigest {
 				out.Policy.State = CapacityContradictory
 			}
 		}
 		if qualificationOK {
 			out.QualificationState, out.QualifiedSlots = qualification.State, qualification.QualifiedSlots
 			out.QualificationExpiresAt = qualification.ExpiresAt
-			if qualification.HostID != observer.HostID || qualification.Runtime != observer.Runtime || qualification.Build != observer.Build || qualification.CapabilityDigest != observer.CapabilityDigest {
+			if qualification.ExecutorInstanceID != observer.ExecutorInstanceID || qualification.HostID != observer.HostID || qualification.Runtime != observer.Runtime || qualification.Build != observer.Build || qualification.CapabilityDigest != observer.CapabilityDigest {
 				out.QualificationState = CapacityContradictory
 			}
 			if !qualification.ExpiresAt.IsZero() && !time.Now().Before(qualification.ExpiresAt) {
@@ -454,7 +478,7 @@ func (a *Authority) ReadHostCapacity(token, observerSessionID, hostSessionID str
 			out.DeclarationState, out.DeclaredSlots = latest.DeclarationState, latest.DeclaredSlots
 			out.ObservationState, out.OccupiedSlots, out.AvailableSlots = latest.ObservedState, latest.OccupiedSlots, latest.AvailableSlots
 			recordingObserver, enrolled := s.CapacityObservers[latest.ObserverSessionID]
-			if !enrolled || recordingObserver.HostID != observer.HostID || recordingObserver.Runtime != observer.Runtime || recordingObserver.Build != observer.Build || recordingObserver.HostSessionID != observer.HostSessionID || recordingObserver.CapabilityDigest != observer.CapabilityDigest || !time.Now().Before(recordingObserver.ExpiresAt) || authenticateRecord(s, latest.ObserverSessionID, time.Now()) != nil {
+			if !enrolled || recordingObserver.HostID != observer.HostID || recordingObserver.Runtime != observer.Runtime || recordingObserver.Build != observer.Build || recordingObserver.HostSessionID != observer.HostSessionID || recordingObserver.ExecutorInstanceID != observer.ExecutorInstanceID || recordingObserver.CapabilityDigest != observer.CapabilityDigest || !time.Now().Before(recordingObserver.ExpiresAt) || authenticateRecord(s, latest.ObserverSessionID, time.Now()) != nil {
 				out.ObservationState = CapacityStale
 			}
 			if out.DeclarationState == CapacityKnown && out.ObservationState == CapacityKnown {

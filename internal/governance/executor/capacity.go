@@ -13,20 +13,21 @@ import (
 // owner enrollment, operation identity, replay protection and persistence stay
 // in sessions; the adapter never receives bearer credentials.
 type CapacityReport struct {
-	SchemaVersion    int       `json:"schema_version"`
-	OperationKey     string    `json:"operation_key"`
-	HostID           string    `json:"host_id"`
-	Runtime          string    `json:"runtime"`
-	Build            string    `json:"build"`
-	HostSessionID    string    `json:"host_session_id"`
-	CapabilityDigest string    `json:"capability_digest"`
-	Sequence         uint64    `json:"sequence"`
-	DeclarationState string    `json:"declaration_state"`
-	DeclaredSlots    int       `json:"declared_slots"`
-	ObservationState string    `json:"observation_state"`
-	OccupiedSlots    int       `json:"occupied_slots"`
-	AvailableSlots   int       `json:"available_slots"`
-	ObservedAt       time.Time `json:"observed_at"`
+	SchemaVersion      int       `json:"schema_version"`
+	OperationKey       string    `json:"operation_key"`
+	HostID             string    `json:"host_id"`
+	Runtime            string    `json:"runtime"`
+	Build              string    `json:"build"`
+	HostSessionID      string    `json:"host_session_id"`
+	ExecutorInstanceID string    `json:"executor_instance_id"`
+	CapabilityDigest   string    `json:"capability_digest"`
+	Sequence           uint64    `json:"sequence"`
+	DeclarationState   string    `json:"declaration_state"`
+	DeclaredSlots      int       `json:"declared_slots"`
+	ObservationState   string    `json:"observation_state"`
+	OccupiedSlots      int       `json:"occupied_slots"`
+	AvailableSlots     int       `json:"available_slots"`
+	ObservedAt         time.Time `json:"observed_at"`
 }
 
 // DecodeCapacityReport refuses unknown fields and trailing values so a newer
@@ -38,7 +39,7 @@ func DecodeCapacityReport(data []byte) (CapacityReport, error) {
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
-	if decoder.Decode(&report) != nil || decoder.Decode(new(any)) != io.EOF || report.SchemaVersion != 1 {
+	if decoder.Decode(&report) != nil || decoder.Decode(new(any)) != io.EOF || report.SchemaVersion != 1 || report.ExecutorInstanceID == "" {
 		return CapacityReport{}, ErrDenied
 	}
 	return report, nil
@@ -49,6 +50,7 @@ func DecodeCapacityReport(data []byte) (CapacityReport, error) {
 // admission and has no fallback from one fact to another.
 type CapacityFacts struct {
 	SchemaVersion          int           `json:"schema_version"`
+	ExecutorInstanceID     string        `json:"executor_instance_id"`
 	RequestedState         string        `json:"requested_state"`
 	DeclarationState       string        `json:"declaration_state"`
 	ObservationState       string        `json:"observation_state"`
@@ -70,7 +72,8 @@ func ObservationRequest(report CapacityReport) sessions.HostCapacityObservationR
 		SchemaVersion: report.SchemaVersion, OperationKey: report.OperationKey,
 		HostID: report.HostID, Runtime: report.Runtime, Build: report.Build,
 		HostSessionID: report.HostSessionID, CapabilityDigest: report.CapabilityDigest,
-		Sequence: report.Sequence, DeclarationState: report.DeclarationState,
+		ExecutorInstanceID: report.ExecutorInstanceID,
+		Sequence:           report.Sequence, DeclarationState: report.DeclarationState,
 		DeclaredSlots: report.DeclaredSlots, ObservedState: report.ObservationState,
 		OccupiedSlots: report.OccupiedSlots, AvailableSlots: report.AvailableSlots,
 		ObservedAt: report.ObservedAt,
@@ -81,7 +84,7 @@ func ObservationRequest(report CapacityReport) sessions.HostCapacityObservationR
 // dispatch authority. Unknown, unsupported, stale, contradictory and
 // unqualified inputs never yield positive evidence.
 func PositiveCapacityEvidence(f CapacityFacts, now time.Time) bool {
-	if f.SchemaVersion != 1 || f.RequestedState != "known" || f.DeclarationState != "known" || f.ObservationState != "known" || f.QualificationState != "known" || f.ConsistencyState != "consistent" || f.RequestedSlots <= 0 || f.DeclaredSlots < 0 || f.OccupiedSlots < 0 || f.AvailableSlots < 0 || f.QualifiedSlots < 0 || f.Freshness <= 0 || f.ObservedAt.IsZero() || f.ReceivedAt.IsZero() || now.Before(f.ObservedAt) || now.Before(f.ReceivedAt) || now.Sub(f.ReceivedAt) > f.Freshness || now.Sub(f.ObservedAt) > f.Freshness {
+	if f.SchemaVersion != 1 || f.ExecutorInstanceID == "" || f.RequestedState != "known" || f.DeclarationState != "known" || f.ObservationState != "known" || f.QualificationState != "known" || f.ConsistencyState != "consistent" || f.RequestedSlots <= 0 || f.DeclaredSlots < 0 || f.OccupiedSlots < 0 || f.AvailableSlots < 0 || f.QualifiedSlots < 0 || f.Freshness <= 0 || f.ObservedAt.IsZero() || f.ReceivedAt.IsZero() || f.ObservedAt.After(f.ReceivedAt) || now.Before(f.ObservedAt) || now.Before(f.ReceivedAt) || now.Sub(f.ReceivedAt) > f.Freshness || now.Sub(f.ObservedAt) > f.Freshness {
 		return false
 	}
 	if f.OccupiedSlots > int(^uint(0)>>1)-f.AvailableSlots || f.OccupiedSlots+f.AvailableSlots != f.DeclaredSlots {

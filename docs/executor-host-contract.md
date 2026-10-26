@@ -189,14 +189,18 @@ observation can still report whether its declared and measured totals agreed.
 ## Observation identity and freshness
 
 An owner enrolls a separate observer session for an exact host, runtime, build,
-capability digest, and existing executor host session. The observer credential
-has only the `capacity.observe` action and exact host/workspace/session
+capability digest, observed executor process instance, and existing executor
+host session. The process instance is explicit and is not inferred from the
+host label, build, or authority session ID. The observer credential has only
+the `capacity.observe` action and exact host/instance/workspace/session
 resources. The executor host session is not the observer principal. Both
 session ancestry and the observer enrollment are checked again for each write
-and read.
+and read. Policy, observations, and independent qualification bind the same
+instance. A replacement instance cannot inherit the previous instance's
+qualification or observations.
 
-An observation binds the same host/runtime/build/session/digest, an immutable
-operation key, a strictly increasing sequence, and source time. The authority
+An observation binds the same host/runtime/build/session/instance/digest, an
+immutable operation key, a strictly increasing sequence, and source time. The authority
 sets received time. Identical operation replay returns the old receipt and
 does not refresh freshness; changed replay, stale sequence, future source time,
 identity substitution, revocation, expiry, negative values, and arithmetic
@@ -213,8 +217,12 @@ depend on `executor`.
 
 Capacity facts require authority schema 21. Existing schema 20 is opened with
 its exact reader and can be upgraded only through the explicit owner-authenticated
-20-to-21 migration. That migration initializes the four capacity collections
-and preserves all existing records. An already-open schema-20 handle continues
+20-to-21 migration. The migration refuses unknown source fields before
+rewriting schema 20. Schema-21 readers refuse unknown top-level and nested
+fields, future versions, and missing required capacity collections. Incoming
+owner contract versions other than the supported version are refused. That
+migration initializes the four capacity collections and preserves all
+existing records. An already-open schema-20 handle continues
 to refuse schema 21. `OpenCurrent` selects the exact current schema; legacy
 `Open` remains bounded at schema 19. Schema 6 through 19 compatibility remains
 bounded by each reader's explicit version gates. No authority is upgraded on

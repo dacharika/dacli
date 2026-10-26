@@ -69,14 +69,8 @@ func TestNativeCapacityOwnerMigrationAndAuthenticatedAdapter(t *testing.T) {
 	if err = owner.Upgrade(); err != nil {
 		t.Fatalf("explicit owner schema 20→21 migration: %v", err)
 	}
-	observer, observerToken, err := owner.EnrollObserver(sessions.HostCapacityObserver{HostSessionID: host.ID, HostID: "host-a", Runtime: "codex", Build: "build-1", CapabilityDigest: strings.Repeat("a", 64), ExpiresAt: time.Now().Add(30 * time.Minute)})
+	observer, observerToken, err := owner.EnrollObserver(sessions.HostCapacityObserver{SchemaVersion: 1, HostSessionID: host.ID, ExecutorInstanceID: "executor-1", HostID: "host-a", Runtime: "codex", Build: "build-1", CapabilityDigest: strings.Repeat("a", 64), ExpiresAt: time.Now().Add(30 * time.Minute)})
 	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = owner.Configure(sessions.HostCapacityPolicy{WorkspaceID: w.ID, InstallationID: "capacity-installation", HostID: "host-a", Runtime: "codex", Build: "build-1", HostSessionID: host.ID, CapabilityDigest: strings.Repeat("a", 64), State: sessions.CapacityKnown, RequestedSlots: 1, Freshness: time.Minute, Revision: "requested-v1"}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = owner.Qualify(sessions.HostCapacityQualification{HostSessionID: host.ID, HostID: "host-a", Runtime: "codex", Build: "build-1", CapabilityDigest: strings.Repeat("a", 64), State: sessions.CapacityKnown, QualifiedSlots: 1, EvidenceDigest: strings.Repeat("b", 64), QualificationID: "qualified-v1", ExpiresAt: time.Now().Add(time.Minute)}); err != nil {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
@@ -108,7 +102,21 @@ func TestNativeCapacityOwnerMigrationAndAuthenticatedAdapter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	report := executor.CapacityReport{SchemaVersion: 1, OperationKey: "observation-1", HostID: "host-a", Runtime: "codex", Build: "build-1", HostSessionID: host.ID, CapabilityDigest: strings.Repeat("a", 64), Sequence: 1, DeclarationState: sessions.CapacityKnown, DeclaredSlots: 2, ObservationState: sessions.CapacityKnown, OccupiedSlots: 1, AvailableSlots: 1, ObservedAt: time.Now().Add(-time.Second)}
+	missing, err := access.Read(host.ID)
+	if err != nil || missing.RequestedState != sessions.CapacityUnknown || executor.PositiveCapacityEvidence(missing, time.Now()) {
+		t.Fatalf("missing requested policy did not project typed unknown: facts=%+v err=%v", missing, err)
+	}
+	encoded, err := json.Marshal(missing)
+	if err != nil || !strings.Contains(string(encoded), `"requested_state":"unknown"`) {
+		t.Fatalf("application JSON omitted typed unknown policy: %s err=%v", encoded, err)
+	}
+	if _, err = owner.Configure(sessions.HostCapacityPolicy{SchemaVersion: 1, WorkspaceID: w.ID, InstallationID: "capacity-installation", HostID: "host-a", Runtime: "codex", Build: "build-1", HostSessionID: host.ID, ExecutorInstanceID: "executor-1", CapabilityDigest: strings.Repeat("a", 64), State: sessions.CapacityKnown, RequestedSlots: 1, Freshness: time.Minute, Revision: "requested-v1"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = owner.Qualify(sessions.HostCapacityQualification{SchemaVersion: 1, HostSessionID: host.ID, ExecutorInstanceID: "executor-1", HostID: "host-a", Runtime: "codex", Build: "build-1", CapabilityDigest: strings.Repeat("a", 64), State: sessions.CapacityKnown, QualifiedSlots: 1, EvidenceDigest: strings.Repeat("b", 64), QualificationID: "qualified-v1", ExpiresAt: time.Now().Add(time.Minute)}); err != nil {
+		t.Fatal(err)
+	}
+	report := executor.CapacityReport{SchemaVersion: 1, OperationKey: "observation-1", HostID: "host-a", Runtime: "codex", Build: "build-1", HostSessionID: host.ID, ExecutorInstanceID: "executor-1", CapabilityDigest: strings.Repeat("a", 64), Sequence: 1, DeclarationState: sessions.CapacityKnown, DeclaredSlots: 2, ObservationState: sessions.CapacityKnown, OccupiedSlots: 1, AvailableSlots: 1, ObservedAt: time.Now().Add(-time.Second)}
 	if _, duplicate, err := access.Observe(report); err != nil || duplicate {
 		t.Fatalf("authenticated observation refused: duplicate=%v err=%v", duplicate, err)
 	}

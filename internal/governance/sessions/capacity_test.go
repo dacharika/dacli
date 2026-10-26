@@ -1,8 +1,11 @@
 package sessions
 
 import (
+	"encoding/json"
 	"errors"
+	"os"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -34,7 +37,7 @@ func capacity21Fixture(t *testing.T) (*Authority, string, Session, string, HostC
 	if err != nil {
 		t.Fatal(err)
 	}
-	observer, observerToken, err := current.EnrollHostCapacityObserver(owner, HostCapacityObserver{HostSessionID: host.ID, HostID: "host-a", Runtime: "codex", Build: "build-1", CapabilityDigest: stringsOf('a', 64), ExpiresAt: time.Now().Add(30 * time.Minute)})
+	observer, observerToken, err := current.EnrollHostCapacityObserver(owner, HostCapacityObserver{SchemaVersion: 1, HostSessionID: host.ID, ExecutorInstanceID: "executor-1", HostID: "host-a", Runtime: "codex", Build: "build-1", CapabilityDigest: stringsOf('a', 64), ExpiresAt: time.Now().Add(30 * time.Minute)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +53,102 @@ func stringsOf(r rune, n int) string {
 }
 
 func capacityRequest(host Session, seq uint64, key string) HostCapacityObservationRequest {
-	return HostCapacityObservationRequest{SchemaVersion: 1, OperationKey: key, HostID: "host-a", Runtime: "codex", Build: "build-1", HostSessionID: host.ID, CapabilityDigest: stringsOf('a', 64), Sequence: seq, DeclarationState: CapacityKnown, DeclaredSlots: 2, ObservedState: CapacityKnown, OccupiedSlots: 1, AvailableSlots: 1, ObservedAt: time.Now().Add(-time.Second).UTC()}
+	return HostCapacityObservationRequest{SchemaVersion: 1, OperationKey: key, HostID: "host-a", Runtime: "codex", Build: "build-1", HostSessionID: host.ID, ExecutorInstanceID: "executor-1", CapabilityDigest: stringsOf('a', 64), Sequence: seq, DeclarationState: CapacityKnown, DeclaredSlots: 2, ObservedState: CapacityKnown, OccupiedSlots: 1, AvailableSlots: 1, ObservedAt: time.Now().Add(-time.Second).UTC()}
+}
+
+func fillFixtureValue(v reflect.Value, depth int) {
+	if !v.CanSet() || depth > 6 {
+		return
+	}
+	if v.Type() == reflect.TypeOf(time.Time{}) {
+		v.Set(reflect.ValueOf(time.Now().UTC()))
+		return
+	}
+	if v.Type() == reflect.TypeOf(json.RawMessage{}) {
+		v.SetBytes([]byte(`{"fixture":true}`))
+		return
+	}
+	switch v.Kind() {
+	case reflect.Struct:
+		for i := 0; i < v.NumField(); i++ {
+			fillFixtureValue(v.Field(i), depth+1)
+		}
+	case reflect.Map:
+		m := reflect.MakeMap(v.Type())
+		key := reflect.New(v.Type().Key()).Elem()
+		fillFixtureValue(key, depth+1)
+		val := reflect.New(v.Type().Elem()).Elem()
+		fillFixtureValue(val, depth+1)
+		m.SetMapIndex(key, val)
+		v.Set(m)
+	case reflect.Slice:
+		s := reflect.MakeSlice(v.Type(), 1, 1)
+		fillFixtureValue(s.Index(0), depth+1)
+		v.Set(s)
+	case reflect.Pointer:
+		p := reflect.New(v.Type().Elem())
+		fillFixtureValue(p.Elem(), depth+1)
+		v.Set(p)
+	case reflect.Interface:
+	case reflect.String:
+		v.SetString("fixture-record")
+	case reflect.Bool:
+		v.SetBool(true)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		v.SetInt(1)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		v.SetUint(1)
+	case reflect.Float32, reflect.Float64:
+		v.SetFloat(1)
+	}
+}
+
+func populateLegacyCollectionFixture(t *testing.T, a *Authority) {
+	t.Helper()
+	if err := a.transaction(false, true, func(s *state) error {
+		v := reflect.ValueOf(s).Elem()
+		for i := 0; i < v.NumField(); i++ {
+			field := v.Field(i)
+			name := v.Type().Field(i).Name
+			if field.Kind() != reflect.Map || strings.HasPrefix(name, "Capacity") {
+				continue
+			}
+			if field.Len() == 0 {
+				key := reflect.New(field.Type().Key()).Elem()
+				fillFixtureValue(key, 0)
+				value := reflect.New(field.Type().Elem()).Elem()
+				fillFixtureValue(value, 0)
+				field.SetMapIndex(key, value)
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertLegacyCollectionCoverage(t *testing.T, s state) {
+	t.Helper()
+	v := reflect.ValueOf(s)
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		name := v.Type().Field(i).Name
+		if field.Kind() == reflect.Map && !strings.HasPrefix(name, "Capacity") && field.Len() == 0 {
+			t.Errorf("schema-20 preservation fixture left legacy collection %s empty", name)
+		}
+	}
+	roleWithNestedHistory := false
+	for _, dispatch := range s.Dispatches {
+		for _, role := range dispatch.RoleRegistry {
+			if role.RoleID != "" && role.Version != "" && len(role.PolicyReferences) > 0 && role.PolicyReferences[0].Kind != "" {
+				roleWithNestedHistory = true
+				break
+			}
+		}
+	}
+	if !roleWithNestedHistory {
+		t.Error("schema-20 fixture lacks nested role-registry provenance in retained dispatch history")
+	}
 }
 
 func TestHostCapacitySchema21UpgradePreservesSchema20AndOldReaderRefuses(t *testing.T) {
@@ -58,6 +156,7 @@ func TestHostCapacitySchema21UpgradePreservesSchema20AndOldReaderRefuses(t *test
 	if err := a.UpgradeNativeRoleRegistry(owner); err != nil {
 		t.Fatal(err)
 	}
+	populateLegacyCollectionFixture(t, a)
 	old, err := OpenNativeRoleRegistry(a.path, a.binding)
 	if err != nil {
 		t.Fatal(err)
@@ -69,6 +168,7 @@ func TestHostCapacitySchema21UpgradePreservesSchema20AndOldReaderRefuses(t *test
 	if err := a.transaction(false, false, func(s *state) error { before = *s; return nil }); err != nil {
 		t.Fatal(err)
 	}
+	assertLegacyCollectionCoverage(t, before)
 	if err := a.UpgradeHostCapacity(owner); err != nil {
 		t.Fatal(err)
 	}
@@ -131,11 +231,12 @@ func TestHostCapacityRejectsUnenrolledOrSubstitutedObserver(t *testing.T) {
 	// The observer credential and every field except its enrolled host scope are
 	// valid; substituting that one bound identity must refuse.
 	for name, substitute := range map[string]func(*HostCapacityObservationRequest){
-		"host":    func(r *HostCapacityObservationRequest) { r.HostID = "host-b" },
-		"runtime": func(r *HostCapacityObservationRequest) { r.Runtime = "other-runtime" },
-		"build":   func(r *HostCapacityObservationRequest) { r.Build = "other-build" },
-		"session": func(r *HostCapacityObservationRequest) { r.HostSessionID = "other-session" },
-		"digest":  func(r *HostCapacityObservationRequest) { r.CapabilityDigest = stringsOf('b', 64) },
+		"host":     func(r *HostCapacityObservationRequest) { r.HostID = "host-b" },
+		"instance": func(r *HostCapacityObservationRequest) { r.ExecutorInstanceID = "executor-replacement" },
+		"runtime":  func(r *HostCapacityObservationRequest) { r.Runtime = "other-runtime" },
+		"build":    func(r *HostCapacityObservationRequest) { r.Build = "other-build" },
+		"session":  func(r *HostCapacityObservationRequest) { r.HostSessionID = "other-session" },
+		"digest":   func(r *HostCapacityObservationRequest) { r.CapabilityDigest = stringsOf('b', 64) },
 	} {
 		t.Run(name, func(t *testing.T) {
 			substituted := capacityRequest(host, 1, "capacity-op-1")
@@ -157,13 +258,230 @@ func TestHostCapacityRejectsUnenrolledOrSubstitutedObserver(t *testing.T) {
 	}
 }
 
-func TestHostCapacityFactsRequireAllIndependentPositiveEvidence(t *testing.T) {
-	a, owner, host, _, observer, observerToken := capacity21Fixture(t)
-	policy := HostCapacityPolicy{WorkspaceID: a.binding.Workspace, InstallationID: a.binding.Installation, HostID: "host-a", Runtime: "codex", Build: "build-1", HostSessionID: host.ID, CapabilityDigest: stringsOf('a', 64), State: CapacityKnown, RequestedSlots: 1, Freshness: time.Minute, Revision: "request-v1"}
+func TestHostCapacityReplacementInstanceDoesNotInheritOldFacts(t *testing.T) {
+	a, owner, host, _, original, originalToken := capacity21Fixture(t)
+	policy := HostCapacityPolicy{SchemaVersion: 1, WorkspaceID: a.binding.Workspace, InstallationID: a.binding.Installation, HostID: "host-a", Runtime: "codex", Build: "build-1", HostSessionID: host.ID, ExecutorInstanceID: "executor-1", CapabilityDigest: stringsOf('a', 64), State: CapacityKnown, RequestedSlots: 1, Freshness: time.Minute, Revision: "replacement-test"}
 	if _, err := a.ConfigureHostCapacityPolicy(owner, policy); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.QualifyHostCapacity(owner, HostCapacityQualification{HostSessionID: host.ID, HostID: "host-a", Runtime: "codex", Build: "build-1", CapabilityDigest: stringsOf('a', 64), State: CapacityKnown, QualifiedSlots: 1, EvidenceDigest: stringsOf('b', 64), QualificationID: "qual-v1", ExpiresAt: time.Now().Add(time.Minute)}); err != nil {
+	qualification := HostCapacityQualification{SchemaVersion: 1, HostSessionID: host.ID, ExecutorInstanceID: "executor-1", HostID: "host-a", Runtime: "codex", Build: "build-1", CapabilityDigest: stringsOf('a', 64), State: CapacityKnown, QualifiedSlots: 1, EvidenceDigest: stringsOf('b', 64), QualificationID: "old-instance-qualification", ExpiresAt: time.Now().Add(time.Minute)}
+	if _, err := a.QualifyHostCapacity(owner, qualification); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := a.RecordHostCapacityObservation(originalToken, original.ObserverSessionID, capacityRequest(host, 1, "old-instance-observation")); err != nil {
+		t.Fatal(err)
+	}
+	replacement, replacementToken, err := a.EnrollHostCapacityObserver(owner, HostCapacityObserver{SchemaVersion: 1, HostSessionID: host.ID, ExecutorInstanceID: "executor-2", HostID: "host-a", Runtime: "codex", Build: "build-1", CapabilityDigest: stringsOf('a', 64), ExpiresAt: time.Now().Add(20 * time.Minute)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err := a.ReadHostCapacity(replacementToken, replacement.ObserverSessionID, host.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.ExecutorInstanceID != "executor-2" || view.Policy.State != CapacityUnknown || view.QualificationState != CapacityUnknown || view.ObservationState != CapacityUnknown || view.Eligible {
+		t.Fatalf("replacement inherited old instance facts: %+v", view)
+	}
+	// The old observer remains bound to its exact process identity and retains
+	// its own coherent history; that history is not visible to the replacement.
+	oldView, err := a.ReadHostCapacity(originalToken, original.ObserverSessionID, host.ID)
+	if err != nil || oldView.ExecutorInstanceID != "executor-1" || !oldView.Eligible {
+		t.Fatalf("original instance facts changed unexpectedly: view=%+v err=%v", oldView, err)
+	}
+}
+
+func TestHostCapacityFutureOwnerVersionsRefusedWithoutStateChange(t *testing.T) {
+	a, owner, host, _, _, _ := capacity21Fixture(t)
+	before, err := os.ReadFile(a.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, version := range []int{0, 2} {
+		observer := HostCapacityObserver{SchemaVersion: version, HostSessionID: host.ID, ExecutorInstanceID: "executor-1", HostID: "host-a", Runtime: "codex", Build: "build-1", CapabilityDigest: stringsOf('a', 64), ExpiresAt: time.Now().Add(10 * time.Minute)}
+		if _, _, err := a.EnrollHostCapacityObserver(owner, observer); !errors.Is(err, ErrDenied) {
+			t.Fatalf("observer schema_version=%d contract accepted: %v", version, err)
+		}
+		policy := HostCapacityPolicy{SchemaVersion: version, WorkspaceID: a.binding.Workspace, InstallationID: a.binding.Installation, HostID: "host-a", Runtime: "codex", Build: "build-1", HostSessionID: host.ID, ExecutorInstanceID: "executor-1", CapabilityDigest: stringsOf('a', 64), State: CapacityKnown, RequestedSlots: 1, Freshness: time.Minute, Revision: "future-policy"}
+		if _, err := a.ConfigureHostCapacityPolicy(owner, policy); !errors.Is(err, ErrDenied) {
+			t.Fatalf("policy schema_version=%d contract accepted: %v", version, err)
+		}
+		qualification := HostCapacityQualification{SchemaVersion: version, HostSessionID: host.ID, ExecutorInstanceID: "executor-1", HostID: "host-a", Runtime: "codex", Build: "build-1", CapabilityDigest: stringsOf('a', 64), State: CapacityKnown, QualifiedSlots: 1, EvidenceDigest: stringsOf('b', 64), QualificationID: "future-qualification"}
+		if _, err := a.QualifyHostCapacity(owner, qualification); !errors.Is(err, ErrDenied) {
+			t.Fatalf("qualification schema_version=%d contract accepted: %v", version, err)
+		}
+	}
+	after, err := os.ReadFile(a.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(before, after) {
+		t.Fatal("future owner contracts changed persisted authority bytes")
+	}
+}
+
+func TestHostCapacityMissingPolicyIsTypedUnknown(t *testing.T) {
+	a, _, host, _, observer, observerToken := capacity21Fixture(t)
+	view, err := a.ReadHostCapacity(observerToken, observer.ObserverSessionID, host.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Policy.SchemaVersion != 1 || view.Policy.State != CapacityUnknown || view.Policy.RequestedSlots != 0 || view.Eligible {
+		t.Fatalf("missing requested policy lacks typed unknown: %+v", view)
+	}
+}
+
+func TestHostCapacityExpiredQualificationIsStaleAndNotEligible(t *testing.T) {
+	a, owner, host, _, observer, observerToken := capacity21Fixture(t)
+	if _, err := a.ConfigureHostCapacityPolicy(owner, HostCapacityPolicy{SchemaVersion: 1, WorkspaceID: a.binding.Workspace, InstallationID: a.binding.Installation, HostID: "host-a", Runtime: "codex", Build: "build-1", HostSessionID: host.ID, ExecutorInstanceID: "executor-1", CapabilityDigest: stringsOf('a', 64), State: CapacityKnown, RequestedSlots: 1, Freshness: time.Minute, Revision: "expiry-policy"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.QualifyHostCapacity(owner, HostCapacityQualification{SchemaVersion: 1, HostSessionID: host.ID, ExecutorInstanceID: "executor-1", HostID: "host-a", Runtime: "codex", Build: "build-1", CapabilityDigest: stringsOf('a', 64), State: CapacityKnown, QualifiedSlots: 1, EvidenceDigest: stringsOf('b', 64), QualificationID: "expiry-qualification", ExpiresAt: time.Now().Add(10 * time.Millisecond)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := a.RecordHostCapacityObservation(observerToken, observer.ObserverSessionID, capacityRequest(host, 1, "expiry-observation")); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(20 * time.Millisecond)
+	view, err := a.ReadHostCapacity(observerToken, observer.ObserverSessionID, host.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.QualificationState != CapacityStale || view.Eligible {
+		t.Fatalf("expired qualification remained current: %+v", view)
+	}
+}
+
+func TestHostCapacitySchema21StrictFieldsAndMigrationSourceShape(t *testing.T) {
+	t.Run("schema20 nested future field refuses migration without rewrite", func(t *testing.T) {
+		a, owner, _ := authorityGrowthFixture(t, 1)
+		if err := a.UpgradeNativeRoleRegistry(owner); err != nil {
+			t.Fatal(err)
+		}
+		before, err := os.ReadFile(a.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var top map[string]json.RawMessage
+		if err := json.Unmarshal(before, &top); err != nil {
+			t.Fatal(err)
+		}
+		var tasks map[string]json.RawMessage
+		if err := json.Unmarshal(top["Tasks"], &tasks); err != nil || len(tasks) == 0 {
+			t.Fatalf("fixture task bindings missing: err=%v count=%d", err, len(tasks))
+		}
+		for id, raw := range tasks {
+			var task map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &task); err != nil {
+				t.Fatal(err)
+			}
+			task["future_security_guard"] = json.RawMessage(`true`)
+			tasks[id], _ = json.Marshal(task)
+			break
+		}
+		top["Tasks"], _ = json.Marshal(tasks)
+		unknown, _ := json.Marshal(top)
+		if err := os.WriteFile(a.path, unknown, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := a.UpgradeHostCapacity(owner); !errors.Is(err, ErrStorage) {
+			t.Fatalf("schema-20 migration accepted nested unknown source field: %v", err)
+		}
+		after, err := os.ReadFile(a.path)
+		if err != nil || !reflect.DeepEqual(unknown, after) {
+			t.Fatalf("refused migration changed source bytes: err=%v", err)
+		}
+	})
+	for _, nested := range []bool{false, true} {
+		name := "top-level"
+		if nested {
+			name = "observer-nested"
+		}
+		t.Run("schema21 "+name+" future field refuses owner write without rewrite", func(t *testing.T) {
+			a, owner, host, _, observer, _ := capacity21Fixture(t)
+			_ = host
+			before, err := os.ReadFile(a.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var top map[string]json.RawMessage
+			if err := json.Unmarshal(before, &top); err != nil {
+				t.Fatal(err)
+			}
+			if nested {
+				var observers map[string]json.RawMessage
+				if err := json.Unmarshal(top["CapacityObservers"], &observers); err != nil {
+					t.Fatal(err)
+				}
+				raw := observers[observer.ObserverSessionID]
+				var record map[string]json.RawMessage
+				if err := json.Unmarshal(raw, &record); err != nil {
+					t.Fatal(err)
+				}
+				record["future_security_guard"] = json.RawMessage(`true`)
+				observers[observer.ObserverSessionID], _ = json.Marshal(record)
+				top["CapacityObservers"], _ = json.Marshal(observers)
+			} else {
+				top["FutureCapacityGuard"] = json.RawMessage(`true`)
+			}
+			unknown, _ := json.Marshal(top)
+			if err := os.WriteFile(a.path, unknown, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := a.Revoke(owner, observer.ObserverSessionID); !errors.Is(err, ErrStorage) {
+				t.Fatalf("schema-21 owner write accepted unknown %s field: %v", name, err)
+			}
+			after, err := os.ReadFile(a.path)
+			if err != nil || !reflect.DeepEqual(unknown, after) {
+				t.Fatalf("refused owner write changed unknown state bytes: err=%v", err)
+			}
+		})
+	}
+}
+
+func TestHostCapacityCurrentReaderRejectsFutureVersionAndMissingCollection(t *testing.T) {
+	t.Run("future version", func(t *testing.T) {
+		a, _, _, _, _, _ := capacity21Fixture(t)
+		raw, err := os.ReadFile(a.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var top map[string]json.RawMessage
+		_ = json.Unmarshal(raw, &top)
+		top["Version"] = json.RawMessage(`22`)
+		future, _ := json.Marshal(top)
+		if err := os.WriteFile(a.path, future, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := OpenCurrent(a.path, a.binding); !errors.Is(err, ErrStorage) {
+			t.Fatalf("current reader accepted future schema: %v", err)
+		}
+	})
+	t.Run("missing required capacity collection", func(t *testing.T) {
+		a, _, _, _, _, _ := capacity21Fixture(t)
+		raw, err := os.ReadFile(a.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var top map[string]json.RawMessage
+		_ = json.Unmarshal(raw, &top)
+		delete(top, "CapacityQualifications")
+		missing, _ := json.Marshal(top)
+		if err := os.WriteFile(a.path, missing, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := OpenHostCapacity(a.path, a.binding); !errors.Is(err, ErrStorage) {
+			t.Fatalf("current reader accepted missing required schema-21 collection: %v", err)
+		}
+	})
+}
+
+func TestHostCapacityFactsRequireAllIndependentPositiveEvidence(t *testing.T) {
+	a, owner, host, _, observer, observerToken := capacity21Fixture(t)
+	policy := HostCapacityPolicy{SchemaVersion: 1, WorkspaceID: a.binding.Workspace, InstallationID: a.binding.Installation, HostID: "host-a", Runtime: "codex", Build: "build-1", HostSessionID: host.ID, ExecutorInstanceID: "executor-1", CapabilityDigest: stringsOf('a', 64), State: CapacityKnown, RequestedSlots: 1, Freshness: time.Minute, Revision: "request-v1"}
+	if _, err := a.ConfigureHostCapacityPolicy(owner, policy); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.QualifyHostCapacity(owner, HostCapacityQualification{SchemaVersion: 1, HostSessionID: host.ID, ExecutorInstanceID: "executor-1", HostID: "host-a", Runtime: "codex", Build: "build-1", CapabilityDigest: stringsOf('a', 64), State: CapacityKnown, QualifiedSlots: 1, EvidenceDigest: stringsOf('b', 64), QualificationID: "qual-v1", ExpiresAt: time.Now().Add(time.Minute)}); err != nil {
 		t.Fatal(err)
 	}
 	request := capacityRequest(host, 1, "capacity-op-1")
@@ -192,7 +510,7 @@ func TestHostCapacityFactsRequireAllIndependentPositiveEvidence(t *testing.T) {
 	if view.ObservationState != CapacityUnknown || view.Eligible {
 		t.Fatalf("unknown observation became positive eligibility: %+v", view)
 	}
-	if _, err := a.QualifyHostCapacity(owner, HostCapacityQualification{HostSessionID: host.ID, HostID: "host-a", Runtime: "codex", Build: "build-1", CapabilityDigest: stringsOf('a', 64), State: CapacityUnknown, QualificationID: "qualification-unknown"}); err != nil {
+	if _, err := a.QualifyHostCapacity(owner, HostCapacityQualification{SchemaVersion: 1, HostSessionID: host.ID, ExecutorInstanceID: "executor-1", HostID: "host-a", Runtime: "codex", Build: "build-1", CapabilityDigest: stringsOf('a', 64), State: CapacityUnknown, QualificationID: "qualification-unknown"}); err != nil {
 		t.Fatal(err)
 	}
 	knownUnqualified := request
@@ -287,11 +605,11 @@ func TestHostCapacityExpiredObserverCannotRecord(t *testing.T) {
 
 func TestHostCapacityViewMarksStaleAndContradictoryFactsNonEligible(t *testing.T) {
 	a, owner, host, _, observer, observerToken := capacity21Fixture(t)
-	_, err := a.ConfigureHostCapacityPolicy(owner, HostCapacityPolicy{WorkspaceID: a.binding.Workspace, InstallationID: a.binding.Installation, HostID: "host-a", Runtime: "codex", Build: "build-1", HostSessionID: host.ID, CapabilityDigest: stringsOf('a', 64), State: CapacityKnown, RequestedSlots: 1, Freshness: time.Minute, Revision: "policy-v1"})
+	_, err := a.ConfigureHostCapacityPolicy(owner, HostCapacityPolicy{SchemaVersion: 1, WorkspaceID: a.binding.Workspace, InstallationID: a.binding.Installation, HostID: "host-a", Runtime: "codex", Build: "build-1", HostSessionID: host.ID, ExecutorInstanceID: "executor-1", CapabilityDigest: stringsOf('a', 64), State: CapacityKnown, RequestedSlots: 1, Freshness: time.Minute, Revision: "policy-v1"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = a.QualifyHostCapacity(owner, HostCapacityQualification{HostSessionID: host.ID, HostID: "host-a", Runtime: "codex", Build: "build-1", CapabilityDigest: stringsOf('a', 64), State: CapacityKnown, QualifiedSlots: 1, EvidenceDigest: stringsOf('b', 64), QualificationID: "qual-v1"}); err != nil {
+	if _, err = a.QualifyHostCapacity(owner, HostCapacityQualification{SchemaVersion: 1, HostSessionID: host.ID, ExecutorInstanceID: "executor-1", HostID: "host-a", Runtime: "codex", Build: "build-1", CapabilityDigest: stringsOf('a', 64), State: CapacityKnown, QualifiedSlots: 1, EvidenceDigest: stringsOf('b', 64), QualificationID: "qual-v1"}); err != nil {
 		t.Fatal(err)
 	}
 	r := capacityRequest(host, 1, "capacity-op-1")
@@ -332,7 +650,7 @@ func TestHostCapacityObserverAndObservedSessionRevocationAreFinal(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	observer, observerToken, err := a.EnrollHostCapacityObserver(owner, HostCapacityObserver{HostSessionID: child.ID, HostID: "host-a", Runtime: "codex", Build: "build-1", CapabilityDigest: stringsOf('a', 64), ExpiresAt: time.Now().Add(15 * time.Minute)})
+	observer, observerToken, err := a.EnrollHostCapacityObserver(owner, HostCapacityObserver{SchemaVersion: 1, HostSessionID: child.ID, ExecutorInstanceID: "executor-1", HostID: "host-a", Runtime: "codex", Build: "build-1", CapabilityDigest: stringsOf('a', 64), ExpiresAt: time.Now().Add(15 * time.Minute)})
 	if err != nil {
 		t.Fatal(err)
 	}

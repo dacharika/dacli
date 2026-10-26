@@ -91,7 +91,7 @@ func capacityObserverAdd(ctx *clikit.Ctx, args []string) error {
 	}
 	data, err := native.ReadPrivate(f.Get("request"), 16384)
 	var observer sessions.HostCapacityObserver
-	if err != nil || native.Decode(data, &observer) != nil {
+	if err != nil || native.Decode(data, &observer) != nil || observer.SchemaVersion != 1 {
 		return denied()
 	}
 	credential, err := reserve(f.Get("credential"))
@@ -127,7 +127,7 @@ func capacityPolicyConfigure(ctx *clikit.Ctx, args []string) error {
 	}
 	data, err := native.ReadPrivate(f.Get("request"), 16384)
 	var policy sessions.HostCapacityPolicy
-	if err != nil || native.Decode(data, &policy) != nil {
+	if err != nil || native.Decode(data, &policy) != nil || policy.SchemaVersion != 1 {
 		return denied()
 	}
 	out, err := a.ConfigureHostCapacityPolicy(owner, policy)
@@ -153,7 +153,7 @@ func capacityQualify(ctx *clikit.Ctx, args []string) error {
 	}
 	data, err := native.ReadPrivate(f.Get("request"), 16384)
 	var qualification sessions.HostCapacityQualification
-	if err != nil || native.Decode(data, &qualification) != nil {
+	if err != nil || native.Decode(data, &qualification) != nil || qualification.SchemaVersion != 1 {
 		return denied()
 	}
 	out, err := a.QualifyHostCapacity(owner, qualification)
