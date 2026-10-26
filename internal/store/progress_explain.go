@@ -122,12 +122,19 @@ func observed[T any](value T, source string, at time.Time, stale bool) Observed[
 // of reinterpreting PR/check state in a second model.
 func BuildProgressExplain(w *workspace.Workspace, project string, delivery DeliveryProjection, now time.Time) (ProgressExplain, error) {
 	p := ProgressExplain{Schema: ProgressExplainSchema, Version: 1, Project: project, ObservedAt: now.UTC(), CacheState: "observed", Reconciliation: delivery, Tasks: []TaskExplain{}, Workers: []WorkerExplain{}}
-	tasks, err := ListTasks(w, project, "")
+	allTasks, err := ListTasks(w, "", "")
 	if err != nil {
 		return p, err
 	}
+	tasks := make([]*Task, 0, len(allTasks))
+	for _, task := range allTasks {
+		if task.Project == project {
+			tasks = append(tasks, task)
+		}
+	}
 	idx := NewTaskIndex(tasks)
-	frontier := ReadyFrontier(tasks)
+	workspaceIdx := NewTaskIndex(allTasks)
+	frontier := ReadyFrontierForProject(allTasks, project)
 	ready := map[string]bool{}
 	for _, task := range frontier.Ready {
 		ready[task.ID] = true
@@ -158,8 +165,10 @@ func BuildProgressExplain(w *workspace.Workspace, project string, delivery Deliv
 			if !DepBlocksStart(dep) {
 				continue
 			}
-			other, findErr := idx.Find(dep.Ref)
-			if findErr == nil && other.Status != model.StatusDone {
+			other, findErr := resolveDep(idx, workspaceIdx, dep.Ref)
+			if findErr != nil {
+				blockers = append(blockers, DepProblem{Task: task, Ref: dep.Ref, Why: findErr.Error()}.String())
+			} else if other.Status != model.StatusDone {
 				blockers = append(blockers, fmt.Sprintf("dependency %s is %s", other.ID, other.Status))
 			}
 		}
