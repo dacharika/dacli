@@ -459,7 +459,7 @@ func TestHostCapacityCurrentReaderRejectsFutureVersionAndMissingCollection(t *te
 		}
 		var top map[string]json.RawMessage
 		_ = json.Unmarshal(raw, &top)
-		top["Version"] = json.RawMessage(`22`)
+		top["Version"] = json.RawMessage(`23`)
 		future, _ := json.Marshal(top)
 		if err := os.WriteFile(a.path, future, 0600); err != nil {
 			t.Fatal(err)
