@@ -76,6 +76,17 @@ type DashboardSnapshot struct {
 // ReadDashboard uses one descriptor-bounded immutable authority snapshot. It does
 // not acquire/create a lock or invoke observers, producers, migrations or writes.
 func (a *Authority) ReadDashboard(token, session, project, task string) (DashboardSnapshot, error) {
+	return a.readDashboard(token, session, project, task, false)
+}
+
+// ReadOperatorDashboard requires the separately owner-provisioned operator read
+// capability (#1147). Ordinary worker read credentials remain insufficient.
+// Project authority covers future project tasks without mutating reader grants.
+func (a *Authority) ReadOperatorDashboard(token, session, project, task string) (DashboardSnapshot, error) {
+	return a.readDashboard(token, session, project, task, true)
+}
+
+func (a *Authority) readDashboard(token, session, project, task string, operatorOnly bool) (DashboardSnapshot, error) {
 	out := DashboardSnapshot{Schema: "native-dashboard/v1", State: "ready", Project: project, ObservedAt: time.Now().UTC(), Records: []DashboardRecord{}, Attention: []DashboardAttention{}, Services: map[string]string{}, Spend: DashboardSpend{State: "unavailable", Provenance: "unavailable", Enforcement: "unavailable", Unit: "owner-estimated tokens"}}
 	if !validID(project) || task != "" && !validID(task) {
 		return DashboardSnapshot{}, ErrDenied
@@ -89,16 +100,20 @@ func (a *Authority) ReadDashboard(token, session, project, task string) (Dashboa
 		return DashboardSnapshot{}, e
 	}
 	actor, e := authenticate(&s, token, session, time.Now())
-	if e != nil || !subset([]string{"read"}, actor.Scope.Actions) || !subset([]string{"workspace:" + s.Binding.Workspace}, actor.Scope.Resources) || task == "" && !subset([]string{"project:" + project}, actor.Scope.Resources) {
+	actions := []string{"read"}
+	if operatorOnly {
+		actions = append(actions, "operator.read")
+	}
+	if e != nil || !subset(actions, actor.Scope.Actions) || !subset([]string{"workspace:" + s.Binding.Workspace}, actor.Scope.Resources) || (operatorOnly || task == "") && !subset([]string{"project:" + project}, actor.Scope.Resources) {
 		return DashboardSnapshot{}, ErrDenied
 	}
 	allowed := map[string]bool{}
 	for id, b := range s.Tasks {
-		if b.ProjectID == project && (task == "" || id == task) && subset([]string{"task:" + id}, actor.Scope.Resources) {
+		if b.ProjectID == project && (task == "" || id == task) && (operatorOnly || subset([]string{"task:" + id}, actor.Scope.Resources)) {
 			allowed[id] = true
 		}
 	}
-	if len(allowed) == 0 || task != "" && !allowed[task] {
+	if !operatorOnly && (len(allowed) == 0 || task != "" && !allowed[task]) {
 		return DashboardSnapshot{}, ErrDenied
 	}
 	out.AuthorityVersion = s.Version
