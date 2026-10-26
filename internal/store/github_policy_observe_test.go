@@ -48,7 +48,7 @@ case "$endpoint" in
         echo 'gh: HTTP 404: Branch not protected' >&2; exit 1;;
       permission)
         echo 'gh: HTTP 403: Resource not accessible by integration' >&2; exit 1;;
-	  unknown-rule) printf '%s\n' '{"contexts":[],"checks":[]}'; exit 0;;
+	  unknown-rule|parameterless-only) printf '%s\n' '{"contexts":[],"checks":[]}'; exit 0;;
       legacy-partial) printf '%s\n' '{"contexts":[]}'; exit 0;;
       legacy-null) printf '%s\n' 'null'; exit 0;;
       *) printf '%s\n' '{"contexts":["legacy-ci"],"checks":[{"context":"app-ci"}]}' ;;
@@ -76,16 +76,19 @@ case "$endpoint" in
 	      rules-direct-null-rule) printf '%s\n' '[null]'; exit 0;;
 	      rules-null-page) printf '%s\n' '[[{"type":"future_rule"}],null]'; exit 0;;
 	      rules-null-rule) printf '%s\n' '[[null]]'; exit 0;;
-	      rules-missing-unknown-parameters) printf '%s\n' '[[{"type":"future_branch_rule"}]]'; exit 0;;
+	      rules-null-noncheck-parameters) printf '%s\n' '[[{"type":"creation","parameters":null}]]'; exit 0;;
 	      rules-null-parameters) printf '%s\n' '[[{"type":"required_status_checks","parameters":null}]]'; exit 0;;
 	      rules-missing-parameters) printf '%s\n' '[[{"type":"required_status_checks"}]]'; exit 0;;
 	      rules-missing-checks) printf '%s\n' '[[{"type":"required_status_checks","parameters":{}}]]'; exit 0;;
 	      rules-null-checks) printf '%s\n' '[[{"type":"required_status_checks","parameters":{"required_status_checks":null}}]]'; exit 0;;
 	      rules-malformed-check) printf '%s\n' '[[{"type":"required_status_checks","parameters":{"required_status_checks":[{}]}}]]'; exit 0;;
-	      unknown-rule) printf '%s\n' '[[{"type":"future_branch_rule","parameters":{"enabled":true}}]]'; exit 0;;
+	      unknown-rule) printf '%s\n' '[[{"type":"future_branch_rule"}]]'; exit 0;;
+	      parameterless-only) printf '%s\n' '[[{"type":"creation"},{"type":"deletion"},{"type":"required_linear_history"},{"type":"required_signatures"},{"type":"non_fast_forward"}]]'; exit 0;;
 	    esac
     if [ "$GH_FIXTURE" = inherited ]; then
-      printf '%s\n' '[[{"type":"required_status_checks","ruleset_id":31,"ruleset_source_type":"Organization","ruleset_source":"owner","parameters":{"required_status_checks":[{"context":"org-ci"}]}}],[{"type":"required_status_checks","ruleset_id":32,"ruleset_source_type":"Repository","ruleset_source":"owner/repo","parameters":{"required_status_checks":[{"context":"repo-ci"}]}}]]'
+	      printf '%s\n' '[[{"type":"creation"},{"type":"deletion"},{"type":"required_linear_history"},{"type":"required_signatures"},{"type":"non_fast_forward"}],[{"type":"required_status_checks","ruleset_id":31,"ruleset_source_type":"Organization","ruleset_source":"owner","parameters":{"required_status_checks":[{"context":"org-ci"}]}}],[{"type":"required_status_checks","ruleset_id":32,"ruleset_source_type":"Repository","ruleset_source":"owner/repo","parameters":{"required_status_checks":[{"context":"repo-ci"}]}}]]'
+	    elif [ "$GH_FIXTURE" = parameterless-only ]; then
+	      printf '%s\n' '[[{"type":"creation"},{"type":"deletion"},{"type":"required_linear_history"},{"type":"required_signatures"},{"type":"non_fast_forward"}]]'
     else
       printf '%s\n' '[[]]'
     fi
@@ -153,14 +156,27 @@ func TestObserveGitHubRequiredCheckPolicyKeepsEnabledAndInheritedChecks(t *testi
 		"inherited and repository rulesets": {"inherited", []string{"org-ci", "repo-ci"}},
 	} {
 		t.Run(name, func(t *testing.T) {
-			policy, err, _ := observeRequiredCheckFixture(t, tc.fixture, nil)
+			policy, err, calls := observeRequiredCheckFixture(t, tc.fixture, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if got := policy.Names(); !reflect.DeepEqual(got, tc.want) {
 				t.Fatalf("required checks = %v, want %v", got, tc.want)
 			}
+			if tc.fixture == "inherited" && (!strings.Contains(calls, "protection/required_status_checks\n") || !strings.Contains(calls, "branches/main/protection\n")) {
+				t.Fatalf("inherited checks were not observed alongside the disabled legacy endpoint: %q", calls)
+			}
 		})
+	}
+}
+
+func TestObserveGitHubRequiredCheckPolicyAllowsParameterlessRules(t *testing.T) {
+	policy, err, _ := observeRequiredCheckFixture(t, "parameterless-only", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if policy.State != "observed" || len(policy.Requirements) != 0 {
+		t.Fatalf("parameterless rules created required status checks: %+v", policy)
 	}
 }
 
@@ -175,7 +191,7 @@ func TestObserveGitHubRequiredCheckPolicyIgnoresWellFormedFutureRules(t *testing
 }
 
 func TestObserveGitHubRequiredCheckPolicyFailsClosedOnUnconfirmedDisabledChecks(t *testing.T) {
-	for _, fixture := range []string{"generic-404", "permission", "concealed-repo", "wrong-repository-url", "missing-branch", "wrong-branch", "partial-branch", "wrong-protection-url", "wrong-parent-url", "partial-protection", "partial-reviews", "malformed-protection", "null-protection", "no-retained", "inconsistent", "legacy-partial", "legacy-null", "rules-failure", "rules-later-page-failure", "rules-malformed", "rules-null", "rules-direct-null-rule", "rules-null-page", "rules-null-rule", "rules-null-parameters", "rules-missing-parameters", "rules-missing-checks", "rules-missing-unknown-parameters", "rules-null-checks", "rules-malformed-check"} {
+	for _, fixture := range []string{"generic-404", "permission", "concealed-repo", "wrong-repository-url", "missing-branch", "wrong-branch", "partial-branch", "wrong-protection-url", "wrong-parent-url", "partial-protection", "partial-reviews", "malformed-protection", "null-protection", "no-retained", "inconsistent", "legacy-partial", "legacy-null", "rules-failure", "rules-later-page-failure", "rules-malformed", "rules-null", "rules-direct-null-rule", "rules-null-page", "rules-null-rule", "rules-null-noncheck-parameters", "rules-null-parameters", "rules-missing-parameters", "rules-missing-checks", "rules-null-checks", "rules-malformed-check"} {
 		t.Run(fixture, func(t *testing.T) {
 			policy, err, _ := observeRequiredCheckFixture(t, fixture, nil)
 			if err == nil || policy.State != "unobservable" {

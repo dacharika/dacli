@@ -405,12 +405,22 @@ func validateGitHubBranchRules(rules []json.RawMessage, page int) error {
 		if err := json.Unmarshal(object["type"], &ruleType); err != nil || strings.TrimSpace(ruleType) == "" {
 			return fmt.Errorf("decode applicable GitHub ruleset checks: page %d rule %d has no valid type", page, ruleIndex+1)
 		}
+		if ruleType != "required_status_checks" {
+			// GitHub's branch rules API omits parameters for valid types such as
+			// creation, deletion, required_linear_history, required_signatures,
+			// and non_fast_forward. Check a parameter object when present, but do
+			// not mistake a parameterless non-check rule for a partial policy.
+			if raw, ok := object["parameters"]; ok {
+				var parameters map[string]json.RawMessage
+				if jsonNull(raw) || json.Unmarshal(raw, &parameters) != nil || parameters == nil {
+					return fmt.Errorf("decode applicable GitHub ruleset checks: page %d rule %d has malformed parameters", page, ruleIndex+1)
+				}
+			}
+			continue
+		}
 		var parameters map[string]json.RawMessage
 		if err := json.Unmarshal(object["parameters"], &parameters); err != nil || parameters == nil {
-			return fmt.Errorf("decode applicable GitHub ruleset checks: page %d rule %d has malformed parameters", page, ruleIndex+1)
-		}
-		if ruleType != "required_status_checks" {
-			continue
+			return fmt.Errorf("decode applicable GitHub ruleset checks: page %d required_status_checks rule %d has malformed parameters", page, ruleIndex+1)
 		}
 		var checks []json.RawMessage
 		if err := json.Unmarshal(parameters["required_status_checks"], &checks); err != nil || checks == nil {
