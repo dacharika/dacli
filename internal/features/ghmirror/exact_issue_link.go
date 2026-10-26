@@ -52,7 +52,11 @@ func cmdExactIssueLink(ctx *clikit.Ctx, args []string) error {
 		if f.Bool("dry-run") || len(f.Pos) != 0 || f.Get("owner-config") == "" || len(f.All("apply")) != 1 {
 			return clikit.Usagef("usage: dacli github issue link --apply <plan-id> --owner-config <private-file>")
 		}
-		w, _, err := clikit.OpenWorkspace(ctx)
+		// Owner authentication is explicit below. Resolve only the workspace
+		// locator here so an unrelated DACLI_AGENT grant (including a stale or
+		// malformed token) cannot become an accidental prerequisite for this
+		// native owner operation.
+		w, err := workspace.Find(ctx.Cwd)
 		if err != nil {
 			return err
 		}

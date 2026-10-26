@@ -1,6 +1,7 @@
 package store
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -123,6 +124,61 @@ func TestIssueLinkBatchAppliedJournalRefusesRestoredBeforeBytes(t *testing.T) {
 	got, err := os.ReadFile(task.Path)
 	if err != nil || !bytesEqual(got, before) {
 		t.Fatalf("refusal changed rolled-back task bytes: err=%v", err)
+	}
+}
+
+func TestIssueLinkRecoveryRejectsRecomputedAcceptanceImport(t *testing.T) {
+	w, err := workspace.Init(t.TempDir(), "issue-link-no-acceptance-import")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := CreateProject(w, "a-root", "Core", "core", "goal", ""); err != nil {
+		t.Fatal(err)
+	}
+	task, err := CreateTask(w, "a-root", "core", "Human issue task", TaskOpts{Accept: []string{"keep this acceptance"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := PlanIssueLinkBatch(w, "core", "owner/repo", []IssueLinkTarget{{TaskID: task.ID, Project: "core", IssueNumber: 601, Repository: "owner/repo", IssueDigest: strings.Repeat("a", 64), MappingBlock: "  issue: 601\n  repo: owner/repo", LogEntry: "GitHub issue #601 linked by exact selection; source sha256:" + strings.Repeat("a", 64)}}, time.Unix(100, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = ApplyIssueLinkBatch(w, plan, func(_ string, _ func() error) error {
+		return errors.New("injected interruption before first task write")
+	})
+	if err == nil || !strings.Contains(err.Error(), "recovery required") {
+		t.Fatalf("staging interruption = %v, want recoverable selected-set interruption", err)
+	}
+	journalPath := filepath.Join(w.Root, workspace.Dir, "recovery", "issue-links", plan.ID+".json")
+	data, err := os.ReadFile(journalPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var recovery issueLinkRecovery
+	if err := json.Unmarshal(data, &recovery); err != nil {
+		t.Fatal(err)
+	}
+	if len(recovery.Items) != 1 || !strings.Contains(string(recovery.Items[0].After), "keep this acceptance") {
+		t.Fatalf("fixture recovery snapshot missing expected acceptance: %+v", recovery.Items)
+	}
+	recovery.Items[0].After = []byte(strings.ReplaceAll(string(recovery.Items[0].After), "keep this acceptance", "issue supplied acceptance"))
+	data, err = json.Marshal(recovery)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(journalPath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	err = ApplyIssueLinkBatch(w, plan, func(_ string, commit func() error) error { return commit() })
+	if err == nil || !strings.Contains(err.Error(), "target bytes do not match the immutable plan") {
+		t.Fatalf("replayed journal accepted acceptance import: %v", err)
+	}
+	got, err := os.ReadFile(task.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), "keep this acceptance") || strings.Contains(string(got), "issue supplied acceptance") {
+		t.Fatalf("journal replay changed acceptance: %s", got)
 	}
 }
 
