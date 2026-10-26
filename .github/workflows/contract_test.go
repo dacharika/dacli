@@ -216,7 +216,7 @@ func TestReleaseRetainsNarrowNativeMacOSValidation(t *testing.T) {
 	if !strings.Contains(macOSJob, "go test ./internal/procmon/ ./internal/governance/sessions/ ./internal/mcp/native/") {
 		t.Fatal("native macOS validation must exercise native authority and process-observation packages")
 	}
-	if !strings.Contains(jobBlock(t, workflow, "goreleaser"), "needs: macos-native") {
+	if !strings.Contains(jobBlock(t, workflow, "goreleaser"), "needs: [validate-release-ref, macos-native]") {
 		t.Fatal("release publication must wait for native macOS validation")
 	}
 	if !strings.Contains(jobBlock(t, workflow, "goreleaser"), "runs-on: macos-latest") {
@@ -226,8 +226,73 @@ func TestReleaseRetainsNarrowNativeMacOSValidation(t *testing.T) {
 
 func TestTagReleaseIsManualAndPortableSnapshotCannotPublish(t *testing.T) {
 	workflow := readNamedWorkflow(t, "release.yml")
-	if got := strings.TrimSpace(yamlSection(workflow, "on")); got != "on:\n  push:\n    tags:\n      - \"v*\"" {
-		t.Fatalf("release triggers = %q, want only a manually pushed v* tag", got)
+	on := yamlSection(workflow, "on")
+	if !strings.Contains(on, "  workflow_dispatch:\n") {
+		t.Fatal("release workflow must be manually dispatched")
+	}
+	for _, forbidden := range []string{"\n  push:", "\n  pull_request:", "\n  schedule:"} {
+		if strings.Contains(on, forbidden) {
+			t.Fatalf("release workflow must not run automatically; found trigger %q", strings.TrimSpace(forbidden))
+		}
+	}
+	events := regexp.MustCompile(`(?m)^  ([a-z_]+):`).FindAllStringSubmatch(on, -1)
+	if len(events) != 1 || events[0][1] != "workflow_dispatch" {
+		t.Fatalf("release workflow events = %v, want only workflow_dispatch", events)
+	}
+	for _, input := range []string{"tag", "expected_commit", "confirm_tag"} {
+		block := regexp.MustCompile(`(?m)^      ` + regexp.QuoteMeta(input) + `:\n((?:        [^\n]*\n)+)`).FindStringSubmatch(on)
+		if block == nil || !strings.Contains(block[1], "        required: true\n") {
+			t.Errorf("manual release must require the %s input", strings.TrimSuffix(input, ":"))
+		}
+	}
+
+	validation := jobBlock(t, workflow, "validate-release-ref")
+	trustedCheckout := strings.Index(validation, "ref: ${{ github.workflow_sha }}")
+	validationCall := strings.Index(validation, "scripts/release_ref.py")
+	if trustedCheckout < 0 || validationCall < 0 || trustedCheckout > validationCall {
+		t.Fatal("release validation must check out the trusted workflow revision before running its resolver")
+	}
+	if !strings.Contains(validation, "github.workflow_ref") || !strings.Contains(validation, "default_branch") {
+		t.Fatal("release validation must require the trusted default-branch workflow")
+	}
+	if strings.Contains(validation, "ref: ${{ inputs.expected_commit }}") || strings.Contains(validation, "ref: ${{ github.sha }}") {
+		t.Fatal("release validation must not check out the unvalidated dispatch SHA or input")
+	}
+	if !strings.Contains(validation, "EXPECTED_COMMIT: ${{ inputs.expected_commit }}") || !strings.Contains(validation, "CONFIRM_TAG: ${{ inputs.confirm_tag }}") {
+		t.Fatal("release validation must bind the explicit commit and typed publication confirmation")
+	}
+	if !strings.Contains(jobBlock(t, workflow, "validate-release-ref"), "tag_object: ${{ steps.validate.outputs.tag_object }}") {
+		t.Fatal("release validation must export the exact tag ref object SHA for move detection")
+	}
+	for _, name := range []string{"macos-native", "goreleaser"} {
+		job := jobBlock(t, workflow, name)
+		trusted := strings.Index(job, "ref: ${{ github.workflow_sha }}")
+		resolver := strings.Index(job, `python3 "$RUNNER_TEMP/release_ref.py"`)
+		target := strings.Index(job, "ref: ${{ needs.validate-release-ref.outputs.commit }}")
+		if trusted < 0 || resolver < 0 || target < 0 || trusted > resolver || resolver > target {
+			t.Errorf("%s must rerun the trusted resolver before checking out the pinned release commit", name)
+		}
+		if !strings.Contains(job, `--expected-tag-object "$EXPECTED_TAG_OBJECT"`) {
+			t.Errorf("%s must reject replacement of the selected tag ref object", name)
+		}
+	}
+
+	if !strings.Contains(jobBlock(t, workflow, "goreleaser"), "GORELEASER_CURRENT_TAG: ${{ needs.validate-release-ref.outputs.tag }}") {
+		t.Fatal("GoReleaser must publish the exact validated tag, independent of the dispatch ref")
+	}
+	if !strings.Contains(jobBlock(t, workflow, "goreleaser"), `python3 "$RUNNER_TEMP/release_ref.py"`) {
+		t.Fatal("release publication must recheck the tag immediately before GoReleaser")
+	}
+	if !strings.Contains(workflow, "permissions:\n  contents: read") || !strings.Contains(jobBlock(t, workflow, "goreleaser"), "contents: write") {
+		t.Fatal("only the publication job may elevate contents permission to write")
+	}
+	for _, name := range []string{"validate-release-ref", "macos-native"} {
+		if strings.Contains(jobBlock(t, workflow, name), "contents: write") {
+			t.Errorf("%s must remain read-only", name)
+		}
+	}
+	if strings.Contains(workflow, "git tag") || strings.Contains(workflow, "gh release create") {
+		t.Fatal("manual publication must not create tags or bypass GoReleaser")
 	}
 	ci := readNamedWorkflow(t, "ci.yml")
 	if !strings.Contains(jobBlock(t, ci, "release-snapshot"), "./scripts/verify-release-artifacts.sh --portable-snapshot") {
