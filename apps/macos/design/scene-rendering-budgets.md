@@ -66,7 +66,7 @@ not removed without explanation. Never combine debug and release samples.
 | --- | --- | --- |
 | 3 agents | Existing baseline farm, original three roles/identities; all 3 residents and related open plots visible. | In-memory shell exists; no performance run is recorded here. |
 | 20 agents | 20 unique synthetic stable agent/task IDs, 7 builders / 7 planners / 6 reviewers; separate spatial anchors, all 20 residents visible. | Planned #1161 fixture, not an existing menu or command. |
-| 100 agents | 100 unique synthetic stable agent/task IDs, 34 builders / 33 planners / 33 reviewers; camera/page culls to at most 32 visible residents, with all 100 reachable in native navigation. | Planned #1161 fixture and bounded viewport, not implemented here. |
+| 100 agents | 100 unique synthetic stable agent/task IDs, 34 builders / 33 planners / 33 reviewers; all 100 residents simultaneously visible and nonoverlapping, with all 100 reachable in native navigation. | Planned #1161 fixture and fitted full-population layout, not implemented here. |
 
 For planned fixtures, use IDs `bench-agent-000`… and `bench-task-000`… scoped to
 one synthetic project. Assign roles by ordinal modulo 3; cycle Running,
@@ -80,9 +80,23 @@ provider calls are part of a fixture.
 
 The existing `ResidentMotion.sample` has four anchors and clamps later indices
 to the fourth. Simply duplicating its array cannot qualify a 20/100-agent scene:
-#1161 must provide nonoverlapping synthetic layout and the documented visibility
-policy. The 100-agent row measures bounded presentation of 100 records, not 100
-simultaneously animated residents. Record both total and drawn counts.
+#1161 must provide a nonoverlapping synthetic layout: use a 5×4 cell grid for
+20 residents and a 10×10 cell grid for 100, fitted entirely within each measured
+farm viewport. Give each cell its own bounded motion path and reserve room for
+the largest growth-stage sprite, role prop and emotion bubble over the full
+motion cycle. A fitted decorative world scale must preserve crisp device-pixel
+edges and native control readability; clipping, overlapping residents, hiding
+state cues, paging or reducing the drawn population cannot qualify the required
+case. Record cell/viewport bounds, scale, total count and simultaneously visible
+count. If that layout cannot meet these constraints at either required window
+size, record a failed condition rather than substituting a smaller workload.
+
+The required populations are **3, 20 and 100 simultaneously visible residents**.
+The 100-agent qualification includes animation for all 100 where their projected
+state allows motion. A separately labeled viewport-culling workload may explore
+larger total populations, but cannot replace this test or satisfy its acceptance
+criterion. If the renderer misses the unchanged budgets below, #1161 records
+that failure and reconsiders the initial choice; it does not lower the workload.
 
 ## Numeric budgets fixed before qualification
 
@@ -93,7 +107,7 @@ wall time × 100 for the selected device; do not substitute whole-system GPU
 utilization. If attribution or presentation timing is unavailable, report that
 metric unverified and do not declare the complete budget passed.
 
-| Metric and sampling definition | 3 agents | 20 agents | 100 agents (≤32 drawn) |
+| Metric and sampling definition | 3 visible agents | 20 visible agents | 100 visible agents |
 | --- | ---: | ---: | ---: |
 | Resident pose + Canvas submission CPU duration, p95 / p99 | ≤4 / 8 ms | ≤8 / 12 ms | ≤12 / 16 ms |
 | Foreground decorative cadence, nominal | 12 Hz / 83.33 ms | 12 Hz / 83.33 ms | 12 Hz / 83.33 ms |
@@ -109,7 +123,7 @@ metric unverified and do not declare the complete budget passed.
 | Visible stationary idle CPU / app GPU busy, 120 s mean | ≤1% / 0.5% | ≤1.5% / 0.5% | ≤2% / 0.5% |
 | Suspended scene CPU / app GPU busy, 120 s mean | ≤0.2% / 0.1% | ≤0.2% / 0.1% | ≤0.2% / 0.1% |
 | Total decoded scene texture/cache bytes, excluding compositor surfaces | ≤8 MiB | ≤16 MiB | ≤32 MiB |
-| Visible resident / decorative particle count | ≤3 / 12 | ≤20 / 40 | ≤32 / 64 |
+| Required simultaneously visible residents / maximum decorative particles | 3 / 12 | 20 / 40 | 100 / 64 |
 
 A 12 Hz decorative interval is intentional pixel animation; it is not a
 60-fps animation claim. Canvas submission CPU time is not GPU duration or
@@ -226,10 +240,10 @@ both system Reduce Motion and local pause independently; a local toggle does
 not qualify the system preference. Reduced motion must not lower freshness,
 remove information or change task/agent/evidence IDs.
 
-Every total-population agent and task, including offscreen residents in the
-100-agent fixture, remains reachable through a scrollable native inventory or
-journal and its inspector. Selecting by pointer, keyboard or accessibility
-uses the same stable identity and record projection. Provide full role/state
+Every agent and task in the required 3/20/100-visible fixtures remains reachable
+through a scrollable native inventory or journal and its inspector. Any separate
+culling workload must also keep its offscreen records reachable. Selecting by
+pointer, keyboard or accessibility uses the same stable identity and record projection. Provide full role/state
 words, attribution/unknown usage and freshness labels; never depend on species,
 color, motion or world coordinates. Keep tab order stable as animals move.
 Unmodified Space/Return opens the focused record; closing details restores a
@@ -237,12 +251,13 @@ valid stable focus, with a documented first-valid-record fallback after removal.
 Project changes never expose the previous project's details. The decorative
 Canvas stays hidden from accessibility to avoid duplicate moving targets.
 
-Qualification must exercise the first, middle and last IDs at each population,
-including a culled ID, using keyboard and VoiceOver; compare resulting task,
+Qualification must exercise the first, middle and last IDs at each population
+using keyboard and VoiceOver; compare resulting task,
 agent, attempt and evidence identities with pointer selection. Measure selection
 latency under stationary/Reduce Motion as well as animation. Historical native
 keyboard/AX checks do not constitute a complete VoiceOver audit or these larger
-fixture checks.
+fixture checks. A separate culling workload additionally checks an offscreen ID
+through the same native selection path.
 
 ## Original asset provenance
 
