@@ -40,22 +40,35 @@ func nativeGuidanceDiagnose(ctx *clikit.Ctx, args []string) error {
 }
 
 func nativeGuidanceRefreshPreview(ctx *clikit.Ctx, args []string) error {
-	f, err := flags(args, "skill-root", "plan-out")
+	f, err := flags(args, "config", "skill-root", "plan-out")
 	if err != nil {
 		return err
 	}
-	root, output := f.Get("skill-root"), f.Get("plan-out")
-	if root == "" || output == "" {
-		return clikit.Usagef("--skill-root and --plan-out are required")
+	configPath, root, output := f.Get("config"), f.Get("skill-root"), f.Get("plan-out")
+	if configPath == "" || root == "" || output == "" {
+		return clikit.Usagef("--config <owner>, --skill-root and --plan-out are required")
 	}
 	if !filepath.IsAbs(root) || !filepath.IsAbs(output) {
 		return clikit.Usagef("--skill-root and --plan-out must be absolute paths")
+	}
+	authorize, err := guidanceOwnerAuthorization(configPath)
+	if err != nil {
+		return err
+	}
+	home, _ := os.UserHomeDir()
+	for _, copy := range guidance.Diagnose(guidance.DefaultRoots(home, root), "unknown", "unknown", "not_selected", "").Copies {
+		if copy.Status != guidance.StatusMissing && copy.Status != guidance.StatusLegacy {
+			return clikit.Refusedf("guidance refresh preview refused: another discoverable copy is %s; preserve all copies and resolve the conflict first", copy.Status)
+		}
 	}
 	p, err := guidance.Preview(root, guidance.ReviewedSourceID)
 	if err != nil {
 		return clikit.Refusedf("guidance refresh preview refused: %v", err)
 	}
-	if err := guidance.WritePlan(output, p); err != nil {
+	if err := authorize(); err != nil {
+		return err
+	}
+	if err := guidance.WritePlanAuthorized(output, p, authorize); err != nil {
 		return clikit.Refusedf("could not create exclusive private refresh plan: %v", err)
 	}
 	ctx.Result = p
@@ -75,34 +88,8 @@ func nativeGuidanceRefreshApply(ctx *clikit.Ctx, args []string) error {
 	if f.Get("config") == "" || plan == "" || !filepath.IsAbs(plan) {
 		return clikit.Usagef("--config <owner> and --plan <absolute-private-reviewed-plan> are required")
 	}
-	ownerConfig, err := config(f.Get("config"))
+	authorize, err := guidanceOwnerAuthorization(f.Get("config"))
 	if err != nil {
-		return denied()
-	}
-	credential, err := native.ReadCredential(ownerConfig.OwnerCredentialFile)
-	if err != nil {
-		return denied()
-	}
-	authorize := func() error {
-		currentConfig, err := config(f.Get("config"))
-		if err != nil || currentConfig != ownerConfig {
-			return denied()
-		}
-		currentCredential, err := native.ReadCredential(currentConfig.OwnerCredentialFile)
-		if err != nil || currentCredential != credential {
-			return denied()
-		}
-		workspace, err := native.ResolveWorkspace(currentConfig.Workspace, "")
-		if err != nil {
-			return denied()
-		}
-		authority, err := sessions.OpenCurrent(currentConfig.Authority, sessions.Binding{Workspace: workspace.ID, Installation: currentConfig.InstallationID})
-		if err != nil || authority.AuthenticateOwner(currentCredential) != nil {
-			return denied()
-		}
-		return nil
-	}
-	if err := authorize(); err != nil {
 		return err
 	}
 	receipt, err := guidance.ApplyAuthorized(plan, authorize)
@@ -122,4 +109,38 @@ func nativeGuidanceRefreshApply(ctx *clikit.Ctx, args []string) error {
 		return json.NewEncoder(ctx.Stdout).Encode(receipt)
 	}
 	return nil
+}
+
+func guidanceOwnerAuthorization(configPath string) (func() error, error) {
+	ownerConfig, err := config(configPath)
+	if err != nil {
+		return nil, denied()
+	}
+	credential, err := native.ReadCredential(ownerConfig.OwnerCredentialFile)
+	if err != nil {
+		return nil, denied()
+	}
+	authorize := func() error {
+		currentConfig, err := config(configPath)
+		if err != nil || currentConfig != ownerConfig {
+			return denied()
+		}
+		currentCredential, err := native.ReadCredential(currentConfig.OwnerCredentialFile)
+		if err != nil || currentCredential != credential {
+			return denied()
+		}
+		workspace, err := native.ResolveWorkspace(currentConfig.Workspace, "")
+		if err != nil {
+			return denied()
+		}
+		authority, err := sessions.OpenCurrent(currentConfig.Authority, sessions.Binding{Workspace: workspace.ID, Installation: currentConfig.InstallationID})
+		if err != nil || authority.AuthenticateOwner(currentCredential) != nil {
+			return denied()
+		}
+		return nil
+	}
+	if err := authorize(); err != nil {
+		return nil, err
+	}
+	return authorize, nil
 }

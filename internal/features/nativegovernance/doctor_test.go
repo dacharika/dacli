@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -326,11 +327,7 @@ func TestNativeDoctorCommandDeclaresReadOnlyJSON(t *testing.T) {
 }
 
 func TestNativeDoctorComparesSelectedRuntimeCapabilitiesAndKeepsFreshnessSeparate(t *testing.T) {
-	root, err := os.MkdirTemp("/private/tmp", "dacli-doctor-legacy-fixture-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(root) })
+	root := canonicalNativeTestTemp(t, "dacli-doctor-legacy-fixture-")
 	fixture := filepath.Join("..", "..", "guidance", "testdata", "known-legacy")
 	if err := filepath.WalkDir(fixture, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -373,7 +370,7 @@ func TestNativeDoctorComparesSelectedRuntimeCapabilitiesAndKeepsFreshnessSeparat
 	if got.FreshProcessState != "unknown" || !strings.Contains(got.CachedConnectionState, "unknown") {
 		t.Fatalf("file inspection claimed process freshness: %+v", got)
 	}
-	if got.CapabilityStatus != "incompatible_or_unverified" || !strings.Contains(got.CapabilitySummary, "missing") {
+	if got.CapabilityStatus != "declared_manifest_incompatible_unverified" || !strings.Contains(got.CapabilitySummary, "missing") {
 		t.Fatalf("required legacy commands were not compared with selected runtime manifest: %+v", got)
 	}
 }
@@ -394,11 +391,8 @@ func TestNativeDoctorRejectsMalformedRequirementsAndCapabilityManifests(t *testi
 }
 
 func TestNativeDoctorCommandReportsSelectedSkillAndRuntimeManifest(t *testing.T) {
-	root, err := os.MkdirTemp("/private/tmp", "dacli-doctor-cli-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(root) })
+	root := canonicalNativeTestTemp(t, "dacli-doctor-cli-")
+	var err error
 	fixture := filepath.Join("..", "..", "guidance", "testdata", "known-legacy")
 	if err := filepath.WalkDir(fixture, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -446,7 +440,52 @@ func TestNativeDoctorCommandReportsSelectedSkillAndRuntimeManifest(t *testing.T)
 			}
 		}
 	}
-	if !selected || got.Guidance.SelectedRuntimeIdentity != "/private/fixture/dacli" || got.Guidance.SelectedRuntimeDigest == "unknown" || got.Guidance.FreshProcessState != "unknown" || !strings.Contains(got.Guidance.CachedConnectionState, "unknown") || got.Guidance.CapabilityStatus != "incompatible_or_unverified" {
+	if !selected || got.Guidance.SelectedRuntimeIdentity != "unknown" || got.Guidance.SelectedRuntimeDigest != "unknown" || got.Guidance.CapabilityManifestDigest == "unknown" || got.Guidance.RuntimeBindingStatus != "unverified_manifest_only" || got.Guidance.FreshProcessState != "unknown" || !strings.Contains(got.Guidance.CachedConnectionState, "unknown") || got.Guidance.CapabilityStatus != "declared_manifest_incompatible_unverified" {
 		t.Fatalf("doctor conflated selected files, runtime, capabilities or process freshness: %+v", got.Guidance)
+	}
+}
+
+func TestNativeDoctorLabelsUnboundCapabilityManifestUnverified(t *testing.T) {
+	t.Setenv("HOME", canonicalNativeTestTemp(t, "dacli-doctor-home-"))
+	_, source, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("caller path unavailable")
+	}
+	repo := filepath.Clean(filepath.Join(filepath.Dir(source), "..", "..", ".."))
+	root := filepath.Join(repo, "internal", "guidance", "assets", "current")
+	requirementsRaw, err := os.ReadFile(filepath.Join(repo, "skills", "dacli", "capabilities.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var requirements capabilities.Requirements
+	if err := json.Unmarshal(requirementsRaw, &requirements); err != nil {
+		t.Fatal(err)
+	}
+	manifest := capabilities.Manifest{SchemaVersion: capabilities.ManifestSchema, Binary: capabilities.Binary{Name: "dacli", Version: "caller-asserted", Path: filepath.Join(t.TempDir(), "nonexistent-runtime"), GOOS: runtime.GOOS, GOARCH: runtime.GOARCH}}
+	commands := map[string]int{}
+	for _, requirement := range requirements.Required {
+		if strings.Contains(requirement.ID, ".flag.") {
+			continue
+		}
+		path := strings.ReplaceAll(strings.TrimPrefix(requirement.ID, "cli.command."), ".", " ")
+		commands[requirement.ID] = len(manifest.Commands)
+		manifest.Commands = append(manifest.Commands, capabilities.Command{ID: requirement.ID, Path: path, SchemaVersion: 1})
+	}
+	for _, requirement := range requirements.Required {
+		parts := strings.SplitN(requirement.ID, ".flag.", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		index, ok := commands[parts[0]]
+		if !ok {
+			t.Fatalf("required flag has no required command: %s", requirement.ID)
+		}
+		manifest.Commands[index].Flags = append(manifest.Commands[index].Flags, capabilities.Flag{ID: requirement.ID, Name: "--" + parts[1], SchemaVersion: 1})
+	}
+	manifestPath := filepath.Join(t.TempDir(), "runtime-capabilities.json")
+	verificationJSON(t, manifestPath, manifest)
+	got := inspectInstalledGuidance(root, manifestPath)
+	if got.CapabilityStatus != "declared_manifest_compatible_unverified" || got.RuntimeBindingStatus != "unverified_manifest_only" || got.SelectedRuntimeIdentity != "unknown" || got.SelectedRuntimeDigest != "unknown" || !strings.HasPrefix(got.CapabilityManifestDigest, "sha256:") || !strings.Contains(got.CapabilitySummary, "runtime binding remains unverified") {
+		t.Fatalf("caller-supplied manifest claimed a selected runtime: %+v", got)
 	}
 }

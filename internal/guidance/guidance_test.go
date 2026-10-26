@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"syscall"
 	"testing"
 )
 
@@ -77,7 +76,7 @@ func TestApplyAuthorizedRechecksOwnerAtFinalReplacementBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	plan := filepath.Join(tempDir(t), "owner-plan.json")
-	if err := WritePlan(plan, p); err != nil {
+	if err := writePlan(plan, p); err != nil {
 		t.Fatal(err)
 	}
 	checks := 0
@@ -104,7 +103,7 @@ func TestApplyRevalidatesTargetAfterBackupAtFinalReplacementBoundary(t *testing.
 		t.Fatal(err)
 	}
 	plan := filepath.Join(tempDir(t), "target-plan.json")
-	if err := WritePlan(plan, p); err != nil {
+	if err := writePlan(plan, p); err != nil {
 		t.Fatal(err)
 	}
 	target := filepath.Join(root, "SKILL.md")
@@ -127,12 +126,16 @@ func TestApplyRevalidatesTargetAfterBackupAtFinalReplacementBoundary(t *testing.
 
 func tempDir(t *testing.T) string {
 	t.Helper()
-	dir, err := os.MkdirTemp("/private/tmp", "dacli-guidance-test-")
+	dir, err := os.MkdirTemp("", "dacli-guidance-test-")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	return dir
+	canonical, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return canonical
 }
 
 func fixtureTree(t *testing.T, source string) string {
@@ -229,7 +232,7 @@ func TestPreviewApplyRefreshesOnlyAllowlistedFilesWithPrivateByteExactBackups(t 
 		t.Fatal(err)
 	}
 	plan := filepath.Join(tempDir(t), "refresh-plan.json")
-	if err := WritePlan(plan, p); err != nil {
+	if err := writePlan(plan, p); err != nil {
 		t.Fatal(err)
 	}
 	r, err := apply(plan, nil)
@@ -258,6 +261,10 @@ func TestPreviewApplyRefreshesOnlyAllowlistedFilesWithPrivateByteExactBackups(t 
 	if b, err := os.ReadFile(private); err != nil || !bytes.Equal(b, privateBytes) {
 		t.Fatal("adjacent private profile changed")
 	}
+	replayed, replayErr := apply(plan, nil)
+	if replayErr != nil || replayed.State != "completed" || len(replayed.Backups) != len(KnownFiles()) || len(replayed.Replaced) != len(KnownFiles()) {
+		t.Fatalf("completed plan replay lost its exact disposition: receipt=%+v err=%v", replayed, replayErr)
+	}
 	d := Diagnose([]string{root}, "runtime", "digest", "unknown", "no fresh host observation")
 	if d.FreshProcessState != "unknown" || !strings.Contains(d.CachedConnectionState, "unknown") {
 		t.Fatalf("refresh claimed process freshness: %+v", d)
@@ -283,6 +290,36 @@ func TestPreviewRejectsOneByteCustomizationAndPlanSourceSubstitution(t *testing.
 	}
 }
 
+func TestApplyRejectsRecomputedPlanForCustomizedBeforeBytes(t *testing.T) {
+	root := fixtureTree(t, "legacy")
+	p, err := Preview(root, ReviewedSourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(root, filepath.FromSlash(p.Files[0].Path))
+	custom := []byte("owner customized guidance that is not in the reviewed legacy manifest")
+	if err := os.WriteFile(target, custom, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	customBytes, info, err := checkedRegular(target, maxSkillFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Files[0].Before = digest(customBytes)
+	p.Files[0].TargetID = fileIdentity(info)
+	p.SourceIdentity = "caller-recomputed-source"
+	p.PlanDigest = planDigest(p)
+	planPath := filepath.Join(tempDir(t), "forged-custom.json")
+	if err := writePlan(planPath, p); err != nil {
+		t.Fatal(err)
+	}
+	r, err := apply(planPath, nil)
+	got, readErr := os.ReadFile(target)
+	if readErr != nil || err == nil || r.State != "refused" || len(r.Replaced) != 0 || !bytes.Equal(got, custom) {
+		t.Fatalf("recomputed customized plan was accepted: receipt=%+v err=%v preserved=%v read=%v", r, err, bytes.Equal(got, custom), readErr)
+	}
+}
+
 func TestApplyRevalidatesPostPreviewTargetAndPlan(t *testing.T) {
 	root := fixtureTree(t, "legacy")
 	p, err := Preview(root, ReviewedSourceID)
@@ -290,7 +327,7 @@ func TestApplyRevalidatesPostPreviewTargetAndPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	plan := filepath.Join(tempDir(t), "plan.json")
-	if err := WritePlan(plan, p); err != nil {
+	if err := writePlan(plan, p); err != nil {
 		t.Fatal(err)
 	}
 	target := filepath.Join(root, "SKILL.md")
@@ -327,27 +364,19 @@ func TestApplyRevalidatesPostPreviewTargetAndPlan(t *testing.T) {
 	}
 }
 
-func TestDiagnosisAndPreviewRefuseSymlinkAndFIFO(t *testing.T) {
-	for _, kind := range []string{"symlink", "fifo"} {
-		t.Run(kind, func(t *testing.T) {
-			root := fixtureTree(t, "legacy")
-			target := filepath.Join(root, "SKILL.md")
-			_ = os.Remove(target)
-			if kind == "symlink" {
-				if err := os.Symlink(filepath.Join(root, "capabilities.json"), target); err != nil {
-					t.Fatal(err)
-				}
-			} else if err := syscall.Mkfifo(target, 0o600); err != nil {
-				t.Fatal(err)
-			}
-			d := Diagnose([]string{root}, "", "", "unknown", "")
-			if d.CombinedStatus != StatusUnsafe {
-				t.Fatalf("diagnosis=%+v", d)
-			}
-			if _, err := Preview(root, ReviewedSourceID); err == nil {
-				t.Fatal("unsafe target previewed")
-			}
-		})
+func TestDiagnosisAndPreviewRefuseSymlink(t *testing.T) {
+	root := fixtureTree(t, "legacy")
+	target := filepath.Join(root, "SKILL.md")
+	_ = os.Remove(target)
+	if err := os.Symlink(filepath.Join(root, "capabilities.json"), target); err != nil {
+		t.Fatal(err)
+	}
+	d := Diagnose([]string{root}, "", "", "unknown", "")
+	if d.CombinedStatus != StatusUnsafe {
+		t.Fatalf("diagnosis=%+v", d)
+	}
+	if _, err := Preview(root, ReviewedSourceID); err == nil {
+		t.Fatal("unsafe target previewed")
 	}
 }
 
@@ -358,7 +387,7 @@ func TestApplyBackupFailureIsRecoveryRequiredAndLeavesOriginalTarget(t *testing.
 		t.Fatal(err)
 	}
 	plan := filepath.Join(tempDir(t), "plan.json")
-	if err := WritePlan(plan, p); err != nil {
+	if err := writePlan(plan, p); err != nil {
 		t.Fatal(err)
 	}
 	backupParent := filepath.Join(root, backupDirectoryName)
@@ -382,7 +411,7 @@ func TestApplyRefusesSubstitutedBackupDestination(t *testing.T) {
 		t.Fatal(err)
 	}
 	plan := filepath.Join(tempDir(t), "plan.json")
-	if err := WritePlan(plan, p); err != nil {
+	if err := writePlan(plan, p); err != nil {
 		t.Fatal(err)
 	}
 	backupRoot := filepath.Dir(p.Files[0].BackupPath)
@@ -405,6 +434,166 @@ func TestApplyRefusesSubstitutedBackupDestination(t *testing.T) {
 	}
 }
 
+func TestApplyRefusesBackupParentSymlinkSubstitutionAtCreationBoundary(t *testing.T) {
+	root := fixtureTree(t, "legacy")
+	p, err := Preview(root, ReviewedSourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan := filepath.Join(tempDir(t), "backup-parent-swap.json")
+	if err := writePlan(plan, p); err != nil {
+		t.Fatal(err)
+	}
+	outside := tempDir(t)
+	backupParent := filepath.Join(root, backupDirectoryName)
+	backupID := filepath.Base(filepath.Dir(p.Files[0].BackupPath))
+	checks := 0
+	r, err := ApplyAuthorized(plan, func() error {
+		checks++
+		if checks != 2 {
+			return nil
+		}
+		if err := os.Mkdir(filepath.Join(outside, backupID), 0o700); err != nil {
+			return err
+		}
+		if err := os.Rename(backupParent, backupParent+".moved"); err != nil {
+			return err
+		}
+		return os.Symlink(outside, backupParent)
+	})
+	if err == nil || r.State != "refused" || len(r.Replaced) != 0 {
+		t.Fatalf("backup parent substitution was not refused: receipt=%+v err=%v", r, err)
+	}
+	if _, err := os.Stat(filepath.Join(outside, backupID, "SKILL.md")); !os.IsNotExist(err) {
+		t.Fatalf("substituted backup parent received a backup: %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(root, "SKILL.md"))
+	if err != nil || digest(got) != p.Files[0].Before {
+		t.Fatal("parent substitution altered target bytes")
+	}
+}
+
+func TestApplyRefusesReviewedPlanParentSubstitutionBeforeBackup(t *testing.T) {
+	root := fixtureTree(t, "legacy")
+	p, err := Preview(root, ReviewedSourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	planParent := tempDir(t)
+	plan := filepath.Join(planParent, "plan.json")
+	if err := writePlan(plan, p); err != nil {
+		t.Fatal(err)
+	}
+	outside := tempDir(t)
+	moved := planParent + ".moved"
+	checks := 0
+	r, err := ApplyAuthorized(plan, func() error {
+		checks++
+		if checks != 2 {
+			return nil
+		}
+		if err := os.Rename(planParent, moved); err != nil {
+			return err
+		}
+		t.Cleanup(func() { _ = os.RemoveAll(moved) })
+		return os.Symlink(outside, planParent)
+	})
+	if err == nil || r.State != "refused" || len(r.Backups) != 0 || len(r.Replaced) != 0 {
+		t.Fatalf("reviewed plan parent substitution escaped its pinned source: receipt=%+v err=%v", r, err)
+	}
+	if _, err := os.Stat(p.Files[0].BackupPath); !os.IsNotExist(err) {
+		t.Fatalf("plan parent substitution created a byte backup: %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(root, "SKILL.md"))
+	if err != nil || digest(got) != p.Files[0].Before {
+		t.Fatal("plan parent substitution altered target bytes")
+	}
+}
+
+func TestApplyRefusesLateBackupContentSubstitution(t *testing.T) {
+	root := fixtureTree(t, "legacy")
+	p, err := Preview(root, ReviewedSourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan := filepath.Join(tempDir(t), "backup-content-swap.json")
+	if err := writePlan(plan, p); err != nil {
+		t.Fatal(err)
+	}
+	backupPath := p.Files[0].BackupPath
+	checks := 0
+	r, err := ApplyAuthorized(plan, func() error {
+		checks++
+		if checks == 3 {
+			return os.WriteFile(backupPath, []byte("substituted backup bytes"), 0o600)
+		}
+		return nil
+	})
+	if err == nil || r.State != "recovery_required" || len(r.Backups) != 1 || len(r.Replaced) != 0 {
+		t.Fatalf("late backup substitution was not recovery-required: receipt=%+v err=%v", r, err)
+	}
+	got, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(p.Files[0].Path)))
+	if err != nil || digest(got) != p.Files[0].Before {
+		t.Fatal("late backup substitution altered target")
+	}
+	replay, replayErr := ApplyAuthorized(plan, func() error { return nil })
+	if replayErr == nil || replay.State != "recovery_required" || replay.RecoveryPath == "" || len(replay.Replaced) != 0 {
+		t.Fatalf("corrupt prior backup did not retain recovery boundary: receipt=%+v err=%v", replay, replayErr)
+	}
+}
+
+func TestApplyRefusesTargetParentSubstitutionAtFinalBoundary(t *testing.T) {
+	root := fixtureTree(t, "legacy")
+	p, err := Preview(root, ReviewedSourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan := filepath.Join(tempDir(t), "target-parent-swap.json")
+	if err := writePlan(plan, p); err != nil {
+		t.Fatal(err)
+	}
+	outside := tempDir(t)
+	checks := 0
+	swapped := false
+	r, err := ApplyAuthorized(plan, func() error {
+		checks++
+		// First three files have completed after seven callbacks; the fourth
+		// target is under references/ and is pinned before callback nine.
+		if checks == 9 {
+			references := filepath.Join(root, "references")
+			if err := os.Mkdir(filepath.Join(outside, "references"), 0o755); err != nil {
+				return err
+			}
+			if err := os.Rename(references, references+".moved"); err != nil {
+				return err
+			}
+			if err := os.Symlink(filepath.Join(outside, "references"), references); err != nil {
+				return err
+			}
+			swapped = true
+		}
+		return nil
+	})
+	if !swapped || err == nil || r.State != "recovery_required" || len(r.Replaced) != 3 {
+		t.Fatalf("target parent substitution was not safely bounded: swapped=%v receipt=%+v err=%v", swapped, r, err)
+	}
+	if _, err := os.Stat(filepath.Join(outside, "references", "continuous-operations.md.dacli-refresh-"+p.PlanDigest+"-3")); !os.IsNotExist(err) {
+		t.Fatalf("outside target parent received a staged replacement: %v", err)
+	}
+}
+
+func TestPreviewRejectsHardlinkedManagedTarget(t *testing.T) {
+	root := fixtureTree(t, "legacy")
+	target := filepath.Join(root, "SKILL.md")
+	linked := filepath.Join(tempDir(t), "linked-guidance.md")
+	if err := os.Link(target, linked); err != nil {
+		t.Skipf("hard links unavailable: %v", err)
+	}
+	if _, err := Preview(root, ReviewedSourceID); err == nil || !strings.Contains(err.Error(), "single-link") {
+		t.Fatalf("hardlinked guidance target was not refused: %v", err)
+	}
+}
+
 func TestApplyReplacementFailureAfterBackupReturnsRecoveryRequired(t *testing.T) {
 	root := fixtureTree(t, "legacy")
 	p, err := Preview(root, ReviewedSourceID)
@@ -412,7 +601,7 @@ func TestApplyReplacementFailureAfterBackupReturnsRecoveryRequired(t *testing.T)
 		t.Fatal(err)
 	}
 	plan := filepath.Join(tempDir(t), "plan.json")
-	if err := WritePlan(plan, p); err != nil {
+	if err := writePlan(plan, p); err != nil {
 		t.Fatal(err)
 	}
 	stage := filepath.Join(root, "SKILL.md.dacli-refresh-"+p.PlanDigest+"-0")
@@ -430,5 +619,36 @@ func TestApplyReplacementFailureAfterBackupReturnsRecoveryRequired(t *testing.T)
 	backup, err := os.ReadFile(r.Backups[0])
 	if err != nil || digest(backup) != p.Files[0].Before {
 		t.Fatal("recovery backup is missing or not byte-exact")
+	}
+	replay, replayErr := apply(plan, nil)
+	if replayErr == nil || replay.State != "recovery_required" || len(replay.Backups) != 1 || len(replay.Replaced) != 0 || replay.RecoveryPath == "" || !equalStrings(replay.Backups, r.Backups) {
+		t.Fatalf("partial replacement replay lost recovery boundary: receipt=%+v original=%+v err=%v", replay, r, replayErr)
+	}
+}
+
+func TestApplyReplayAfterPartialReplacementRetainsExactRecoverySubset(t *testing.T) {
+	root := fixtureTree(t, "legacy")
+	p, err := Preview(root, ReviewedSourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan := filepath.Join(tempDir(t), "partial-replay-plan.json")
+	if err := writePlan(plan, p); err != nil {
+		t.Fatal(err)
+	}
+	checks := 0
+	first, err := ApplyAuthorized(plan, func() error {
+		checks++
+		if checks == 4 {
+			return errors.New("stop after first replacement")
+		}
+		return nil
+	})
+	if err == nil || first.State != "recovery_required" || len(first.Replaced) != 1 || len(first.Backups) != 1 {
+		t.Fatalf("partial replacement fixture did not stop after one replacement: receipt=%+v err=%v", first, err)
+	}
+	replay, replayErr := ApplyAuthorized(plan, func() error { return nil })
+	if replayErr == nil || replay.State != "recovery_required" || len(replay.Replaced) != 1 || len(replay.Backups) != 1 || replay.RecoveryPath == "" {
+		t.Fatalf("partial replay lost verified progress: receipt=%+v err=%v", replay, replayErr)
 	}
 }

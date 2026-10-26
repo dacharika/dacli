@@ -444,7 +444,7 @@ func nextAuthorityAction(status string) string {
 func inspectInstalledGuidance(selectedRoot, runtimeManifestPath string) guidance.Diagnosis {
 	home, _ := os.UserHomeDir()
 	roots := guidance.DefaultRoots(home, selectedRoot)
-	runtimeID, runtimeDigest := "not_selected", "unknown"
+	runtimeID, runtimeDigest, manifestDigest := "unknown", "unknown", "unknown"
 	capabilityStatus, capabilitySummary := "not_selected", "Select the capability manifest emitted by the intended runtime with --runtime-capabilities."
 	var manifest capabilities.Manifest
 	if runtimeManifestPath != "" {
@@ -452,13 +452,18 @@ func inspectInstalledGuidance(selectedRoot, runtimeManifestPath string) guidance
 		if err != nil || !decodeStrictManifest(raw, &manifest) || !validSelectedCapabilityManifest(manifest) {
 			capabilityStatus, capabilitySummary = "unsupported_or_invalid", "The selected runtime capability manifest is unreadable or does not match the supported strict schema."
 		} else {
-			runtimeID = manifest.Binary.Path
 			sum := sha256.Sum256(raw)
-			runtimeDigest = "sha256:" + hex.EncodeToString(sum[:])
-			capabilityStatus, capabilitySummary = "requirements_unavailable", "No discoverable selected skill requirement document was readable."
+			manifestDigest = "sha256:" + hex.EncodeToString(sum[:])
+			capabilityStatus, capabilitySummary = "declared_manifest_unverified", "The selected document is a declared capability manifest; no executable, process, or runtime digest is independently bound to it."
 		}
 	}
 	diagnosis := guidance.Diagnose(roots, runtimeID, runtimeDigest, capabilityStatus, capabilitySummary)
+	diagnosis.CapabilityManifestDigest = manifestDigest
+	if manifestDigest != "unknown" {
+		diagnosis.RuntimeBindingStatus = "unverified_manifest_only"
+	} else {
+		diagnosis.RuntimeBindingStatus = "not_observed"
+	}
 	if runtimeManifestPath == "" || capabilityStatus == "unsupported_or_invalid" {
 		return diagnosis
 	}
@@ -494,7 +499,7 @@ func inspectInstalledGuidance(selectedRoot, runtimeManifestPath string) guidance
 			}
 		}
 		if d.Compatible {
-			summaries = append(summaries, string(copy.Status)+": runtime satisfies declared required capabilities")
+			summaries = append(summaries, string(copy.Status)+": declared manifest satisfies required capabilities; runtime binding remains unverified")
 		} else {
 			summaries = append(summaries, fmt.Sprintf("%s: %d required capabilities missing or incompatible", copy.Status, missing))
 		}
@@ -504,10 +509,10 @@ func inspectInstalledGuidance(selectedRoot, runtimeManifestPath string) guidance
 		diagnosis.CapabilitySummary = "Selected skill copies declare different capability requirements; review each copy without choosing the first."
 	} else if len(summaries) > 0 {
 		diagnosis.CapabilitySummary = strings.Join(summaries, "; ")
-		diagnosis.CapabilityStatus = "compatible"
+		diagnosis.CapabilityStatus = "declared_manifest_compatible_unverified"
 		for _, summary := range summaries {
 			if strings.Contains(summary, "missing") || strings.Contains(summary, "unreadable") || strings.Contains(summary, "unsupported") || strings.Contains(summary, "refused") {
-				diagnosis.CapabilityStatus = "incompatible_or_unverified"
+				diagnosis.CapabilityStatus = "declared_manifest_incompatible_unverified"
 			}
 		}
 	} else {
