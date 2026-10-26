@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mlnomadpy/dacli/internal/mdstore"
 	"github.com/mlnomadpy/dacli/internal/workspace"
 )
 
@@ -85,6 +86,131 @@ func TestIssueLinkBatchPrevalidatesAndRecoversOnlySelectedTasks(t *testing.T) {
 		if strings.Count(string(after), "source sha256:"+strings.Repeat("a", 64)) != 1 {
 			t.Fatalf("task %d duplicate link history after replay", i)
 		}
+	}
+}
+
+func TestIssueLinkBatchAllowsUnselectedLegacyMappingSeparator(t *testing.T) {
+	w, err := workspace.Init(t.TempDir(), "issue-link-legacy-separator")
+	if err != nil {
+		t.Fatal(err)
+	}
+	project, err := CreateProject(w, "a-root", "Core", "core", "goal", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	project.Doc.Front.Set("github_repo", "dacharika/dacli")
+	if err := SaveProject(project); err != nil {
+		t.Fatal(err)
+	}
+	var tasks []*Task
+	for _, title := range []string{"Selected issue one", "Selected issue two", "Selected issue three", "Unselected legacy issue task"} {
+		task, err := CreateTask(w, "a-root", "core", title, TaskOpts{Accept: []string{"preserve this criterion"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		tasks = append(tasks, task)
+	}
+	tasks[3].Doc.Front.SetBlock("github", "  issue: 1192\n  repo: dacharika/dacli\n\n")
+	if err := SaveTask(tasks[3]); err != nil {
+		t.Fatal(err)
+	}
+	unselectedBefore, err := os.ReadFile(tasks[3].Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := mdstore.Parse(string(unselectedBefore))
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacyBlock, ok := parsed.Front.GetBlock("github")
+	if !ok || legacyBlock != "  issue: 1192\n  repo: dacharika/dacli\n\n" {
+		t.Fatalf("mdstore did not preserve the legacy trailing separator: found=%v block=%q", ok, legacyBlock)
+	}
+	targets := make([]IssueLinkTarget, 0, 3)
+	for i, task := range tasks[:3] {
+		digest := strings.Repeat(string(rune('a'+i)), 64)
+		number := 1301 + i
+		targets = append(targets, IssueLinkTarget{TaskID: task.ID, Project: "core", IssueNumber: number, Repository: "dacharika/dacli", IssueDigest: digest, MappingBlock: fmt.Sprintf("  issue: %d\n  repo: dacharika/dacli", number)})
+	}
+	plan, err := PlanIssueLinkBatch(w, "core", "dacharika/dacli", targets, time.Unix(400, 0))
+	if err != nil {
+		t.Fatalf("plan exact three-issue selection: %v", err)
+	}
+	if err := ValidateIssueLinkBatchBindings(w, plan); err != nil {
+		t.Fatalf("unrelated legacy mapping prevented exact selection: %v", err)
+	}
+	commits := 0
+	validate := func() error { return ValidateIssueLinkBatchBindings(w, plan) }
+	apply := func() error {
+		return ApplyIssueLinkBatchWithValidation(w, plan, func(_ string, commit func() error) error {
+			commits++
+			return commit()
+		}, validate)
+	}
+	if err := apply(); err != nil {
+		t.Fatalf("apply exact three-issue selection: %v", err)
+	}
+	if commits != 3 {
+		t.Fatalf("selected task commit count = %d, want exactly 3", commits)
+	}
+	for i, task := range tasks[:3] {
+		linked, err := FindTask(w, task.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		block, ok := linked.Doc.Front.GetBlock("github")
+		if !ok || block != targets[i].MappingBlock {
+			t.Fatalf("selected task %s mapping = (%v) %q, want %q", task.ID, ok, block, targets[i].MappingBlock)
+		}
+		if got := linked.Acceptance(); len(got) != 1 || got[0].Text != "preserve this criterion" {
+			t.Fatalf("selected task %s acceptance changed: %+v", task.ID, got)
+		}
+	}
+	if after, err := os.ReadFile(tasks[3].Path); err != nil || !bytesEqual(after, unselectedBefore) {
+		t.Fatalf("unselected task bytes changed: err=%v", err)
+	}
+	commits = 0
+	if err := apply(); err != nil {
+		t.Fatalf("idempotent exact selection replay: %v", err)
+	}
+	if commits != 0 {
+		t.Fatalf("idempotent replay committed %d selected files", commits)
+	}
+	if after, err := os.ReadFile(tasks[3].Path); err != nil || !bytesEqual(after, unselectedBefore) {
+		t.Fatalf("unselected legacy task bytes changed after replay: err=%v", err)
+	}
+}
+
+func TestParseExactIssueMappingOnlySkipsBlankLines(t *testing.T) {
+	valid := []string{
+		"  issue: 1192\n  repo: dacharika/dacli\n\n",
+		"\n \t\nissue: 1192\nrepo: dacharika/dacli\n  \n",
+	}
+	for _, block := range valid {
+		issue, repo, err := ParseIssueLinkMapping(block)
+		if err != nil || issue != 1192 || repo != "dacharika/dacli" {
+			t.Errorf("ParseIssueLinkMapping(%q) = (%d, %q, %v), want (1192, dacharika/dacli, nil)", block, issue, repo, err)
+		}
+	}
+	invalid := []struct {
+		name  string
+		block string
+	}{
+		{name: "empty", block: ""},
+		{name: "whitespace only", block: " \t\n \t "},
+		{name: "malformed nonblank", block: "issue: 1192\nrepo: dacharika/dacli\nnot-a-field"},
+		{name: "unknown field", block: "issue: 1192\nrepo: dacharika/dacli\nextra: value"},
+		{name: "duplicate key", block: "issue: 1192\nissue: 1192\nrepo: dacharika/dacli"},
+		{name: "duplicate repository", block: "issue: 1192\nrepo: dacharika/dacli\nrepo: dacharika/other"},
+		{name: "invalid number", block: "issue: 0\nrepo: dacharika/dacli"},
+		{name: "invalid repository", block: "issue: 1192\nrepo: dacharika"},
+	}
+	for _, test := range invalid {
+		t.Run(test.name, func(t *testing.T) {
+			if _, _, err := ParseIssueLinkMapping(test.block); err == nil {
+				t.Fatalf("ParseIssueLinkMapping accepted invalid mapping %q", test.block)
+			}
+		})
 	}
 }
 
