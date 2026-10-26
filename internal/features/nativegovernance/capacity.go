@@ -98,7 +98,7 @@ func capacityObserverAdd(ctx *clikit.Ctx, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer credential.Close()
+	defer func() { _ = credential.Close() }()
 	enrolled, token, err := a.EnrollHostCapacityObserver(owner, observer)
 	if err != nil {
 		_ = os.Remove(f.Get("credential"))

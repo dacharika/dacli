@@ -475,7 +475,7 @@ func decodeAuthorityState(data []byte, binding Binding, version int) (state, err
 
 func decodeAuthorityStateMode(data []byte, binding Binding, version int, strict bool) (state, error) {
 	var s state
-	decoded := error(nil)
+	var decoded error
 	if strict {
 		decoder := json.NewDecoder(bytes.NewReader(data))
 		decoder.DisallowUnknownFields()
