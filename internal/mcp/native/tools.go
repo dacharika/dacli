@@ -308,10 +308,31 @@ func (s *Server) call(name string, raw json.RawMessage) (any, error) {
 			if x.Project != "" && x.Task != "" || x.Limit < 1 || x.Limit > 100 {
 				return nil, ErrDenied
 			}
-			if x.Project != "" {
-				resource = "project:" + x.Project
-			} else if x.Task != "" {
-				resource = "task:" + x.Task
+			// Orchestration profiles add a project boundary beyond the session's
+			// resource grants. Keep that role boundary when a workspace grant is
+			// available for filtered reads.
+			if s.orchestration != nil {
+				project := s.orchestration.Project()
+				if x.Project != "" && x.Project != project {
+					return nil, ErrDenied
+				}
+				if x.Task != "" {
+					selected, findErr := store.FindTask(w, x.Task)
+					if findErr != nil || selected.Project != project {
+						return nil, ErrDenied
+					}
+				}
+			}
+			// A filter narrows the returned data; it does not replace broader
+			// authority the session already has. Prefer an explicitly granted
+			// workspace context, while retaining exact project/task contexts for
+			// sessions that do not carry the workspace grant.
+			if !hasReadResource(principal.Scope.Resources, resource) {
+				if x.Project != "" {
+					resource = "project:" + x.Project
+				} else if x.Task != "" {
+					resource = "task:" + x.Task
+				}
 			}
 		}
 		ctx, e = application.NewNativeReadContext(w, a, token, principal.ID, resource)
