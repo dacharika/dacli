@@ -447,6 +447,11 @@ func TestRealLifecycleAuthorityKeepsCancelAckSeparateFromTerminalObservation(t *
 	if _, err = bridge.AcceptObservation(worker, status.Binding, obs, 0); err != nil {
 		t.Fatalf("real running observation: %v", err)
 	}
+	wrongBridge := NewLifecycleAuthority(f.a, "wrong-bridge-credential", f.bridge.ID, f.controllerToken, f.controller.ID)
+	wrongBridgeCallback := Observation{Version: 1, OperationKey: "wrong-bridge-running", Binding: worker.Claim(), Sequence: 2, State: "completed", EvidenceDigest: sessions.OutputDigest([]byte("wrong-bridge")), SourceTime: time.Now().UTC()}
+	if _, e := wrongBridge.AcceptObservation(worker, status.Binding, wrongBridgeCallback, 1); e == nil {
+		t.Fatal("wrong bridge credential accepted while lifecycle was running")
+	}
 	store := &fakeStore{byKey: map[string]HostResult{}, digests: map[string]string{}, observed: map[string]Observation{}}
 	host := &fakeHost{store: store, enrolled: worker.Claim()}
 	cancelReq := sessions.CancelLifecycleRequest{OperationKey: "cancel-host", Binding: status.Binding}
@@ -466,6 +471,9 @@ func TestRealLifecycleAuthorityKeepsCancelAckSeparateFromTerminalObservation(t *
 	wrongHost.capabilityOverride = &wrongCaps
 	if _, _, e := bridge.CancelHost(&wrongHost, worker, cancelReq, "lifecycle-intent"); e == nil || store.cancelCalls != 0 {
 		t.Fatalf("wrong-host cancellation reached host: %v calls=%d", e, store.cancelCalls)
+	}
+	if _, _, e := bridge.CancelHost(host, worker, cancelReq, "substituted-original-operation"); e == nil || store.cancelCalls != 0 {
+		t.Fatalf("wrong original operation key reached host: %v calls=%d", e, store.cancelCalls)
 	}
 	request, ack, err := bridge.CancelHost(host, worker, cancelReq, "lifecycle-intent")
 	if err != nil || !request.HostActionAuthorized || ack.State != "dispatch_unknown" {
@@ -497,17 +505,53 @@ func TestRealLifecycleAuthorityKeepsCancelAckSeparateFromTerminalObservation(t *
 	if err != nil || after.State != "completed" || after.Cancellation == nil || after.Cancellation.State != "dispatch_unknown" || !after.ResourcesRetained {
 		t.Fatalf("terminal observation conflated with cancellation/release: %+v %v", after, err)
 	}
-	late := terminal
-	late.OperationKey = "expired-bridge-late"
-	late.Sequence = 3
-	wrongBridge := NewLifecycleAuthority(f.a, "wrong-bridge-credential", f.bridge.ID, f.controllerToken, f.controller.ID)
-	if _, e := wrongBridge.AcceptObservation(expiredWorker, status.Binding, late, 2); e == nil {
-		t.Fatal("wrong bridge credential accepted")
+}
+
+func TestExpiredBridgeCannotAcceptRunningLifecycleObservation(t *testing.T) {
+	f := makeAuthorityFixtureWithTTLs(t, 3*time.Second, 2*time.Second)
+	if err := f.a.UpgradeLifecycle(f.owner); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.a.ConfigureLifecycle(f.owner, sessions.LifecyclePolicy{SchemaVersion: 1, ProjectID: "project", Revision: "lifecycle-v1", Source: "owner-manual-native-host", Freshness: time.Minute, CancellationEnabled: true, CancellationChannel: "owner-manual-native-host"}); err != nil {
+		t.Fatal(err)
+	}
+	requested, err := f.a.RequestDispatchIntent(f.controllerToken, f.controller.ID, sessions.RequestDispatchIntent{OperationKey: "expired-bridge-intent", DispatchID: f.dispatch.ID, BridgeSessionID: f.bridge.ID, WorkerSessionID: f.worker.ID, PromptSpecDigest: "sha256:" + strings.Repeat("c", 64), ExpectedFence: f.dispatch.Reservation.Fence})
+	if err != nil || !requested.HostActionAuthorized {
+		t.Fatalf("first intent: %+v %v", requested, err)
+	}
+	i := requested.Intent
+	correlated, err := f.a.CorrelateDispatchIntent(f.bridgeToken, f.bridge.ID, sessions.CorrelateDispatchIntent{OperationKey: "expired-bridge-correlation", DispatchID: i.DispatchID, IntentID: i.ID, HostAgentID: "host-exec-expired", State: "host_correlated", ExpectedFence: f.dispatch.Reservation.Fence, ExpectedSequence: i.Sequence})
+	if err != nil {
+		t.Fatal(err)
+	}
+	i, err = f.a.AcknowledgeDispatchIntent(f.workerToken, f.worker.ID, sessions.AcknowledgeDispatchIntent{OperationKey: "expired-bridge-worker-ack", DispatchID: i.DispatchID, IntentID: i.ID, AttemptID: f.attempt.ID, HostAgentID: correlated.HostAgentID, ExpectedFence: f.dispatch.Reservation.Fence, ExpectedSequence: correlated.Sequence})
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := ProfileRef{ID: "worker-profile", WorkerSession: f.worker.ID, ScopeDigest: "sha256:scope", ExpiresAt: f.worker.ExpiresAt}
+	claim := Binding{Workspace: "workspace", Project: "project", Task: "task-a", Host: "codex", Session: f.worker.ID, Instance: "owner-configured-process", CredentialID: profile.ID, ExpiresAt: f.worker.ExpiresAt}
+	worker, err := AuthenticateWorker(f.a, f.workerToken, WorkerEnrollment{Binding: claim, Profile: profile, AttemptRequest: f.attempt.Request}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	bridge := NewLifecycleAuthority(f.a, f.bridgeToken, f.bridge.ID, f.controllerToken, f.controller.ID)
+	status, err := bridge.Status(i.DispatchID)
+	if err != nil {
+		t.Fatalf("lifecycle did not remain running: %+v %v", status, err)
+	}
+	first := Observation{Version: 1, OperationKey: "expired-bridge-first-running", Binding: worker.Claim(), Sequence: 1, State: "running", EvidenceDigest: sessions.OutputDigest([]byte("running")), SourceTime: time.Now().UTC()}
+	if _, err := bridge.AcceptObservation(worker, status.Binding, first, 0); err != nil {
+		t.Fatalf("initial running observation: %v", err)
+	}
+	status, err = bridge.Status(i.DispatchID)
+	if err != nil || status.State != "running" {
+		t.Fatalf("lifecycle did not enter running: %+v %v", status, err)
 	}
 	if wait := time.Until(f.bridge.ExpiresAt) + 25*time.Millisecond; wait > 0 {
 		time.Sleep(wait)
 	}
-	if _, e := bridge.AcceptObservation(expiredWorker, status.Binding, late, 2); e == nil {
-		t.Fatal("expired bridge callback accepted")
+	callback := Observation{Version: 1, OperationKey: "expired-bridge-completed", Binding: worker.Claim(), Sequence: 2, State: "completed", EvidenceDigest: sessions.OutputDigest([]byte("expired-bridge")), SourceTime: time.Now().UTC()}
+	if _, err := bridge.AcceptObservation(worker, status.Binding, callback, 1); err == nil {
+		t.Fatal("expired bridge accepted observation for a running lifecycle")
 	}
 }

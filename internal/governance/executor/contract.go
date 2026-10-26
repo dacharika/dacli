@@ -389,6 +389,10 @@ func (a LifecycleAuthority) CancelHost(backend Backend, worker AuthenticatedBind
 	if err != nil || status.Binding != req.Binding || req.Binding.TaskID != worker.binding.Task || req.Binding.AttemptID != worker.binding.Attempt || req.Binding.WorkerSessionID != worker.binding.Session || req.Binding.Checkout != worker.attempt.Observation.Locator || req.Binding.BaseCommit != worker.attempt.Observation.Commit || worker.attempt.SessionID != worker.binding.Session || worker.attempt.ProjectID != worker.binding.Project || worker.attempt.Request.TaskID != worker.binding.Task {
 		return sessions.LifecycleCancellationResult{}, sessions.LifecycleCancellation{}, ErrDenied
 	}
+	intent, err := a.Authority.DispatchIntentStatus(a.bridgeToken, a.bridgeSession, req.Binding.DispatchID)
+	if err != nil || intent.OperationKey != originalOperationKey || intent.ID != req.Binding.IntentID || intent.DispatchID != req.Binding.DispatchID || intent.BridgeSessionID != req.Binding.BridgeSessionID || intent.WorkerSessionID != req.Binding.WorkerSessionID || intent.HostAgentID != req.Binding.HostAgentID || intent.Reservation.Reservation.Fence != req.Binding.ReservationFence || intent.Reservation.Reservation.TaskID != req.Binding.TaskID || intent.Reservation.Reservation.Checkout != req.Binding.Checkout || intent.Reservation.Reservation.Repository != worker.attempt.Observation.Repository {
+		return sessions.LifecycleCancellationResult{}, sessions.LifecycleCancellation{}, ErrDenied
+	}
 	caps := backend.Capabilities()
 	if caps.Version != ContractVersion || caps.Host != worker.binding.Host {
 		return sessions.LifecycleCancellationResult{}, sessions.LifecycleCancellation{}, ErrDenied
