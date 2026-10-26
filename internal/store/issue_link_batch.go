@@ -450,12 +450,12 @@ func issueLinkProjectBytes(w *workspace.Workspace, project string) ([]byte, erro
 	if err != nil {
 		return nil, err
 	}
-	defer root.Close()
+	defer func() { _ = root.Close() }()
 	dir, err := checkpointDirectory(root, project)
 	if err != nil {
 		return nil, err
 	}
-	defer dir.Close()
+	defer func() { _ = dir.Close() }()
 	return (&checkpointReader{}).childBytes(dir, "project.md")
 }
 
@@ -485,7 +485,7 @@ func readIssueLinkTaskPath(w *workspace.Workspace, project, path string) ([]byte
 	if err != nil {
 		return nil, err
 	}
-	defer dir.Close()
+	defer func() { _ = dir.Close() }()
 	return (&checkpointReader{}).childBytes(dir, filepath.Base(path))
 }
 
@@ -494,7 +494,7 @@ func readIssueLinkPrivateFile(path string, max int64) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	before, err := f.Stat()
 	if err != nil || !before.Mode().IsRegular() || before.Size() < 0 || before.Size() > max {
 		return nil, fmt.Errorf("private issue-link file must be a bounded regular file")

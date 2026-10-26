@@ -47,7 +47,9 @@ func TestExactIssueLinkRefreshRefusesThirdIssueBodyDriftBeforeEffects(t *testing
 		}
 		if len(args) >= 3 && args[0] == "issue" && args[1] == "view" {
 			var number int
-			fmt.Sscan(args[2], &number)
+			if scanned, err := fmt.Sscan(args[2], &number); err != nil || scanned != 1 {
+				return "", fmt.Errorf("invalid issue number %q", args[2])
+			}
 			issue, ok := issues[number]
 			if !ok {
 				return "", fmt.Errorf("unknown issue")

@@ -411,7 +411,7 @@ func readExactIssuePrivateFile(path string, max int64) ([]byte, error) {
 		}
 		return nil, fmt.Errorf("private issue-link plan must be a bounded regular file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	opened, err := f.Stat()
 	if err != nil || !opened.Mode().IsRegular() || opened.Size() < 0 || opened.Size() > max {
 		return nil, fmt.Errorf("private issue-link plan must be a bounded regular file")
