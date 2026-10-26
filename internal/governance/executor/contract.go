@@ -408,9 +408,10 @@ func (a LifecycleAuthority) CancelHost(backend Backend, worker AuthenticatedBind
 		return requested, sessions.LifecycleCancellation{}, nil
 	}
 	state := "dispatch_unknown"
-	if caps.Cancel.State == Unsupported {
+	switch caps.Cancel.State {
+	case Unsupported:
 		state = "unsupported"
-	} else if caps.Cancel.State == Supported {
+	case Supported:
 		observed, cancelErr := backend.Cancel(CancellationRequest{Version: ContractVersion, OperationKey: req.OperationKey, OriginalOperationKey: originalOperationKey, Lifecycle: req.Binding, Worker: worker.binding, Repository: worker.attempt.Observation.Repository, Checkout: worker.attempt.Observation.Locator})
 		if cancelErr == nil {
 			switch observed {
