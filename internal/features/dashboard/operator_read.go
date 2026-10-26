@@ -7,6 +7,7 @@ import (
 	"time"
 
 	operatorv1 "github.com/mlnomadpy/dacli/contracts/operator/v1"
+	"github.com/mlnomadpy/dacli/internal/store"
 	"github.com/mlnomadpy/dacli/internal/workspace"
 )
 
@@ -37,7 +38,34 @@ func OperatorProjection(w *workspace.Workspace, operation, project, task, cursor
 		projection.Data = rows
 		return pageOperatorTasks(projection, limit), nil
 	case "tasks.get":
-		return operatorProjectionResult(buildTaskDetail(w, task))
+		projection, err := operatorProjectionResult(buildTaskDetail(w, task))
+		if err != nil {
+			return projection, err
+		}
+		detail := projection.Data.(taskDetailResponse)
+		projectTasks, err := store.ListTasks(w, project, "")
+		if err != nil {
+			return OperatorProjectionResult{}, err
+		}
+		projectTaskIDs := make(map[string]struct{}, len(projectTasks))
+		for _, projectTask := range projectTasks {
+			projectTaskIDs[projectTask.ID] = struct{}{}
+		}
+		for i, dependency := range detail.Task.Deps {
+			if dependency.ID == "" {
+				continue
+			}
+			if _, inProject := projectTaskIDs[dependency.ID]; !inProject {
+				// Keep the canonical edge reference and type, but report the
+				// dependency metadata as unavailable in this project scope.
+				detail.Task.Deps[i].ID = ""
+				detail.Task.Deps[i].Title = ""
+				detail.Task.Deps[i].Status = ""
+				detail.Task.Deps[i].Resolved = false
+			}
+		}
+		projection.Data = detail
+		return projection, nil
 	case "activity.list":
 		if limit == 0 {
 			limit = eventsDefaultLimit
