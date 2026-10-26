@@ -3,7 +3,11 @@
 package executor
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
@@ -73,6 +77,7 @@ type AuthenticatedBinding struct {
 	binding Binding
 	token   string
 	profile ProfileRef
+	attempt sessions.Attempt
 }
 
 func (a AuthenticatedBinding) Claim() Binding { return a.binding }
@@ -86,14 +91,17 @@ func AuthenticateWorker(authority *sessions.Authority, token string, e WorkerEnr
 		return AuthenticatedBinding{}, ErrDenied
 	}
 	attempt, err := authority.RegisterAttempt(token, session.ID, e.AttemptRequest)
-	if err != nil || attempt.SessionID != session.ID || attempt.Request.TaskID != e.Binding.Task || attempt.ID == "" {
+	if err != nil || attempt.SessionID != session.ID || attempt.Request.TaskID != e.Binding.Task || attempt.ProjectID != e.Binding.Project || attempt.Observation.Locator != e.AttemptRequest.Checkout || attempt.ID == "" {
+		return AuthenticatedBinding{}, ErrDenied
+	}
+	if _, err = authority.Authorize(token, session.ID, e.Binding.Workspace, "lease.acquire", "task:"+e.Binding.Task); err != nil {
 		return AuthenticatedBinding{}, ErrDenied
 	}
 	e.Binding.Attempt = attempt.ID
 	if e.Profile.WorkerSession != session.ID || e.Binding.CredentialID != e.Profile.ID || ValidateProfile(e.Profile, e.Binding, now) != nil || ValidateBinding(e.Binding, e.Binding, now) != nil {
 		return AuthenticatedBinding{}, ErrDenied
 	}
-	return AuthenticatedBinding{binding: e.Binding, token: token, profile: e.Profile}, nil
+	return AuthenticatedBinding{binding: e.Binding, token: token, profile: e.Profile, attempt: attempt}, nil
 }
 
 func (b Binding) same(other Binding) bool {
@@ -165,10 +173,28 @@ type Dispatch struct {
 	BridgeSession    string     `json:"bridge_session"`
 	ExpectedFence    uint64     `json:"expected_fence"`
 	PromptSpecDigest string     `json:"prompt_spec_digest"`
+	Repository       string     `json:"repository"`
+	Checkout         string     `json:"checkout"`
 	Binding          Binding    `json:"binding"`
 	Profile          ProfileRef `json:"profile"`
 	Prompt           string     `json:"prompt"`
 }
+
+func DispatchSpecDigest(d Dispatch) string {
+	canonical, err := json.Marshal(struct {
+		Binding    Binding    `json:"binding"`
+		Profile    ProfileRef `json:"profile"`
+		Repository string     `json:"repository"`
+		Checkout   string     `json:"checkout"`
+		Prompt     string     `json:"prompt"`
+	}{d.Binding, d.Profile, d.Repository, d.Checkout, d.Prompt})
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(canonical)
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
 type HostResult struct {
 	Version         int     `json:"version"`
 	OperationKey    string  `json:"operation_key"`
@@ -207,15 +233,22 @@ type Coordinator struct {
 }
 
 func (c Coordinator) DispatchOnce(req Dispatch, enrolled AuthenticatedBinding, now time.Time) (HostResult, error) {
-	if c.Backend == nil || c.Authority == nil || req.Version != ContractVersion || req.OperationKey == "" || req.DispatchID == "" || req.BridgeSession == "" || req.ExpectedFence == 0 || req.PromptSpecDigest == "" || ValidateBinding(enrolled.binding, req.Binding, now) != nil || !enrolled.binding.same(req.Binding) || req.Profile != enrolled.profile || ValidateProfile(enrolled.profile, req.Binding, now) != nil {
+	if c.Backend == nil || c.Authority == nil || req.Version != ContractVersion || req.OperationKey == "" || req.DispatchID == "" || req.BridgeSession == "" || req.ExpectedFence == 0 || req.PromptSpecDigest == "" || req.PromptSpecDigest != DispatchSpecDigest(req) || strings.TrimSpace(req.Prompt) == "" || req.Repository != enrolled.attempt.Observation.Repository || req.Checkout != enrolled.attempt.Observation.Locator || ValidateBinding(enrolled.binding, req.Binding, now) != nil || !enrolled.binding.same(req.Binding) || req.Profile != enrolled.profile || ValidateProfile(enrolled.profile, req.Binding, now) != nil {
 		return HostResult{}, ErrDenied
 	}
 	current, authErr := c.Authority.Authenticate(enrolled.token, enrolled.binding.Session)
 	if authErr != nil || current.Revoked || !now.Before(current.ExpiresAt) {
 		return HostResult{}, ErrDenied
 	}
+	if _, err := c.Authority.Authorize(enrolled.token, enrolled.binding.Session, enrolled.binding.Workspace, "lease.acquire", "task:"+enrolled.binding.Task); err != nil || enrolled.attempt.SessionID != current.ID || enrolled.attempt.Request.TaskID != enrolled.binding.Task || enrolled.attempt.ProjectID != enrolled.binding.Project || enrolled.attempt.ID != enrolled.binding.Attempt {
+		return HostResult{}, ErrDenied
+	}
 	caps := c.Backend.Capabilities()
-	if caps.Version != ContractVersion || caps.Host != enrolled.binding.Host || caps.Dispatch.State != Supported || caps.Lookup.State != Supported || caps.PrivateProfileHandoff.State != Supported {
+	if caps.Version != ContractVersion || caps.Host != req.Binding.Host || caps.Dispatch.State != Supported || caps.Lookup.State != Supported || caps.PrivateProfileHandoff.State != Supported {
+		return HostResult{}, ErrDenied
+	}
+	registration := Registration{Version: ContractVersion, Binding: enrolled.binding, Capabilities: caps}
+	if ValidateRegistration(c.Authority, enrolled, registration, now) != nil || c.Backend.Register(registration) != nil {
 		return HostResult{}, ErrDenied
 	}
 	permit, err := c.Authority.RequestDispatchIntent(c.ControllerToken, c.ControllerSession, sessions.RequestDispatchIntent{OperationKey: req.OperationKey, DispatchID: req.DispatchID, ExpectedFence: req.ExpectedFence, BridgeSessionID: req.BridgeSession, WorkerSessionID: req.Binding.Session, PromptSpecDigest: req.PromptSpecDigest})
@@ -228,6 +261,10 @@ func (c Coordinator) DispatchOnce(req Dispatch, enrolled AuthenticatedBinding, n
 			return lookup, nil
 		}
 		return HostResult{}, ErrUncertain
+	}
+	reservation := permit.Intent.Reservation
+	if permit.Intent.DispatchID != req.DispatchID || permit.Intent.WorkerSessionID != enrolled.binding.Session || reservation.ProjectID != enrolled.binding.Project || reservation.Reservation.TaskID != enrolled.binding.Task || reservation.Reservation.Checkout != enrolled.attempt.Observation.Locator || reservation.Reservation.Repository != enrolled.attempt.Observation.Repository {
+		return HostResult{}, ErrDenied
 	}
 	result, err := c.Backend.Dispatch(req)
 	if err == nil && hostResultMatches(result, req) {
@@ -277,6 +314,45 @@ func (a LifecycleAuthority) Cancel(req sessions.CancelLifecycleRequest) (session
 		return sessions.LifecycleCancellationResult{}, ErrDenied
 	}
 	return a.Authority.CancelLifecycle(a.ControllerToken, a.ControllerSession, req)
+}
+func (a LifecycleAuthority) AcknowledgeCancellation(req sessions.AcknowledgeCancellationRequest) (sessions.LifecycleCancellation, error) {
+	if a.Authority == nil {
+		return sessions.LifecycleCancellation{}, ErrDenied
+	}
+	return a.Authority.AcknowledgeCancellation(a.BridgeToken, a.BridgeSession, req)
+}
+
+// CancelHost first withdraws future task authority in the existing lifecycle
+// ledger, then calls the backend only for the first permit, and records host
+// acknowledgement separately. A cancellation response never sets terminal
+// execution state or releases the existing lease/reservation.
+func (a LifecycleAuthority) CancelHost(backend Backend, worker AuthenticatedBinding, req sessions.CancelLifecycleRequest) (sessions.LifecycleCancellationResult, sessions.LifecycleCancellation, error) {
+	requested, err := a.Cancel(req)
+	if err != nil {
+		return sessions.LifecycleCancellationResult{}, sessions.LifecycleCancellation{}, err
+	}
+	if !requested.HostActionAuthorized {
+		return requested, sessions.LifecycleCancellation{}, nil
+	}
+	state := "dispatch_unknown"
+	if backend != nil {
+		caps := backend.Capabilities()
+		if caps.Version == ContractVersion && caps.Cancel.State == Unsupported {
+			state = "unsupported"
+		} else if caps.Version == ContractVersion && caps.Cancel.State == Supported {
+			observed, cancelErr := backend.Cancel(req.OperationKey, worker.binding)
+			if cancelErr == nil {
+				switch observed {
+				case "acknowledged", "unsupported":
+					state = observed
+				case "unknown", "dispatch_unknown":
+					state = "dispatch_unknown"
+				}
+			}
+		}
+	}
+	ack, err := a.AcknowledgeCancellation(sessions.AcknowledgeCancellationRequest{OperationKey: req.OperationKey + "-ack", Binding: req.Binding, ExpectedSequence: requested.Cancellation.Sequence, State: state, EvidenceDigest: sessions.OutputDigest([]byte(req.OperationKey + ":" + state))})
+	return requested, ack, err
 }
 func (a LifecycleAuthority) Status(dispatch string) (sessions.LifecycleStatus, error) {
 	if a.Authority == nil {

@@ -22,7 +22,11 @@ checkout remain enforced by existing native authorities.
 
 `AuthenticateWorker` is the package boundary that mints its opaque binding: it
 checks the current worker credential through `sessions.Authority.Authenticate`
-and registers/recovers the exact attempt through `RegisterAttempt`.
+and registers/recovers the exact attempt through `RegisterAttempt`. It also
+authorizes the exact workspace/task scope and derives project, checkout, and
+repository from that authority-observed attempt. Dispatch compares those values
+with the fresh reservation returned by the existing intent operation before
+any host call.
 `Coordinator.DispatchOnce` authenticates that worker again at effect time and
 asks the existing authority for `RequestDispatchIntent`. Only its first durable
 permit can reach `Backend.Dispatch`. A historical permit performs original-key
@@ -30,6 +34,10 @@ lookup only; a new key for an already-intended dispatch is refused by the
 existing authority. Callback delivery uses a separately authenticated bridge
 and `LifecycleAuthority` writes the existing lifecycle record. There is no
 boolean supplied by an adapter that can substitute for these authority checks.
+Backend registration is checked against the same authenticated binding before
+the adapter receives it. `DispatchSpecDigest` binds the exact prompt, profile
+reference, repository, checkout, and worker binding; changing any of them under
+an original key fails before a repeated host call.
 
 DACLI session authentication proves which enrolled session supplied the
 credential. It does not cryptographically prove an OS process, host binary, or
@@ -94,11 +102,13 @@ only in-memory binding state must requalify registration after every restart
 and refuse dispatch/callbacks until it does.
 
 The version-1 fake adapter tests exercise contract binding, profile limits,
-original-key lookup after a simulated lost response, duplicate dispatch,
-monotonic callbacks, and unknown cancellation. They do not qualify a real host,
-prove cryptographic process identity, or claim that any external execution
-occurred. The adapter's dispatch store is test-only; production durable
-dispatch authority is not implemented by this package.
+original-key lookup after a simulated lost response, duplicate and changed-key
+dispatch, monotonic callbacks, and unknown cancellation. Integration cases use
+the real sessions reservation, dispatch-intent, lease, observation, cancel,
+acknowledgement, and lifecycle-status operations. They do not qualify a real
+host, prove cryptographic process identity, or claim that any external
+execution occurred. The adapter's dispatch store is test-only; production
+durable host lookup is not implemented by this package.
 
 ## Manual compatibility and host qualification
 
