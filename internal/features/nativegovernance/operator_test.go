@@ -72,7 +72,7 @@ func TestNativeOperatorConnectionCannotReadThroughGenericMCP(t *testing.T) {
 		{"task_get", map[string]any{"task": foreign.ID}},
 		{"task_brief", map[string]any{"task": foreign.ID}},
 		{"workspace_status", map[string]any{"project": "foreign"}},
-		{"ready_frontier", map[string]any{"project": "foreign"}},
+		{"ready_frontier", map[string]any{"project": "foreign", "limit": 12}},
 		{"task_list", map[string]any{"project": "p", "status": "open"}},
 	}
 	for i, query := range queries {
