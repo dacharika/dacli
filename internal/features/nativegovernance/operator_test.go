@@ -2,13 +2,99 @@ package nativegovernance
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
 	"github.com/mlnomadpy/dacli/internal/mcp/native"
+	"github.com/mlnomadpy/dacli/internal/store"
 )
+
+// The connection is a capability, not a restriction on which server its holder
+// starts. Operator enrollment must remain narrow through generic native MCP.
+func TestNativeOperatorConnectionCannotReadThroughGenericMCP(t *testing.T) {
+	f := setupVerification(t, "printf verified", false)
+	if _, err := store.CreateProject(f.w, "root", "Foreign", "foreign", "goal", ""); err != nil {
+		t.Fatal(err)
+	}
+	foreign, err := store.CreateTask(f.w, "root", "foreign", "Foreign private task", store.TaskOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	private := t.TempDir()
+	connection := filepath.Join(private, "operator.json")
+	if out, err := verificationRun(t, f.w, operatorAdd, "--config", f.config, "--project", "p", "--connection", connection, "--credential", filepath.Join(private, "operator.token")); err != nil {
+		t.Fatalf("operator add: %v %s", err, out)
+	}
+	server, err := native.Open(connection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	in, input := io.Pipe()
+	output, out := io.Pipe()
+	done := make(chan error, 1)
+	go func() { done <- server.ServeContext(ctx, in, out) }()
+	t.Cleanup(func() {
+		cancel()
+		_ = input.Close()
+		_ = output.Close()
+		if err := <-done; err != nil {
+			t.Errorf("native server cleanup: %v", err)
+		}
+	})
+	enc, dec := json.NewEncoder(input), json.NewDecoder(output)
+	exchange := func(id int, method string, params any) map[string]json.RawMessage {
+		t.Helper()
+		if err := enc.Encode(map[string]any{"jsonrpc": "2.0", "id": id, "method": method, "params": params}); err != nil {
+			t.Fatal(err)
+		}
+		var response map[string]json.RawMessage
+		if err := dec.Decode(&response); err != nil {
+			t.Fatal(err)
+		}
+		if response["error"] != nil {
+			t.Fatalf("unexpected protocol failure: %s", response["error"])
+		}
+		return response
+	}
+	exchange(1, "initialize", map[string]any{"protocolVersion": "2025-06-18", "capabilities": map[string]any{}, "clientInfo": map[string]any{"name": "operator-regression", "version": "1"}})
+	queries := []struct {
+		name string
+		args map[string]any
+	}{
+		{"task_list", map[string]any{"project": "foreign", "status": "open"}},
+		{"task_get", map[string]any{"task": foreign.ID}},
+		{"task_brief", map[string]any{"task": foreign.ID}},
+		{"workspace_status", map[string]any{"project": "foreign"}},
+		{"ready_frontier", map[string]any{"project": "foreign"}},
+		{"task_list", map[string]any{"project": "p", "status": "open"}},
+	}
+	for i, query := range queries {
+		query.args["schema_version"] = 1
+		response := exchange(i+2, "tools/call", map[string]any{"name": query.name, "arguments": query.args})
+		var result struct {
+			IsError  bool `json:"isError"`
+			Envelope struct {
+				OK    bool `json:"ok"`
+				Error struct {
+					ExitCode int `json:"exit_code"`
+				} `json:"error"`
+			} `json:"structuredContent"`
+		}
+		if err := json.Unmarshal(response["result"], &result); err != nil {
+			t.Fatal(err)
+		}
+		if !result.IsError || result.Envelope.OK || result.Envelope.Error.ExitCode != 3 {
+			t.Fatalf("operator connection exposed generic %s: %s", query.name, response["result"])
+		}
+	}
+}
 
 func TestNativeOperatorAddProvisionsIndependentReadOnlyIdentity(t *testing.T) {
 	f := setupVerification(t, "printf verified", false)
@@ -27,7 +113,7 @@ func TestNativeOperatorAddProvisionsIndependentReadOnlyIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	actor, err := f.authority.Authenticate(token, c.SessionID)
-	if err != nil || actor.ID == f.worker.SessionID || len(actor.Scope.Actions) != 2 || len(actor.Scope.Resources) != 2 {
+	if err != nil || actor.ID == f.worker.SessionID || len(actor.Scope.Actions) != 1 || actor.Scope.Actions[0] != "operator.read" || len(actor.Scope.Resources) != 2 {
 		t.Fatalf("operator identity not independently scoped: %v %+v", err, actor)
 	}
 	for _, path := range []string{connection, credential} {

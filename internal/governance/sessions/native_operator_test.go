@@ -12,7 +12,7 @@ func TestNativeOperatorRequiresDistinctActionAndProjectScope(t *testing.T) {
 	actor, token := dashboardReader(t, f.a, f.owner, "task-a")
 	_, err := f.a.ReadOperatorDashboard(token, actor.ID, "project", "task-a")
 	denied(t, err)
-	operator, secret, err := f.a.Enroll(f.owner, Scope{Actions: []string{"read", "operator.read"}, Resources: []string{"workspace:" + f.a.binding.Workspace, "project:project"}}, time.Now().Add(time.Hour))
+	operator, secret, err := f.a.Enroll(f.owner, Scope{Actions: []string{"operator.read"}, Resources: []string{"workspace:" + f.a.binding.Workspace, "project:project"}}, time.Now().Add(time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestNativeOperatorRequiresDistinctActionAndProjectScope(t *testing.T) {
 
 func TestNativeOperatorEmptyProjectAndExpiry(t *testing.T) {
 	f := nativeReviewSetup(t)
-	actor, token, err := f.a.Enroll(f.owner, Scope{Actions: []string{"read", "operator.read"}, Resources: []string{"workspace:" + f.a.binding.Workspace, "project:empty"}}, time.Now().Add(time.Hour))
+	actor, token, err := f.a.Enroll(f.owner, Scope{Actions: []string{"operator.read"}, Resources: []string{"workspace:" + f.a.binding.Workspace, "project:empty"}}, time.Now().Add(time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}

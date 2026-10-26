@@ -75,7 +75,9 @@ func operatorAdd(ctx *clikit.Ctx, args []string) error {
 		}
 	}()
 	actor, token, err := a.Enroll(owner, sessions.Scope{
-		Actions:   []string{"read", "operator.read"},
+		// Generic read plus a workspace resource would also authorize native MCP
+		// reads across projects if this connection were used with native serve.
+		Actions:   []string{"operator.read"},
 		Resources: []string{"workspace:" + w.ID, "project:" + project.Slug},
 	}, time.Now().Add(lifetime))
 	if err != nil {

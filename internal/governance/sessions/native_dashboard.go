@@ -102,7 +102,7 @@ func (a *Authority) readDashboard(token, session, project, task string, operator
 	actor, e := authenticate(&s, token, session, time.Now())
 	actions := []string{"read"}
 	if operatorOnly {
-		actions = append(actions, "operator.read")
+		actions = []string{"operator.read"}
 	}
 	if e != nil || !subset(actions, actor.Scope.Actions) || !subset([]string{"workspace:" + s.Binding.Workspace}, actor.Scope.Resources) || (operatorOnly || task == "") && !subset([]string{"project:" + project}, actor.Scope.Resources) {
 		return DashboardSnapshot{}, ErrDenied
