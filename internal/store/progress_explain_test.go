@@ -263,6 +263,41 @@ func TestBuildProgressExplainResolvesCompletedCrossProjectDependencies(t *testin
 	}
 }
 
+func TestBuildProgressExplainEmptyProjectIncludesWorkspaceTasks(t *testing.T) {
+	w, _ := explainFixture(t)
+	if _, err := CreateProject(w, "a-root", "Operator", "operator", "goal", ""); err != nil {
+		t.Fatalf("create operator project: %v", err)
+	}
+	if _, err := CreateTask(w, "a-root", "operator", "workspace task", TaskOpts{Accept: []string{"include in workspace explain"}}); err != nil {
+		t.Fatalf("create operator task: %v", err)
+	}
+	want, err := ListTasks(w, "", "")
+	if err != nil {
+		t.Fatalf("list workspace tasks: %v", err)
+	}
+	at := time.Now().UTC()
+	p, err := BuildProgressExplain(w, "", DeliveryProjection{Schema: DeliverySchemaVersion, Version: 1, ObservedAt: at}, at)
+	if err != nil {
+		t.Fatalf("build workspace progress explain: %v", err)
+	}
+	if len(p.Tasks) != len(want) {
+		t.Fatalf("workspace task rows = %d, want %d", len(p.Tasks), len(want))
+	}
+	wantIDs := make(map[string]bool, len(want))
+	for _, task := range want {
+		wantIDs[task.ID] = true
+	}
+	for _, task := range p.Tasks {
+		if !wantIDs[task.ID.Value] {
+			t.Errorf("workspace explain leaked an unknown task: %s", task.ID.Value)
+		}
+		delete(wantIDs, task.ID.Value)
+	}
+	if len(wantIDs) != 0 {
+		t.Fatalf("empty project filter omitted workspace task IDs: %v", wantIDs)
+	}
+}
+
 func TestBuildProgressExplainKeepsMissingAndAmbiguousDependenciesExplicit(t *testing.T) {
 	w, _ := explainFixture(t)
 	if _, err := CreateProject(w, "a-root", "Operator", "operator", "goal", ""); err != nil {
@@ -310,6 +345,15 @@ func TestBuildProgressExplainKeepsMissingAndAmbiguousDependenciesExplicit(t *tes
 		blockers := strings.Join(task.Blockers.Value, "\n")
 		if !strings.Contains(blockers, tc.ref) || !strings.Contains(blockers, tc.reason) {
 			t.Errorf("dependency problem was not explicit for %s: blockers=%q", tc.ref, blockers)
+		}
+		problemCount := 0
+		for _, blocker := range task.Blockers.Value {
+			if strings.Contains(blocker, tc.ref) && strings.Contains(blocker, tc.reason) {
+				problemCount++
+			}
+		}
+		if problemCount != 1 {
+			t.Errorf("dependency problem appeared %d times for %s: blockers=%q", problemCount, tc.ref, blockers)
 		}
 		if !strings.HasPrefix(task.NextAction.Value, "resolve:") {
 			t.Errorf("dependency problem did not guide the next action for %s: %q", tc.ref, task.NextAction.Value)

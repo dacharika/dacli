@@ -128,7 +128,7 @@ func BuildProgressExplain(w *workspace.Workspace, project string, delivery Deliv
 	}
 	tasks := make([]*Task, 0, len(allTasks))
 	for _, task := range allTasks {
-		if task.Project == project {
+		if project == "" || task.Project == project {
 			tasks = append(tasks, task)
 		}
 	}
@@ -166,9 +166,7 @@ func BuildProgressExplain(w *workspace.Workspace, project string, delivery Deliv
 				continue
 			}
 			other, findErr := resolveDep(idx, workspaceIdx, dep.Ref)
-			if findErr != nil {
-				blockers = append(blockers, DepProblem{Task: task, Ref: dep.Ref, Why: findErr.Error()}.String())
-			} else if other.Status != model.StatusDone {
+			if findErr == nil && other.Status != model.StatusDone {
 				blockers = append(blockers, fmt.Sprintf("dependency %s is %s", other.ID, other.Status))
 			}
 		}
