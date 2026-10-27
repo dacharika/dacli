@@ -104,3 +104,16 @@ Their SHA-256 digests are respectively `60869bdc9925bf5ad364dab721c695026886374b
 `b812d29270ff448d8ebbf0e64ecffc148b042376286fd2fc570d441ce604c40a`.
 Historical `0.159.2` receipts are unchanged. These observations do not enroll a
 live Antigravity setup or authorize CI, release, or production deployment.
+
+## Queue diagnostics source follow-up (#1230)
+
+The [queue projection](GOVERNANCE_NATIVE_QUEUE.md) adds native CLI and typed MCP
+diagnostics without changing these measured host/version/session receipts.
+Its schema22 admission, mixed-stage, restart and cap+1 checks are local fixtures.
+The development authority remains schema10, where host rows are omitted and
+task reasons report `host_capacity_unsupported`. An authenticated queue read proves its selected scope and
+read path; it does not prove automatic child delivery, twelve simultaneous host
+workers, cancellation or provider usage enforcement. Saved twelve-worker
+configuration and deterministic adapters remain unqualified for those claims.
+Issue #1217 retains live qualification; #1218 must consume the same projection
+when measuring rolling admission and host effects.

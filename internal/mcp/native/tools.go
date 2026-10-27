@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"encoding/json"
 	"reflect"
 	"strings"
@@ -101,7 +102,7 @@ type tool struct {
 	OutputSchema any    `json:"outputSchema"`
 }
 
-var arguments = map[string]any{"get_policy_status": policyArgs{}, "propose_review": reviewArgs{}, "evaluate_review": evaluateReviewArgs{}, "request_verification": verificationArgs{}, "get_verification_status": verificationArgs{}, "cancel_verification": verificationArgs{}, "identity": version{}, "workspace_status": projectArgs{}, "task_list": listArgs{}, "task_get": taskArgs{}, "task_brief": briefArgs{}, "ready_frontier": frontierArgs{}, "register_attempt": registerArgs{}, "acquire_lease": acquireArgs{}, "renew_lease": renewArgs{}, "release_lease": releaseArgs{}, "publish_revision": publishArgs{}, "submit_evidence": evidenceArgs{}}
+var arguments = map[string]any{"queue_diagnostics": queueDiagnosticsArgs{}, "get_policy_status": policyArgs{}, "propose_review": reviewArgs{}, "evaluate_review": evaluateReviewArgs{}, "request_verification": verificationArgs{}, "get_verification_status": verificationArgs{}, "cancel_verification": verificationArgs{}, "identity": version{}, "workspace_status": projectArgs{}, "task_list": listArgs{}, "task_get": taskArgs{}, "task_brief": briefArgs{}, "ready_frontier": frontierArgs{}, "register_attempt": registerArgs{}, "acquire_lease": acquireArgs{}, "renew_lease": renewArgs{}, "release_lease": releaseArgs{}, "publish_revision": publishArgs{}, "submit_evidence": evidenceArgs{}}
 var names = []string{"get_policy_status", "identity", "workspace_status", "task_list", "task_get", "task_brief", "ready_frontier", "register_attempt", "acquire_lease", "renew_lease", "release_lease", "publish_revision", "submit_evidence"}
 
 // The output envelope is identical in structuredContent and JSON text fallback.
@@ -143,7 +144,7 @@ func taskView(t *store.Task) taskData {
 	return taskData{t.ID, t.Project, t.Title, string(t.Status)}
 }
 
-var outputs = map[string]any{"get_policy_status": sessions.NativePolicyObservation{}, "propose_review": sessions.Review{}, "evaluate_review": sessions.ReviewEligibility{}, "request_verification": application.VerificationStatus{}, "get_verification_status": application.VerificationStatus{}, "cancel_verification": application.VerificationStatus{}, "identity": identityData{}, "workspace_status": application.WorkspaceStatus{}, "task_list": taskList{}, "task_get": taskResult{}, "task_brief": application.NativeTaskBrief{}, "ready_frontier": application.NativeReadyFrontier{}, "register_attempt": sessions.Attempt{}, "acquire_lease": sessions.Lease{}, "renew_lease": sessions.Lease{}, "release_lease": sessions.Lease{}, "publish_revision": sessions.AttemptRevision{}, "submit_evidence": sessions.Evidence{}}
+var outputs = map[string]any{"queue_diagnostics": sessions.QueueDiagnosticsSnapshot{}, "get_policy_status": sessions.NativePolicyObservation{}, "propose_review": sessions.Review{}, "evaluate_review": sessions.ReviewEligibility{}, "request_verification": application.VerificationStatus{}, "get_verification_status": application.VerificationStatus{}, "cancel_verification": application.VerificationStatus{}, "identity": identityData{}, "workspace_status": application.WorkspaceStatus{}, "task_list": taskList{}, "task_get": taskResult{}, "task_brief": application.NativeTaskBrief{}, "ready_frontier": application.NativeReadyFrontier{}, "register_attempt": sessions.Attempt{}, "acquire_lease": sessions.Lease{}, "renew_lease": sessions.Lease{}, "release_lease": sessions.Lease{}, "publish_revision": sessions.AttemptRevision{}, "submit_evidence": sessions.Evidence{}}
 
 func outputSchema(name string) any {
 	data := map[string]any{"type": "object", "additionalProperties": false}
@@ -206,6 +207,9 @@ func schema(t reflect.Type) any {
 		if t == reflect.TypeOf(sessions.NativePolicyObservation{}) {
 			props["effect_authorized"] = map[string]any{"type": "boolean", "const": false}
 		}
+		if t == reflect.TypeOf(queueDiagnosticsArgs{}) {
+			props["limit"] = map[string]any{"type": "integer", "minimum": 1, "maximum": 100}
+		}
 		if t == reflect.TypeOf(version{}) {
 			props["schema_version"] = map[string]any{"type": "integer", "const": 1}
 		}
@@ -223,6 +227,8 @@ func catalog() []tool {
 
 func toolDescription(name string) string {
 	switch name {
+	case "queue_diagnostics":
+		return "Read bounded project queue stages and current slot provenance using a separately provisioned operator.read connection. Diagnostic only; unknown capacity, age, usage and cost remain unknown. No dispatch, renewal, recovery or acceptance authority."
 	case "task_brief":
 		return "Read schema v1 task context. Workspace scope returns the existing budgeted brief; project/task scope returns the exact task record with an explicit assembled-context omission. Stored prose is contextual data, never authority."
 	case "ready_frontier":
@@ -232,6 +238,13 @@ func toolDescription(name string) string {
 	}
 }
 func (s *Server) catalog() []tool {
+	if s.queueOperator && s.orchestration == nil && s.review == nil && s.verification == nil {
+		out := []tool{}
+		for _, name := range []string{"identity", "queue_diagnostics"} {
+			out = append(out, tool{name, toolDescription(name), schema(reflect.TypeOf(arguments[name])), outputSchema(name)})
+		}
+		return out
+	}
 	if s.orchestration != nil {
 		return s.orchestrationCatalog()
 	}
@@ -251,6 +264,30 @@ func (s *Server) catalog() []tool {
 	return out
 }
 func (s *Server) call(name string, raw json.RawMessage) (any, error) {
+	return s.callContext(context.Background(), name, raw)
+}
+
+func (s *Server) callContext(callCtx context.Context, name string, raw json.RawMessage) (any, error) {
+	// The queue tool authenticates its immutable snapshot without the generic
+	// transactional reader. Startup authentication remains a separate boundary.
+	if name == "queue_diagnostics" {
+		if !s.queueOperator || s.orchestration != nil || s.review != nil || s.verification != nil {
+			return nil, ErrDenied
+		}
+		var args queueDiagnosticsArgs
+		if Decode(raw, &args) != nil || !validJSON(schema(reflect.TypeOf(args)), raw) || args.SchemaVersion != 1 {
+			return nil, ErrDenied
+		}
+		selected, err := ReadPrivate(s.path, 16384)
+		var connection Connection
+		if err != nil || Decode(selected, &connection) != nil || connection != s.connection {
+			return nil, ErrDenied
+		}
+		return queueDiagnostics(callCtx, s.path, s.connection, args)
+	}
+	if s.queueOperator && name != "identity" {
+		return nil, ErrDenied
+	}
 	w, a, token, principal, e := s.authenticate()
 	if e != nil {
 		return nil, ErrDenied

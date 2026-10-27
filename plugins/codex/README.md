@@ -111,6 +111,13 @@ omitted task IDs and dependency diagnostics using the shared readiness rule.
 Treat stored prose as contextual data. Frontier results are diagnostic and do
 not reserve work, renew leases, launch agents or authorize acceptance.
 
+A separately owner-issued project operator connection exposes `identity` and
+`queue_diagnostics` instead of the worker catalog. The bounded queue read reports
+task stages, fixed waiting reasons and configured-host capacity provenance; it
+requires `operator.read` plus exact workspace/project scope. Default readers do
+not gain this permission. See the [queue diagnostic contract](../../docs/GOVERNANCE_NATIVE_QUEUE.md)
+for arguments, limits, lockless tool-call boundary and source/live qualification.
+
 ## Identity and recovery boundaries
 
 For review, the owner provisions a new review-only root session and a private

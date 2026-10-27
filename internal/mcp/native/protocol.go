@@ -160,7 +160,19 @@ func (s *Server) ServeContext(ctx context.Context, in io.Reader, out io.Writer) 
 			pendingFrames.Add(-1)
 			continue
 		}
-		_, _, _, _, authErr := s.authenticate()
+		// Queue diagnostics owns a lockless, freshly authenticated snapshot read.
+		// Recognizing a strictly decoded operation grants no data: argument
+		// decoding and the pinned operator scope still run before its handler.
+		var queueCall struct {
+			Name      string          `json:"name"`
+			Arguments json.RawMessage `json:"arguments"`
+			Meta      map[string]any  `json:"_meta,omitempty"`
+		}
+		isQueueCall := len(q.ID) != 0 && initialized && q.Method == "tools/call" && Decode(q.Params, &queueCall) == nil && queueCall.Name == "queue_diagnostics"
+		var authErr error
+		if !isQueueCall {
+			_, _, _, _, authErr = s.authenticate()
+		}
 		if len(q.ID) == 0 {
 			pendingFrames.Add(-1)
 			if authErr != nil {
@@ -236,7 +248,7 @@ func (s *Server) ServeContext(ctx context.Context, in io.Reader, out io.Writer) 
 						defer calls.Done()
 						defer pendingFrames.Add(-1)
 						defer func() { <-slots }()
-						data, e := s.call(pName, pArgs)
+						data, e := s.callContext(ctx, pName, pArgs)
 						_ = encode(map[string]any{"jsonrpc": "2.0", "id": q.ID, "result": result(pName, data, e)})
 					}(q, p.Name, p.Arguments)
 					continue

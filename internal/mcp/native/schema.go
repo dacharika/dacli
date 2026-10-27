@@ -79,6 +79,26 @@ func validValue(s map[string]any, v any) bool {
 			return false
 		}
 	}
+	if number, ok := v.(json.Number); ok {
+		value, valid := new(big.Rat).SetString(string(number))
+		if !valid {
+			return false
+		}
+		for _, name := range []string{"minimum", "maximum"} {
+			bound, present := s[name]
+			if !present {
+				continue
+			}
+			raw, err := json.Marshal(bound)
+			if err != nil {
+				return false
+			}
+			limit, valid := new(big.Rat).SetString(string(raw))
+			if !valid || name == "minimum" && value.Cmp(limit) < 0 || name == "maximum" && value.Cmp(limit) > 0 {
+				return false
+			}
+		}
+	}
 	if v == nil {
 		return true
 	}

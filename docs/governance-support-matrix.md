@@ -120,5 +120,13 @@ request or acknowledgement do not free either protection by themselves.
 This is cooperative serialization within one selected authority and executor
 host-session. Shared-host scope across authorities is unsupported; no global
 host primitive, unattended driver, additional workers or paid capacity is
-qualified. The live authority remains schema10. Queue accounting remains #1230; rolling admission and the
+qualified. The live authority remains schema10. Rolling admission and the
 host-effect driver remain #1218; live qualification remains #1217.
+
+#1230 adds [bounded queue diagnostics](GOVERNANCE_NATIVE_QUEUE.md) through the
+native CLI and a separate operator-only MCP catalog. It reads exact schemas6–22
+without migration; below22 host rows are omitted and task reasons report
+`host_capacity_unsupported`. Full
+selected-scope stage counts precede bounded row truncation. No queue scheduler,
+host effects, provider billing measurements or live twelve-worker qualification
+are implied. Existing workspace readers do not acquire operator permission.

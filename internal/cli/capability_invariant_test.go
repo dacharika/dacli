@@ -135,7 +135,7 @@ func TestEveryCommandDeclaresItsCapability(t *testing.T) {
 		"native task claims preview": false, "native task claims apply": true,
 		"native doctor":            false,
 		"native guidance diagnose": false, "native guidance refresh-preview": true, "native guidance refresh-apply": true,
-		"native capacity slots upgrade": true, "native capacity upgrade": true, "native capacity observer add": true, "native capacity policy configure": true,
+		"native queue diagnostics": false, "native capacity slots upgrade": true, "native capacity upgrade": true, "native capacity observer add": true, "native capacity policy configure": true,
 		"native capacity qualify": true, "native capacity observe": true, "native capacity status": false,
 		"github issue link": true,
 		"auth login":        true, "auth logout": true, "auth whoami": true,
