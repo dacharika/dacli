@@ -39,7 +39,7 @@ func recordNativeLanding(ctx *clikit.Ctx, args []string) error {
 	if err != nil || nativeconfig.Decode(data, &request) != nil {
 		return clikit.Refusedf("native landing request denied")
 	}
-	owner, err := application.OpenNativeLandingOwner(f.Get("config"), f.Get("project"))
+	owner, err := application.OpenNativeLandingOwner(f.Get("config"), f.Get("project"), observeNativeLandingPR)
 	if err != nil {
 		return clikit.Refusedf("native landing owner authentication denied")
 	}
