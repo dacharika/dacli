@@ -296,6 +296,9 @@ func observeCleanupSandbox(w *workspace.Workspace, c CleanupSandbox, tasks map[s
 	if task == nil || task.Status != model.StatusDone {
 		return refuse(fmt.Errorf("task missing or not done"))
 	}
+	if observation, present := ReadTaskLanding(context.Background(), w, task, configuredTaskLandingBase(w, task)); present && observation.State != LandingLanded {
+		return refuse(fmt.Errorf("selected native task landing is not validated; reconcile its observation"))
+	}
 	// Observe all possible matching writers, even a different run/claim record.
 	runs, e := os.ReadDir(w.RunsDir())
 	if e != nil {

@@ -42,6 +42,7 @@
 package ship
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -924,6 +925,12 @@ func requireFreshLanding(w *workspace.Workspace, into string, wave []*store.Task
 		return fmt.Errorf("ship merged the PR but could not fetch fresh origin/%s; tasks remain nonterminal until landing can be inspected: %w", into, err)
 	}
 	for _, t := range wave {
+		if observation, present := store.ReadTaskLanding(context.Background(), w, t, into); present {
+			if observation.State != store.LandingLanded {
+				return clikit.Refusedf("ship cannot certify %03d-%s: selected native landing observation is not validated; reconcile it before accepting", t.Seq, t.Slug)
+			}
+			continue
+		}
 		shas := refs[taskRef(t)].shas
 		if len(shas) == 0 {
 			return clikit.Refusedf("ship cannot certify %03d-%s: no reviewed branch head was captured before merge; task remains nonterminal", t.Seq, t.Slug)
@@ -1025,11 +1032,14 @@ func recordWaveLanding(w *workspace.Workspace, trunk string, wave []*store.Task,
 		}
 		r := refs[ref]
 		landing := store.LandingNoBranch
-		if len(r.shas) > 0 {
+		label := r.branch
+		if observation, present := store.ReadTaskLanding(context.Background(), w, fresh, trunk); present {
+			landing, label = observation.State, "native landing observation "+observation.ReceiptID
+		} else if len(r.shas) > 0 {
 			landing = store.LandingOfRefs(w, r.shas, trunk)
 		}
 		_ = store.WithTask(w, fresh, func(current *store.Task) error {
-			store.AppendLog(current, store.LandingEvidence(landing, r.branch, trunk))
+			store.AppendLog(current, store.LandingEvidence(landing, label, trunk))
 			return store.SaveTask(current)
 		})
 	}

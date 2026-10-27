@@ -29,6 +29,11 @@ const (
 )
 
 func checkLanded(w *workspace.Workspace, t *store.Task, trunk string) (landingState, string) {
+	// A present native observation, including invalid evidence, is the selected
+	// source of truth. A looser PR-state probe must not override it (#1209).
+	if observation, present := store.ReadTaskLanding(context.Background(), w, t, trunk); present {
+		return observation.State, "native landing observation " + observation.ReceiptID
+	}
 	branch := store.TaskBranch(t)
 	if state, found := pullRequestLanding(w.Root, branch, store.RecordedPRURL(t), trunk); found {
 		return state, branch

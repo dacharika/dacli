@@ -2,6 +2,7 @@ package store
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -44,6 +45,9 @@ type AggregateChildState struct {
 	AcceptanceTotal int    `json:"acceptance_total"`
 	Verified        bool   `json:"verified"`
 	Landed          bool   `json:"landed"`
+	LandingState    string `json:"landing_state,omitempty"`
+	LandingReason   string `json:"landing_reason,omitempty"`
+	LandingReceipt  string `json:"landing_receipt_id,omitempty"`
 	Blocker         string `json:"blocker,omitempty"`
 }
 
@@ -103,11 +107,15 @@ func AggregateProgressFor(w *workspace.Workspace, parent *Task) (AggregateProgre
 		}
 		state.Verified = state.AcceptanceTotal > 0 && state.AcceptanceDone == state.AcceptanceTotal
 		state.Landed = child.Status == model.StatusDone
-		if landing.Mode == model.LandingPR {
-			base := landing.Base
-			if base == "" {
-				base = "main"
-			}
+		base := landing.Base
+		if base == "" {
+			base = "main"
+		}
+		if observation, present := ReadTaskLanding(context.Background(), w, child, base); present {
+			state.Landed = observation.State == LandingLanded
+			state.LandingState = taskLandingStateName(observation.State)
+			state.LandingReason, state.LandingReceipt = observation.Reason, observation.ReceiptID
+		} else if landing.Mode == model.LandingPR {
 			landed, _ := CheckLanded(w, child, base)
 			state.Landed = landed == LandingLanded
 		}
@@ -118,6 +126,8 @@ func AggregateProgressFor(w *workspace.Workspace, parent *Task) (AggregateProgre
 			state.Blocker = "required child is open"
 		case !state.Verified:
 			state.Blocker = "required child is unverified"
+		case !state.Landed && state.LandingState == "unknown":
+			state.Blocker = "required child landing is unknown; record or reconcile native landing evidence"
 		case !state.Landed:
 			state.Blocker = "required child is unlanded under project policy"
 		default:
@@ -134,6 +144,17 @@ func AggregateProgressFor(w *workspace.Workspace, parent *Task) (AggregateProgre
 		p.Blockers = append(p.Blockers, "aggregate has no required children")
 	}
 	return p, nil
+}
+
+func taskLandingStateName(state LandingState) string {
+	switch state {
+	case LandingLanded:
+		return "landed"
+	case LandingUnlanded:
+		return "unlanded"
+	default:
+		return "unknown"
+	}
 }
 
 func RefuseIncompleteAggregate(w *workspace.Workspace, parent *Task) error {

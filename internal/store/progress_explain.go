@@ -153,9 +153,13 @@ func BuildProgressExplain(w *workspace.Workspace, project string, delivery Deliv
 	}
 
 	findings := map[string]DeliveryFinding{}
+	nativeLandingFindings := map[string]DeliveryFinding{}
 	for _, finding := range delivery.Findings {
 		if finding.ObjectID != "" {
 			findings[finding.ObjectID] = finding
+			if finding.Source == "native-task-landing" {
+				nativeLandingFindings[finding.ObjectID] = finding
+			}
 		}
 	}
 
@@ -186,6 +190,10 @@ func BuildProgressExplain(w *workspace.Workspace, project string, delivery Deliv
 		landing := LandingExplain{Classification: "unobserved", Confidence: DeliveryUnknown}
 		landingSource, landingAt := "delivery-reconciliation", delivery.ObservedAt
 		if finding, ok := findings[task.ID]; ok {
+			landing = LandingExplain{Classification: finding.Classification, Confidence: finding.Confidence, Detail: finding.Detail, RelatedRefs: append([]DeliveryRef(nil), finding.RelatedRefs...)}
+			landingSource, landingAt = finding.Source, finding.ObservedAt
+		}
+		if finding, ok := nativeLandingFindings[task.ID]; ok {
 			landing = LandingExplain{Classification: finding.Classification, Confidence: finding.Confidence, Detail: finding.Detail, RelatedRefs: append([]DeliveryRef(nil), finding.RelatedRefs...)}
 			landingSource, landingAt = finding.Source, finding.ObservedAt
 		}
@@ -295,6 +303,10 @@ func BuildProgressExplain(w *workspace.Workspace, project string, delivery Deliv
 		landing := LandingExplain{Classification: "unobserved", Confidence: DeliveryUnknown}
 		landingSource, landingAt := "delivery-reconciliation", delivery.ObservedAt
 		if finding, ok := findings[task.ID]; ok {
+			landing = LandingExplain{Classification: finding.Classification, Confidence: finding.Confidence, Detail: finding.Detail, RelatedRefs: append([]DeliveryRef(nil), finding.RelatedRefs...)}
+			landingSource, landingAt = finding.Source, finding.ObservedAt
+		}
+		if finding, ok := nativeLandingFindings[task.ID]; ok {
 			landing = LandingExplain{Classification: finding.Classification, Confidence: finding.Confidence, Detail: finding.Detail, RelatedRefs: append([]DeliveryRef(nil), finding.RelatedRefs...)}
 			landingSource, landingAt = finding.Source, finding.ObservedAt
 		}

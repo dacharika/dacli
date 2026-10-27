@@ -5,6 +5,7 @@
 package store
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -48,6 +49,9 @@ type DeliverySliceState struct {
 	Claims           []string               `json:"claims"`
 	CleanupState     string                 `json:"cleanup_state"`
 	Landed           bool                   `json:"landed"`
+	LandingState     string                 `json:"landing_state,omitempty"`
+	LandingReason    string                 `json:"landing_reason,omitempty"`
+	LandingReceipt   string                 `json:"landing_receipt_id,omitempty"`
 }
 
 type DeliveryCriterion struct {
@@ -259,7 +263,17 @@ func deliveryState(w *workspace.Workspace, t *Task) DeliverySliceState {
 		}
 	}
 	observedHead, _ := t.Doc.Front.Get("delivery_head_sha")
-	if state.MergeSHA != "" && state.TreeSHA != "" && state.ObservedAt != "" && ((observedHead != "" && observedHead == state.HeadSHA) || state.HeadSHA == "") {
+	base := "main"
+	if project, err := LoadProject(w, t.Project); err == nil && project.Landing.Base != "" {
+		base = project.Landing.Base
+	}
+	if observation, present := ReadTaskLanding(context.Background(), w, t, base); present {
+		// Legacy delivery_* metadata cannot override an invalid selected native
+		// source, nor certify another task's batch as delivered (#1209).
+		state.Landed = observation.State == LandingLanded
+		state.LandingState = taskLandingStateName(observation.State)
+		state.LandingReason, state.LandingReceipt = observation.Reason, observation.ReceiptID
+	} else if state.MergeSHA != "" && state.TreeSHA != "" && state.ObservedAt != "" && ((observedHead != "" && observedHead == state.HeadSHA) || state.HeadSHA == "") {
 		state.Landed = true
 	}
 	if t.Status == model.StatusDone && state.HeadSHA == "" {

@@ -1654,6 +1654,9 @@ func CloseTaskAfterLandingDecision(w *workspace.Workspace, t *Task, actor string
 }
 
 func closeTask(w *workspace.Workspace, t *Task, actor string, landingDecided bool) error {
+	if err := requireSelectedTaskLanding(w, t, configuredTaskLandingBase(w, t)); err != nil {
+		return err
+	}
 	if err := RefuseIncompleteDelivery(w, t); err != nil {
 		return err
 	}

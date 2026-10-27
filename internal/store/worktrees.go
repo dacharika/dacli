@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -53,9 +54,22 @@ func ReclaimableWorktrees(w *workspace.Workspace, trunk string, protect ...strin
 
 	// Branches whose task has landed in done/ — the run is finished.
 	done := map[string]bool{}
-	if tasks, err := ListTasks(w, "", model.StatusDone); err == nil {
-		for _, t := range tasks {
+	protectedNative := map[string]bool{}
+	tasks, err := ListTasks(w, "", "")
+	if err != nil {
+		return nil, fmt.Errorf("observe task landing before classifying worktrees: %w", err)
+	}
+	for _, t := range tasks {
+		if t.Status == model.StatusDone {
 			done[fmt.Sprintf("dacli/%03d-%s", t.Seq, t.Slug)] = true
+		}
+		base := trunk
+		if base == "" {
+			base = configuredTaskLandingBase(w, t)
+		}
+		if observation, present := ReadTaskLanding(context.Background(), w, t, base); present && (observation.State != LandingLanded || t.Status != model.StatusDone) {
+			// Recording a landing does not retire an open/active native task.
+			protectedNative[TaskBranch(t)] = true
 		}
 	}
 	// A reopened task may intentionally reuse the exact branch whose earlier
@@ -83,7 +97,7 @@ func ReclaimableWorktrees(w *workspace.Workspace, trunk string, protect ...strin
 	var out []ReclaimableWorktree
 	for _, wt := range wts {
 		p := cleanPath(wt.Path)
-		if skip[p] || wt.Locked {
+		if skip[p] || wt.Locked || protectedNative[wt.Branch] {
 			continue
 		}
 		// Only ever touch worktrees under the workspace's own worktrees dir —
