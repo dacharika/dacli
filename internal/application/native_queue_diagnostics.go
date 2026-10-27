@@ -158,7 +158,7 @@ func readQueueCanonicalSnapshot(ctx context.Context, w *workspace.Workspace, pro
 		if err := ctx.Err(); err != nil {
 			return sessions.QueueCanonicalSnapshot{}, err
 		}
-		if candidate.Project != project || (task != "" && candidate.ID != task) {
+		if candidate.Project != project {
 			continue
 		}
 		reason := ""

@@ -149,6 +149,58 @@ func TestQueueDiagnosticsExactTaskScopeRefusesWithoutForeignIdentifier(t *testin
 	}
 }
 
+func TestQueueDiagnosticsExactTaskRetainsProjectActivityInCanonicalCallback(t *testing.T) {
+	f, reader := operatorReaderFixture(t, []string{"operator.read"})
+	target, err := store.CreateTask(f.workspace, "owner", "p", "Selected target", store.TaskOpts{Claims: []string{"src/target.go"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	active, err := store.CreateTask(f.workspace, "owner", "p", "Other active project task", store.TaskOpts{Claims: []string{"src/active.go"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.MoveTask(f.workspace, active, model.StatusActive); err != nil {
+		t.Fatal(err)
+	}
+	foreign, err := store.CreateProject(f.workspace, "owner", "Foreign", "foreign", "private", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignTask, err := store.CreateTask(f.workspace, "owner", foreign.Slug, "Foreign private task", store.TaskOpts{Claims: []string{"private/secret.go"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var observed sessions.QueueCanonicalSnapshot
+	snapshot, err := reader.readQueueDiagnostics(context.Background(), "p", target.ID, 50, func(ctx context.Context) (sessions.QueueCanonicalSnapshot, error) {
+		canonical, err := readQueueCanonicalSnapshot(ctx, reader.workspace, "p", target.ID)
+		observed = canonical
+		return canonical, err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seenTarget, seenActive, seenForeign := false, false, false
+	for _, candidate := range observed.Tasks {
+		seenTarget = seenTarget || candidate.TaskID == target.ID
+		seenActive = seenActive || candidate.TaskID == active.ID
+		seenForeign = seenForeign || candidate.TaskID == foreignTask.ID || candidate.ProjectID == foreign.Slug
+	}
+	if !seenTarget || !seenActive || seenForeign {
+		t.Fatalf("canonical callback did not retain complete authorized-project activity: target=%v active=%v foreign=%v tasks=%+v", seenTarget, seenActive, seenForeign, observed.Tasks)
+	}
+	if len(snapshot.Rows) != 1 || snapshot.Rows[0].TaskID != target.ID {
+		t.Fatalf("exact-task output selection changed: %+v", snapshot.Rows)
+	}
+	encoded, err := json.Marshal(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), active.ID) || strings.Contains(string(encoded), foreignTask.ID) || strings.Contains(string(encoded), "Foreign private task") || strings.Contains(string(encoded), "private/secret.go") {
+		t.Fatal("canonical activity outside the exact output target was disclosed")
+	}
+}
+
 func TestQueueDiagnosticsUsesForeignDependencyTruthWithoutDisclosure(t *testing.T) {
 	f, reader := operatorReaderFixture(t, []string{"operator.read"})
 	foreign, err := store.CreateProject(f.workspace, "owner", "Foreign", "foreign", "private", "")
