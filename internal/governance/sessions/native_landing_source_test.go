@@ -1,6 +1,7 @@
 package sessions
 
 import (
+	"errors"
 	"os"
 	"reflect"
 	"testing"
@@ -21,7 +22,7 @@ func TestOwnerReadNativeLandingSourceRequiresLatestPublishedSource(t *testing.T)
 	if err != nil || second.Sequence != 2 {
 		t.Fatalf("publish newer source: %+v %v", second, err)
 	}
-	if _, err := f.a.OwnerReadNativeLandingSource(f.owner, "project", "task-a", f.at.ID, f.revision.ID); err != ErrDenied {
+	if _, err := f.a.OwnerReadNativeLandingSource(f.owner, "project", "task-a", f.at.ID, f.revision.ID); !errors.Is(err, ErrDenied) {
 		t.Fatalf("older publication remained selectable after a newer revision: %v", err)
 	}
 
@@ -53,14 +54,14 @@ func TestOwnerReadNativeLandingSourceRequiresLatestPublishedSource(t *testing.T)
 	if err != nil || !reflect.DeepEqual(before, after) {
 		t.Fatalf("historical source reads changed authority bytes: %v", err)
 	}
-	if _, err := f.a.OwnerReadNativeLandingSource(f.workerToken, "project", "task-a", f.at.ID, second.ID); err != ErrDenied {
+	if _, err := f.a.OwnerReadNativeLandingSource(f.workerToken, "project", "task-a", f.at.ID, second.ID); !errors.Is(err, ErrDenied) {
 		t.Fatalf("ordinary revoked worker authenticated an owner source read: %v", err)
 	}
 }
 
 func TestWithOwnerNativeLandingSourceRejectsNilCallbackAndChangedSourceSelection(t *testing.T) {
 	f := evidenceSetup(t)
-	if err := f.a.WithOwnerNativeLandingSource(f.owner, "project", "task-a", f.at.ID, f.revision.ID, nil); err != ErrDenied {
+	if err := f.a.WithOwnerNativeLandingSource(f.owner, "project", "task-a", f.at.ID, f.revision.ID, nil); !errors.Is(err, ErrDenied) {
 		t.Fatalf("nil final-source callback was accepted: %v", err)
 	}
 	for _, bad := range []struct{ project, task, attempt, revision string }{
@@ -69,7 +70,7 @@ func TestWithOwnerNativeLandingSourceRejectsNilCallbackAndChangedSourceSelection
 		{"project", "task-a", "other-attempt", f.revision.ID},
 		{"project", "task-a", f.at.ID, "other-revision"},
 	} {
-		if _, err := f.a.OwnerReadNativeLandingSource(f.owner, bad.project, bad.task, bad.attempt, bad.revision); err != ErrDenied {
+		if _, err := f.a.OwnerReadNativeLandingSource(f.owner, bad.project, bad.task, bad.attempt, bad.revision); !errors.Is(err, ErrDenied) {
 			t.Fatalf("mismatched source selection %+v was accepted: %v", bad, err)
 		}
 	}
