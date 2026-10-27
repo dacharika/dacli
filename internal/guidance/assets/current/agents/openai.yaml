@@ -1,4 +1,4 @@
 interface:
   display_name: "dacli"
-  short_description: "Govern native coding-agent work and evidence"
-  default_prompt: "Use $dacli to inspect canonical work, use native host agents with explicit scoped governance, and preserve exact revision evidence and owner authority."
+  short_description: "Coordinate parallel features with scoped native governance"
+  default_prompt: "Use $dacli to select ready independent features, keep scoped native-agent lanes moving, and carry each exact revision through required evidence, independent review and authorized owner integration."

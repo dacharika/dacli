@@ -1,5 +1,23 @@
-# Model economics
+# Model routing and usage
 
-The native host chooses models and enforces any spending controls. Retained runtime/model usage records and calibration can inform judgment, but are not current billing, a provider token cap or an automatic route. Unknown usage is not zero. A cheap or expensive model is never evidence of authority or review independence.
+The host executes coding turns and enforces its spending controls. When separately
+enabled by the owner, dacli ranks permitted role/model candidates using task
+difficulty, capabilities, current availability and bounded correction policy.
+A controller's `get_dispatch_routing` read returns the selected next-turn role,
+model and explanation for an exact dispatch or correction operation. Inspect
+the selected controller catalog first; basic worker credentials do not expose it.
+The selection is a historical explanation, not a launch permit, provider quota
+guarantee or permission to change a running agent's model. Follow the user's
+model choices within the configured eligible routes.
 
-See the [operator playbook](https://github.com/mlnomadpy/dacli/blob/main/docs/OPERATOR_PLAYBOOK.md) and inspect `dacli capabilities --json` for the installed surface.
+Recorded budget reservations and owner estimates are separate from measured
+provider usage. Native usage adapters retain only attributable supported output
+measurements; unsupported host callbacks remain unavailable. Do not infer tokens
+from text length, enabled skills or process counts. Unknown usage and cost stay
+unknown, and token observations do not prove billing enforcement. Historical
+calibration can inform planning without establishing today's prices or capacity.
+A model name never proves authority or reviewer independence.
+
+See the [model routing contract](https://github.com/dacharika/dacli/blob/main/docs/GOVERNANCE_NATIVE_MCP.md#version-050-package-and-routing-read),
+[operator playbook](https://github.com/dacharika/dacli/blob/main/docs/OPERATOR_PLAYBOOK.md)
+and the selected runtime's capability catalog.

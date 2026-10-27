@@ -27,7 +27,7 @@ func TestInstalledSkillAndReleaseGuidanceAreCurrent(t *testing.T) {
 		"dacli version --compatibility --json",
 		"dacli capabilities --json",
 		"dacli explain --project <project> --json",
-		"https://github.com/mlnomadpy/dacli/blob/main/docs/OPERATOR_PLAYBOOK.md",
+		"https://github.com/dacharika/dacli/blob/main/docs/OPERATOR_PLAYBOOK.md",
 	} {
 		if !strings.Contains(skill, want) {
 			t.Errorf("installed skill guidance missing %q", want)
