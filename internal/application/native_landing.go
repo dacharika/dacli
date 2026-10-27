@@ -188,7 +188,10 @@ func (p *NativeLandingOwner) Record(ctx context.Context, request NativeLandingRe
 				return sessions.ErrDenied
 			}
 			if exists {
-				if !nativeLandingSameRequest(previous, observation) || store.ValidateTaskLanding(ctx, p.workspace, currentTask, previous, project.Landing.Base) != nil || p.selectedOwnerCurrent(owner) != nil {
+				if !nativeLandingSameRequest(previous, observation) || p.validateTaskLanding(ctx, currentTask, previous, project.Landing.Base) != nil {
+					return sessions.ErrDenied
+				}
+				if p.selectedOwnerCurrent(owner) != nil || ctx.Err() != nil || p.selectedLandingPolicyCurrent(ctx, project.Landing, githubRepository, observation.LandingPolicyDigest) != nil {
 					return sessions.ErrDenied
 				}
 				recorded = previous
@@ -201,10 +204,10 @@ func (p *NativeLandingOwner) Record(ctx context.Context, request NativeLandingRe
 			if currentID != request.ExpectedPreviousID {
 				return sessions.ErrDenied
 			}
-			if err := store.ValidateTaskLanding(ctx, p.workspace, currentTask, observation, project.Landing.Base); err != nil {
+			if err := p.validateTaskLanding(ctx, currentTask, observation, project.Landing.Base); err != nil {
 				return sessions.ErrDenied
 			}
-			if p.selectedOwnerCurrent(owner) != nil || ctx.Err() != nil {
+			if p.selectedOwnerCurrent(owner) != nil || ctx.Err() != nil || p.selectedLandingPolicyCurrent(ctx, project.Landing, githubRepository, observation.LandingPolicyDigest) != nil {
 				return sessions.ErrDenied
 			}
 			if err := store.AppendTaskLanding(currentTask, observation); err != nil {

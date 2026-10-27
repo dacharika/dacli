@@ -3,12 +3,14 @@ package application
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
 	"github.com/mlnomadpy/dacli/internal/model"
 	"github.com/mlnomadpy/dacli/internal/store"
+	"github.com/mlnomadpy/dacli/internal/workspace"
 )
 
 func nativeLandingSetup(t *testing.T) (*NativeLandingOwner, acceptanceFixture, NativeLandingRequest) {
@@ -123,7 +125,7 @@ func TestNativeLandingRecordExactPublishedSourceAndReplay(t *testing.T) {
 }
 
 func TestNativeLandingRefusalsDoNotChangeTaskOrOwnerSelection(t *testing.T) {
-	for _, kind := range []string{"unmerged", "wrong-head", "wrong-base", "credential-substitution", "canceled"} {
+	for _, kind := range []string{"unmerged", "wrong-head", "wrong-base", "alternate-owner-config", "canceled"} {
 		t.Run(kind, func(t *testing.T) {
 			owner, f, request := nativeLandingSetup(t)
 			before, err := os.ReadFile(f.task.Path)
@@ -149,11 +151,14 @@ func TestNativeLandingRefusalsDoNotChangeTaskOrOwnerSelection(t *testing.T) {
 					pr.MergeCommit.OID = f.revision.Observation.Commit
 					return pr, nil
 				}
-			case "credential-substitution":
+			case "alternate-owner-config":
+				alternateCredential := filepath.Join(t.TempDir(), "alternate-owner.token")
+				if err := os.WriteFile(alternateCredential, []byte(f.owner), 0600); err != nil {
+					t.Fatal(err)
+				}
+				alternateConfig := recoveryOwnerConfig{SchemaVersion: 1, Workspace: f.w.Root, Authority: f.access.owner.config.Authority, InstallationID: "installation", OwnerCredentialFile: alternateCredential}
 				owner.observePR = func(context.Context, string, int) (nativeLandingPRObservation, error) {
-					if err := os.WriteFile(f.access.owner.config.OwnerCredentialFile, []byte("substituted-owner"), 0600); err != nil {
-						t.Fatal(err)
-					}
+					acceptanceJSON(t, owner.owner.path, alternateConfig)
 					pr := nativeLandingPRObservation{Number: 123, URL: "https://github.com/owner/repo/pull/123", State: "MERGED", HeadRefOID: request.ExpectedPRHead, BaseRefName: "main"}
 					pr.MergeCommit.OID = f.revision.Observation.Commit
 					return pr, nil
@@ -202,5 +207,46 @@ func TestNativeLandingSourcePublicationChangeDuringPRObservationIsDenied(t *test
 	after, err := os.ReadFile(f.task.Path)
 	if err != nil || !reflect.DeepEqual(before, after) {
 		t.Fatalf("owner substitution changed canonical task: %v", err)
+	}
+}
+
+func TestNativeLandingPolicyChangeDuringLocalValidationIsDenied(t *testing.T) {
+	for _, replay := range []bool{false, true} {
+		name := "new-record"
+		if replay {
+			name = "exact-replay"
+		}
+		t.Run(name, func(t *testing.T) {
+			owner, f, request := nativeLandingSetup(t)
+			if replay {
+				if _, err := owner.Record(context.Background(), request); err != nil {
+					t.Fatalf("create replay fixture: %v", err)
+				}
+			}
+			before, err := os.ReadFile(f.task.Path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			owner.validateLanding = func(ctx context.Context, w *workspace.Workspace, task *store.Task, observation store.TaskLandingObservation, base string) error {
+				if err := store.ValidateTaskLanding(ctx, w, task, observation, base); err != nil {
+					return err
+				}
+				project, err := store.LoadProject(w, "p")
+				if err != nil {
+					return err
+				}
+				if err := store.ConfigureProjectLanding(project, model.LandingPolicy{Mode: model.LandingPR, Base: "release"}); err != nil {
+					return err
+				}
+				return store.SaveProject(project)
+			}
+			if _, err := owner.Record(context.Background(), request); err == nil {
+				t.Fatal("valid landing policy change during final local validation was accepted")
+			}
+			after, err := os.ReadFile(f.task.Path)
+			if err != nil || !reflect.DeepEqual(before, after) {
+				t.Fatalf("policy freshness refusal changed canonical task: %v", err)
+			}
+		})
 	}
 }

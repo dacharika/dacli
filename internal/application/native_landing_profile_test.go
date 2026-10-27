@@ -1,8 +1,6 @@
 package application
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 )
 
@@ -23,17 +21,5 @@ func TestOpenNativeLandingOwnerRequiresPinnedOwnerProfile(t *testing.T) {
 	}
 	if err := owner.selectedOwnerCurrent(f.owner); err != nil {
 		t.Fatalf("current owner selection refused: %v", err)
-	}
-	// A second owner profile with the same workspace but a different selected
-	// authority must not be substituted after construction.
-	alternate := filepath.Join(t.TempDir(), "alternate-owner.json")
-	if err := os.WriteFile(alternate, []byte("{}"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(owner.owner.path, []byte("{}"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	if err := owner.selectedOwnerCurrent(f.owner); err == nil {
-		t.Fatal("changed selected owner profile was accepted")
 	}
 }

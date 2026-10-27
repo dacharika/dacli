@@ -2,9 +2,11 @@ package application
 
 import (
 	"context"
+	"strings"
 
 	"github.com/mlnomadpy/dacli/internal/governance/nativeconfig"
 	"github.com/mlnomadpy/dacli/internal/governance/sessions"
+	"github.com/mlnomadpy/dacli/internal/model"
 	"github.com/mlnomadpy/dacli/internal/store"
 	"github.com/mlnomadpy/dacli/internal/workspace"
 )
@@ -12,10 +14,11 @@ import (
 // NativeLandingOwner binds explicit private owner credentials to one canonical
 // workspace and project. Worker and reader connection profiles are never used.
 type NativeLandingOwner struct {
-	owner     *NativeRecoveryAccess
-	project   string
-	workspace *workspace.Workspace
-	observePR func(context.Context, string, int) (nativeLandingPRObservation, error)
+	owner           *NativeRecoveryAccess
+	project         string
+	workspace       *workspace.Workspace
+	observePR       func(context.Context, string, int) (nativeLandingPRObservation, error)
+	validateLanding func(context.Context, *workspace.Workspace, *store.Task, store.TaskLandingObservation, string) error
 }
 
 func OpenNativeLandingOwner(configPath, project string) (*NativeLandingOwner, error) {
@@ -75,6 +78,32 @@ func (p *NativeLandingOwner) selectedOwnerCurrent(owner string) error {
 	}
 	w, err := workspace.Find(p.owner.config.Workspace)
 	if err != nil || w.ID != p.workspace.ID || w.Root != p.workspace.Root {
+		return sessions.ErrDenied
+	}
+	return nil
+}
+
+func (p *NativeLandingOwner) validateTaskLanding(ctx context.Context, task *store.Task, observation store.TaskLandingObservation, base string) error {
+	if p != nil && p.validateLanding != nil {
+		return p.validateLanding(ctx, p.workspace, task, observation, base)
+	}
+	return store.ValidateTaskLanding(ctx, p.workspace, task, observation, base)
+}
+
+func (p *NativeLandingOwner) selectedLandingPolicyCurrent(ctx context.Context, expected model.LandingPolicy, repository, digest string) error {
+	if p == nil || p.workspace == nil || ctx == nil || ctx.Err() != nil {
+		return sessions.ErrDenied
+	}
+	project, err := store.LoadProject(p.workspace, p.project)
+	if err != nil || project.Landing != expected {
+		return sessions.ErrDenied
+	}
+	githubRepository, _ := project.Doc.Front.Get("github_repo")
+	if strings.TrimSpace(githubRepository) != repository {
+		return sessions.ErrDenied
+	}
+	currentDigest, err := store.TaskLandingPolicyDigestContext(ctx, p.workspace, p.project)
+	if err != nil || currentDigest != digest || ctx.Err() != nil {
 		return sessions.ErrDenied
 	}
 	return nil
