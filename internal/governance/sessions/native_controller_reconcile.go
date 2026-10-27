@@ -52,8 +52,24 @@ func (a *Authority) ReconcileController(token, session string, r ControllerStepR
 	return a.advanceController(token, session, r, true)
 }
 func (a *Authority) advanceController(token, session string, r ControllerStepRequest, observeOnly bool) (ControllerStatus, error) {
+	out, _, err := a.advanceControllerForDriver(token, session, r, observeOnly)
+	return out, err
+}
+
+type controllerDispatchCandidate struct {
+	Action             ControllerAction
+	Intent             DispatchIntent
+	Route              ControllerTaskRoute
+	CheckpointSequence uint64
+}
+
+// advanceControllerForDriver shares the normal transition machine. It reports
+// only an intent newly inserted by this successful transaction; historical or
+// replayed status never carries first-use provenance.
+func (a *Authority) advanceControllerForDriver(token, session string, r ControllerStepRequest, observeOnly bool) (ControllerStatus, *controllerDispatchCandidate, error) {
 	var out ControllerStatus
 	var refusal error
+	var created *controllerDispatchCandidate
 	action := "controller.step"
 	if observeOnly {
 		action = "controller.reconcile"
@@ -101,7 +117,8 @@ func (a *Authority) advanceController(token, session string, r ControllerStepReq
 		candidate.Status.HostActionAuthorized = false
 		candidate.Status.Historical = false
 		candidate.Status.ObservedAt = time.Now().UTC()
-		transitionErr := a.controllerTransition(&trial, token, session, &candidate, observeOnly)
+		var trialCreated *controllerDispatchCandidate
+		transitionErr := a.controllerTransition(&trial, token, session, &candidate, observeOnly, &trialCreated)
 		if transitionErr != nil {
 			candidate = iv
 			candidate.Status.ObservedAt = time.Now().UTC()
@@ -124,6 +141,7 @@ func (a *Authority) advanceController(token, session string, r ControllerStepReq
 			}
 		} else {
 			*s = trial
+			created = trialCreated
 		}
 		candidate.Status.Sequence++
 		if e := controllerScope(s, token, session, r.ProjectID, action, candidate.Policy.TaskIDs); e != nil {
@@ -152,9 +170,12 @@ func (a *Authority) advanceController(token, session string, r ControllerStepReq
 		return nil
 	})
 	if err != nil {
-		return ControllerStatus{}, err
+		return ControllerStatus{}, nil, err
 	}
-	return out, refusal
+	if refusal != nil || observeOnly || out.Historical {
+		created = nil
+	}
+	return out, created, refusal
 }
 func controllerCycleID(st ControllerStatus) string {
 	return identity("controller.cycle", st.ID, st.CycleOrdinal)
@@ -162,7 +183,7 @@ func controllerCycleID(st ControllerStatus) string {
 func controllerKey(st ControllerStatus, kind, id string) string {
 	return identity("controller.action", st.ID, []string{kind, id})
 }
-func (a *Authority) controllerTransition(s *state, token, session string, iv *controllerInvocation, observeOnly bool) error {
+func (a *Authority) controllerTransition(s *state, token, session string, iv *controllerInvocation, observeOnly bool, created **controllerDispatchCandidate) error {
 	st := &iv.Status
 	cp, ok := s.CheckpointPolicies[st.ProjectID]
 	if !ok {
@@ -215,7 +236,7 @@ func (a *Authority) controllerTransition(s *state, token, session string, iv *co
 		}
 	}
 	if len(st.Actions) > 0 {
-		return a.controllerProgressWave(s, token, session, iv)
+		return a.controllerProgressWave(s, token, session, iv, created)
 	}
 	if st.Waves >= iv.Policy.MaxWaves {
 		controllerHalt(iv, "wave_limit", "committed wave limit exhausted", false, true)
@@ -375,7 +396,7 @@ func controllerRef(st *ControllerStatus, ref CheckpointRefs) {
 	}
 	st.Refs = append(st.Refs, ref)
 }
-func (a *Authority) controllerProgressWave(s *state, token, session string, iv *controllerInvocation) error {
+func (a *Authority) controllerProgressWave(s *state, token, session string, iv *controllerInvocation, created **controllerDispatchCandidate) error {
 	st := &iv.Status
 	for _, pending := range st.Actions {
 		if _, present := s.DispatchIntents[pending.DispatchID]; !present {
@@ -394,6 +415,18 @@ func (a *Authority) controllerProgressWave(s *state, token, session string, iv *
 					st.Actions[n].ActorID = route.BridgeSession
 					st.Actions[n].IntentID = result.Intent.ID
 					st.Actions[n].OperationKey = result.Intent.OperationKey
+				}
+			}
+			if result.HostActionAuthorized && created != nil {
+				for _, action := range st.Actions {
+					if action.DispatchID == d.ID && action.Kind == "host_dispatch" && action.IntentID == result.Intent.ID && action.OperationKey == result.Intent.OperationKey {
+						history := s.Checkpoints[st.CheckpointID]
+						if len(history) == 0 {
+							return ErrDenied
+						}
+						*created = &controllerDispatchCandidate{Action: action, Intent: result.Intent, Route: route, CheckpointSequence: history[len(history)-1].Sequence}
+						break
+					}
 				}
 			}
 			st.HostActionAuthorized = result.HostActionAuthorized
