@@ -79,6 +79,12 @@ No native publication receipt itself creates a PR or merges code. Release
 publication remains a separate maintainer decision; `dacli release train` does
 not create a tag or release.
 
+When a native task arrived through a reviewed batch rather than a task-named
+branch, explicitly record its published source and verified merge using
+[`native landing record`](GOVERNANCE_NATIVE_LANDING.md). Aggregate progress and
+the other landing consumers share that observation; missing or invalid evidence
+must be reconciled rather than replaced with synthetic branch metadata.
+
 Record `dacli retro <task-or-project-ref> --well "..." --bad "..." --improve "..."`
 after delivery. Repeat only while evidence-backed work and user authority remain.
 

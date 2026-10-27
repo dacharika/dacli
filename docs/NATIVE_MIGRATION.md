@@ -9,6 +9,11 @@ release exists. Build this preview from a reviewed checkout and use the
 
 ## What changed
 
+Native batch delivery can now be linked to canonical task progress through the
+explicit owner [`native landing record`](GOVERNANCE_NATIVE_LANDING.md) workflow.
+It reuses historical publications and exact merged/verified target objects;
+legacy task-named branches and run files are not required for that observation.
+
 The current source removes provider CLI launchers, adapter presets and the
 generic process supervisor. dacli does not start `codex`, `claude`, Antigravity
 or another coding-agent CLI. A host creates and executes coding turns; dacli

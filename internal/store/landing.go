@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -39,6 +40,9 @@ const (
 // task exist, and is it an ancestor of trunk? That answers the exact question
 // a coarse verify cannot.
 func CheckLanded(w *workspace.Workspace, t *Task, trunk string) (LandingState, string) {
+	if observation, present := ReadTaskLanding(context.Background(), w, t, trunk); present {
+		return observation.State, "native landing observation " + observation.ReceiptID
+	}
 	if !gitx.Available() {
 		return LandingUnknown, ""
 	}
@@ -52,6 +56,20 @@ func CheckLanded(w *workspace.Workspace, t *Task, trunk string) (LandingState, s
 		return LandingUnknown, branch
 	}
 	return LandingOfRefs(w, shas, trunk), branch
+}
+
+func configuredTaskLandingBase(w *workspace.Workspace, t *Task) string {
+	if project, err := LoadProject(w, t.Project); err == nil && project.Landing.Base != "" {
+		return project.Landing.Base
+	}
+	return "main"
+}
+
+func requireSelectedTaskLanding(w *workspace.Workspace, t *Task, base string) error {
+	if observation, present := ReadTaskLanding(context.Background(), w, t, base); present && observation.State != LandingLanded {
+		return Refusedf("selected native landing is %s; owner must record or reconcile exact landing evidence before closing", taskLandingStateName(observation.State))
+	}
+	return nil
 }
 
 // LandingOfRefs answers the landing question about EVERY commit a task's

@@ -173,6 +173,21 @@ func LocalDeliveryProjection(w *workspace.Workspace, project string, now time.Ti
 		wtByBranch[wt.Branch] = wt
 	}
 	for _, t := range tasks {
+		if observation, present := ReadTaskLanding(context.Background(), w, t, configuredTaskLandingBase(w, t)); present {
+			class, severity, confidence := "native-task-landed", "info", DeliveryKnown
+			action := "retain the task-bound native landing observation; acceptance and cleanup have separate gates"
+			if observation.State != LandingLanded {
+				class, severity = "native-task-unlanded", "major"
+				action = "owner records or reconciles the exact native source and reviewed batch with native landing record"
+				if observation.State == LandingUnknown {
+					class, confidence = "native-task-landing-unknown", DeliveryUnknown
+				}
+			}
+			add(&p, class, t.ID, "native-task-landing", severity, confidence, observation.Reason, action)
+			if observation.ReceiptID != "" {
+				p.Findings[len(p.Findings)-1].RelatedRefs = []DeliveryRef{{Kind: "landing_receipt", ID: observation.ReceiptID}}
+			}
+		}
 		if t.CompletionState() == "implemented-unlanded" {
 			add(&p, "implemented-unlanded", t.ID, "task/completion", "info", DeliveryKnown,
 				"implementation completion was requested but canonical landing and acceptance are not recorded",
@@ -328,6 +343,11 @@ func ReconcileDelivery(w *workspace.Workspace, project string, now time.Time) (D
 		// A delivery projection diagnoses work that can still require action.
 		// Historical completed PRs are evidence, not current findings.
 		if t.Status == model.StatusDone {
+			continue
+		}
+		if _, present := ReadTaskLanding(context.Background(), w, t, configuredTaskLandingBase(w, t)); present {
+			// The local validated observation, including unknown/refused evidence,
+			// already describes this task. A loose PR state cannot replace it.
 			continue
 		}
 		branchTask[TaskBranch(t)] = t

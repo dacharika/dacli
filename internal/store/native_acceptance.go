@@ -104,6 +104,13 @@ func ValidateNativeAcceptanceClose(w *workspace.Workspace, t *Task, repository, 
 	if e != nil {
 		return e
 	}
+	selectedBase := landing.Base
+	if selectedBase == "" {
+		selectedBase = "main"
+	}
+	if e := requireSelectedTaskLanding(w, t, selectedBase); e != nil {
+		return e
+	}
 	for _, child := range c.Tasks {
 		if child.IsDeliverySlice() && child.ParentID() == t.ID {
 			return Refusedf("native delivery-slice acceptance requires unavailable producer")
@@ -131,6 +138,9 @@ func ValidateNativeAcceptanceClose(w *workspace.Workspace, t *Task, repository, 
 				if !box.Done {
 					return Refusedf("required aggregate child unverified")
 				}
+			}
+			if e := requireSelectedTaskLanding(w, child, selectedBase); e != nil {
+				return e
 			}
 		}
 	}

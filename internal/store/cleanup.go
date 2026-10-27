@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -24,23 +25,26 @@ const cleanupPlanIDToken = "{plan-id}"
 // CleanupItem is one managed worktree/branch pair. Eligible is deliberately
 // derived from every proof below; absence or failure of any proof preserves it.
 type CleanupItem struct {
-	Worktree   string       `json:"worktree"`
-	Branch     string       `json:"branch"`
-	Task       string       `json:"task,omitempty"`
-	TaskStatus string       `json:"task_status,omitempty"`
-	Owner      string       `json:"owner,omitempty"`
-	Runs       []CleanupRun `json:"runs,omitempty"`
-	PRHistory  []CleanupPR  `json:"pr_history,omitempty"`
-	PRState    string       `json:"pr_state"`
-	Commit     string       `json:"commit,omitempty"`
-	Protected  bool         `json:"protected"`
-	Dirty      bool         `json:"dirty"`
-	Unpushed   bool         `json:"unpushed"`
-	Unknown    bool         `json:"unknown"`
-	Eligible   bool         `json:"eligible"`
-	Reasons    []string     `json:"reasons"`
-	Operations []string     `json:"operations,omitempty"`
-	Recovery   []string     `json:"recovery,omitempty"`
+	Worktree       string       `json:"worktree"`
+	Branch         string       `json:"branch"`
+	Task           string       `json:"task,omitempty"`
+	TaskStatus     string       `json:"task_status,omitempty"`
+	Owner          string       `json:"owner,omitempty"`
+	Runs           []CleanupRun `json:"runs,omitempty"`
+	PRHistory      []CleanupPR  `json:"pr_history,omitempty"`
+	PRState        string       `json:"pr_state"`
+	Commit         string       `json:"commit,omitempty"`
+	Protected      bool         `json:"protected"`
+	Dirty          bool         `json:"dirty"`
+	Unpushed       bool         `json:"unpushed"`
+	Unknown        bool         `json:"unknown"`
+	Eligible       bool         `json:"eligible"`
+	Reasons        []string     `json:"reasons"`
+	Operations     []string     `json:"operations,omitempty"`
+	Recovery       []string     `json:"recovery,omitempty"`
+	LandingState   string       `json:"landing_state,omitempty"`
+	LandingReason  string       `json:"landing_reason,omitempty"`
+	LandingReceipt string       `json:"landing_receipt_id,omitempty"`
 }
 
 type CleanupRun struct {
@@ -279,6 +283,16 @@ func PlanRepositoryCleanup(w *workspace.Workspace, project string, now time.Time
 		if commitErr != nil || reclaimErr != nil || taskErr != nil {
 			item.Unknown = true
 			item.Reasons = append(item.Reasons, "local cleanup evidence is incomplete")
+		}
+		if selected := taskByID[item.Task]; selected != nil {
+			if observation, present := ReadTaskLanding(context.Background(), w, selected, p.Base); present {
+				item.LandingState = taskLandingStateName(observation.State)
+				item.LandingReason, item.LandingReceipt = observation.Reason, observation.ReceiptID
+				if observation.State != LandingLanded {
+					item.Unknown = true
+					item.Reasons = append(item.Reasons, "selected native task landing is not validated; record or reconcile its observation")
+				}
+			}
 		}
 		item.Reasons = uniqueStrings(item.Reasons)
 		detachedOwnedSafely := item.Task == "" || item.TaskStatus == string(model.StatusDone)
