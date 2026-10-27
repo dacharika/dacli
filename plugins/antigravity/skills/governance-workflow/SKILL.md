@@ -1,12 +1,31 @@
 ---
 name: governance-workflow
-description: Use owner-enrolled dacli task and independent review governance through the shared native MCP backend.
+description: Coordinate ready independent features with owner-enrolled dacli task, fenced revision and independent review governance through the shared native MCP backend.
 ---
 
 Call `identity` first and inspect the advertised scope. Read `workspace_status`,
 `task_list` and `task_get` using schema_version 1. Missing or expired enrollment
-is a refusal; request an explicit private owner-provisioned connection. Never
+is a refusal; use an already-authorized owner provisioning/recovery path when
+available, otherwise identify the exact missing private connection. Never
 substitute ambient DACLI_AGENT, a legacy CLI wrapper or another child's identity.
+
+At startup, resume and context loss, call `task_brief` and `ready_frontier` with
+`schema_version: 1` through the selected profile. Frontier requires `limit`
+(1–100), with project or exact-task scope. Inspect dependencies, source refs,
+freshness and omissions; narrow context is enough when it answers the task.
+These reads do not reserve work or grant broader authority.
+
+For a multi-feature request, keep ready dependency-independent features in
+parallel native-host lanes with disjoint claims, separate checkouts/attempts and
+independent worker profiles. Refresh readiness and refill available lanes after
+delivery; a blocked feature need not stall another eligible lane. Use observed
+host capacity, not configured width, as the availability fact. Parallelize focused
+checks and review, and queue expensive full gates for each exact candidate to
+avoid contention. Preserve per-feature required evidence and independent review;
+land each feature when its own contract and authorized owner integration pass.
+Honor the user's CI trigger policy. Existing authorization carries forward for
+reversible work within scope without repeated approval; it does not extend an
+expired credential or lease. Continue unaffected lanes during exact recovery.
 
 Use the host's native editing tools in the authorized checkout. Register a clean
 real checkout with `register_attempt`, acquire only permitted resources with

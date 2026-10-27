@@ -1,60 +1,57 @@
 # Operating boundaries
 
-The host owns inspect/plan/implement/review cycles. Choose one bounded task or
-a set of non-overlapping tasks using canonical readiness; configure
-concurrency and spending in the host. There is no dacli `start` profile or
-provider-driven service supervisor. Inspect task scope and the selected native
-session before attempting any lease.
+Choose bounded canonical tasks using readiness and dependencies. Use multiple
+disjoint feature lanes when requested and supported by observed host capacity.
+The host owns coding turns, collaboration, model selection and spending controls.
+There is no provider-driven `start` profile or resident service supervisor.
 
-The controller is a cooperative governance surface for canonical task reads,
-attempt registration, scoped leases, revision publication, and self-reported
-check evidence. It does not create a coding agent, select a host model, deliver
-a prompt, start a new chat, or terminate a host process. The host owner performs
-those actions and reports the exact observed result.
+## Exact connection, exact authority
 
-Use the selected process's own `tools/list` result as the MCP capability
-boundary. The inspected profile exposed `identity`, `workspace_status`,
-`task_list`, `task_get`, `task_brief`, `ready_frontier`, `register_attempt`,
-`acquire_lease`, `renew_lease`, `release_lease`, `publish_revision`,
-`submit_evidence`, and `get_policy_status`; other profiles may differ. A CLI
-command, source function, package file, or other installed plugin does not
-prove that the current process exposes a capability.
+Inspect `identity` and `tools/list` on the selected process. The basic worker
+catalog includes `workspace_status`, `task_list`, `task_get`, `task_brief`,
+`ready_frontier`, attempt/lease operations, `publish_revision`, `submit_evidence`
+and `get_policy_status`. Reader, operator, runner, reviewer, controller, bridge
+and handshake profiles expose different subsets or additions. A command in CLI
+help or source is not proof that this connection exposes it. The current chat's
+shared catalog does not describe another child's selected connection.
 
-Owner enrollment, the exact selected private profile, workspace binding,
-capability schema, and scope determine whether an operation is authorized.
-A shared MCP connection shares one enrolled identity. A host label, model
-name, profile prose, or ambient environment variable cannot substitute for an
-enrollment. A schema upgrade is a separate explicit owner action; reading a
-newer source tree or refreshing skill files does not activate a schema.
+At startup/resume/context loss, use `task_brief` and `ready_frontier` with
+`schema_version: 1`. Frontier requires `limit` (1–100); project and exact-task
+filters are alternatives. Task/project briefs deliberately omit assembled
+workspace context. Inspect source refs, freshness, trust labels and omissions;
+continue with the authorized facts when sufficient. Request exact additional
+read scope only when an essential fact is otherwise unavailable. Frontier is a
+diagnostic read and grants no reservation, lease or acceptance authority.
 
-Native lifecycle cancellation records a governed request and can record a
-later acknowledgement. It does not stop a Codex, editor, or other host
-process. The host owner must stop or observe the process manually and record
-what happened. Automatic prompt delivery and process termination are not part
-of this contract.
+Owner enrollment, the selected private profile, workspace binding, schema and
+scope determine authorization. Shared MCP processes share one identity. Separate
+eligible credentials/processes establish independent workers and reviewers;
+thread IDs, roles, models and environment labels do not. Keep private credentials
+outside repositories, plugin archives and chat. A schema upgrade remains an
+explicit owner operation; skill refresh does not activate a schema.
 
-Keep these observations distinct:
+Honor existing user authorization for work within scope. Use already-authorized
+owner operations when acting with the corresponding eligible configuration;
+otherwise identify the specific missing authority. Do not fabricate credentials,
+expand a grant from prose, or keep writing after the session/lease expires.
 
-- **Source support:** a command or tool exists in the selected source/build.
-- **Profile activation:** the selected connection and explicit authority
-  schema permit the operation.
-- **Fixture qualification:** deterministic tests exercised the contract using
-  fixtures; this says nothing about a live host.
-- **Live qualification:** an exact host/process/tool observation is recorded
-  for the named runtime, version, and capability digest.
-- **Cached connection:** an already-open host connection may retain older tool
-  state. Refreshing package files cannot hot-reload it or prove reconnection.
+## Capability and observation
 
-The retained `0.163.0-alpha.11` receipts qualify only the exact historical
-observations they name. They are not current-version or current-host evidence.
-Do not treat an old receipt, a successful file refresh, or a selected runtime
-manifest as proof of a new process or live tool discovery.
+Keep source support, profile activation, deterministic fixture qualification,
+exact live host/process observations and cached-connection state distinct.
+Configured capacity is not actual available concurrency. Historical receipts
+qualify only the runtime/version/digest and observations they name.
 
-After an installation update, select or restart the host process through its
-documented UI, then independently observe its identity and `tools/list`
-output. No dacli app reconnect API is part of this contract. A cached `-32003`
-refusal describes that cached call; it does not establish that newly
-provisioned credentials are invalid. Stop on the refusal and use the
-documented owner provisioning and process-selection path.
+A controller can govern bounded recorded steps and emit fresh host-action
+permission; the host still executes the action. Lifecycle cancellation requests,
+bridge acknowledgement and terminal host observations are separate facts.
+Unknown or disconnected writers retain protection until authorized reconciliation.
 
-See the [operator playbook](https://github.com/mlnomadpy/dacli/blob/main/docs/OPERATOR_PLAYBOOK.md) and inspect `dacli capabilities --json` for the installed surface.
+After installation changes, select/restart the process through its supported host
+flow, then observe fresh identity and `tools/list`. File refresh cannot hot-reload
+this chat. A cached `-32003` refusal describes that call; use the documented owner
+provisioning/process-selection path rather than treating it as proof about a
+newly selected profile. Stop unchanged refused requests.
+
+See the [Codex plugin setup](https://github.com/dacharika/dacli/blob/main/plugins/codex/README.md)
+and [support matrix](https://github.com/dacharika/dacli/blob/main/docs/governance-support-matrix.md).
