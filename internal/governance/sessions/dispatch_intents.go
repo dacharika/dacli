@@ -50,6 +50,35 @@ type DispatchIntentResult struct {
 	Intent               DispatchIntent
 	HostActionAuthorized bool
 }
+
+// ReadDispatchReservation returns the stored reservation to its exact scoped
+// worker. It is a read-only pre-effect lookup and never authorizes a launch.
+func (a *Authority) ReadDispatchReservation(token, worker, dispatchID string, expectedFence uint64) (DispatchReservation, error) {
+	var result DispatchReservation
+	err := a.transaction(false, false, func(s *state) error {
+		dispatch, ok := s.Dispatches[dispatchID]
+		if s.Version < 8 || !ok || expectedFence == 0 || dispatch.Reservation.Fence != expectedFence {
+			return ErrDenied
+		}
+		actor, err := authenticate(s, token, worker, time.Now())
+		if err != nil || !subset([]string{"lease.acquire"}, actor.Scope.Actions) || !dispatchBoundActor(s, worker, dispatch.ProjectID, "lease.acquire", dispatch) {
+			return ErrDenied
+		}
+		if dispatch.WorkerSessionID != "" && dispatch.WorkerSessionID != worker {
+			return ErrDenied
+		}
+		if intent, exists := s.DispatchIntents[dispatchID]; exists && (intent.WorkerSessionID != worker || intent.Reservation.Reservation.Fence != expectedFence) {
+			return ErrDenied
+		}
+		result = dispatch
+		return nil
+	})
+	if err != nil {
+		return DispatchReservation{}, err
+	}
+	return result, nil
+}
+
 type CorrelateDispatchIntent struct {
 	OperationKey, DispatchID, IntentID, HostAgentID, State string
 	ExpectedFence, ExpectedSequence                        uint64
@@ -160,10 +189,16 @@ func (a *Authority) CorrelateDispatchIntent(token, bridge string, req CorrelateD
 		if req.State == "host_correlated" && (a.dispatchCapability(s, i.Reservation) != nil || !time.Now().Before(i.Reservation.Reservation.ExpiresAt)) {
 			return ErrDenied
 		}
+		if req.State == "host_correlated" && !validateHostSlotDispatchState(s, i.Reservation, time.Now()) {
+			return ErrDenied
+		}
 		if _, e := dispatchActor(s, token, bridge, i.Reservation.ProjectID, "dispatch.correlate"); e != nil {
 			return e
 		}
 		if !swarmLineageCurrent(s, i.ControllerSessionID, time.Now()) {
+			return ErrDenied
+		}
+		if req.State == "host_correlated" && !validateHostSlotDispatchState(s, i.Reservation, time.Now()) {
 			return ErrDenied
 		}
 		i.Sequence++
@@ -226,10 +261,16 @@ func (a *Authority) AcknowledgeDispatchIntent(token, worker string, req Acknowle
 		if err := a.currentRoleRegistryMatches(s, i.Reservation); err != nil {
 			return err
 		}
+		if !validateHostSlotDispatchState(s, i.Reservation, time.Now()) {
+			return ErrDenied
+		}
 		if _, _, e := leaseAuth(s, token, worker, req.AttemptID, "lease.acquire", time.Now()); e != nil {
 			return e
 		}
 		if !time.Now().Before(i.Reservation.Reservation.ExpiresAt) || !swarmLineageCurrent(s, i.ControllerSessionID, time.Now()) || !dispatchBoundActor(s, i.BridgeSessionID, i.Reservation.ProjectID, "dispatch.correlate", i.Reservation) {
+			return ErrDenied
+		}
+		if !validateHostSlotDispatchState(s, i.Reservation, time.Now()) {
 			return ErrDenied
 		}
 		i.Sequence++
@@ -366,8 +407,14 @@ func (a *Authority) requestDispatchIntentState(s *state, token, controllerID str
 		if !dispatchBoundActor(s, req.BridgeSessionID, d.ProjectID, "dispatch.correlate", d) || !dispatchBoundActor(s, req.WorkerSessionID, d.ProjectID, "lease.acquire", d) || !time.Now().Before(d.Reservation.ExpiresAt) || !preflightBoundCurrent(s, d) || !budgetDispatchCurrent(s, d) {
 			return ErrDenied
 		}
+		if !validateHostSlotDispatchState(s, d, time.Now()) {
+			return ErrDenied
+		}
 		if err := a.currentRoleRegistryMatches(s, fresh); err != nil {
 			return err
+		}
+		if !validateHostSlotDispatchState(s, fresh, time.Now()) {
+			return ErrDenied
 		}
 		s.DispatchIntents[d.ID] = intent
 		s.DispatchIntentOperations[req.OperationKey] = DispatchIntentReceipt{Digest: digest, Intent: intent}

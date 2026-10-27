@@ -353,3 +353,48 @@ source/target trees, supported host version/APIs, enrolled identities without
 secrets, terminal commands/output digests, independent review and resulting
 local merge. Run repository-required static/full tests on final merged source.
 A passing narrow fixture or replay receipt never proves current broad completion.
+
+
+## Atomic single-authority host-slot admission (#1229)
+
+An explicit owner21→22 migration enables an optional `HostSlots` selection on
+the existing swarm policy. `single_authority` mode binds the exact workspace,
+installation, host-session, executor instance, capability digest, capacity
+policy and qualification. Nil selection preserves the existing manual workflow;
+explicit `manual` mode supplies no automatic host-capacity evidence. No global
+host lock or cross-authority admission primitive is implemented.
+
+Version2 capacity observations include an explicit local-execution census,
+even when empty. Each entry binds the original dispatch, reservation fence,
+intent, original operation key and correlated host-agent ID. Let O be observed
+occupied slots, K the exactly included local executions, L outstanding local
+execution claims, P requested concurrency, D declared capacity and Q qualified
+capacity. External occupancy is X=O−K; remaining host headroom is
+`max(0, min(P−L, min(D,Q)−X−L))`. Admission also intersects existing policy
+concurrency, width/WIP, roles/models, readiness, checkout and retained writer
+claims. Unknown, stale, unsupported or contradictory facts supply no increase.
+
+`ReserveWave` commits the claim on its original dispatch in the same authority
+transaction. Final intent/correlation/acknowledgement/handoff check fresh facts
+again. This local transaction does not include an external host semaphore:
+external effects retain their original idempotency key and unknown/reconciliation
+state rather than claiming a distributed transaction. Replays cannot allocate
+another claim; policy/domain changes cannot hide unresolved executions.
+
+Execution occupancy and writer protection are separate. An exact accepted
+supported terminal observation can free the host-turn claim while its lease
+and paths remain retained through review/integration/acceptance. Heartbeat loss,
+timeout, nominal expiry, STOP or cancellation request/ack alone is not terminal
+proof. Owner recovery alone does not prove a host turn ended. The owner supplies
+an explicit typed, evidenced terminal qualification for the exact source,
+domain, host/session/instance, runtime/build/capability and validity interval.
+The accepted proof freezes its qualification identity, evidence and historical
+policy at ingestion. Historical census and terminal provenance survive reopen
+and later observer/bridge expiry.
+
+These guarantees apply to source and controlled fixtures in one selected
+cooperative authority. The live workspace remains schema10. They do not qualify
+an unattended Codex/Antigravity driver, twelve workers, additional sessions,
+physical host capacity, shared-host authorities or provider spending. See
+[executor contract](executor-host-contract.md) and
+[support matrix](governance-support-matrix.md) for the remaining boundaries.

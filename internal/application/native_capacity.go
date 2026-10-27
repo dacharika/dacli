@@ -54,7 +54,7 @@ func (p *NativeCapacityAccess) authenticate() (*sessions.Authority, string, erro
 	if err != nil || w.Root != p.workspaceRoot {
 		return nil, "", sessions.ErrDenied
 	}
-	a, err := sessions.OpenHostCapacity(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID})
+	a, err := sessions.OpenCapacityCurrent(c.Authority, sessions.Binding{Workspace: w.ID, Installation: c.InstallationID})
 	if err != nil {
 		return nil, "", err
 	}
@@ -74,6 +74,16 @@ func (p *NativeCapacityAccess) Observe(report executor.CapacityReport) (sessions
 		return sessions.HostCapacityObservation{}, false, err
 	}
 	return a.RecordHostCapacityObservation(token, p.connection.SessionID, executor.ObservationRequest(report))
+}
+
+// ObserveV2 preserves the explicit census and uses the schema-22 authority
+// path. Authentication still binds the independently enrolled observer.
+func (p *NativeCapacityAccess) ObserveV2(report executor.CapacityReportV2) (sessions.HostCapacityObservation, bool, error) {
+	a, token, err := p.authenticate()
+	if err != nil {
+		return sessions.HostCapacityObservation{}, false, err
+	}
+	return a.RecordHostCapacityObservationV2(token, p.connection.SessionID, executor.ObservationRequestV2(report))
 }
 
 func (p *NativeCapacityAccess) Read(hostSessionID string) (executor.CapacityFacts, error) {
@@ -117,6 +127,19 @@ func (p *NativeCapacityOwner) Upgrade() error {
 		return err
 	}
 	return a.UpgradeHostCapacity(owner)
+}
+
+// UpgradeSlots performs only the explicit schema-21 to 22 owner migration.
+// The legacy Upgrade method above remains the separate 20 to 21 operation.
+func (p *NativeCapacityOwner) UpgradeSlots() error {
+	if p == nil || p.owner == nil {
+		return sessions.ErrDenied
+	}
+	a, owner, err := p.owner.authenticate()
+	if err != nil {
+		return err
+	}
+	return a.UpgradeHostSlots(owner)
 }
 
 func (p *NativeCapacityOwner) EnrollObserver(observer sessions.HostCapacityObserver) (sessions.HostCapacityObserver, string, error) {

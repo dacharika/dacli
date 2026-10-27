@@ -37,7 +37,7 @@ import (
 // Native reader add adds a bounded owner-only generic MCP reader with exact scope;
 // it adds no MCP tools or automatic authority migration.
 // Digest generated from the assembled CLI artifact; behavioral checks are separate.
-const capabilityRegistryGolden = "7ee03d654ea2e1ae4fddd868faa650c2b0169f9ee93216b36777c4a0167f7e3c"
+const capabilityRegistryGolden = "0bc58e26baa2da4378081c5b7a616a4a29150e025841ca5870e9310bcbf52bb4"
 
 func TestCapabilityRegistryGolden(t *testing.T) {
 	m := capabilityManifest()

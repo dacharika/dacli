@@ -137,7 +137,7 @@ func (a *Authority) advanceController(token, session string, r ControllerStepReq
 		// Transitions may reserve or release writers after the admission count was
 		// observed. Persist and report occupancy from the state being committed,
 		// including the original state when a trial transition is refused (core623).
-		candidate.Status.RetainedConcurrency = controllerOccupancy(s, candidate.Status.ProjectID)
+		refreshControllerConcurrency(s, &candidate.Status)
 		out = candidate.Status
 		s.ControllerInvocations[out.ID] = candidate
 		s.ControllerHistory[out.ID] = append(s.ControllerHistory[out.ID], out)
@@ -177,7 +177,7 @@ func (a *Authority) controllerTransition(s *state, token, session string, iv *co
 	st.Checkpoint = &snapshot
 	oldProgress := st.ProgressDigest
 	newProgress := controllerProducerProgress(s, *iv, snapshot.ProgressDigest)
-	st.RetainedConcurrency = controllerOccupancy(s, st.ProjectID)
+	refreshControllerConcurrency(s, st)
 	if observeOnly {
 		st.NextAction = "inspect current scoped producer facts; no action permitted"
 		return nil
@@ -221,7 +221,22 @@ func (a *Authority) controllerTransition(s *state, token, session string, iv *co
 		controllerHalt(iv, "wave_limit", "committed wave limit exhausted", false, true)
 		return nil
 	}
-	if st.RetainedConcurrency >= iv.Policy.MaxConcurrency {
+	policy := s.SwarmPolicies[st.ProjectID]
+	limit := iv.Policy.MaxConcurrency - st.RetainedConcurrency
+	if policy.HostSlots != nil && policy.HostSlots.Mode == HostSlotSingleAuthority {
+		if !st.ExecutionConcurrencyKnown || st.HostSlotAdmission == nil || !st.HostSlotAdmission.Known {
+			controllerHalt(iv, "host_slot_unknown", "refresh authenticated host census and supported qualification before another wave", false, false)
+			return nil
+		}
+		if st.ExecutionConcurrency >= iv.Policy.MaxConcurrency || st.HostSlotAdmission.RemainingAdmissibleSlots <= 0 {
+			controllerHalt(iv, "concurrency_limit", "execution slot headroom is exhausted; reconcile authenticated host observations", false, false)
+			return nil
+		}
+		limit = iv.Policy.MaxConcurrency - controllerProjectExecutionOccupancy(s, st.ProjectID)
+		if st.HostSlotAdmission.RemainingAdmissibleSlots < limit {
+			limit = st.HostSlotAdmission.RemainingAdmissibleSlots
+		}
+	} else if st.RetainedConcurrency >= iv.Policy.MaxConcurrency {
 		controllerHalt(iv, "concurrency_limit", "owner reconciles retained writers before another wave", false, false)
 		return nil
 	}
@@ -241,7 +256,6 @@ func (a *Authority) controllerTransition(s *state, token, session string, iv *co
 		controllerHalt(iv, "no_progress", "canonical or trusted producer progress required", false, true)
 		return nil
 	}
-	limit := iv.Policy.MaxConcurrency - st.RetainedConcurrency
 	plan, e := a.planSwarmLimited(s, token, session, st.ProjectID, "swarm.reserve", limit, iv.Policy.TaskIDs)
 	if e != nil {
 		return e
@@ -754,6 +768,9 @@ func controllerFreshActions(s *state, iv controllerInvocation) bool {
 			if !d.Converted && (!now.Before(d.Reservation.ExpiresAt) || !preflightBoundCurrent(s, d) || !budgetDispatchCurrent(s, d) || !dispatchBoundActor(s, route.BridgeSession, d.ProjectID, "dispatch.correlate", d) || !dispatchBoundActor(s, route.WorkerSession, d.ProjectID, "lease.acquire", d)) {
 				return false
 			}
+			if d.HostSlot != nil && !validateHostSlotDispatchState(s, d, now) {
+				return false
+			}
 			continue
 		}
 		at, e := reviewAttempt(s, action.AttemptID)
@@ -789,6 +806,35 @@ func controllerFreshActions(s *state, iv controllerInvocation) bool {
 		}
 	}
 	return true
+}
+
+func controllerProjectExecutionOccupancy(s *state, project string) int {
+	count := 0
+	for _, dispatch := range s.Dispatches {
+		if dispatch.ProjectID == project && dispatch.HostSlot != nil && !hostSlotTerminalProof(s, dispatch) {
+			count += dispatch.HostSlot.Units
+		}
+	}
+	return count
+}
+
+func refreshControllerConcurrency(s *state, status *ControllerStatus) {
+	status.RetainedConcurrency = controllerOccupancy(s, status.ProjectID)
+	status.ExecutionConcurrency, status.ExecutionConcurrencyKnown = 0, false
+	status.HostSlotAdmission = nil
+	if s.Version < 22 {
+		return
+	}
+	view := hostSlotAdmissionView(s, status.ProjectID, time.Now())
+	status.HostSlotAdmission = &view
+	policy := s.SwarmPolicies[status.ProjectID]
+	if policy.HostSlots != nil && policy.HostSlots.Mode == HostSlotSingleAuthority {
+		status.ExecutionConcurrency = controllerProjectExecutionOccupancy(s, status.ProjectID)
+		status.ExecutionConcurrencyKnown = view.Known
+		return
+	}
+	status.ExecutionConcurrency = status.RetainedConcurrency
+	status.ExecutionConcurrencyKnown = true
 }
 
 // Each check operation is derived from the immutable invocation/revision/check,

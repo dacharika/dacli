@@ -46,6 +46,7 @@ type SwarmPolicy struct {
 	Stopped                                        bool
 	Roles                                          []SwarmRole
 	Placements                                     map[string]SwarmPlacement
+	HostSlots                                      *HostSlotAdmissionPolicy `json:",omitempty"`
 }
 type SwarmVerdict struct {
 	Routing                                        *NativeModelRoutingSelection `json:",omitempty"`
@@ -82,6 +83,7 @@ type DispatchReservation struct {
 	PreflightExpiresAt                                                                                                time.Time
 	PreflightDigest                                                                                                   string
 	RoleRegistry                                                                                                      []RoleRegistryProvenance `json:",omitempty"`
+	HostSlot                                                                                                          *HostSlotClaim           `json:",omitempty"`
 	Converted                                                                                                         bool
 	WorkerSessionID, AttemptID                                                                                        string
 }
@@ -157,6 +159,49 @@ func (a *Authority) ConfigureSwarmWithBindings(owner string, p SwarmPolicy, bind
 	return a.transaction(false, true, func(s *state) error {
 		if s.Version < 7 || len(owner) != 64 || hash(owner) != s.OwnerHash {
 			return ErrDenied
+		}
+		if s.Version >= 22 && p.HostSlots == nil {
+			return ErrDenied // newly configured schema-22 policies choose manual or bound mode explicitly
+		}
+		if p.HostSlots != nil {
+			if s.Version != 22 || !hostSlotPolicyValid(s, p.ProjectID, *p.HostSlots) {
+				return ErrDenied
+			}
+			if p.HostSlots.Mode == HostSlotSingleAuthority {
+				// Legacy work has no authenticated host binding. Fail closed instead
+				// of silently moving its uncertainty behind a new domain label.
+				for id, dispatch := range s.Dispatches {
+					if dispatch.HostSlot == nil && (reservationRetained(s, dispatch) || s.DispatchIntents[id].ID != "") {
+						return ErrDenied
+					}
+					if claim := dispatch.HostSlot; claim != nil && !hostSlotTerminalProof(s, dispatch) {
+						if claim.HostID == p.HostSlots.HostID && claim.AuthorityDomainID != p.HostSlots.AuthorityDomainID {
+							return ErrDenied
+						}
+						if claim.AuthorityDomainID == p.HostSlots.AuthorityDomainID {
+							original, ok := s.SwarmPolicies[dispatch.ProjectID+"\x00"+claim.SwarmPolicyRevision]
+							if !ok || original.HostSlots == nil || !hostSlotScopeEqual(*original.HostSlots, *p.HostSlots) {
+								return ErrDenied
+							}
+						}
+					}
+				}
+				for _, lease := range s.Leases {
+					if lease.Released {
+						continue
+					}
+					bound := false
+					for _, dispatch := range s.Dispatches {
+						if dispatch.HostSlot != nil && dispatch.HostSlot.AuthorityDomainID == p.HostSlots.AuthorityDomainID && dispatch.Reservation.TaskID == lease.TaskID && dispatch.WorkerSessionID == lease.SessionID {
+							bound = true
+							break
+						}
+					}
+					if !bound {
+						return ErrDenied
+					}
+				}
+			}
 		}
 		if old, ok := s.SwarmPolicies[p.ProjectID]; ok && old.Revision == p.Revision && !reflect.DeepEqual(old, p) {
 			return ErrDenied
@@ -633,6 +678,9 @@ func (a *Authority) admitDispatch(s *state, token, session string, req AdmitDisp
 	if _, e := controller(s, token, session, d.ProjectID, "swarm.dispatch"); e != nil || !time.Now().Before(d.Reservation.ExpiresAt) || !preflightBoundCurrent(s, d) {
 		return DispatchReservation{}, ErrDenied
 	}
+	if !validateHostSlotDispatchState(s, d, time.Now()) {
+		return DispatchReservation{}, ErrDenied
+	}
 	return d, nil
 }
 
@@ -828,6 +876,9 @@ func (a *Authority) handoffDispatch(s *state, token, worker string, req HandoffD
 	if err := a.currentRoleRegistryMatches(s, d); err != nil {
 		return err
 	}
+	if !validateHostSlotDispatchState(s, d, time.Now()) {
+		return ErrDenied
+	}
 	if s.Fence == math.MaxUint64 {
 		return ErrDenied
 	}
@@ -987,6 +1038,18 @@ func (a *Authority) reserveWaveStateLimited(s *state, token, session string, req
 		if !req.ExpiresAt.After(now) || req.ExpiresAt.After(now.Add(p.TTL)) || req.ExpiresAt.After(r.ExpiresAt) {
 			return ErrDenied
 		}
+		selected := 0
+		for _, verdict := range fresh.Verdicts {
+			if verdict.Selected {
+				selected++
+			}
+		}
+		if p.HostSlots != nil && p.HostSlots.Mode == HostSlotSingleAuthority {
+			admission := hostSlotAdmissionView(s, p.ProjectID, now)
+			if !admission.Known || selected == 0 || admission.RemainingAdmissibleSlots < selected {
+				return ErrDenied
+			}
+		}
 		for _, provenance := range fresh.RoleRegistry {
 			if provenance.LifecycleExpiresAt.IsZero() || !now.Before(provenance.LifecycleExpiresAt) || req.ExpiresAt.After(provenance.LifecycleExpiresAt) {
 				return ErrDenied
@@ -1015,6 +1078,16 @@ func (a *Authority) reserveWaveStateLimited(s *state, token, session string, req
 			s.Fence++
 			d := DispatchReservation{ID: id, ControllerSessionID: session, ProjectID: p.ProjectID, PolicyRevision: p.Revision, ImplementationRole: v.ImplementationRole, ReviewRole: v.ReviewRole, Harness: p.Harness, BaseCommit: v.BaseCommit, BaseTree: v.BaseTree, Routing: v.Routing, Reservation: Lease{ID: id, SessionID: session, TaskID: v.TaskID, Repository: v.Repository, Checkout: v.Checkout, Resources: v.Resources, Fence: s.Fence, ExpiresAt: req.ExpiresAt}}
 			d.RoleRegistry = append([]RoleRegistryProvenance(nil), fresh.RoleRegistry...)
+			if p.HostSlots != nil && p.HostSlots.Mode == HostSlotSingleAuthority {
+				observation, ok := latestHostSlotObservation(s, *p.HostSlots)
+				if !ok {
+					return ErrDenied
+				}
+				d.HostSlot, e = claimHostSlotState(s, d, *p.HostSlots, observation, req.OperationKey)
+				if e != nil {
+					return e
+				}
+			}
 			if v.Preflight != nil {
 				if !reflect.DeepEqual(v.Preflight.RoleRegistry, fresh.RoleRegistry) {
 					return ErrDenied
@@ -1056,6 +1129,9 @@ func (a *Authority) reserveWaveStateLimited(s *state, token, session string, req
 			if !preflightBoundCurrent(s, d) {
 				return ErrDenied
 			}
+			if d.HostSlot != nil && !validateHostSlotDispatchState(s, d, time.Now()) {
+				return ErrDenied
+			}
 		}
 		if e := a.consumeCheckpoint(&gateSource, token, session, req, wave.ID); e != nil {
 			return e
@@ -1065,6 +1141,9 @@ func (a *Authority) reserveWaveStateLimited(s *state, token, session string, req
 		}
 		for _, d := range wave.Dispatches {
 			if !preflightBoundCurrent(s, d) {
+				return ErrDenied
+			}
+			if d.HostSlot != nil && !validateHostSlotDispatchState(s, d, time.Now()) {
 				return ErrDenied
 			}
 		}

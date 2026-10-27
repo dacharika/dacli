@@ -20,6 +20,26 @@ type LifecycleObservation struct {
 	Binding                                  LifecycleBinding
 	State, Source, Assurance, EvidenceDigest string
 	SourceTime, ReceivedAt                   time.Time
+	HostSlotTerminal                         *HostSlotTerminalProof `json:"host_slot_terminal,omitempty"`
+}
+
+// HostSlotTerminalProof is frozen at accepted lifecycle ingestion so later
+// bridge expiry or policy changes cannot erase a valid terminal fact.
+type HostSlotTerminalProof struct {
+	AuthorityDomainID           string `json:"authority_domain_id"`
+	DispatchID                  string `json:"dispatch_id"`
+	ReservationFence            uint64 `json:"reservation_fence"`
+	IntentID                    string `json:"intent_id"`
+	HostAgentID                 string `json:"host_agent_id"`
+	WorkerSessionID             string `json:"worker_session_id"`
+	AttemptID                   string `json:"attempt_id"`
+	LeaseID                     string `json:"lease_id"`
+	LeaseFence                  uint64 `json:"lease_fence"`
+	BridgeSessionID             string `json:"bridge_session_id"`
+	Source                      string `json:"source"`
+	QualificationID             string `json:"qualification_id"`
+	QualificationDigest         string `json:"qualification_digest"`
+	QualificationPolicyRevision string `json:"qualification_policy_revision"`
 }
 type LifecycleBinding struct {
 	DispatchID, IntentID, BridgeSessionID, WorkerSessionID, TaskID, Checkout, BaseCommit, HostAgentID, AttemptID, LeaseID string
@@ -205,6 +225,25 @@ func (a *Authority) ObserveLifecycle(token, bridge string, req ObserveLifecycleR
 			}
 		}
 		result = LifecycleObservation{Sequence: uint64(len(history)) + 1, HostSequence: req.HostSequence, Binding: req.Binding, State: req.State, Source: req.Source, Assurance: "cooperative-owner-provisioned-bridge", EvidenceDigest: req.EvidenceDigest, SourceTime: req.SourceTime.UTC(), ReceivedAt: now}
+		if lifecycleTerminal(req.State) {
+			if dispatch, exists := s.Dispatches[i.DispatchID]; exists && dispatch.HostSlot != nil {
+				policy := s.SwarmPolicies[i.Reservation.ProjectID]
+				slots := policy.HostSlots
+				if slots != nil && slots.Mode == HostSlotSingleAuthority && slots.AuthorityDomainID == dispatch.HostSlot.AuthorityDomainID && slots.TerminalObservationSource == req.Source {
+					claimPolicy, claimPolicyOK := s.SwarmPolicies[dispatch.ProjectID+"\x00"+dispatch.HostSlot.SwarmPolicyRevision]
+					if !claimPolicyOK || claimPolicy.HostSlots == nil || !hostSlotScopeEqual(*claimPolicy.HostSlots, *slots) || !hostSlotClaimMatchesPolicy(dispatch.HostSlot, *claimPolicy.HostSlots) {
+						return ErrDenied
+					}
+					if hostSlotTerminalQualificationCurrent(s, *slots, now) && req.Binding.DispatchID == dispatch.ID && req.Binding.ReservationFence == dispatch.Reservation.Fence && req.Binding.IntentID == i.ID && req.Binding.HostAgentID == i.HostAgentID && req.Binding.WorkerSessionID == i.WorkerSessionID {
+						qualification := *slots.TerminalQualification
+						if !hostSlotScopeMatchesQualification(*slots, qualification) {
+							return ErrDenied
+						}
+						result.HostSlotTerminal = &HostSlotTerminalProof{AuthorityDomainID: slots.AuthorityDomainID, DispatchID: dispatch.ID, ReservationFence: dispatch.Reservation.Fence, IntentID: i.ID, HostAgentID: i.HostAgentID, WorkerSessionID: i.WorkerSessionID, AttemptID: req.Binding.AttemptID, LeaseID: req.Binding.LeaseID, LeaseFence: req.Binding.LeaseFence, BridgeSessionID: bridge, Source: req.Source, QualificationID: qualification.ID, QualificationDigest: hostSlotTerminalQualificationDigest(qualification), QualificationPolicyRevision: policy.Revision}
+					}
+				}
+			}
+		}
 		// Bridge authentication stays independent of cancelled worker/controller lineage.
 		if _, e = dispatchActor(s, token, bridge, i.Reservation.ProjectID, "dispatch.observe"); e != nil {
 			return e

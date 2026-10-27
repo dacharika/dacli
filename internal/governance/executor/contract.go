@@ -67,18 +67,31 @@ type Binding struct {
 // WorkerEnrollment comes from owner-controlled private provisioning config.
 // Host and process labels are cooperative claims, not OS process attestations.
 type WorkerEnrollment struct {
-	Binding        Binding
-	Profile        ProfileRef
-	AttemptRequest sessions.AttemptRequest
+	Binding               Binding
+	Profile               ProfileRef
+	AttemptRequest        sessions.AttemptRequest
+	ExpectedHostSlotScope *ExpectedHostSlotScope
+}
+
+// ExpectedHostSlotScope is copied from owner-controlled worker provisioning.
+// HostSessionID identifies the capacity host enrollment and is independent of
+// Binding.Session, which identifies the authenticated worker principal.
+type ExpectedHostSlotScope struct {
+	SchemaVersion     int
+	AuthorityDomainID string
+	HostSessionID     string
+	CapabilityDigest  string
 }
 
 // AuthenticatedBinding is minted only after the real session authority
 // authenticates the worker and registers its exact attempt.
 type AuthenticatedBinding struct {
-	binding Binding
-	token   string
-	profile ProfileRef
-	attempt sessions.Attempt
+	binding          Binding
+	token            string
+	profile          ProfileRef
+	attempt          sessions.Attempt
+	expectedHostSlot ExpectedHostSlotScope
+	hasHostSlotScope bool
 }
 
 func (a AuthenticatedBinding) Claim() Binding { return a.binding }
@@ -94,7 +107,7 @@ func (a AuthenticatedBinding) MarshalJSON() ([]byte, error) {
 }
 
 func AuthenticateWorker(authority *sessions.Authority, token string, e WorkerEnrollment, now time.Time) (AuthenticatedBinding, error) {
-	if authority == nil || token == "" || e.Binding.Session == "" || e.AttemptRequest.TaskID != e.Binding.Task || e.AttemptRequest.RequestID == "" {
+	if authority == nil || token == "" || e.Binding.Session == "" || e.AttemptRequest.TaskID != e.Binding.Task || e.AttemptRequest.RequestID == "" || (e.ExpectedHostSlotScope != nil && !validExpectedHostSlotScope(*e.ExpectedHostSlotScope)) {
 		return AuthenticatedBinding{}, ErrDenied
 	}
 	session, err := authority.Authenticate(token, e.Binding.Session)
@@ -112,7 +125,16 @@ func AuthenticateWorker(authority *sessions.Authority, token string, e WorkerEnr
 	if e.Profile.WorkerSession != session.ID || e.Binding.CredentialID != e.Profile.ID || ValidateProfile(e.Profile, e.Binding, now) != nil || ValidateBinding(e.Binding, e.Binding, now) != nil {
 		return AuthenticatedBinding{}, ErrDenied
 	}
-	return AuthenticatedBinding{binding: e.Binding, token: token, profile: e.Profile, attempt: attempt}, nil
+	result := AuthenticatedBinding{binding: e.Binding, token: token, profile: e.Profile, attempt: attempt}
+	if e.ExpectedHostSlotScope != nil {
+		result.expectedHostSlot = *e.ExpectedHostSlotScope
+		result.hasHostSlotScope = true
+	}
+	return result, nil
+}
+
+func validExpectedHostSlotScope(scope ExpectedHostSlotScope) bool {
+	return scope.SchemaVersion == 1 && scope.AuthorityDomainID != "" && scope.HostSessionID != "" && len(scope.CapabilityDigest) == 64 && strings.Trim(scope.CapabilityDigest, "0123456789abcdef") == ""
 }
 
 func (b Binding) same(other Binding) bool {
@@ -282,6 +304,14 @@ func (c Coordinator) DispatchOnce(req Dispatch, enrolled AuthenticatedBinding, n
 	if _, err := c.Authority.Authorize(enrolled.token, enrolled.binding.Session, enrolled.binding.Workspace, "lease.acquire", "task:"+enrolled.binding.Task); err != nil || enrolled.attempt.SessionID != current.ID || enrolled.attempt.Request.TaskID != enrolled.binding.Task || enrolled.attempt.ProjectID != enrolled.binding.Project || enrolled.attempt.ID != enrolled.binding.Attempt {
 		return HostResult{}, ErrDenied
 	}
+	// Read and validate the retained reservation before consulting or registering
+	// a host backend, and before creating a durable dispatch intent. This is a
+	// read-only scope preflight; RequestDispatchIntent remains the serialized
+	// final admission and historical replays still use its lookup-only result.
+	preflight, err := c.Authority.ReadDispatchReservation(enrolled.token, enrolled.binding.Session, req.DispatchID, req.ExpectedFence)
+	if err != nil || !dispatchReservationMatchesWorker(preflight, req, enrolled) {
+		return HostResult{}, ErrDenied
+	}
 	caps := c.Backend.Capabilities()
 	if caps.Version != ContractVersion || caps.Host != req.Binding.Host || caps.Dispatch.State != Supported || caps.Lookup.State != Supported || caps.PrivateProfileHandoff.State != Supported {
 		return HostResult{}, ErrDenied
@@ -295,6 +325,9 @@ func (c Coordinator) DispatchOnce(req Dispatch, enrolled AuthenticatedBinding, n
 		return HostResult{}, ErrDenied
 	}
 	reservation := permit.Intent.Reservation
+	if !dispatchReservationMatchesWorker(reservation, req, enrolled) {
+		return HostResult{}, ErrDenied
+	}
 	if permit.Intent.OperationKey != req.OperationKey || permit.Intent.DispatchID != req.DispatchID || permit.Intent.BridgeSessionID != req.BridgeSession || permit.Intent.WorkerSessionID != enrolled.binding.Session || permit.Intent.PromptSpecDigest != req.PromptSpecDigest || reservation.Reservation.Fence != req.ExpectedFence || reservation.ProjectID != enrolled.binding.Project || reservation.Reservation.TaskID != enrolled.binding.Task || reservation.Reservation.Checkout != enrolled.attempt.Observation.Locator || reservation.Reservation.Repository != enrolled.attempt.Observation.Repository {
 		return HostResult{}, ErrDenied
 	}
@@ -314,6 +347,24 @@ func (c Coordinator) DispatchOnce(req Dispatch, enrolled AuthenticatedBinding, n
 		return lookup, nil
 	}
 	return HostResult{}, ErrUncertain
+}
+
+func dispatchReservationMatchesWorker(reservation sessions.DispatchReservation, req Dispatch, worker AuthenticatedBinding) bool {
+	if reservation.ID != req.DispatchID || reservation.Reservation.Fence != req.ExpectedFence || reservation.ProjectID != worker.binding.Project || reservation.Reservation.TaskID != worker.binding.Task || reservation.Reservation.Checkout != worker.attempt.Observation.Locator || reservation.Reservation.Repository != worker.attempt.Observation.Repository || (reservation.WorkerSessionID != "" && reservation.WorkerSessionID != worker.binding.Session) {
+		return false
+	}
+	return hostSlotClaimMatchesWorker(reservation.HostSlot, req, worker.binding, worker.expectedHostSlot, worker.hasHostSlotScope)
+}
+
+// hostSlotClaimMatchesWorker compares a reserved host claim to two distinct
+// owner-authenticated identities: the worker process binding and its private
+// expected capacity-host scope. Nil claim plus no expectation preserves legacy
+// manual execution; either side present without the other fails closed.
+func hostSlotClaimMatchesWorker(claim *sessions.HostSlotClaim, req Dispatch, worker Binding, expected ExpectedHostSlotScope, hasExpected bool) bool {
+	if claim == nil {
+		return !hasExpected
+	}
+	return hasExpected && validExpectedHostSlotScope(expected) && claim.SchemaVersion == 1 && claim.AuthorityDomainID == expected.AuthorityDomainID && claim.HostSessionID == expected.HostSessionID && claim.CapabilityDigest == expected.CapabilityDigest && claim.DispatchID == req.DispatchID && claim.DispatchFence == req.ExpectedFence && claim.HostID == worker.Host && claim.ExecutorInstanceID == worker.Instance && claim.Units == 1
 }
 
 func hostResultMatches(result HostResult, req Dispatch) bool {

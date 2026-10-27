@@ -327,6 +327,7 @@ func TestNativeDoctorCommandDeclaresReadOnlyJSON(t *testing.T) {
 }
 
 func TestNativeDoctorComparesSelectedRuntimeCapabilitiesAndKeepsFreshnessSeparate(t *testing.T) {
+	t.Setenv("HOME", canonicalNativeTestTemp(t, "dacli-doctor-comparison-home-"))
 	root := canonicalNativeTestTemp(t, "dacli-doctor-legacy-fixture-")
 	fixture := filepath.Join("..", "..", "guidance", "testdata", "known-legacy")
 	if err := filepath.WalkDir(fixture, func(path string, entry fs.DirEntry, walkErr error) error {
@@ -391,6 +392,7 @@ func TestNativeDoctorRejectsMalformedRequirementsAndCapabilityManifests(t *testi
 }
 
 func TestNativeDoctorCommandReportsSelectedSkillAndRuntimeManifest(t *testing.T) {
+	t.Setenv("HOME", canonicalNativeTestTemp(t, "dacli-doctor-command-home-"))
 	root := canonicalNativeTestTemp(t, "dacli-doctor-cli-")
 	var err error
 	fixture := filepath.Join("..", "..", "guidance", "testdata", "known-legacy")

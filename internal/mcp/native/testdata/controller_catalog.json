@@ -4175,6 +4175,12 @@
                     "format": "date-time",
                     "type": "string"
                   },
+                  "ExecutionConcurrency": {
+                    "type": "integer"
+                  },
+                  "ExecutionConcurrencyKnown": {
+                    "type": "boolean"
+                  },
                   "HaltClass": {
                     "type": "string"
                   },
@@ -4186,6 +4192,77 @@
                   },
                   "HostActionAuthorized": {
                     "type": "boolean"
+                  },
+                  "HostSlotAdmission": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "authority_domain_id": {
+                            "type": "string"
+                          },
+                          "executor_instance_id": {
+                            "type": "string"
+                          },
+                          "external_occupied": {
+                            "type": "integer"
+                          },
+                          "host_id": {
+                            "type": "string"
+                          },
+                          "host_session_id": {
+                            "type": "string"
+                          },
+                          "included_local_executions": {
+                            "type": "integer"
+                          },
+                          "known": {
+                            "type": "boolean"
+                          },
+                          "mode": {
+                            "type": "string"
+                          },
+                          "observation_digest": {
+                            "type": "string"
+                          },
+                          "observation_operation_key": {
+                            "type": "string"
+                          },
+                          "observation_sequence": {
+                            "type": "integer"
+                          },
+                          "observed_occupied": {
+                            "type": "integer"
+                          },
+                          "outstanding_execution_claims": {
+                            "type": "integer"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "remaining_admissible_slots": {
+                            "type": "integer"
+                          },
+                          "retained_writer_count": {
+                            "type": "integer"
+                          },
+                          "schema_version": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "schema_version",
+                          "known",
+                          "mode",
+                          "reason",
+                          "retained_writer_count"
+                        ],
+                        "type": "object"
+                      }
+                    ]
                   },
                   "ID": {
                     "type": "string"
@@ -5460,6 +5537,12 @@
                     "format": "date-time",
                     "type": "string"
                   },
+                  "ExecutionConcurrency": {
+                    "type": "integer"
+                  },
+                  "ExecutionConcurrencyKnown": {
+                    "type": "boolean"
+                  },
                   "HaltClass": {
                     "type": "string"
                   },
@@ -5471,6 +5554,77 @@
                   },
                   "HostActionAuthorized": {
                     "type": "boolean"
+                  },
+                  "HostSlotAdmission": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "authority_domain_id": {
+                            "type": "string"
+                          },
+                          "executor_instance_id": {
+                            "type": "string"
+                          },
+                          "external_occupied": {
+                            "type": "integer"
+                          },
+                          "host_id": {
+                            "type": "string"
+                          },
+                          "host_session_id": {
+                            "type": "string"
+                          },
+                          "included_local_executions": {
+                            "type": "integer"
+                          },
+                          "known": {
+                            "type": "boolean"
+                          },
+                          "mode": {
+                            "type": "string"
+                          },
+                          "observation_digest": {
+                            "type": "string"
+                          },
+                          "observation_operation_key": {
+                            "type": "string"
+                          },
+                          "observation_sequence": {
+                            "type": "integer"
+                          },
+                          "observed_occupied": {
+                            "type": "integer"
+                          },
+                          "outstanding_execution_claims": {
+                            "type": "integer"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "remaining_admissible_slots": {
+                            "type": "integer"
+                          },
+                          "retained_writer_count": {
+                            "type": "integer"
+                          },
+                          "schema_version": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "schema_version",
+                          "known",
+                          "mode",
+                          "reason",
+                          "retained_writer_count"
+                        ],
+                        "type": "object"
+                      }
+                    ]
                   },
                   "ID": {
                     "type": "string"
@@ -6762,6 +6916,12 @@
                     "format": "date-time",
                     "type": "string"
                   },
+                  "ExecutionConcurrency": {
+                    "type": "integer"
+                  },
+                  "ExecutionConcurrencyKnown": {
+                    "type": "boolean"
+                  },
                   "HaltClass": {
                     "type": "string"
                   },
@@ -6773,6 +6933,77 @@
                   },
                   "HostActionAuthorized": {
                     "type": "boolean"
+                  },
+                  "HostSlotAdmission": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "authority_domain_id": {
+                            "type": "string"
+                          },
+                          "executor_instance_id": {
+                            "type": "string"
+                          },
+                          "external_occupied": {
+                            "type": "integer"
+                          },
+                          "host_id": {
+                            "type": "string"
+                          },
+                          "host_session_id": {
+                            "type": "string"
+                          },
+                          "included_local_executions": {
+                            "type": "integer"
+                          },
+                          "known": {
+                            "type": "boolean"
+                          },
+                          "mode": {
+                            "type": "string"
+                          },
+                          "observation_digest": {
+                            "type": "string"
+                          },
+                          "observation_operation_key": {
+                            "type": "string"
+                          },
+                          "observation_sequence": {
+                            "type": "integer"
+                          },
+                          "observed_occupied": {
+                            "type": "integer"
+                          },
+                          "outstanding_execution_claims": {
+                            "type": "integer"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "remaining_admissible_slots": {
+                            "type": "integer"
+                          },
+                          "retained_writer_count": {
+                            "type": "integer"
+                          },
+                          "schema_version": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "schema_version",
+                          "known",
+                          "mode",
+                          "reason",
+                          "retained_writer_count"
+                        ],
+                        "type": "object"
+                      }
+                    ]
                   },
                   "ID": {
                     "type": "string"
@@ -8064,6 +8295,12 @@
                     "format": "date-time",
                     "type": "string"
                   },
+                  "ExecutionConcurrency": {
+                    "type": "integer"
+                  },
+                  "ExecutionConcurrencyKnown": {
+                    "type": "boolean"
+                  },
                   "HaltClass": {
                     "type": "string"
                   },
@@ -8075,6 +8312,77 @@
                   },
                   "HostActionAuthorized": {
                     "type": "boolean"
+                  },
+                  "HostSlotAdmission": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "authority_domain_id": {
+                            "type": "string"
+                          },
+                          "executor_instance_id": {
+                            "type": "string"
+                          },
+                          "external_occupied": {
+                            "type": "integer"
+                          },
+                          "host_id": {
+                            "type": "string"
+                          },
+                          "host_session_id": {
+                            "type": "string"
+                          },
+                          "included_local_executions": {
+                            "type": "integer"
+                          },
+                          "known": {
+                            "type": "boolean"
+                          },
+                          "mode": {
+                            "type": "string"
+                          },
+                          "observation_digest": {
+                            "type": "string"
+                          },
+                          "observation_operation_key": {
+                            "type": "string"
+                          },
+                          "observation_sequence": {
+                            "type": "integer"
+                          },
+                          "observed_occupied": {
+                            "type": "integer"
+                          },
+                          "outstanding_execution_claims": {
+                            "type": "integer"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "remaining_admissible_slots": {
+                            "type": "integer"
+                          },
+                          "retained_writer_count": {
+                            "type": "integer"
+                          },
+                          "schema_version": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "schema_version",
+                          "known",
+                          "mode",
+                          "reason",
+                          "retained_writer_count"
+                        ],
+                        "type": "object"
+                      }
+                    ]
                   },
                   "ID": {
                     "type": "string"
@@ -9366,6 +9674,12 @@
                     "format": "date-time",
                     "type": "string"
                   },
+                  "ExecutionConcurrency": {
+                    "type": "integer"
+                  },
+                  "ExecutionConcurrencyKnown": {
+                    "type": "boolean"
+                  },
                   "HaltClass": {
                     "type": "string"
                   },
@@ -9377,6 +9691,77 @@
                   },
                   "HostActionAuthorized": {
                     "type": "boolean"
+                  },
+                  "HostSlotAdmission": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "authority_domain_id": {
+                            "type": "string"
+                          },
+                          "executor_instance_id": {
+                            "type": "string"
+                          },
+                          "external_occupied": {
+                            "type": "integer"
+                          },
+                          "host_id": {
+                            "type": "string"
+                          },
+                          "host_session_id": {
+                            "type": "string"
+                          },
+                          "included_local_executions": {
+                            "type": "integer"
+                          },
+                          "known": {
+                            "type": "boolean"
+                          },
+                          "mode": {
+                            "type": "string"
+                          },
+                          "observation_digest": {
+                            "type": "string"
+                          },
+                          "observation_operation_key": {
+                            "type": "string"
+                          },
+                          "observation_sequence": {
+                            "type": "integer"
+                          },
+                          "observed_occupied": {
+                            "type": "integer"
+                          },
+                          "outstanding_execution_claims": {
+                            "type": "integer"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "remaining_admissible_slots": {
+                            "type": "integer"
+                          },
+                          "retained_writer_count": {
+                            "type": "integer"
+                          },
+                          "schema_version": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "schema_version",
+                          "known",
+                          "mode",
+                          "reason",
+                          "retained_writer_count"
+                        ],
+                        "type": "object"
+                      }
+                    ]
                   },
                   "ID": {
                     "type": "string"
@@ -10077,6 +10462,89 @@
                       },
                       "Harness": {
                         "type": "string"
+                      },
+                      "HostSlot": {
+                        "oneOf": [
+                          {
+                            "type": "null"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "authority_domain_id": {
+                                "type": "string"
+                              },
+                              "capability_digest": {
+                                "type": "string"
+                              },
+                              "capacity_policy_revision": {
+                                "type": "string"
+                              },
+                              "dispatch_fence": {
+                                "type": "integer"
+                              },
+                              "dispatch_id": {
+                                "type": "string"
+                              },
+                              "executor_instance_id": {
+                                "type": "string"
+                              },
+                              "host_id": {
+                                "type": "string"
+                              },
+                              "host_session_id": {
+                                "type": "string"
+                              },
+                              "observation_digest": {
+                                "type": "string"
+                              },
+                              "observation_operation_key": {
+                                "type": "string"
+                              },
+                              "observation_sequence": {
+                                "type": "integer"
+                              },
+                              "qualification_evidence_digest": {
+                                "type": "string"
+                              },
+                              "qualification_id": {
+                                "type": "string"
+                              },
+                              "reserve_operation_key": {
+                                "type": "string"
+                              },
+                              "schema_version": {
+                                "type": "integer"
+                              },
+                              "swarm_policy_revision": {
+                                "type": "string"
+                              },
+                              "units": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "schema_version",
+                              "authority_domain_id",
+                              "host_id",
+                              "host_session_id",
+                              "executor_instance_id",
+                              "capability_digest",
+                              "reserve_operation_key",
+                              "dispatch_id",
+                              "dispatch_fence",
+                              "units",
+                              "swarm_policy_revision",
+                              "capacity_policy_revision",
+                              "qualification_id",
+                              "qualification_evidence_digest",
+                              "observation_operation_key",
+                              "observation_digest",
+                              "observation_sequence"
+                            ],
+                            "type": "object"
+                          }
+                        ]
                       },
                       "ID": {
                         "type": "string"
@@ -11006,6 +11474,77 @@
                         },
                         "State": {
                           "type": "string"
+                        },
+                        "host_slot_terminal": {
+                          "oneOf": [
+                            {
+                              "type": "null"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "attempt_id": {
+                                  "type": "string"
+                                },
+                                "authority_domain_id": {
+                                  "type": "string"
+                                },
+                                "bridge_session_id": {
+                                  "type": "string"
+                                },
+                                "dispatch_id": {
+                                  "type": "string"
+                                },
+                                "host_agent_id": {
+                                  "type": "string"
+                                },
+                                "intent_id": {
+                                  "type": "string"
+                                },
+                                "lease_fence": {
+                                  "type": "integer"
+                                },
+                                "lease_id": {
+                                  "type": "string"
+                                },
+                                "qualification_digest": {
+                                  "type": "string"
+                                },
+                                "qualification_id": {
+                                  "type": "string"
+                                },
+                                "qualification_policy_revision": {
+                                  "type": "string"
+                                },
+                                "reservation_fence": {
+                                  "type": "integer"
+                                },
+                                "source": {
+                                  "type": "string"
+                                },
+                                "worker_session_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "authority_domain_id",
+                                "dispatch_id",
+                                "reservation_fence",
+                                "intent_id",
+                                "host_agent_id",
+                                "worker_session_id",
+                                "attempt_id",
+                                "lease_id",
+                                "lease_fence",
+                                "bridge_session_id",
+                                "source",
+                                "qualification_id",
+                                "qualification_digest",
+                                "qualification_policy_revision"
+                              ],
+                              "type": "object"
+                            }
+                          ]
                         }
                       },
                       "required": [

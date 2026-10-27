@@ -51,6 +51,9 @@ type ControllerStatus struct {
 	ID, ProjectID, ControllerSessionID, PolicyRevision, Harness, CheckpointID, Phase, HaltClass, NextAction, Assurance string
 	Sequence, CheckpointSequence                                                                                       uint64
 	Waves, CycleOrdinal, Corrections, NoProgress, RetainedConcurrency, TransientAttempts                               int
+	ExecutionConcurrency                                                                                               int                    `json:",omitempty"`
+	ExecutionConcurrencyKnown                                                                                          bool                   `json:",omitempty"`
+	HostSlotAdmission                                                                                                  *HostSlotAdmissionView `json:",omitempty"`
 	StartedAt, Deadline, ObservedAt, NextRetryAt                                                                       time.Time
 	Retryable, Terminal, Historical, HostActionAuthorized                                                              bool
 	ProgressDigest                                                                                                     string
@@ -616,7 +619,7 @@ func (a *Authority) StopController(token, session string, r ControllerStepReques
 		iv.Status.Sequence++
 		iv.Status.Historical = false
 		iv.Status.ObservedAt = time.Now().UTC()
-		iv.Status.RetainedConcurrency = controllerOccupancy(s, r.ProjectID)
+		refreshControllerConcurrency(s, &iv.Status)
 		out = iv.Status
 		s.ControllerInvocations[out.ID] = iv
 		s.ControllerHistory[out.ID] = append(s.ControllerHistory[out.ID], out)
