@@ -94,7 +94,7 @@ func TestQueueDiagnosticsMixedStagesReconcileAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := QueueDiagnosticsCounts{Ready: 1, Queued: 1, Running: 1, Check: 1, Review: 1, Integration: 1}
+	want := QueueDiagnosticsCounts{Queued: 2, Running: 1, Check: 1, Review: 1, Integration: 1}
 	if counts != want || len(rows) != 6 || terminal != 1 {
 		t.Fatalf("projection counts=%+v rows=%d terminal=%d; want %+v/6/1", counts, len(rows), terminal, want)
 	}
@@ -121,8 +121,8 @@ func TestQueueDiagnosticsAdmissionHoldsAndRoleUnknowns(t *testing.T) {
 	s.SwarmPolicies["project"] = policy
 	canonical := QueueCanonicalTask{TaskID: task, ProjectID: "project", Status: "ready", Resources: []Resource{{Kind: "path", Path: "src/owned.go"}}}
 	stage, reasons, _ := queueClassifyTask(s, canonical, now)
-	if stage != "ready" || len(reasons) != 0 {
-		t.Fatalf("unblocked task should be diagnostic ready: %s %+v", stage, reasons)
+	if stage != "queued" || !queueHasReason(reasons, "preflight_unknown") {
+		t.Fatalf("schema 22 task without current preflight must remain unknown: %s %+v", stage, reasons)
 	}
 
 	// A real retained reservation contributes path provenance independently of
@@ -135,7 +135,7 @@ func TestQueueDiagnosticsAdmissionHoldsAndRoleUnknowns(t *testing.T) {
 	sibling := canonical
 	sibling.Resources = []Resource{{Kind: "path", Path: "src/other.go"}}
 	stage, reasons, _ = queueClassifyTask(s, sibling, now)
-	if stage != "ready" || queueHasReason(reasons, "path_hold") {
+	if stage != "queued" || !queueHasReason(reasons, "preflight_unknown") || queueHasReason(reasons, "path_hold") {
 		t.Fatalf("sibling paths were treated as overlapping: %s %+v", stage, reasons)
 	}
 
@@ -292,6 +292,125 @@ func TestQueueDiagnosticsAdmissionCapPlusOneReservationIsAtomic(t *testing.T) {
 		return nil
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestQueueDiagnosticsCanonicalActiveOccupiesRoleCapacity(t *testing.T) {
+	f, _, _ := hostSlotSwarmFixture(t, 2)
+	var s state
+	if err := f.a.transaction(false, false, func(st *state) error { s = *st; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	const activeTask, candidateTask = "unbound-active-task", "ready-role-candidate"
+	repository := f.p.Placements["task-a"].Checkout
+	s.Tasks[candidateTask] = TaskBinding{TaskID: candidateTask, ProjectID: "project", Repository: repository, AdmissionEnabled: true}
+	policy := s.SwarmPolicies["project"]
+	policy.Roles = append([]SwarmRole(nil), policy.Roles...)
+	for i := range policy.Roles {
+		if policy.Roles[i].Kind == "implement" || policy.Roles[i].Kind == "review" {
+			policy.Roles[i].Capacity = 1
+		}
+	}
+	policy.Placements = make(map[string]SwarmPlacement, len(policy.Placements)+1)
+	for id, placement := range s.SwarmPolicies["project"].Placements {
+		policy.Placements[id] = placement
+	}
+	policy.Placements[candidateTask] = SwarmPlacement{Checkout: repository, ImplementKind: "implement", ReviewKind: "review"}
+	s.SwarmPolicies["project"] = policy
+	canonical := queueCanonical(
+		QueueCanonicalTask{TaskID: activeTask, ProjectID: "project", Status: "active"},
+		QueueCanonicalTask{TaskID: candidateTask, ProjectID: "project", Status: "ready", Resources: []Resource{{Kind: "path", Path: "candidate.go"}}},
+	)
+	used, occupied, _ := swarmOccupancy(&s, policy, SwarmSnapshot{Candidates: []SwarmCandidate{{TaskID: activeTask, Status: "active"}}})
+	if used["codex-implement"] != 1 || used["codex-review"] != 1 || !occupied[activeTask] {
+		t.Fatalf("fixture canonical active occupancy is not admission-representative: used=%v occupied=%v", used, occupied)
+	}
+	counts := QueueDiagnosticsCounts{}
+	rows, _, err := queueProjectRows(context.Background(), &s, canonical, "project", "", time.Now(), &counts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range rows {
+		if row.TaskID == candidateTask {
+			if row.Stage != "queued" || !queueHasReason(row.Reasons, "compatible_role_missing") {
+				t.Fatalf("diagnostic omitted canonical active role occupancy: %+v", row)
+			}
+			return
+		}
+	}
+	t.Fatalf("canonical candidate row missing: %+v", rows)
+}
+
+func TestQueueDiagnosticsMissingMandatoryPreflightIsUnknown(t *testing.T) {
+	f, _, _ := hostSlotSwarmFixture(t, 2)
+	var s state
+	if err := f.a.transaction(false, false, func(st *state) error { s = *st; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	const task = "missing-preflight-task"
+	repository := f.p.Placements["task-a"].Checkout
+	s.Tasks[task] = TaskBinding{TaskID: task, ProjectID: "project", Repository: repository, AdmissionEnabled: true}
+	policy := s.SwarmPolicies["project"]
+	policy.Placements = make(map[string]SwarmPlacement, len(policy.Placements)+1)
+	for id, placement := range s.SwarmPolicies["project"].Placements {
+		policy.Placements[id] = placement
+	}
+	policy.Placements[task] = SwarmPlacement{Checkout: repository, ImplementKind: "implement", ReviewKind: "review"}
+	s.SwarmPolicies["project"] = policy
+	delete(s.PreflightPolicies["project"].Tasks, task)
+	stage, reasons, _ := queueClassifyTask(&s, QueueCanonicalTask{TaskID: task, ProjectID: "project", Status: "ready", Resources: []Resource{{Kind: "path", Path: "safe.go"}}}, time.Now())
+	if stage != "queued" || !queueHasReason(reasons, "preflight_unknown") {
+		t.Fatalf("missing mandatory preflight was reported ready: stage=%s reasons=%+v", stage, reasons)
+	}
+	expired := s.PreflightPolicies["project"]
+	expired.ExpiresAt = time.Now().Add(-time.Minute)
+	s.PreflightPolicies["project"] = expired
+	stage, reasons, _ = queueClassifyTask(&s, QueueCanonicalTask{TaskID: task, ProjectID: "project", Status: "ready", Resources: []Resource{{Kind: "path", Path: "safe.go"}}}, time.Now())
+	if stage != "queued" || !queueHasReason(reasons, "preflight_unknown") {
+		t.Fatalf("expired mandatory preflight was reported ready: stage=%s reasons=%+v", stage, reasons)
+	}
+}
+
+func TestQueueDiagnosticsMixedStaleModelCandidatesRemainUnknown(t *testing.T) {
+	f, _, _ := hostSlotSwarmFixture(t, 2)
+	var s state
+	if err := f.a.transaction(false, false, func(st *state) error { s = *st; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	s.ModelRoutingPolicies = map[string]NativeModelRoutingPolicy{"project": {
+		ProjectID: "project", Revision: "routing-mixed", ExpiresAt: now.Add(time.Hour),
+		Tasks: map[string]NativeModelRoutingTask{"task-a": {Candidates: []NativeModelRoutingCandidate{
+			{Model: "model-negative", Available: false, ObservedAt: now.Add(-time.Minute), ExpiresAt: now.Add(time.Hour)},
+			{Model: "model-unknown", Available: true, ObservedAt: now.Add(-2 * time.Hour), ExpiresAt: now.Add(-time.Hour)},
+		}}},
+	}}
+	code, knowledge := queueRolePolicyReason(&s, "project", "task-a", now)
+	if code != "role_model_unknown" || knowledge != "unknown" {
+		t.Fatalf("fresh negative masked an unknown routing candidate: %s/%s", code, knowledge)
+	}
+}
+
+func TestQueueDiagnosticsRetiredPendingVerificationIsHistorical(t *testing.T) {
+	now := time.Now().UTC()
+	request := VerificationRequest{OperationKey: "verification-op", WorkerSession: "worker", AttemptID: "attempt-v", LeaseID: "lease-v", RevisionID: "revision-v", CheckID: "check-v", GrantID: "grant-v", ExpectedFence: 7}
+	binding := &CheckpointVerificationBinding{ProjectID: "project", TaskID: "task-v", RunnerSession: "runner", DescriptorDigest: "descriptor-v", Request: request}
+	lease := Lease{ID: request.LeaseID, AttemptID: request.AttemptID, SessionID: request.WorkerSession, TaskID: "task-v", Fence: request.ExpectedFence, Repository: "/repo", Checkout: "/repo/task-v", Released: false, ExpiresAt: now.Add(time.Hour)}
+	attempt := Attempt{ID: request.AttemptID, SessionID: request.WorkerSession, ProjectID: "project", Request: AttemptRequest{TaskID: "task-v"}}
+	op := operation{Pending: true, Digest: identity("run:"+binding.DescriptorDigest, binding.RunnerSession, request), CheckpointVerification: binding}
+	s := &state{Version: 22, Binding: Binding{Workspace: "workspace", Installation: "installation"}, Tasks: map[string]TaskBinding{"task-v": {TaskID: "task-v", ProjectID: "project", Repository: "/repo", AdmissionEnabled: true}}, Attempts: map[string]Attempt{attempt.ID: attempt}, Leases: map[string]Lease{lease.ID: lease}, Operations: map[string]operation{request.OperationKey: op}, Recoveries: map[string]RecoveryReceipt{}}
+	canonical := queueCanonical(QueueCanonicalTask{TaskID: "task-v", ProjectID: "project", Status: "ready", Resources: []Resource{{Kind: "path", Path: "src/task-v.go"}}})
+	rows, _, err := queueProjectRows(context.Background(), s, canonical, "project", "", now, &QueueDiagnosticsCounts{})
+	if err != nil || len(rows) != 1 || rows[0].Stage != "check" {
+		t.Fatalf("current exact pending verification should be a check stage: rows=%+v err=%v", rows, err)
+	}
+	lease.Released = true
+	s.Leases[lease.ID] = lease
+	target := RecoveryTarget{Workspace: "workspace", Kind: "lease", TaskID: lease.TaskID, AttemptID: lease.AttemptID, ProtectionID: lease.ID, SessionID: lease.SessionID, Repository: lease.Repository, Checkout: lease.Checkout, ExpectedFence: lease.Fence}
+	s.Recoveries["lease:"+lease.ID] = RecoveryReceipt{ID: "recovery-v", Target: target}
+	rows, _, err = queueProjectRows(context.Background(), s, canonical, "project", "", now, &QueueDiagnosticsCounts{})
+	if err != nil || len(rows) != 1 || rows[0].Stage == "check" || !queueHasReason(rows[0].Reasons, "verification_unknown") {
+		t.Fatalf("exactly retired pending verifier remained a current check: rows=%+v err=%v", rows, err)
 	}
 }
 

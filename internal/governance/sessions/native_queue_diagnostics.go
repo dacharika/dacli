@@ -288,7 +288,7 @@ func validateQueueCanonical(ctx context.Context, in QueueCanonicalSnapshot) erro
 }
 
 func queueProjectRows(ctx context.Context, s *state, canonical QueueCanonicalSnapshot, project, filter string, now time.Time, counts *QueueDiagnosticsCounts) ([]QueueDiagnosticRow, int, error) {
-	index, err := buildQueueProjectionIndex(ctx, s, project, now)
+	index, err := buildQueueProjectionIndex(ctx, s, project, now, canonical.Tasks)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -361,21 +361,22 @@ func safeQueueStatus(status string) string {
 }
 
 func queueClassifyTask(s *state, task QueueCanonicalTask, now time.Time) (string, []QueueDiagnosticReason, string) {
-	index, _ := buildQueueProjectionIndex(context.Background(), s, task.ProjectID, now)
+	index, _ := buildQueueProjectionIndex(context.Background(), s, task.ProjectID, now, []QueueCanonicalTask{task})
 	return queueClassifyIndexed(s, task, index, now)
 }
 
 type queueProjectionIndex struct {
-	running         map[string]bool
-	retained        map[string]bool
-	stages          map[string]map[string]bool
-	pathHolders     map[string]*queuePathNode // repo -> exact path trie
-	taskHolders     map[string]map[string]bool
-	anyClaims       map[string]map[string]bool
-	checkoutClaims  map[string]map[string]bool
-	checkoutHolders map[string]map[string]bool // exact checkout path -> task IDs
-	roleUsed        map[string]int
-	hostView        HostSlotAdmissionView
+	running             map[string]bool
+	retained            map[string]bool
+	stages              map[string]map[string]bool
+	pathHolders         map[string]*queuePathNode // repo -> exact path trie
+	taskHolders         map[string]map[string]bool
+	anyClaims           map[string]map[string]bool
+	checkoutClaims      map[string]map[string]bool
+	checkoutHolders     map[string]map[string]bool // exact checkout path -> task IDs
+	roleUsed            map[string]int
+	verificationUnknown map[string]bool
+	hostView            HostSlotAdmissionView
 }
 
 type queuePathNode struct {
@@ -383,13 +384,22 @@ type queuePathNode struct {
 	holders  map[string]bool
 }
 
-func buildQueueProjectionIndex(ctx context.Context, s *state, project string, now time.Time) (*queueProjectionIndex, error) {
-	idx := &queueProjectionIndex{running: map[string]bool{}, retained: map[string]bool{}, stages: map[string]map[string]bool{}, pathHolders: map[string]*queuePathNode{}, taskHolders: map[string]map[string]bool{}, anyClaims: map[string]map[string]bool{}, checkoutClaims: map[string]map[string]bool{}, checkoutHolders: map[string]map[string]bool{}, roleUsed: map[string]int{}}
+func buildQueueProjectionIndex(ctx context.Context, s *state, project string, now time.Time, canonical []QueueCanonicalTask) (*queueProjectionIndex, error) {
+	idx := &queueProjectionIndex{running: map[string]bool{}, retained: map[string]bool{}, stages: map[string]map[string]bool{}, pathHolders: map[string]*queuePathNode{}, taskHolders: map[string]map[string]bool{}, anyClaims: map[string]map[string]bool{}, checkoutClaims: map[string]map[string]bool{}, checkoutHolders: map[string]map[string]bool{}, roleUsed: map[string]int{}, verificationUnknown: map[string]bool{}}
 	if s.Version >= 22 {
 		idx.hostView = hostSlotAdmissionView(s, project, now)
 	}
 	if policy, ok := s.SwarmPolicies[project]; ok {
-		idx.roleUsed, _, _ = swarmOccupancy(s, policy, SwarmSnapshot{})
+		active := make([]SwarmCandidate, 0)
+		for _, task := range canonical {
+			if err := ctx.Err(); err != nil {
+				return nil, ErrDenied
+			}
+			if task.ProjectID == project && strings.EqualFold(task.Status, "active") {
+				active = append(active, SwarmCandidate{TaskID: task.TaskID, Status: "active"})
+			}
+		}
+		idx.roleUsed, _, _ = swarmOccupancy(s, policy, SwarmSnapshot{Candidates: active})
 	}
 	for id, d := range s.Dispatches {
 		if err := ctx.Err(); err != nil {
@@ -466,7 +476,13 @@ func buildQueueProjectionIndex(ctx context.Context, s *state, project string, no
 		binding := op.CheckpointVerification
 		if op.Pending && binding != nil && binding.ProjectID == project && binding.TaskID != "" && binding.Request.OperationKey == key && validID(key) && validID(binding.TaskID) && validID(binding.Request.AttemptID) && validID(binding.Request.LeaseID) && binding.Request.ExpectedFence > 0 {
 			if attempt, ok := s.Attempts[binding.Request.AttemptID]; ok && attempt.ID == binding.Request.AttemptID && attempt.ProjectID == project && attempt.Request.TaskID == binding.TaskID {
-				queueIndexStage(idx, binding.TaskID, "check")
+				if queueVerificationRetired(s, key, op, *binding) {
+					idx.verificationUnknown[binding.TaskID] = true
+				} else if queueVerificationLeaseCurrent(s, key, op, *binding, now) {
+					queueIndexStage(idx, binding.TaskID, "check")
+				} else {
+					idx.verificationUnknown[binding.TaskID] = true
+				}
 			}
 		}
 	}
@@ -501,6 +517,42 @@ func buildQueueProjectionIndex(ctx context.Context, s *state, project string, no
 		}
 	}
 	return idx, nil
+}
+
+func queueVerificationRequestMatches(key string, op operation, binding CheckpointVerificationBinding) bool {
+	req := binding.Request
+	return validID(key) && req.OperationKey == key && validID(req.AttemptID) && validID(req.LeaseID) && validID(req.WorkerSession) && req.ExpectedFence > 0 && binding.DescriptorDigest != "" && binding.RunnerSession != "" && op.Digest == identity("run:"+binding.DescriptorDigest, binding.RunnerSession, req)
+}
+
+func queueVerificationLeaseCurrent(s *state, key string, op operation, binding CheckpointVerificationBinding, now time.Time) bool {
+	if !queueVerificationRequestMatches(key, op, binding) {
+		return false
+	}
+	req := binding.Request
+	lease, ok := s.Leases[req.LeaseID]
+	if !ok || lease.Released || lease.ID != req.LeaseID || lease.Fence != req.ExpectedFence || lease.AttemptID != req.AttemptID || lease.SessionID != req.WorkerSession || lease.TaskID != binding.TaskID || !now.Before(lease.ExpiresAt) {
+		return false
+	}
+	attempt, ok := s.Attempts[req.AttemptID]
+	return ok && attempt.ID == req.AttemptID && attempt.ProjectID == binding.ProjectID && attempt.Request.TaskID == binding.TaskID && attempt.SessionID == req.WorkerSession
+}
+
+func queueVerificationRetired(s *state, key string, op operation, binding CheckpointVerificationBinding) bool {
+	if !queueVerificationRequestMatches(key, op, binding) {
+		return false
+	}
+	req := binding.Request
+	lease, ok := s.Leases[req.LeaseID]
+	if !ok || !lease.Released || lease.ID != req.LeaseID || lease.Fence != req.ExpectedFence || lease.AttemptID != req.AttemptID || lease.SessionID != req.WorkerSession || lease.TaskID != binding.TaskID {
+		return false
+	}
+	attempt, ok := s.Attempts[req.AttemptID]
+	if !ok || attempt.ID != req.AttemptID || attempt.ProjectID != binding.ProjectID || attempt.Request.TaskID != binding.TaskID || attempt.SessionID != req.WorkerSession {
+		return false
+	}
+	recovery, retired := checkpointRetiredLease(s, lease.ID)
+	target := recovery.Target
+	return retired && target.Workspace == s.Binding.Workspace && target.Kind == "lease" && target.ProtectionID == lease.ID && target.ExpectedFence == lease.Fence && target.AttemptID == lease.AttemptID && target.SessionID == lease.SessionID && target.TaskID == lease.TaskID && target.Repository == lease.Repository && target.Checkout == lease.Checkout
 }
 
 func queueIndexStage(idx *queueProjectionIndex, task, stage string) {
@@ -655,6 +707,9 @@ func queueClassifyIndexed(s *state, task QueueCanonicalTask, idx *queueProjectio
 	if retained {
 		reasons = append(reasons, QueueDiagnosticReason{Code: "retained_protection", Knowledge: "known"})
 	}
+	if idx.verificationUnknown[task.TaskID] {
+		reasons = append(reasons, QueueDiagnosticReason{Code: "verification_unknown", Knowledge: "unknown"})
+	}
 	if code := canonicalQueueReason(task.Reason); code != "" {
 		reasons = append(reasons, QueueDiagnosticReason{Code: code, Knowledge: "known"})
 	}
@@ -696,12 +751,11 @@ func queueClassifyIndexed(s *state, task QueueCanonicalTask, idx *queueProjectio
 	if code, knowledge := queueRolePolicyReasonWithOccupancy(s, task.ProjectID, task.TaskID, now, idx.roleUsed); code != "" {
 		reasons = append(reasons, QueueDiagnosticReason{Code: code, Knowledge: knowledge})
 	}
-	if preflight, configured := s.PreflightPolicies[task.ProjectID]; s.Version >= 11 && configured {
-		if _, required := preflight.Tasks[task.TaskID]; required {
-			// Durable preflight reports bind an old observer, not a fresh runtime
-			// profile/model check. Keep the required gate unknown without rerunning it.
-			reasons = append(reasons, QueueDiagnosticReason{Code: "preflight_unknown", Knowledge: "unknown"})
-		}
+	if s.Version >= 11 {
+		// Schema 11+ admission requires a configured, unexpired task spec and a
+		// fresh observer result. The read path cannot run that observer or inspect
+		// profiles; missing, expired, or merely historical reports stay unknown.
+		reasons = append(reasons, QueueDiagnosticReason{Code: "preflight_unknown", Knowledge: "unknown"})
 	}
 	if !strings.EqualFold(task.Status, "ready") && !strings.EqualFold(task.Status, "open") && !strings.EqualFold(task.Status, "queued") {
 		reasons = append(reasons, QueueDiagnosticReason{Code: "canonical_status_blocked", Knowledge: "known"})
@@ -790,20 +844,26 @@ func queueRolePolicyReasonWithOccupancy(s *state, project, task string, now time
 		if !present || len(taskRouting.Candidates) == 0 || routing.ProjectID != project || routing.Revision == "" || routing.ExpiresAt.IsZero() || !now.Before(routing.ExpiresAt) {
 			return "role_model_unknown", "unknown"
 		}
-		available, knownUnavailable := false, false
+		available, knownUnavailable, unknown := false, false, false
 		for _, candidate := range taskRouting.Candidates {
 			fresh := !candidate.ObservedAt.IsZero() && !candidate.ExpiresAt.IsZero() && !candidate.ObservedAt.After(now.Add(time.Minute)) && now.Before(candidate.ExpiresAt) && now.Before(candidate.ObservedAt.Add(time.Hour))
 			if !fresh {
+				unknown = true
 				continue
 			}
 			if candidate.Available && candidate.Model != "" {
 				available = true
 			} else if !candidate.Available {
 				knownUnavailable = true
+			} else {
+				unknown = true
 			}
 		}
 		if available {
 			return "", ""
+		}
+		if unknown {
+			return "role_model_unknown", "unknown"
 		}
 		if knownUnavailable {
 			return "model_unavailable", "known"
