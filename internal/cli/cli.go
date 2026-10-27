@@ -108,6 +108,7 @@ var commands = aggregate(
 	dashboard.Commands,
 	[]Command{
 		{Path: "capabilities", Brief: "Print the generated CLI, MCP, schema and prompt capability manifest", JSON: true, Usage: "dacli capabilities [--json]", Run: cmdCapabilities},
+		{Path: "provider readiness", Brief: "Inspect provider installation and optional read-only sign-in status", JSON: true, Mutates: true, Usage: "dacli provider readiness [--config <file>] [--auth-status] [--json]", Run: cmdAuthorizedProviderReadiness},
 		{Path: "operator serve", Brief: "Serve authenticated operator reads over app-owned local JSON lines", JSON: true, Usage: "dacli operator serve --connection <private-file>", Run: cmdOperatorServe},
 		{Path: "mcp serve", Brief: "Serve MCP over stdio with DACLI_AGENT identity; --operator explicitly permits local root when no token is set", Usage: "dacli mcp serve [--operator]", Run: cmdMcpServe},
 	},
@@ -818,4 +819,18 @@ func operatorReadError(err error) error {
 		return operatorread.ErrUnavailable
 	}
 	return err
+}
+
+// cmdAuthorizedProviderReadiness gates caller-selected executable code even when
+// the generic dispatcher sees a dry-run token or cannot resolve a workspace.
+// Fixed diagnostic arguments do not establish the executable's effects.
+func cmdAuthorizedProviderReadiness(ctx *Ctx, args []string) error {
+	_, id, err := clikit.OpenWorkspace(ctx)
+	if err != nil {
+		return err
+	}
+	if err := clikit.RequireRW(id, "provider readiness"); err != nil {
+		return err
+	}
+	return cmdProviderReadiness(ctx, args)
 }

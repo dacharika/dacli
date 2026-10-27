@@ -21,6 +21,7 @@ import (
 // so no command can quietly claim --json support. Adding an entry is the
 // deliberate act that says "I checked: this command honors --json."
 var jsonHonoringCommands = map[string]bool{
+	"provider readiness": true,
 	"native landing record":    true,
 	"native guidance diagnose": true, "native guidance refresh-preview": true, "native guidance refresh-apply": true,
 	"native queue diagnostics": true, "native capacity slots upgrade": true, "native capacity upgrade": true, "native capacity observer add": true, "native capacity policy configure": true,
@@ -149,6 +150,13 @@ func TestJSONFlagIsHonoredOrRefused(t *testing.T) {
 	for i := range commands {
 		cmd := commands[i]
 		t.Run(cmd.Path, func(t *testing.T) {
+			if cmd.Path == "provider readiness" {
+				// This capability invariant exercises JSON dispatch, not installed providers.
+				isolation := t.TempDir()
+				t.Setenv("PATH", isolation)
+				t.Setenv("HOME", isolation)
+				t.Setenv("USERPROFILE", isolation)
+			}
 			dir := t.TempDir()
 			argv := strings.Fields(cmd.Path)
 			_, msg, code := executor(dir)(argv, true)

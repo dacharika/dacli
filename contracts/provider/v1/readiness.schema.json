@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "dacli-provider-readiness-v1.schema.json",
+  "title": "dacli provider readiness observations",
+  "oneOf": [
+    { "$ref": "#/$defs/config" },
+    { "$ref": "#/$defs/report" }
+  ],
+  "$defs": {
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "codex_path": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "claude_code_path": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "antigravity_path": { "type": "string", "minLength": 1, "maxLength": 4096 }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "install_state", "candidate_count", "version_state", "auth_state", "reason"],
+      "properties": {
+        "provider": { "enum": ["codex", "claude-code", "antigravity"] },
+        "install_state": { "enum": ["installed", "missing", "ambiguous", "denied", "unsupported"] },
+        "candidate_count": { "type": "integer", "minimum": 0, "maximum": 128 },
+        "install_source": { "enum": ["explicit_config", "path", "documented_location"] },
+        "version_state": { "enum": ["known", "unknown", "ambiguous", "unsupported"] },
+        "version": { "type": "string", "maxLength": 64 },
+        "auth_state": { "enum": ["authenticated", "unauthenticated", "unknown", "unsupported"] },
+        "reason": { "type": "string", "enum": ["ok", "not_found", "multiple_candidates", "invalid_selection", "not_executable", "candidate_limit_exceeded", "probe_failed", "probe_timeout", "invalid_probe_output", "diagnostic_not_requested", "auth_diagnostic_unsupported", "auth_status_unknown"] }
+      }
+    },
+    "report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "schema", "observed_at", "auth_status_requested", "providers", "notice"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "schema": { "const": "provider-readiness/v1" },
+        "observed_at": { "type": "string", "format": "date-time" },
+        "auth_status_requested": { "type": "boolean" },
+        "providers": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "$ref": "#/$defs/provider" } },
+        "notice": { "type": "string", "maxLength": 512 }
+      }
+    }
+  }
+}
