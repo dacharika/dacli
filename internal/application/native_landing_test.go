@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -50,22 +51,18 @@ func nativeLandingSetup(t *testing.T) (*NativeLandingOwner, acceptanceFixture, N
 	if err := store.SaveTask(task); err != nil {
 		t.Fatal(err)
 	}
-	owner, err := OpenNativeLandingOwner(f.access.owner.path, "p")
-	if err != nil {
-		t.Fatal(err)
-	}
-	owner.observePR = func(_ context.Context, repository string, number int) (nativeLandingPRObservation, error) {
+	observePR := func(_ context.Context, repository string, number int) (NativeLandingPRObservation, error) {
 		if repository != "owner/repo" || number != 123 {
 			t.Fatalf("observer got unexpected PR selector: %s #%d", repository, number)
 		}
-		var pr nativeLandingPRObservation
-		pr.Number = 123
-		pr.URL = "https://github.com/owner/repo/pull/123"
-		pr.State = "MERGED"
-		pr.HeadRefOID = f.revision.Observation.Commit
-		pr.BaseRefName = "main"
-		pr.MergeCommit.OID = f.revision.Observation.Commit
-		return pr, nil
+		return NativeLandingPRObservation{
+			Number: 123, URL: "https://github.com/owner/repo/pull/123", State: "MERGED",
+			HeadRefOID: f.revision.Observation.Commit, BaseRefName: "main", MergeCommitOID: f.revision.Observation.Commit,
+		}, nil
+	}
+	owner, err := OpenNativeLandingOwner(f.access.owner.path, "p", observePR)
+	if err != nil {
+		t.Fatal(err)
 	}
 	request := NativeLandingRequest{
 		OperationKey: "landing-op-1", TaskID: f.task.ID, AttemptID: f.at.ID, RevisionID: f.revision.ID,
@@ -124,6 +121,22 @@ func TestNativeLandingRecordExactPublishedSourceAndReplay(t *testing.T) {
 	}
 }
 
+func TestNativeLandingRecordRejectsMissingPRObserver(t *testing.T) {
+	owner, f, request := nativeLandingSetup(t)
+	owner.observePR = nil
+	before, err := os.ReadFile(f.task.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Record(context.Background(), request); !errors.Is(err, sessions.ErrDenied) {
+		t.Fatalf("record without injected PR observer was not denied: %v", err)
+	}
+	after, err := os.ReadFile(f.task.Path)
+	if err != nil || !reflect.DeepEqual(before, after) {
+		t.Fatalf("missing observer changed canonical task: %v", err)
+	}
+}
+
 func TestNativeLandingRefusalsDoNotChangeTaskOrOwnerSelection(t *testing.T) {
 	for _, kind := range []string{"unmerged", "wrong-head", "wrong-base", "alternate-owner-config", "canceled"} {
 		t.Run(kind, func(t *testing.T) {
@@ -134,21 +147,21 @@ func TestNativeLandingRefusalsDoNotChangeTaskOrOwnerSelection(t *testing.T) {
 			}
 			switch kind {
 			case "unmerged":
-				owner.observePR = func(context.Context, string, int) (nativeLandingPRObservation, error) {
-					pr := nativeLandingPRObservation{Number: 123, URL: "https://github.com/owner/repo/pull/123", State: "OPEN", HeadRefOID: request.ExpectedPRHead, BaseRefName: "main"}
-					pr.MergeCommit.OID = f.revision.Observation.Commit
+				owner.observePR = func(context.Context, string, int) (NativeLandingPRObservation, error) {
+					pr := NativeLandingPRObservation{Number: 123, URL: "https://github.com/owner/repo/pull/123", State: "OPEN", HeadRefOID: request.ExpectedPRHead, BaseRefName: "main"}
+					pr.MergeCommitOID = f.revision.Observation.Commit
 					return pr, nil
 				}
 			case "wrong-head":
-				owner.observePR = func(context.Context, string, int) (nativeLandingPRObservation, error) {
-					pr := nativeLandingPRObservation{Number: 123, URL: "https://github.com/owner/repo/pull/123", State: "MERGED", HeadRefOID: f.at.Observation.Commit, BaseRefName: "main"}
-					pr.MergeCommit.OID = f.revision.Observation.Commit
+				owner.observePR = func(context.Context, string, int) (NativeLandingPRObservation, error) {
+					pr := NativeLandingPRObservation{Number: 123, URL: "https://github.com/owner/repo/pull/123", State: "MERGED", HeadRefOID: f.at.Observation.Commit, BaseRefName: "main"}
+					pr.MergeCommitOID = f.revision.Observation.Commit
 					return pr, nil
 				}
 			case "wrong-base":
-				owner.observePR = func(context.Context, string, int) (nativeLandingPRObservation, error) {
-					pr := nativeLandingPRObservation{Number: 123, URL: "https://github.com/owner/repo/pull/123", State: "MERGED", HeadRefOID: request.ExpectedPRHead, BaseRefName: "other"}
-					pr.MergeCommit.OID = f.revision.Observation.Commit
+				owner.observePR = func(context.Context, string, int) (NativeLandingPRObservation, error) {
+					pr := NativeLandingPRObservation{Number: 123, URL: "https://github.com/owner/repo/pull/123", State: "MERGED", HeadRefOID: request.ExpectedPRHead, BaseRefName: "other"}
+					pr.MergeCommitOID = f.revision.Observation.Commit
 					return pr, nil
 				}
 			case "alternate-owner-config":
@@ -157,10 +170,10 @@ func TestNativeLandingRefusalsDoNotChangeTaskOrOwnerSelection(t *testing.T) {
 					t.Fatal(err)
 				}
 				alternateConfig := recoveryOwnerConfig{SchemaVersion: 1, Workspace: f.w.Root, Authority: f.access.owner.config.Authority, InstallationID: "installation", OwnerCredentialFile: alternateCredential}
-				owner.observePR = func(context.Context, string, int) (nativeLandingPRObservation, error) {
+				owner.observePR = func(context.Context, string, int) (NativeLandingPRObservation, error) {
 					acceptanceJSON(t, owner.owner.path, alternateConfig)
-					pr := nativeLandingPRObservation{Number: 123, URL: "https://github.com/owner/repo/pull/123", State: "MERGED", HeadRefOID: request.ExpectedPRHead, BaseRefName: "main"}
-					pr.MergeCommit.OID = f.revision.Observation.Commit
+					pr := NativeLandingPRObservation{Number: 123, URL: "https://github.com/owner/repo/pull/123", State: "MERGED", HeadRefOID: request.ExpectedPRHead, BaseRefName: "main"}
+					pr.MergeCommitOID = f.revision.Observation.Commit
 					return pr, nil
 				}
 			case "canceled":
@@ -185,7 +198,7 @@ func TestNativeLandingRefusalsDoNotChangeTaskOrOwnerSelection(t *testing.T) {
 
 func TestNativeLandingSourcePublicationChangeDuringPRObservationIsDenied(t *testing.T) {
 	owner, f, request := nativeLandingSetup(t)
-	owner.observePR = func(context.Context, string, int) (nativeLandingPRObservation, error) {
+	owner.observePR = func(context.Context, string, int) (NativeLandingPRObservation, error) {
 		// A newer publication during the remote observation supersedes the
 		// selected historical source before the final source/task CAS.
 		nativeGit(t, f.w.Root, "-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid", "commit", "--allow-empty", "-m", "newer source")
@@ -193,8 +206,8 @@ func TestNativeLandingSourcePublicationChangeDuringPRObservationIsDenied(t *test
 		if _, err := f.a.PublishAttemptRevision(f.workerToken, f.worker.ID, newer); err != nil {
 			t.Fatalf("publish newer source during observation: %v", err)
 		}
-		pr := nativeLandingPRObservation{Number: 123, URL: "https://github.com/owner/repo/pull/123", State: "MERGED", HeadRefOID: request.ExpectedPRHead, BaseRefName: "main"}
-		pr.MergeCommit.OID = f.revision.Observation.Commit
+		pr := NativeLandingPRObservation{Number: 123, URL: "https://github.com/owner/repo/pull/123", State: "MERGED", HeadRefOID: request.ExpectedPRHead, BaseRefName: "main"}
+		pr.MergeCommitOID = f.revision.Observation.Commit
 		return pr, nil
 	}
 	before, err := os.ReadFile(f.task.Path)

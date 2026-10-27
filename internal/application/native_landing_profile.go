@@ -17,12 +17,12 @@ type NativeLandingOwner struct {
 	owner           *NativeRecoveryAccess
 	project         string
 	workspace       *workspace.Workspace
-	observePR       func(context.Context, string, int) (nativeLandingPRObservation, error)
+	observePR       NativeLandingPRObserver
 	validateLanding func(context.Context, *workspace.Workspace, *store.Task, store.TaskLandingObservation, string) error
 }
 
-func OpenNativeLandingOwner(configPath, project string) (*NativeLandingOwner, error) {
-	if project == "" || !workspace.SafeSegment(project) {
+func OpenNativeLandingOwner(configPath, project string, observePR NativeLandingPRObserver) (*NativeLandingOwner, error) {
+	if project == "" || !workspace.SafeSegment(project) || observePR == nil {
 		return nil, sessions.ErrDenied
 	}
 	owner, err := OpenNativeRecovery(configPath)
@@ -33,14 +33,14 @@ func OpenNativeLandingOwner(configPath, project string) (*NativeLandingOwner, er
 	if err != nil {
 		return nil, sessions.ErrDenied
 	}
-	w, err := workspace.Find(owner.config.Workspace)
+	w, err := nativeconfig.ResolveWorkspace(owner.config.Workspace, "")
 	if err != nil {
 		return nil, sessions.ErrDenied
 	}
 	if _, err = store.LoadProject(w, project); err != nil {
 		return nil, sessions.ErrDenied
 	}
-	return &NativeLandingOwner{owner: owner, project: project, workspace: w}, nil
+	return &NativeLandingOwner{owner: owner, project: project, workspace: w, observePR: observePR}, nil
 }
 
 func (p *NativeLandingOwner) authenticate() (*sessions.Authority, string, error) {
@@ -51,7 +51,7 @@ func (p *NativeLandingOwner) authenticate() (*sessions.Authority, string, error)
 	if err != nil {
 		return nil, "", sessions.ErrDenied
 	}
-	w, err := workspace.Find(p.owner.config.Workspace)
+	w, err := nativeconfig.ResolveWorkspace(p.owner.config.Workspace, p.workspace.ID)
 	if err != nil || w.ID != p.workspace.ID || w.Root != p.workspace.Root {
 		return nil, "", sessions.ErrDenied
 	}
@@ -76,7 +76,7 @@ func (p *NativeLandingOwner) selectedOwnerCurrent(owner string) error {
 	if err != nil || credential != owner {
 		return sessions.ErrDenied
 	}
-	w, err := workspace.Find(p.owner.config.Workspace)
+	w, err := nativeconfig.ResolveWorkspace(p.owner.config.Workspace, p.workspace.ID)
 	if err != nil || w.ID != p.workspace.ID || w.Root != p.workspace.Root {
 		return sessions.ErrDenied
 	}

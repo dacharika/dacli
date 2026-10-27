@@ -1,17 +1,12 @@
 package application
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -26,7 +21,6 @@ import (
 const (
 	nativeLandingTimeout    = 15 * time.Second
 	nativeLandingMaxRequest = 64 << 10
-	nativeLandingMaxOutput  = 1 << 20
 )
 
 var nativeLandingOID = regexp.MustCompile(`^(?:[0-9a-f]{40}|[0-9a-f]{64})$`)
@@ -50,19 +44,20 @@ type NativeLandingRequest struct {
 	TargetTree           string `json:"target_tree"`
 }
 
-type nativeLandingPRObservation struct {
-	Number      int    `json:"number"`
-	URL         string `json:"url"`
-	State       string `json:"state"`
-	HeadRefOID  string `json:"headRefOid"`
-	BaseRefName string `json:"baseRefName"`
-	MergeCommit struct {
-		OID             string `json:"oid"`
-		URL             string `json:"url"`
-		MessageHeadline string `json:"messageHeadline"`
-		MessageBody     string `json:"messageBody"`
-	} `json:"mergeCommit"`
+// NativeLandingPRObservation is the bounded read-only PR data needed to bind
+// a native source publication to the configured merge target.
+type NativeLandingPRObservation struct {
+	Number         int
+	URL            string
+	State          string
+	HeadRefOID     string
+	BaseRefName    string
+	MergeCommitOID string
 }
+
+// NativeLandingPRObserver supplies PR observations from the caller's trusted
+// governance adapter; the application layer never launches provider tools.
+type NativeLandingPRObserver func(context.Context, string, int) (NativeLandingPRObservation, error)
 
 // Record binds a historical native publication to exact merged PR content and
 // a locally verified target commit. Remote observation is read-only; the only
@@ -102,11 +97,10 @@ func (p *NativeLandingOwner) Record(ctx context.Context, request NativeLandingRe
 	if err != nil {
 		return store.TaskLandingObservation{}, sessions.ErrDenied
 	}
-	observePR := p.observePR
-	if observePR == nil {
-		observePR = observeNativeLandingPR
+	if p.observePR == nil {
+		return store.TaskLandingObservation{}, sessions.ErrDenied
 	}
-	pr, err := observePR(ctx, githubRepository, request.PRNumber)
+	pr, err := p.observePR(ctx, githubRepository, request.PRNumber)
 	if err != nil || !validNativeLandingPRObservation(pr, githubRepository, project.Landing.Base, request) {
 		return store.TaskLandingObservation{}, sessions.ErrDenied
 	}
@@ -147,7 +141,7 @@ func (p *NativeLandingOwner) Record(ctx context.Context, request NativeLandingRe
 		},
 		IntegratedBaseCommit: request.IntegratedBaseCommit, IntegratedCommit: request.IntegratedCommit,
 		PRNumber: pr.Number, PRURL: pr.URL, PRState: pr.State, PRHead: pr.HeadRefOID, PRBase: pr.BaseRefName,
-		MergeCommit: pr.MergeCommit.OID, TargetRef: "refs/heads/" + project.Landing.Base,
+		MergeCommit: pr.MergeCommitOID, TargetRef: "refs/heads/" + project.Landing.Base,
 		TargetCommit: request.TargetCommit, TargetTree: request.TargetTree,
 		VerificationDigest: verificationDigest, ObservedAt: time.Now().UTC(),
 	}
@@ -252,8 +246,8 @@ func validNativeLandingRepository(repository string) bool {
 	return nativeLandingRepo.MatchString(repository) && !strings.Contains(repository, "..") && !strings.HasSuffix(repository, ".")
 }
 
-func validNativeLandingPRObservation(pr nativeLandingPRObservation, repository, base string, request NativeLandingRequest) bool {
-	if pr.Number != request.PRNumber || pr.URL != fmt.Sprintf("https://github.com/%s/pull/%d", repository, request.PRNumber) || pr.State != "MERGED" || pr.HeadRefOID != request.ExpectedPRHead || pr.BaseRefName != base || !nativeLandingOID.MatchString(pr.MergeCommit.OID) {
+func validNativeLandingPRObservation(pr NativeLandingPRObservation, repository, base string, request NativeLandingRequest) bool {
+	if pr.Number != request.PRNumber || pr.URL != fmt.Sprintf("https://github.com/%s/pull/%d", repository, request.PRNumber) || pr.State != "MERGED" || pr.HeadRefOID != request.ExpectedPRHead || pr.BaseRefName != base || !nativeLandingOID.MatchString(pr.MergeCommitOID) {
 		return false
 	}
 	return true
@@ -288,56 +282,4 @@ func nativeLandingVerificationDigest(task *store.Task, commit, tree string) (str
 		return "sha256:" + hex.EncodeToString(digest[:]), nil
 	}
 	return "", sessions.ErrDenied
-}
-
-func observeNativeLandingPR(ctx context.Context, repository string, number int) (nativeLandingPRObservation, error) {
-	var result nativeLandingPRObservation
-	if ctx == nil || !validNativeLandingRepository(repository) || number < 1 || number > 1_000_000_000 {
-		return result, sessions.ErrDenied
-	}
-	ctx, cancel := context.WithTimeout(ctx, nativeLandingTimeout)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "gh", "pr", "view", strconv.Itoa(number), "--repo", repository, "--json", "number,url,state,headRefOid,baseRefName,mergeCommit")
-	cmd.WaitDelay = 250 * time.Millisecond
-	cmd.Env = append([]string(nil), os.Environ()...)
-	cmd.Dir = filepath.Clean(".")
-	var stdout, stderr nativeLandingOutput
-	stdout.limit, stderr.limit = nativeLandingMaxOutput, nativeLandingMaxOutput
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil || stdout.exceeded || stderr.exceeded || ctx.Err() != nil {
-		return result, sessions.ErrDenied
-	}
-	decoder := json.NewDecoder(bytes.NewReader(stdout.Bytes()))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&result); err != nil {
-		return nativeLandingPRObservation{}, sessions.ErrDenied
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		return nativeLandingPRObservation{}, sessions.ErrDenied
-	}
-	return result, nil
-}
-
-type nativeLandingOutput struct {
-	bytes.Buffer
-	limit    int
-	exceeded bool
-}
-
-func (b *nativeLandingOutput) Write(data []byte) (int, error) {
-	if b.limit <= 0 {
-		return 0, errors.New("output limit unavailable")
-	}
-	remaining := b.limit - b.Len()
-	if remaining <= 0 {
-		b.exceeded = true
-		return 0, errors.New("output limit exceeded")
-	}
-	if len(data) > remaining {
-		_, _ = b.Buffer.Write(data[:remaining])
-		b.exceeded = true
-		return remaining, errors.New("output limit exceeded")
-	}
-	return b.Buffer.Write(data)
 }
