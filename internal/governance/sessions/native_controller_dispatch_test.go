@@ -298,7 +298,7 @@ type controllerDispatchRoleDriftAdmission struct {
 
 func (a *controllerDispatchRoleDriftAdmission) ObserveSwarm(workspace, project string) (SwarmSnapshot, error) {
 	a.observeCalls++
-	snapshot, err := a.checkpointFixtureAdmission.swarmFixtureAdmission.ObserveSwarm(workspace, project)
+	snapshot, err := a.swarmFixtureAdmission.ObserveSwarm(workspace, project)
 	if err == nil && a.observeCalls == 2 {
 		snapshot.RoleRegistry = append(snapshot.RoleRegistry, RoleRegistryProvenance{RoleID: "changed-after-admission"})
 	}
