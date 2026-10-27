@@ -8,17 +8,20 @@ canonical task, dependencies, paths, attempt/lease/fence, current candidate,
 focused checks, independent review and next owner action. Refill capacity as
 features land; a blocked lane does not suspend unrelated eligible work.
 
-Register the clean checkout, acquire exact resources and renew protection.
-Claim overlap is a useful refusal: narrow or sequence the conflicting edit while
+Register the clean checkout, acquire scoped leases for its exact resources,
+and renew protection before expiry. Claim overlap is a useful refusal: narrow
+or sequence the conflicting edit while
 other independent lanes continue. Use observed host availability, current policy
 and qualified capacity where required by admission. Configured width, lease
 counts and historical host declarations do not prove live concurrency; no fixed
 worker count is implied by this skill. Never wrap a coding CLI to simulate a
 native child.
 
-Coordinate expensive full-suite/race/build gates centrally for exact feature
-candidates. Focused checks and read-only review can proceed in parallel. Preserve
-each feature's full required check set and independent review; a central queue
+Independent review requires a separately eligible authenticated session and
+exact revision evidence. Coordinate expensive full-suite/race/build gates
+centrally for exact feature candidates. Focused checks and read-only review
+can proceed in parallel. Preserve each feature's full required check set and
+independent review; a central queue
 does not make evidence transferable across tasks. Merge and accept features
 independently when their own contracts are satisfied.
 
