@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "schema": "provider-readiness/v1",
+  "observed_at": "2026-10-27T19:00:00Z",
+  "auth_status_requested": false,
+  "providers": [
+    { "provider": "codex", "install_state": "installed", "candidate_count": 1, "install_source": "path", "version_state": "known", "version": "1.2.3", "auth_state": "unknown", "reason": "diagnostic_not_requested" },
+    { "provider": "claude-code", "install_state": "missing", "candidate_count": 0, "version_state": "unknown", "auth_state": "unknown", "reason": "not_found" },
+    { "provider": "antigravity", "install_state": "ambiguous", "candidate_count": 2, "version_state": "ambiguous", "auth_state": "unknown", "reason": "multiple_candidates" }
+  ],
+  "notice": "Local observations only; no identity, dispatch authority, provider qualification, subscription or API billing is established."
+}
