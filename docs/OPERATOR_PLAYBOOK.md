@@ -39,6 +39,11 @@ switch providers, cap provider billing or supervise a persistent model process.
 A shared MCP connection has one credential identity regardless of the number of
 native children using it.
 
+For bounded task-stage counts and host admission reasons, use the separate
+project operator connection with `native queue diagnostics`; see the
+[queue diagnostic contract](GOVERNANCE_NATIVE_QUEUE.md). This read preserves
+unknown capacity and retained writer protection and grants no dispatch authority.
+
 ## Verification, review and acceptance
 
 Run the actual repository verification bar from the exact worktree containing

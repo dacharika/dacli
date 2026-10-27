@@ -13,13 +13,14 @@ func foundationFixtures() map[string]any {
 	worker := (&Server{}).catalog()
 	runner := (&Server{verification: &application.NativeVerificationJobs{}}).catalog()
 	reviewer := (&Server{review: &application.NativeReviewProfile{}}).catalog()
+	operator := (&Server{queueOperator: true}).catalog()
 	inputs := map[string]any{}
 	outputsByName := map[string]any{}
 	for name, arg := range arguments {
 		inputs[name] = schema(reflect.TypeOf(arg))
 		outputsByName[name] = outputSchema(name)
 	}
-	return map[string]any{"worker_catalog.json": map[string]any{"tools": worker}, "runner_catalog.json": map[string]any{"tools": runner}, "reviewer_catalog.json": map[string]any{"tools": reviewer}, "input_schemas.json": inputs, "output_schemas.json": outputsByName}
+	return map[string]any{"worker_catalog.json": map[string]any{"tools": worker}, "runner_catalog.json": map[string]any{"tools": runner}, "reviewer_catalog.json": map[string]any{"tools": reviewer}, "operator_catalog.json": map[string]any{"tools": operator}, "input_schemas.json": inputs, "output_schemas.json": outputsByName}
 }
 func TestNativeFoundationSchemasMatchFixedWireFixtures(t *testing.T) {
 	// Explicit reviewer-only contract generation precedes every behavioral
@@ -70,7 +71,7 @@ func TestNativeFoundationSchemasMatchFixedWireFixtures(t *testing.T) {
 	}
 }
 func TestNativeFoundationCatalogRolesAndRefusalSchemas(t *testing.T) {
-	counts := map[string]int{"worker_catalog.json": 13, "runner_catalog.json": 16, "reviewer_catalog.json": 7}
+	counts := map[string]int{"worker_catalog.json": 13, "runner_catalog.json": 16, "reviewer_catalog.json": 7, "operator_catalog.json": 2}
 	fixtures := foundationFixtures()
 	for filename, want := range counts {
 		list := fixtures[filename].(map[string]any)["tools"].([]tool)
@@ -78,9 +79,13 @@ func TestNativeFoundationCatalogRolesAndRefusalSchemas(t *testing.T) {
 			t.Fatalf("role catalog count changed %s: %d", filename, len(list))
 		}
 		policyFound := false
+		queueFound := false
 		for _, item := range list {
 			if item.Name == "get_policy_status" {
 				policyFound = true
+			}
+			if item.Name == "queue_diagnostics" {
+				queueFound = true
 			}
 			switch item.Name {
 			case "cli", "shell", "spawn", "enroll", "bootstrap", "grant", "accept", "evaluate_policy", "approve_policy", "consume_policy", "configure_policy":
@@ -93,7 +98,11 @@ func TestNativeFoundationCatalogRolesAndRefusalSchemas(t *testing.T) {
 				t.Fatalf("role refusal wire parity failed: %s", item.Name)
 			}
 		}
-		if !policyFound {
+		if filename == "operator_catalog.json" {
+			if !queueFound || policyFound {
+				t.Fatalf("operator catalog must expose identity and queue diagnostics only: %s", filename)
+			}
+		} else if !policyFound || queueFound {
 			t.Fatalf("typed policy observation absent: %s", filename)
 		}
 	}

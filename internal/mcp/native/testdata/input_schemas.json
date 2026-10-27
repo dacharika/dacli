@@ -797,6 +797,31 @@
     ],
     "type": "object"
   },
+  "queue_diagnostics": {
+    "additionalProperties": false,
+    "properties": {
+      "limit": {
+        "maximum": 100,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "project": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1,
+        "type": "integer"
+      },
+      "task": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "schema_version",
+      "project"
+    ],
+    "type": "object"
+  },
   "ready_frontier": {
     "additionalProperties": false,
     "properties": {

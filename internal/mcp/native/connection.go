@@ -23,6 +23,7 @@ func ResolveWorkspace(path, id string) (*workspace.Workspace, error) {
 }
 
 type Server struct {
+	queueOperator bool
 	path          string
 	connection    Connection
 	verification  *application.NativeVerificationJobs
@@ -40,8 +41,14 @@ func Open(path string) (*Server, error) {
 		return nil, ErrDenied
 	}
 	s := &Server{path: path, connection: c}
-	if _, _, _, _, e = s.authenticate(); e != nil {
+	_, _, _, principal, e := s.authenticate()
+	if e != nil {
 		return nil, e
+	}
+	for _, action := range principal.Scope.Actions {
+		if action == "operator.read" {
+			s.queueOperator = true
+		}
 	}
 	return s, nil
 }

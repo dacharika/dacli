@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -24,9 +25,22 @@ const checkpointMaxFile = 262144
 const checkpointMaxBytes = 33554432
 const checkpointMaxDepth = 8
 
-type checkpointReader struct{ entries, bytes int }
+type checkpointReader struct {
+	entries, bytes int
+	ctx            context.Context
+}
+
+func (r *checkpointReader) checkContext() error {
+	if r.ctx == nil {
+		return nil
+	}
+	return r.ctx.Err()
+}
 
 func (r *checkpointReader) directory(f *os.File) ([]os.DirEntry, error) {
+	if err := r.checkContext(); err != nil {
+		return nil, err
+	}
 	info, e := f.Stat()
 	if e != nil || !info.IsDir() {
 		return nil, fmt.Errorf("checkpoint directory unavailable")
@@ -39,10 +53,16 @@ func (r *checkpointReader) directory(f *os.File) ([]os.DirEntry, error) {
 	if r.entries > checkpointMaxEntries {
 		return nil, fmt.Errorf("checkpoint entry limit exceeded")
 	}
+	if err := r.checkContext(); err != nil {
+		return nil, err
+	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
 	return entries, nil
 }
 func (r *checkpointReader) read(f *os.File) ([]byte, error) {
+	if err := r.checkContext(); err != nil {
+		return nil, err
+	}
 	info, e := f.Stat()
 	if e != nil || !info.Mode().IsRegular() || info.Size() > checkpointMaxFile {
 		return nil, fmt.Errorf("checkpoint requires a bounded regular file")
@@ -56,9 +76,15 @@ func (r *checkpointReader) read(f *os.File) ([]byte, error) {
 	if e != nil || after.Size() != info.Size() || !after.ModTime().Equal(info.ModTime()) {
 		return nil, fmt.Errorf("checkpoint file changed during observation")
 	}
+	if err := r.checkContext(); err != nil {
+		return nil, err
+	}
 	return b, nil
 }
 func (r *checkpointReader) childBytes(parent *os.File, name string) ([]byte, error) {
+	if err := r.checkContext(); err != nil {
+		return nil, err
+	}
 	f, e := checkpointChild(parent, name)
 	if e != nil {
 		return nil, e
@@ -79,6 +105,21 @@ func checkpointDirectory(parent *os.File, name string) (*os.File, error) {
 	return f, nil
 }
 
+func checkpointDirectoryContext(ctx context.Context, parent *os.File, name string) (*os.File, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	f, err := checkpointDirectory(parent, name)
+	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	return f, nil
+}
+
 // CheckpointCanonical is a finite complete graph snapshot. Unlike ListTasks,
 // malformed or duplicate records are errors, never skipped or deduplicated.
 // Digests use the exact bounded bytes that were parsed, with no second read.
@@ -89,23 +130,49 @@ type CheckpointCanonical struct {
 }
 
 func ReadCheckpointCanonical(w *workspace.Workspace) (CheckpointCanonical, error) {
+	return ReadCheckpointCanonicalContext(context.Background(), w)
+}
+
+// ReadCheckpointCanonicalContext reads a complete, descriptor-anchored graph
+// snapshot while cooperatively honoring cancellation between bounded file
+// operations. It starts no background reader, so cancellation cannot leave an
+// escaped goroutine touching workspace files.
+func ReadCheckpointCanonicalContext(ctx context.Context, w *workspace.Workspace) (CheckpointCanonical, error) {
 	out := CheckpointCanonical{Digests: map[string]string{}, Projects: map[string]*Project{}}
-	r := checkpointReader{}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return out, err
+	}
+	if w == nil {
+		return out, fmt.Errorf("checkpoint workspace unavailable")
+	}
+	r := checkpointReader{ctx: ctx}
+	if e := ctx.Err(); e != nil {
+		return out, e
+	}
 	root, e := checkpointOpen(w.ProjectsDir())
 	if e != nil {
 		return out, e
 	}
 	defer func() { _ = root.Close() }()
+	if e := ctx.Err(); e != nil {
+		return out, e
+	}
 	projects, e := r.directory(root)
 	if e != nil {
 		return out, e
 	}
 	seen := map[string]bool{}
 	for _, entry := range projects {
+		if e := ctx.Err(); e != nil {
+			return out, e
+		}
 		if strings.HasPrefix(entry.Name(), "_") {
 			continue
 		}
-		dir, e := checkpointDirectory(root, entry.Name())
+		dir, e := checkpointDirectoryContext(ctx, root, entry.Name())
 		if e != nil {
 			return out, e
 		}
@@ -129,7 +196,7 @@ func ReadCheckpointCanonical(w *workspace.Workspace) (CheckpointCanonical, error
 				return e
 			}
 			out.Projects[entry.Name()] = &Project{Slug: entry.Name(), Doc: doc, Path: w.ProjectPath(entry.Name()), Landing: policy}
-			taskDir, e := checkpointDirectory(dir, "tasks")
+			taskDir, e := checkpointDirectoryContext(ctx, dir, "tasks")
 			if os.IsNotExist(e) {
 				return nil
 			}
@@ -138,7 +205,10 @@ func ReadCheckpointCanonical(w *workspace.Workspace) (CheckpointCanonical, error
 			}
 			defer func() { _ = taskDir.Close() }()
 			for _, status := range model.AllStatuses {
-				statusDir, e := checkpointDirectory(taskDir, string(status))
+				if e := ctx.Err(); e != nil {
+					return e
+				}
+				statusDir, e := checkpointDirectoryContext(ctx, taskDir, string(status))
 				if os.IsNotExist(e) {
 					continue
 				}
@@ -152,6 +222,9 @@ func ReadCheckpointCanonical(w *workspace.Workspace) (CheckpointCanonical, error
 						return e
 					}
 					for _, file := range files {
+						if e := ctx.Err(); e != nil {
+							return e
+						}
 						if !strings.HasSuffix(file.Name(), ".md") {
 							continue
 						}
@@ -197,6 +270,9 @@ func ReadCheckpointCanonical(w *workspace.Workspace) (CheckpointCanonical, error
 		if e != nil {
 			return out, e
 		}
+	}
+	if e := ctx.Err(); e != nil {
+		return out, e
 	}
 	sort.Slice(out.Tasks, func(i, j int) bool { return out.Tasks[i].ID < out.Tasks[j].ID })
 	return out, nil

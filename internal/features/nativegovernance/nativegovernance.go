@@ -19,7 +19,7 @@ import (
 	"github.com/mlnomadpy/dacli/internal/store"
 )
 
-var Commands = append(append(append(append(append(append([]clikit.Command{
+var Commands = append(append(append(append(append(append(append([]clikit.Command{
 	{Path: "native reader add", Brief: "Owner provisions an independent read-only native governance MCP reader", Mutates: true, Usage: "dacli native reader add --config <owner> (--workspace | --project <exact-slug> | --task <canonical-id>) --connection <new-private-file> --credential <new-private-file> [--expires <duration>]", Run: readerAdd},
 	{Path: "native operator add", Brief: "Owner provisions an independent project-scoped read-only operator", Mutates: true, Usage: "dacli native operator add --config <owner> --project <slug> --connection <new-private-file> --credential <new-private-file> [--expires <duration>]", Run: operatorAdd},
 	{Path: "native task claims preview", Brief: "Owner previews exact canonical task path claims", JSON: true, Usage: "dacli native task claims preview --config <owner> --task <ref> --claims-file <private-file> --json", Run: taskClaimsPreview},
@@ -97,7 +97,7 @@ var Commands = append(append(append(append(append(append([]clikit.Command{
 	{Path: "native serve", Brief: "Serve scoped native governance MCP using a private explicit session connection", Usage: "dacli native serve --connection <private-file> [--runner-config <private-file> | --review-config <private-file> | --orchestration-config <private-file>]", Run: serve},
 	{Path: "native bootstrap", Brief: "Initialize an absent native authority and privately save its owner credential", Mutates: true, Usage: "dacli native bootstrap --config <private-file>", Run: bootstrap},
 	{Path: "native enroll", Brief: "Owner-enroll a scoped native session for an existing canonical task", Mutates: true, Usage: "dacli native enroll --config <private-file> --task <ref> --connection <new-private-file> --credential <new-private-file> [--path <relative-path>]... [--checkout <absolute-checkout>]... [--expires <duration>] [--verification]", Run: enroll},
-}, ModelRoutingCommands()...), IntegrationCommands()...), VerificationRoutingCommands()...), ExternalCommands()...), CapacityCommands...), HostSlotCommands...)
+}, ModelRoutingCommands()...), IntegrationCommands()...), VerificationRoutingCommands()...), ExternalCommands()...), CapacityCommands...), HostSlotCommands...), QueueDiagnosticsCommands...)
 
 // AuthenticatesExplicitly lists exactly the handlers exempt from the legacy grant gate.
 func AuthenticatesExplicitly(path string) bool {
@@ -105,7 +105,7 @@ func AuthenticatesExplicitly(path string) bool {
 		return true
 	}
 	switch path {
-	case "native capacity slots upgrade":
+	case "native queue diagnostics", "native capacity slots upgrade":
 		return true
 	case "native guidance refresh-preview", "native guidance refresh-apply":
 		return true

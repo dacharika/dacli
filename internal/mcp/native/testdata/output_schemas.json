@@ -8486,6 +8486,467 @@
     ],
     "type": "object"
   },
+  "queue_diagnostics": {
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "properties": {
+              "authority_version": {
+                "type": "integer"
+              },
+              "continuation": {
+                "type": "string"
+              },
+              "counts": {
+                "additionalProperties": false,
+                "properties": {
+                  "check": {
+                    "type": "integer"
+                  },
+                  "integration": {
+                    "type": "integer"
+                  },
+                  "queued": {
+                    "type": "integer"
+                  },
+                  "ready": {
+                    "type": "integer"
+                  },
+                  "review": {
+                    "type": "integer"
+                  },
+                  "running": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "ready",
+                  "queued",
+                  "running",
+                  "check",
+                  "review",
+                  "integration"
+                ],
+                "type": "object"
+              },
+              "diagnostic_only": {
+                "type": "boolean"
+              },
+              "excluded_terminal_count": {
+                "type": "integer"
+              },
+              "hosts": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "build": {
+                      "type": "string"
+                    },
+                    "declared_slots": {
+                      "oneOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "executor_instance_id": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "oneOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "format": "date-time",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "external_occupied": {
+                      "oneOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "freshness": {
+                      "type": "string"
+                    },
+                    "host_id": {
+                      "type": "string"
+                    },
+                    "host_session_id": {
+                      "type": "string"
+                    },
+                    "included_local_executions": {
+                      "oneOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "mode": {
+                      "type": "string"
+                    },
+                    "observation_digest": {
+                      "type": "string"
+                    },
+                    "observation_sequence": {
+                      "type": "integer"
+                    },
+                    "observed_at": {
+                      "oneOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "format": "date-time",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "observed_occupied": {
+                      "oneOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "outstanding_execution_claims": {
+                      "oneOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "provenance": {
+                      "type": "string"
+                    },
+                    "qualified_slots": {
+                      "oneOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "remaining_admissible_slots": {
+                      "oneOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "requested_slots": {
+                      "oneOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "retained_writer_count": {
+                      "type": "integer"
+                    },
+                    "runtime": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "host_id",
+                    "host_session_id",
+                    "executor_instance_id",
+                    "runtime",
+                    "build",
+                    "mode",
+                    "state",
+                    "reason",
+                    "freshness",
+                    "provenance",
+                    "observation_digest",
+                    "observation_sequence",
+                    "observed_at",
+                    "expires_at",
+                    "requested_slots",
+                    "declared_slots",
+                    "qualified_slots",
+                    "observed_occupied",
+                    "included_local_executions",
+                    "external_occupied",
+                    "outstanding_execution_claims",
+                    "remaining_admissible_slots",
+                    "retained_writer_count"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "limit": {
+                "type": "integer"
+              },
+              "limited": {
+                "type": "boolean"
+              },
+              "observed_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "omitted_count": {
+                "type": "integer"
+              },
+              "project": {
+                "type": "string"
+              },
+              "provider_cost_usd": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "provider_quota_state": {
+                "type": "string"
+              },
+              "provider_usage": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ]
+              },
+              "rows": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "freshness": {
+                      "type": "string"
+                    },
+                    "queue_age_seconds": {
+                      "oneOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "queue_entered_at": {
+                      "oneOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "format": "date-time",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "reasons": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "knowledge": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "knowledge"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
+                    "retained_protection": {
+                      "type": "boolean"
+                    },
+                    "stage": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "task_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "task_id",
+                    "status",
+                    "stage",
+                    "reasons",
+                    "freshness",
+                    "queue_entered_at",
+                    "queue_age_seconds",
+                    "retained_protection"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "schema": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              },
+              "task_id": {
+                "type": "string"
+              },
+              "total_count": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "schema",
+              "diagnostic_only",
+              "project",
+              "authority_version",
+              "observed_at",
+              "state",
+              "counts",
+              "total_count",
+              "excluded_terminal_count",
+              "rows",
+              "hosts",
+              "limit",
+              "omitted_count",
+              "limited",
+              "continuation",
+              "provider_quota_state",
+              "provider_usage",
+              "provider_cost_usd"
+            ],
+            "type": "object"
+          },
+          "error": {
+            "type": "null"
+          },
+          "ok": {
+            "const": true,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "cooperative-session",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "exit_code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false,
+            "type": "boolean"
+          },
+          "schema_version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "ok",
+          "assurance",
+          "data",
+          "error"
+        ],
+        "type": "object"
+      }
+    ],
+    "type": "object"
+  },
   "ready_frontier": {
     "oneOf": [
       {
