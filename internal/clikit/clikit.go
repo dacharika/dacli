@@ -62,10 +62,20 @@ type Command struct {
 	// drifted (Flags.Reject reached 4 handlers of 112; four verified grant
 	// bypasses shipped next to correctly-gated siblings).
 	//
-	// A --dry-run invocation is exempt: by contract (dacli 294) it previews
-	// from the real code path and writes nothing, so previewing a mutation is
-	// a read. Handlers keep any finer-grained checks they already make.
 	Mutates bool
+	// ValueFlags names command-specific flags that always take values. The
+	// mutation authorizer passes these to ParseFlags when it evaluates declared
+	// preview or read shapes, so a filename such as `--dry-run` stays a value.
+	ValueFlags []string
+	// EffectFreeDryRun declares that --dry-run is an implemented, effect-free
+	// preview for this command. It is false by default; Usage text or an argv
+	// token alone never grants read access to a mutation.
+	EffectFreeDryRun bool
+	// ReadOnlyWhen declares a parsed invocation shape that is read-only even
+	// without --dry-run. It receives flags parsed by ParseFlags with ValueFlags.
+	// Keep predicates narrow and side-effect free; caller-supplied booleans are
+	// never authorization evidence.
+	ReadOnlyWhen func(*Flags) bool
 	// Usage is the flag synopsis `--help` prints, e.g.
 	// "dacli loop --project <slug> [--width N] …". Optional, but a command
 	// with flags and no Usage documents none of them: `--help` printed the

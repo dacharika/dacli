@@ -321,74 +321,57 @@ func jsonAlternatives(path string) []string {
 	return out
 }
 
-// refuseUngrantedMutation enforces Command.Mutates at the dispatcher: a
-// read-only agent invoking a state-changing command is refused (exit 3) before
-// the handler runs.
-//
-// This is the grant-side twin of refuseUnsupportedJSON, and it exists because
-// per-handler enforcement demonstrably does not hold. The 2026-08-06 audit
-// found four live bypasses, each sitting beside a correctly-gated sibling:
-// `shortcut promote` beside `shortcut add`, six `github` verbs beside `github
-// release`, `agents --reap` beside `kill`, `worktree remove` beside `merge`.
-// Every one of those is closed by the table declaring what it does.
-//
-// Command-specific read shapes remain declared here rather than hidden in a
-// handler. `start --show` and an explicitly selected inspect profile are reads;
-// `project show` is a read unless either landing-policy flag is present. Both
-// commands keep their command-level Mutates declaration because their other
-// invocation shapes persist state. A --dry-run is also a read (see
-// Command.Mutates). A workspace that cannot be opened
-// yields no identity to judge, so the gate
-// defers to the handler, which reports the real problem (no workspace, bad
-// token) instead of a misleading grant refusal.
+// refuseUngrantedMutation retains exact independent-native authentication routes,
+// then applies one shared legacy mutation boundary (issue #1248).
 func refuseUngrantedMutation(ctx *Ctx, cmd *Command, args []string) error {
-	// These exact handlers enforce explicit native authority, never legacy ambient grants.
 	if nativegovernance.AuthenticatesExplicitly(cmd.Path) || deviceauth.AuthenticatesExplicitly(cmd.Path) || rolemanagement.AuthenticatesExplicitly(cmd.Path) || ghmirror.AuthenticatesExplicitly(cmd.Path) {
 		return nil
 	}
-	if !cmd.Mutates || hasDryRun(args) || mutationInvocationIsReadOnly(cmd, args) {
-		return nil
-	}
-	_, id, err := openWorkspace(ctx)
-	if err != nil {
-		//nolint:nilerr // deliberate: no workspace means no identity to judge, so
-		// the gate defers to the handler, which reports the REAL problem (no
-		// workspace, bad token) instead of a misleading grant refusal.
-		return nil
-	}
-	return clikit.RequireRW(id, cmd.Path)
+	declared := declaredMutationInvocation(*cmd)
+	return clikit.AuthorizeCommandMutation(ctx, &declared, args)
 }
 
-func mutationInvocationIsReadOnly(cmd *Command, args []string) bool {
+// declaredMutationInvocation records supported effect-free shapes, rather than
+// inferring authority from a token anywhere in argv. Handler parsing stays intact.
+func declaredMutationInvocation(cmd Command) Command {
 	switch cmd.Path {
+	case "ship", "cleanup", "branches prune", "skill compile", "release train", "events reconcile", "run", "github push", "github sync", "github pull", "task acceptance migrate", "github project", "github release", "github codeowners", "worktree prune", "pr", "task aggregate", "task decompose":
+		cmd.EffectFreeDryRun = true
+	}
+	switch cmd.Path {
+	case "github push":
+		cmd.ValueFlags = append(cmd.ValueFlags, "milestone-plan")
+	case "events reconcile":
+		cmd.ValueFlags = append(cmd.ValueFlags, "project", "archive-class", "apply-safe")
+	case "provider readiness":
+		cmd.ValueFlags = append(cmd.ValueFlags, "config")
 	case "project show":
-		return !hasNamedFlag(args, "landing-mode") && !hasNamedFlag(args, "landing-base")
+		cmd.ReadOnlyWhen = func(f *clikit.Flags) bool {
+			_, mode := f.Alias("landing-mode")
+			_, base := f.Alias("landing-base")
+			return !mode && !base
+		}
 	case "reconcile":
-		return !hasNamedFlag(args, "apply-safe")
-	}
-	return false
-}
-
-func hasNamedFlag(args []string, name string) bool {
-	flag := "--" + name
-	for _, arg := range args {
-		if arg == flag || strings.HasPrefix(arg, flag+"=") {
-			return true
+		cmd.ReadOnlyWhen = func(f *clikit.Flags) bool {
+			_, apply := f.Alias("apply-safe")
+			return !apply
 		}
 	}
-	return false
+	return cmd
 }
 
-// hasDryRun reports whether --dry-run was passed. It scans argv directly
-// rather than using ParseFlags because the dispatcher must not consume or
-// validate a command's flags — that stays the handler's job.
-func hasDryRun(args []string) bool {
-	for _, a := range args {
-		if a == "--dry-run" || a == "--dry-run=true" {
-			return true
-		}
+// mutationInvocationIsReadOnly exposes the declared parsed read shape for
+// package-level queries. It never authenticates or authorizes an invocation.
+func mutationInvocationIsReadOnly(cmd *Command, args []string) bool {
+	if cmd == nil {
+		return false
 	}
-	return false
+	declared := declaredMutationInvocation(*cmd)
+	if declared.ReadOnlyWhen == nil {
+		return false
+	}
+	f, err := clikit.ParseFlags(args, declared.ValueFlags...)
+	return err == nil && declared.ReadOnlyWhen(f)
 }
 
 // hasHelp reports whether the caller asked for help rather than execution.
