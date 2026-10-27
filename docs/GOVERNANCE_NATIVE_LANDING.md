@@ -99,8 +99,9 @@ cleanup candidates. Recording releases no lease and checks no acceptance box.
 
 ## Bounds and qualification
 
-Git and remote observations honor one 15-second context and bounded 1 MiB
-process output. Cancellation is checked before committing task changes.
+Git and remote observations honor one 15-second context. Git capture is bounded
+to a combined 1 MiB; the GitHub query has separate 1 MiB stdout/stderr bounds.
+Cancellation is checked before committing task changes.
 Existing authority/task locks have bounded legacy wait overhead, and finite
 filesystem operations cooperate with cancellation. This is not a hard
 15-second response or forced OS-I/O interruption guarantee.
@@ -109,7 +110,7 @@ Existing authority records and task locking are reused. No stored authority
 version or implicit migration is added. Isolated actual-CLI tests exercise
 schema10, released/revoked historical workers and exact replay without changing
 authority bytes. Fake service replies qualify fixtures only. Live host capacity
-and execution qualification remain #1217; rolling swarm effects remain #1218.
+remains #1216, executor qualification #1217, and rolling swarm effects #1218.
 CI stays manual-only.
 
 The digest identifies content/replay consistency, not a signature against

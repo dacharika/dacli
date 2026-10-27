@@ -146,48 +146,63 @@ func TestNativeBatchLandingInvalidObservationBlocksLooseMetadata(t *testing.T) {
 }
 
 func TestNativeBatchLandingUnknownPreservesMergedManagedWorktree(t *testing.T) {
-	f := newTaskLandingFixture(t)
-	f.sourceCommit()
-	f.mergeSource()
-	CheckAllAcceptance(f.task)
-	observation := f.withID(f.observation(f.base, f.source, f.source, f.merge, f.target))
-	if err := AppendTaskLanding(f.task, observation); err != nil {
-		t.Fatal(err)
-	}
-	if err := SaveTask(f.task); err != nil {
-		t.Fatal(err)
-	}
-	if err := MoveTask(f.w, f.task, model.StatusDone); err != nil {
-		t.Fatal(err)
-	}
-	branch := TaskBranch(f.task)
-	path := f.w.WorktreePath(f.task.Project, f.task.Seq, f.task.Slug)
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		t.Fatal(err)
-	}
-	taskLandingGit(t, f.root, "worktree", "add", "-b", branch, path, f.source)
-	before, err := ReclaimableWorktrees(f.w, "main")
-	if err != nil || len(before) != 1 || !before[0].Merged {
-		t.Fatalf("valid fixture was not otherwise reclaimable: %#v %v", before, err)
-	}
-	f.task.Doc.Front.Set("native_landing.current", "malformed")
-	if err := SaveTask(f.task); err != nil {
-		t.Fatal(err)
-	}
-	after, err := ReclaimableWorktrees(f.w, "main")
-	if err != nil || len(after) != 0 {
-		t.Fatalf("merged legacy branch bypassed invalid selected evidence: %#v %v", after, err)
-	}
-	old := ObserveDeliveryPRs
-	ObserveDeliveryPRs = func(string) ([]DeliveryPR, error) {
-		return []DeliveryPR{{Number: 1209, DeliveryConfidence: "MERGED", HeadRefName: branch, HeadRefOid: f.source}}, nil
-	}
-	t.Cleanup(func() { ObserveDeliveryPRs = old })
-	plan, err := PlanRepositoryCleanup(f.w, "core", time.Now())
-	if err != nil || len(plan.Items) != 1 || !plan.Items[0].Unknown || plan.Items[0].Eligible || plan.Items[0].LandingState != "unknown" {
-		t.Fatalf("cleanup did not preserve unknown native ownership: %#v %v", plan.Items, err)
-	}
-	if _, err := os.Stat(path); err != nil {
-		t.Fatalf("read-only cleanup damaged the checkout: %v", err)
+	for _, status := range []model.Status{model.StatusOpen, model.StatusActive, model.StatusDone} {
+		t.Run(string(status), func(t *testing.T) {
+			f := newTaskLandingFixture(t)
+			f.sourceCommit()
+			f.mergeSource()
+			CheckAllAcceptance(f.task)
+			if err := SaveTask(f.task); err != nil {
+				t.Fatal(err)
+			}
+			if status != model.StatusOpen {
+				if err := MoveTask(f.w, f.task, status); err != nil {
+					t.Fatal(err)
+				}
+			}
+			branch := TaskBranch(f.task)
+			path := f.w.WorktreePath(f.task.Project, f.task.Seq, f.task.Slug)
+			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+				t.Fatal(err)
+			}
+			taskLandingGit(t, f.root, "worktree", "add", "-b", branch, path, f.source)
+			before, err := ReclaimableWorktrees(f.w, "main")
+			if err != nil || len(before) != 1 || !before[0].Merged {
+				t.Fatalf("legacy fixture was not otherwise reclaimable: %#v %v", before, err)
+			}
+			observation := f.withID(f.observation(f.base, f.source, f.source, f.merge, f.target))
+			if err := AppendTaskLanding(f.task, observation); err != nil {
+				t.Fatal(err)
+			}
+			if err := SaveTask(f.task); err != nil {
+				t.Fatal(err)
+			}
+			if status != model.StatusDone {
+				pending, err := ReclaimableWorktrees(f.w, "main")
+				if err != nil || len(pending) != 0 {
+					t.Fatalf("landing prematurely retired nonterminal task: %#v %v", pending, err)
+				}
+			}
+			f.task.Doc.Front.Set("native_landing.current", "malformed")
+			if err := SaveTask(f.task); err != nil {
+				t.Fatal(err)
+			}
+			after, err := ReclaimableWorktrees(f.w, "main")
+			if err != nil || len(after) != 0 {
+				t.Fatalf("merged legacy branch bypassed invalid selected evidence: %#v %v", after, err)
+			}
+			old := ObserveDeliveryPRs
+			ObserveDeliveryPRs = func(string) ([]DeliveryPR, error) {
+				return []DeliveryPR{{Number: 1209, DeliveryConfidence: "MERGED", HeadRefName: branch, HeadRefOid: f.source}}, nil
+			}
+			t.Cleanup(func() { ObserveDeliveryPRs = old })
+			plan, err := PlanRepositoryCleanup(f.w, "core", time.Now())
+			if err != nil || len(plan.Items) != 1 || !plan.Items[0].Unknown || plan.Items[0].Eligible || plan.Items[0].LandingState != "unknown" {
+				t.Fatalf("cleanup did not preserve unknown native ownership: %#v %v", plan.Items, err)
+			}
+			if _, err := os.Stat(path); err != nil {
+				t.Fatalf("read-only cleanup damaged checkout: %v", err)
+			}
+		})
 	}
 }
