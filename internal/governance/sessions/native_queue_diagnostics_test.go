@@ -462,7 +462,11 @@ func TestQueueDiagnosticsReadDoesNotCreateLockOrInvokeProducers(t *testing.T) {
 	if err := os.WriteFile(lock, []byte("preexisting"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(lock)
+	defer func() {
+		if err := os.Remove(lock); err != nil && !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("remove preexisting lock fixture: %v", err)
+		}
+	}()
 	beforeAuthority, err := os.ReadFile(a.path)
 	if err != nil {
 		t.Fatal(err)

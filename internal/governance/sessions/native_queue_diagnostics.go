@@ -258,7 +258,7 @@ func validateQueueCanonical(ctx context.Context, in QueueCanonicalSnapshot) erro
 		return ErrStorage
 	}
 	seen := make(map[string]bool, len(in.Tasks))
-	var totalBytes int64 = int64(len(in.Digest))
+	totalBytes := int64(len(in.Digest))
 	for _, task := range in.Tasks {
 		if err := ctx.Err(); err != nil {
 			return ErrDenied
