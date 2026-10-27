@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -84,7 +85,7 @@ func TestControllerExecutorRecoveryLooksUpOriginalKeyOnly(t *testing.T) {
 		t.Fatalf("recovery performed a write, wrong lookup, or relaunch: register=%d dispatch=%d launches=%d verify=%d lookups=%v", store.registerCalls, store.dispatchCalls, store.dispatches, host.verifyCalls, host.lookups)
 	}
 	delete(store.byKey, req.OperationKey)
-	if _, err := coordinator.LookupControllerDispatch(req, worker); err != ErrUncertain {
+	if _, err := coordinator.LookupControllerDispatch(req, worker); !errors.Is(err, ErrUncertain) {
 		t.Fatalf("missing original execution should remain uncertain, got %v", err)
 	}
 	if len(host.lookups) != 2 || host.lookups[1] != req.OperationKey || store.registerCalls != 0 || store.dispatchCalls != 0 || store.dispatches != 0 || host.registerCalls != 0 || host.dispatchCalls != 0 || host.verifyCalls != 2 {
