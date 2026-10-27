@@ -240,7 +240,11 @@ func TestQueueDiagnosticsMCPWireFlowUnderHeldLock(t *testing.T) {
 	if err := lock.Close(); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(lockPath)
+	t.Cleanup(func() {
+		if err := os.Remove(lockPath); err != nil {
+			t.Errorf("remove authority lock fixture: %v", err)
+		}
+	})
 	authorityBefore, err := os.ReadFile(f.c.Authority)
 	if err != nil {
 		t.Fatal(err)
