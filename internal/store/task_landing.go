@@ -242,8 +242,17 @@ func validTaskLandingBase(base string) bool {
 // AppendTaskLanding validates and appends an observation to the canonical task
 // document. Callers must hold the stable task lock and save the returned task.
 func AppendTaskLanding(t *Task, observation TaskLandingObservation) error {
+	return appendTaskLanding(t, observation, checkpointMaxFile)
+}
+
+// appendTaskLanding keeps the count and byte bounds together while allowing
+// the count-limit invariant to be exercised independently in focused tests.
+func appendTaskLanding(t *Task, observation TaskLandingObservation, maxFileBytes int) error {
 	if t == nil || t.Doc == nil {
 		return errors.New("task landing target unavailable")
+	}
+	if maxFileBytes <= 0 {
+		return errors.New("task landing task size limit is invalid")
 	}
 	if err := validateTaskLandingEnvelope(t, observation); err != nil {
 		return err
@@ -274,6 +283,9 @@ func AppendTaskLanding(t *Task, observation TaskLandingObservation) error {
 			return errors.New("task landing current receipt changed")
 		}
 	}
+	if len(records) >= maxTaskLandingRecords {
+		return errors.New("task landing history record limit exceeded")
+	}
 	for _, record := range records {
 		if record.ID == observation.ID {
 			return errors.New("task landing receipt ID already exists in history")
@@ -300,8 +312,19 @@ func AppendTaskLanding(t *Task, observation TaskLandingObservation) error {
 		content += "\n"
 	}
 	content += string(encoded) + "\n"
-	t.Doc.SetSection(taskLandingSection, content)
-	t.Doc.Front.Set("native_landing.current", observation.ID)
+	// Stage the append on a cloned document so a reader that has a smaller
+	// canonical task-file bound never sees a partially mutated over-limit task.
+	candidate, err := mdstore.Parse(mdstore.Render(t.Doc))
+	if err != nil {
+		return errors.New("task landing task document cannot be cloned")
+	}
+	candidate.SourcePath = t.Doc.SourcePath
+	candidate.SetSection(taskLandingSection, content)
+	candidate.Front.Set("native_landing.current", observation.ID)
+	if len(mdstore.Render(candidate)) > maxFileBytes {
+		return errors.New("task landing task exceeds canonical file size limit")
+	}
+	*t.Doc = *candidate
 	return nil
 }
 

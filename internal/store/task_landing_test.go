@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -202,6 +203,29 @@ func (f *taskLandingFixture) withID(o TaskLandingObservation) TaskLandingObserva
 		f.t.Fatal(err)
 	}
 	return o
+}
+
+func (f *taskLandingFixture) minimalObservation() TaskLandingObservation {
+	f.t.Helper()
+	binding, err := TaskLandingBindingDigest(f.task)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	policy, err := TaskLandingPolicyDigest(f.w, f.task.Project)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	return TaskLandingObservation{
+		Schema: taskLandingSchema, OperationKey: "small-operation", WorkspaceID: f.w.ID, InstallationID: "i",
+		Project: f.task.Project, TaskID: f.task.ID, TaskBindingDigest: binding, LandingPolicyDigest: policy,
+		Repository: "/r", GitHubRepository: "a/b",
+		Source:               TaskLandingSource{AttemptID: "a", RevisionID: "r", Sequence: 1, Repository: "/s", BaseCommit: strings.Repeat("a", 40), Commit: strings.Repeat("b", 40), Tree: strings.Repeat("c", 40), Checkout: "/c"},
+		IntegratedBaseCommit: strings.Repeat("d", 40), IntegratedCommit: strings.Repeat("e", 40), PRNumber: 1,
+		PRURL: "https://github.com/a/b/pull/1", PRState: "MERGED", PRHead: strings.Repeat("f", 40), PRBase: "main",
+		MergeCommit: strings.Repeat("1", 40), TargetRef: "refs/heads/main", TargetCommit: strings.Repeat("2", 40),
+		TargetTree: strings.Repeat("3", 40), VerificationDigest: "sha256:" + strings.Repeat("4", 64),
+		ObservedAt: time.Date(2026, 10, 27, 0, 0, 0, 0, time.UTC),
+	}
 }
 
 func TestTaskLandingNormalMergeWithoutLegacyBranch(t *testing.T) {
@@ -425,6 +449,66 @@ func TestTaskLandingBindingDigestIgnoresChecklistStateAndRejectsMalformedGenerat
 	f.task.Doc.Front.Set("parent_generation", "not-a-number")
 	if _, err := TaskLandingBindingDigest(f.task); err == nil {
 		t.Fatal("malformed parent generation was silently treated as zero")
+	}
+}
+
+func TestTaskLandingRecordLimit256To257NoMutation(t *testing.T) {
+	f := newTaskLandingFixture(t)
+	base := f.minimalObservation()
+	previous := ""
+	for i := 0; i < maxTaskLandingRecords; i++ {
+		o := base
+		o.OperationKey = fmt.Sprintf("count-%03d", i)
+		o.PreviousID = previous
+		o.Source.Sequence = uint64(i + 1)
+		o.ObservedAt = o.ObservedAt.Add(time.Duration(i) * time.Second)
+		var err error
+		o.ID, err = TaskLandingID(o)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := appendTaskLanding(f.task, o, maxTaskLandingHistory); err != nil {
+			t.Fatalf("append record %d: %v", i+1, err)
+		}
+		previous = o.ID
+	}
+	if size := len(mdstore.Render(f.task.Doc)); size > maxTaskLandingHistory {
+		t.Fatalf("256-record test fixture exceeds isolated count-test bound: %d > %d", size, maxTaskLandingHistory)
+	}
+	before := mdstore.Render(f.task.Doc)
+	o := base
+	o.OperationKey = "count-256"
+	o.PreviousID = previous
+	o.Source.Sequence = uint64(maxTaskLandingRecords + 1)
+	o.ObservedAt = o.ObservedAt.Add(time.Duration(maxTaskLandingRecords) * time.Second)
+	o.ID, _ = TaskLandingID(o)
+	if err := appendTaskLanding(f.task, o, maxTaskLandingHistory); err == nil || !strings.Contains(err.Error(), "record limit") {
+		t.Fatalf("257th record was not refused by the record limit: %v", err)
+	}
+	if after := mdstore.Render(f.task.Doc); after != before {
+		t.Fatal("refused 257th receipt changed the task document")
+	}
+}
+
+func TestTaskLandingAppendRespectsCheckpointFileLimitNoMutation(t *testing.T) {
+	f := newTaskLandingFixture(t)
+	o := f.minimalObservation()
+	o = f.withID(o)
+	initial := len(mdstore.Render(f.task.Doc))
+	padding := checkpointMaxFile - initial - 128
+	if padding <= 0 {
+		t.Fatal("task fixture is too large to exercise append boundary")
+	}
+	f.task.Doc.SetSection("Large fixture", strings.Repeat("x", padding))
+	before := mdstore.Render(f.task.Doc)
+	if len(before) >= checkpointMaxFile {
+		t.Fatalf("pre-append task must fit checkpoint bound: %d", len(before))
+	}
+	if err := AppendTaskLanding(f.task, o); err == nil || !strings.Contains(err.Error(), "canonical file size limit") {
+		t.Fatalf("over-limit task append was not refused: %v", err)
+	}
+	if after := mdstore.Render(f.task.Doc); after != before {
+		t.Fatal("refused over-limit append changed task document")
 	}
 }
 
