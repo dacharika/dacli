@@ -66,6 +66,66 @@ task context only. The current manual `native swarm handoff --connection
 continues to use the enrolled worker's own private connection and atomically
 converts its reservation through the existing authority operation.
 
+## Controller-produced first-use dispatch
+
+The in-process SDK adds a composition path for a bounded controller that has
+already committed its original dispatch intent. Its generic
+`RequestDispatchIntent` restriction remains enforced. Calling standalone
+`DispatchOnce` after `StepController` does not transfer the controller's first-use
+authority; neither its status JSON nor `HostActionAuthorized` grants that right.
+
+Use `Authority.StepControllerForDriver` for the original fresh step. It returns
+an opaque `ControllerHostDispatchPermit` only after that exact new intent is
+durable. The permit identifies the newly inserted action, including when a
+width-two status also contains an earlier `host_dispatch` sibling. Historical
+steps, reconciliation, reserve-only steps and failed persistence return no
+usable permit. A prior ordinary step cannot later manufacture its lost permit.
+The reference's checkpoint sequence identifies the current durable checkpoint;
+it is not inferred from the status's reservation-checkpoint summary.
+
+`Coordinator.DispatchControllerOnce` compares the request with the independently
+authenticated worker/profile, exact source and reservation, prompt digest,
+actor route, fence and independently owner-pinned host-slot scope. It consumes
+the sealed handoff with the current controller credential before registering
+the selected backend or dispatching the original key. Consumption rechecks
+current invocation/checkpoint/action, policy, STOP, expiry and admission.
+No backend execution occurs under the authority lock.
+
+Permit value copies share one atomic state. A consume attempt spends it even
+when fresh admission refuses; it cannot be restored after an error. Serialization
+and deserialization refuse, formatting reveals no permission material, and the
+reference contains identifiers only. Consume immediately before another controller
+step or reconciliation: an advanced sequence makes an old handoff stale.
+A STOP after consumption concerns an already in-flight effect; the SDK cannot
+make a remote host and local policy one atomic operation.
+
+After a lost grant, response or client restart, use
+`Coordinator.LookupControllerDispatch` with the exact original request and
+binding. This path authenticates the scoped controller and retained intent,
+then performs backend binding verification and original-key lookup only. It
+never registers a backend, creates an intent or dispatches a replacement.
+An unsupported/unknown old execution remains uncertain, including when its
+worker can no longer authenticate. An old identity cannot restore worker
+permissions. A lookup miss after a committed-but-undelivered grant is not
+permission to launch: retain protection for explicit owner recovery.
+
+These are internal Go capabilities, not new MCP tools, serialized grants,
+provider adapters or a daemon. They add no durable authority fields, ledger or
+schema. Controller storage still requires its existing schema 16 prerequisite;
+optional bound host slots require schema 22. Current live schema 10 and its
+manual workflow remain unchanged. `Backend` remains synchronous: a caller
+context cannot forcibly stop an arbitrary blocking implementation. The finite
+driver must use separately qualified context-aware ports before claiming a
+wall-clock execution bound.
+
+#1239 supplies this handoff. #1240 adds the finite effect driver; #1241 rolling
+admission and a scoped keeper, and #1242 shared trusted validation and honest
+measurements follow it and may proceed in parallel. Parent #1218 retains its
+full acceptance. Real activation still requires separately selected #1216/#1217
+qualification and owner compatibility steps. Isolated fake-host tests do not
+prove a live executor, private provider handoff or twelve-worker capacity.
+CI remains manual only.
+
 ## Dispatch, lookup, observation, cancellation
 
 Dispatch requires a stable operation key and exact binding. The host adapter

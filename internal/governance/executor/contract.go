@@ -294,7 +294,7 @@ func (c Coordinator) MarshalJSON() ([]byte, error) {
 }
 
 func (c Coordinator) DispatchOnce(req Dispatch, enrolled AuthenticatedBinding, now time.Time) (HostResult, error) {
-	if c.Backend == nil || c.Authority == nil || req.Version != ContractVersion || req.OperationKey == "" || req.DispatchID == "" || req.BridgeSession == "" || req.ExpectedFence == 0 || req.PromptSpecDigest == "" || req.PromptSpecDigest != DispatchSpecDigest(req) || strings.TrimSpace(req.Prompt) == "" || req.Repository != enrolled.attempt.Observation.Repository || req.Checkout != enrolled.attempt.Observation.Locator || ValidateBinding(enrolled.binding, req.Binding, now) != nil || !enrolled.binding.same(req.Binding) || req.Profile != enrolled.profile || ValidateProfile(enrolled.profile, req.Binding, now) != nil {
+	if c.Backend == nil || c.Authority == nil || !dispatchRequestMatchesWorker(req, enrolled, now) {
 		return HostResult{}, ErrDenied
 	}
 	current, authErr := c.Authority.Authenticate(enrolled.token, enrolled.binding.Session)
@@ -347,6 +347,10 @@ func (c Coordinator) DispatchOnce(req Dispatch, enrolled AuthenticatedBinding, n
 		return lookup, nil
 	}
 	return HostResult{}, ErrUncertain
+}
+
+func dispatchRequestMatchesWorker(req Dispatch, enrolled AuthenticatedBinding, now time.Time) bool {
+	return req.Version == ContractVersion && req.OperationKey != "" && req.DispatchID != "" && req.BridgeSession != "" && req.ExpectedFence != 0 && req.PromptSpecDigest != "" && req.PromptSpecDigest == DispatchSpecDigest(req) && strings.TrimSpace(req.Prompt) != "" && req.Repository == enrolled.attempt.Observation.Repository && req.Checkout == enrolled.attempt.Observation.Locator && ValidateBinding(enrolled.binding, req.Binding, now) == nil && enrolled.binding.same(req.Binding) && req.Profile == enrolled.profile && ValidateProfile(enrolled.profile, req.Binding, now) == nil
 }
 
 func dispatchReservationMatchesWorker(reservation sessions.DispatchReservation, req Dispatch, worker AuthenticatedBinding) bool {
