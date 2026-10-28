@@ -1040,8 +1040,5 @@ func controllerLegacyIntegrationCheckpointCurrent(s *state, iv controllerInvocat
 		return false
 	}
 	request := CheckpointRequest{OperationKey: action.OperationKey, CheckpointID: recorded.ID, ProjectID: recorded.ProjectID, InvocationID: recorded.InvocationID, Phase: recorded.Phase, ExpectedSequence: recorded.Sequence - 1, Refs: recorded.Refs}
-	if receipt.Digest != identity("checkpoint.reconcile", st.ControllerSessionID, request) {
-		return false
-	}
-	return true
+	return receipt.Digest == identity("checkpoint.reconcile", st.ControllerSessionID, request)
 }
