@@ -123,10 +123,3 @@ func nativeGuidanceRefreshApply(ctx *clikit.Ctx, args []string) error {
 	return nil
 }
 
-func guidanceOwnerAuthorization(configPath string) (func() error, error) {
-	owner, err := guidancePlanOwner(configPath)
-	if err != nil {
-		return nil, err
-	}
-	return owner.Authorize, nil
-}
