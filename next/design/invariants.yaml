@@ -1,0 +1,1258 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "cd7210a02637696c3b082e2eb7e113101565d457",
+  "format": "JSON syntax, valid YAML1.2; no YAML parser dependency required",
+  "status": "proposed source-audited migration ledger; not runtime qualification",
+  "dispositionDefinitions": {
+    "preserve": "Keep the behavioral obligation, without promising old command or wire compatibility.",
+    "redesign": "Retain the concern through explicit new typed contracts or a legacy adapter; this row is not implemented.",
+    "retire": "Do not carry this Go-specific mechanism into the new canonical surface; current Go support is not removed.",
+    "requires-human-decision": "Unresolved policy or source/documentation conflict; an accountable maintainer must decide before implementation/compatibility claims."
+  },
+  "rules": [
+    {
+      "id": "AG001",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 3,
+        "endLine": 3
+      },
+      "requirement": "Apply CONTRIBUTING verification, exit contract and isolation equally to agents.",
+      "disposition": "preserve",
+      "verificationOwner": "integration-owner",
+      "check": "Review each agent slice against CON rules before integration.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG002",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 15,
+        "endLine": 15
+      },
+      "requirement": "Authenticate a credential before deriving any write capability; never infer native authority from a host session.",
+      "disposition": "redesign",
+      "verificationOwner": "identity-policy-owner",
+      "check": "Test missing, empty and unverified credentials cannot authorize mutation.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG003",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 17,
+        "endLine": 17
+      },
+      "requirement": "RO may append attributed proposals; only authorized owner materializes state.",
+      "disposition": "redesign",
+      "verificationOwner": "event-store-owner",
+      "check": "Test proposal append is distinct from state apply and owner checks run on apply.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG004",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 22,
+        "endLine": 22
+      },
+      "requirement": "Admit only declared touched paths; refuse overlap and narrow scope instead of bypass.",
+      "disposition": "preserve",
+      "verificationOwner": "admission-owner",
+      "check": "Test conflicting live claims refuse and disjoint claims admit.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG005",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 25,
+        "endLine": 25
+      },
+      "requirement": "Policy refusal terminates unchanged retries; report a finding if no permitted route remains.",
+      "disposition": "preserve",
+      "verificationOwner": "supervisor-owner",
+      "check": "Test supervisor does not retry typed refused result.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG006",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 34,
+        "endLine": 34
+      },
+      "requirement": "Edits and verification must use the agent's own worktree, never accidentally main checkout.",
+      "disposition": "preserve",
+      "verificationOwner": "worktree-owner",
+      "check": "Test workspace identity is tied to checkout and evidence revision.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG007",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 37,
+        "endLine": 37
+      },
+      "requirement": "Linked worktrees share one canonical workspace; never initialize a competing store.",
+      "disposition": "redesign",
+      "verificationOwner": "workspace-store-owner",
+      "check": "Test linked checkout resolves canonical authority and refuses duplicate initialization.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG008",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 41,
+        "endLine": 41
+      },
+      "requirement": "Governed commits enforce claims and carry attributable agent, role and task metadata.",
+      "disposition": "redesign",
+      "verificationOwner": "vcs-adapter-owner",
+      "check": "Test commit port refuses unclaimed paths and records verifiable provenance; do not promise old CLI compatibility.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG009",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 50,
+        "endLine": 50
+      },
+      "requirement": "Observe execution before claiming behavior or filing a reproduced defect.",
+      "disposition": "preserve",
+      "verificationOwner": "verification-owner",
+      "check": "Evidence review requires actual command, revision, result and limits.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG010",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 54,
+        "endLine": 54
+      },
+      "requirement": "Capture the actual governed command exit code, not a downstream pipe's status.",
+      "disposition": "preserve",
+      "verificationOwner": "verification-owner",
+      "check": "Test wrapper retains child exit status when output is transformed.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG011",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 56,
+        "endLine": 56
+      },
+      "requirement": "State causal mutation, observe named red failure, restore green and record failure line.",
+      "disposition": "preserve",
+      "verificationOwner": "verification-owner",
+      "check": "Independent reviewer checks exact mutation and named failure receipt.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG012",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 59,
+        "endLine": 59
+      },
+      "requirement": "Record unverified claims explicitly in task evidence.",
+      "disposition": "preserve",
+      "verificationOwner": "verification-owner",
+      "check": "Evidence schema distinguishes unverified, failed and passed.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG013",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 67,
+        "endLine": 67
+      },
+      "requirement": "Acceptance must be independently checkable with command/file/observable state.",
+      "disposition": "preserve",
+      "verificationOwner": "planning-owner",
+      "check": "Review rejects subjective or self-only acceptance checks.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG014",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 69,
+        "endLine": 69
+      },
+      "requirement": "Declared task intent and routing must agree; do not silently route implementation to review.",
+      "disposition": "redesign",
+      "verificationOwner": "routing-owner",
+      "check": "Test explicit intent routing and ambiguity refusal; migration of title heuristics requires decision.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG015",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 73,
+        "endLine": 73
+      },
+      "requirement": "Inspect open work before filing duplicate tasks.",
+      "disposition": "preserve",
+      "verificationOwner": "planning-owner",
+      "check": "Workflow review records duplicate query or its unavailability.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG016",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 75,
+        "endLine": 75
+      },
+      "requirement": "Decompose work too large for a bounded sitting.",
+      "disposition": "preserve",
+      "verificationOwner": "planning-owner",
+      "check": "Review task scope and independent acceptance before dispatch.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG017",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 79,
+        "endLine": 79
+      },
+      "requirement": "Tool reporting attaches diagnostic context but withholds workspace/transcript unless explicitly disclosed.",
+      "disposition": "redesign",
+      "verificationOwner": "disclosure-owner",
+      "check": "Test report export redaction and exact disclosure authority.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG018",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 83,
+        "endLine": 83
+      },
+      "requirement": "Reports distinguish observed symptom, suspected cause and manual workaround.",
+      "disposition": "preserve",
+      "verificationOwner": "planning-owner",
+      "check": "Template validator and reviewer require the three fields.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG019",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 91,
+        "endLine": 91
+      },
+      "requirement": "Do not invent evidence-free work; an empty cycle may produce no task.",
+      "disposition": "preserve",
+      "verificationOwner": "planning-owner",
+      "check": "Review separates measured defect from speculation.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG020",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 94,
+        "endLine": 94
+      },
+      "requirement": "Finish assigned scope; record unrelated work separately.",
+      "disposition": "preserve",
+      "verificationOwner": "admission-owner",
+      "check": "Review diff against admitted claim; reject scope drift.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG021",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 96,
+        "endLine": 96
+      },
+      "requirement": "Do not remove failing tests or weaken correct assertions; explain genuinely wrong tests.",
+      "disposition": "preserve",
+      "verificationOwner": "verification-owner",
+      "check": "Review test diff and mutation receipt.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG022",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 98,
+        "endLine": 98
+      },
+      "requirement": "Do not reformat or rename outside the claimed slice.",
+      "disposition": "preserve",
+      "verificationOwner": "admission-owner",
+      "check": "Claim-aware diff check includes renames and formatting-only changes.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG023",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 100,
+        "endLine": 100
+      },
+      "requirement": "Review auto-fixer changes, preserving intentionally invalid fixture semantics.",
+      "disposition": "preserve",
+      "verificationOwner": "verification-owner",
+      "check": "Test invalid fixture still reaches intended rejection branch.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG024",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 108,
+        "endLine": 108
+      },
+      "requirement": "Run required applicable gates before completion; keep legacy Go gates for Go changes and define Rust gates separately.",
+      "disposition": "redesign",
+      "verificationOwner": "toolchain-owner",
+      "check": "Record exact scoped gates; no claim this static audit ran Go verification.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "AG025",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 111,
+        "endLine": 111
+      },
+      "requirement": "Only mark criteria actually satisfied; leave acceptance to owner and do not self-close another's task.",
+      "disposition": "preserve",
+      "verificationOwner": "acceptance-owner",
+      "check": "Test unverified criteria and non-owner closure refuse.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON001",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 5,
+        "endLine": 5
+      },
+      "requirement": "Recorded state and verification claims must agree with actual observations.",
+      "disposition": "preserve",
+      "verificationOwner": "evidence-owner",
+      "check": "Test failed/unknown effects cannot be recorded as completed success.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON002",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 21,
+        "endLine": 21
+      },
+      "requirement": "A clean checkout builds the core without requiring an unrelated UI toolchain; absent UI is reported honestly.",
+      "disposition": "redesign",
+      "verificationOwner": "toolchain-owner",
+      "check": "Rust clean-checkout build must not require Node or Swift; legacy dashboard fallback remains Go-owned.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON003",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 27,
+        "endLine": 27
+      },
+      "requirement": "Dashboard changes run frontend install, build and coverage checks.",
+      "disposition": "redesign",
+      "verificationOwner": "dashboard-owner",
+      "check": "Legacy UI checks retained only for affected dashboard; define native UI checks independently.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON004",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 36,
+        "endLine": 36
+      },
+      "requirement": "Coverage includes all production sources, not just test imports.",
+      "disposition": "preserve",
+      "verificationOwner": "dashboard-owner",
+      "check": "Coverage configuration audit checks source inclusion.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON005",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 40,
+        "endLine": 40
+      },
+      "requirement": "Coverage floors are collapse detectors and must not be lowered merely to pass.",
+      "disposition": "preserve",
+      "verificationOwner": "verification-owner",
+      "check": "Review threshold changes against measured baseline; legacy floors are82% statements,76% branches,80% functions,84% lines and remain Go-dashboard-specific.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON006",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 43,
+        "endLine": 43
+      },
+      "requirement": "Run formatter, static checks, lint and tests before push.",
+      "disposition": "redesign",
+      "verificationOwner": "toolchain-owner",
+      "check": "Define Rust equivalents without pretending cargo alone replaces Go or UI gates.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON007",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 52,
+        "endLine": 52
+      },
+      "requirement": "Safety and tenant boundaries need independent floors and concurrency checks; aggregate coverage cannot conceal them.",
+      "disposition": "redesign",
+      "verificationOwner": "verification-owner",
+      "check": "Choose Rust concurrency and boundary gates; preserve existing Go race/coverage checks for Go adapters.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON008",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 62,
+        "endLine": 62
+      },
+      "requirement": "Pin lint tools and use the reviewed CI version locally.",
+      "disposition": "redesign",
+      "verificationOwner": "toolchain-owner",
+      "check": "Rust toolchain/lint versions recorded in CI; Go pin remains v2.12.2 for legacy source.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON009",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 68,
+        "endLine": 68
+      },
+      "requirement": "Pin vulnerability scanner and isolated reviewed toolchain; upgrades update workflow contract.",
+      "disposition": "redesign",
+      "verificationOwner": "security-owner",
+      "check": "Review Rust scanner/version policy separately; retain Go v1.8.0 and Go1.26.10 reviewed pair for legacy scans.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON010",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 77,
+        "endLine": 77
+      },
+      "requirement": "Check tool declared language version against CI before upgrade.",
+      "disposition": "preserve",
+      "verificationOwner": "toolchain-owner",
+      "check": "Toolchain update includes compatibility evidence and contract change.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON011",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 81,
+        "endLine": 81
+      },
+      "requirement": "Go1.22 compatibility is retained for legacy module; select explicit Rust MSRV rather than inheriting a Go floor.",
+      "disposition": "requires-human-decision",
+      "verificationOwner": "maintainer",
+      "check": "Maintainer records Rust MSRV/support policy before publishing compatibility promise.",
+      "implementationStatus": "planned",
+      "decisionStatus": "unresolved",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON012",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 100,
+        "endLine": 100
+      },
+      "requirement": "A behavioral test must detect the causal guard/effect mutation, not merely any error.",
+      "disposition": "preserve",
+      "verificationOwner": "verification-owner",
+      "check": "Run named mutation red and restored green; keep evidence revision.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON013",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 97,
+        "endLine": 97
+      },
+      "requirement": "Tests observe the property at the time it matters, including streaming before completion.",
+      "disposition": "preserve",
+      "verificationOwner": "verification-owner",
+      "check": "Test output arrives while producer remains running; reject eventual-only substitute.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON014",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 112,
+        "endLine": 112
+      },
+      "requirement": "Reproduce the premise before filing a defect or claiming a fix.",
+      "disposition": "preserve",
+      "verificationOwner": "verification-owner",
+      "check": "Issue evidence distinguishes historical source incident from newly observed behavior.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON015",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 39,
+        "endLine": 39
+      },
+      "requirement": "Preserve exit meanings: 0 success,2 usage,3 refusal,4 not-found,1 other; CLI and in-process typed result agree.",
+      "disposition": "preserve",
+      "verificationOwner": "kernel-owner",
+      "check": "Semantic exit mapping tests, including wrapped errors and unknown failures.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON016",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 127,
+        "endLine": 127
+      },
+      "requirement": "Do not retry an unchanged policy refusal.",
+      "disposition": "preserve",
+      "verificationOwner": "supervisor-owner",
+      "check": "Supervisor integration test asserts one attempt and explicit refused state.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON017",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 133,
+        "endLine": 133
+      },
+      "requirement": "Preserve typed causes across error context; do not flatten refusal to generic failure.",
+      "disposition": "redesign",
+      "verificationOwner": "kernel-owner",
+      "check": "Rust structured error chain test maps refusal through added context.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON018",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 138,
+        "endLine": 138
+      },
+      "requirement": "One action declaration supplies output capability, effect and usage; shared dispatcher enforces them.",
+      "disposition": "redesign",
+      "verificationOwner": "kernel-owner",
+      "check": "Generate help/JSON/effect catalog from ActionSpec and reject unknown action/effect.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON019",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 146,
+        "endLine": 146
+      },
+      "requirement": "Feature slices do not import siblings.",
+      "disposition": "preserve",
+      "verificationOwner": "architecture-owner",
+      "check": "Dependency/architecture check rejects cross-feature edges.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON020",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 156,
+        "endLine": 156
+      },
+      "requirement": "Shared landing/verification policy lives below feature composition.",
+      "disposition": "preserve",
+      "verificationOwner": "architecture-owner",
+      "check": "Kernel crate dependency graph has no process/store/UI dependency.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON021",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 160,
+        "endLine": 160
+      },
+      "requirement": "Legacy Go task status is folder position; a new store must translate explicitly rather than infer frontmatter authority.",
+      "disposition": "redesign",
+      "verificationOwner": "legacy-adapter-owner",
+      "check": "Adapter fixtures test folder authority; Rust canonical schema requires separate approved design.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON022",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 161,
+        "endLine": 161
+      },
+      "requirement": "Record append-only facts and separate RO proposals from owner apply.",
+      "disposition": "redesign",
+      "verificationOwner": "event-store-owner",
+      "check": "Store invariants account for legacy sync applied-field exception without importing it as new canonical mutation.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON023",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 163,
+        "endLine": 163
+      },
+      "requirement": "Explain guard rationale and incident reference, not merely mechanism.",
+      "disposition": "preserve",
+      "verificationOwner": "review-owner",
+      "check": "Review causal guard changes for retained rationale/source reference.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON024",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 168,
+        "endLine": 168
+      },
+      "requirement": "Do not copy the Go-specific ST1000 lint exception into Rust; preserve its rationale in CON023.",
+      "disposition": "retire",
+      "verificationOwner": "toolchain-owner",
+      "check": "Rust lint configuration has no fabricated Go lint compatibility setting.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON025",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 175,
+        "endLine": 175
+      },
+      "requirement": "Reject regression tests that pass unchanged broken code.",
+      "disposition": "preserve",
+      "verificationOwner": "verification-owner",
+      "check": "Named causal mutation must make the intended assertion fail.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON026",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 176,
+        "endLine": 176
+      },
+      "requirement": "Never report success for no effect, failed read or unvalidated count.",
+      "disposition": "preserve",
+      "verificationOwner": "kernel-owner",
+      "check": "Semantic tests cover empty match, unknown read and invalid input without success claims.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON027",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 179,
+        "endLine": 179
+      },
+      "requirement": "A refusal cannot become warning-success without explicit reviewed rationale and truthful partial outcome.",
+      "disposition": "preserve",
+      "verificationOwner": "kernel-owner",
+      "check": "Test coordinator preserves refusal/partial result rather than losing typed cause.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON028",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 180,
+        "endLine": 180
+      },
+      "requirement": "Do not claim unreachable code as a fix.",
+      "disposition": "preserve",
+      "verificationOwner": "verification-owner",
+      "check": "Test reaches changed branch with causal old behavior red.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON029",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 182,
+        "endLine": 182
+      },
+      "requirement": "Preview uses the same plan as apply and declares its own effect-free shape.",
+      "disposition": "preserve",
+      "verificationOwner": "kernel-owner",
+      "check": "Test preview/apply plan equality and parser-valued dry-run confusion.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON030",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 186,
+        "endLine": 186
+      },
+      "requirement": "For a behavioral fix, establish failing regression before restoration.",
+      "disposition": "preserve",
+      "verificationOwner": "verification-owner",
+      "check": "Receipt includes named initial failure and final result.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON031",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 187,
+        "endLine": 187
+      },
+      "requirement": "PR body states causal mutation.",
+      "disposition": "preserve",
+      "verificationOwner": "review-owner",
+      "check": "Review record links mutation to test and revision.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON032",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 188,
+        "endLine": 188
+      },
+      "requirement": "Keep PR scope bounded and explain why in commit message.",
+      "disposition": "preserve",
+      "verificationOwner": "review-owner",
+      "check": "Review changed paths and purpose against one accepted slice.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON033",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 189,
+        "endLine": 189
+      },
+      "requirement": "State uncertainty instead of promoting guesses to verified claims.",
+      "disposition": "preserve",
+      "verificationOwner": "evidence-owner",
+      "check": "Evidence explicitly lists unknown/unverified limits.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON034",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 195,
+        "endLine": 195
+      },
+      "requirement": "Use issue templates with observed symptom, suspected cause and workaround.",
+      "disposition": "preserve",
+      "verificationOwner": "planning-owner",
+      "check": "Issue review checks all three and reproduction status.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON035",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 202,
+        "endLine": 202
+      },
+      "requirement": "Maintainer retains release authority.",
+      "disposition": "preserve",
+      "verificationOwner": "release-owner",
+      "check": "Test publication needs explicit exact authority, not inherited integration permission.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON036",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 204,
+        "endLine": 204
+      },
+      "requirement": "Release-train promotion and publishing/tag creation are separate capabilities.",
+      "disposition": "preserve",
+      "verificationOwner": "release-owner",
+      "check": "Test promotion cannot invoke publication even with merge authority.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON037",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 207,
+        "endLine": 207
+      },
+      "requirement": "Publication requires explicit maintainer choice for exact project and tag.",
+      "disposition": "preserve",
+      "verificationOwner": "release-owner",
+      "check": "Test mismatched project/tag and implicit choice refuse.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON038",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 209,
+        "endLine": 209
+      },
+      "requirement": "Host session, workflow and release train cannot mint their own publication authority.",
+      "disposition": "preserve",
+      "verificationOwner": "identity-policy-owner",
+      "check": "Test no ambient CI/host privilege escalation.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON039",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 210,
+        "endLine": 210
+      },
+      "requirement": "Publication automation documents authority, idempotency, rollback and asset verification.",
+      "disposition": "preserve",
+      "verificationOwner": "release-owner",
+      "check": "Review each external action's explicit policy and recovery evidence.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "CON040",
+      "source": {
+        "path": "CONTRIBUTING.md",
+        "startLine": 216,
+        "endLine": 216
+      },
+      "requirement": "Follow the Code of Conduct as a human contribution obligation; do not claim a kernel enforces conduct.",
+      "disposition": "preserve",
+      "verificationOwner": "maintainer",
+      "check": "Maintainer/reviewer process owns conduct review.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "K001",
+      "source": {
+        "path": "internal/clikit/mutation_authorization.go",
+        "startLine": 13,
+        "endLine": 13
+      },
+      "requirement": "Unknown action/effect and unverified identity fail closed; legacy absent-token bootstrap fallback is not new Rust authority.",
+      "disposition": "redesign",
+      "verificationOwner": "kernel-owner",
+      "check": "Core and CLI tests refuse unavailable mutation with missing/empty/nonempty unverified credential.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "K002",
+      "source": {
+        "path": "internal/clikit/clikit.go",
+        "startLine": 70,
+        "endLine": 70
+      },
+      "requirement": "Preview bypass is opt-in metadata and parsed shape, never presence of an arbitrary argv token.",
+      "disposition": "preserve",
+      "verificationOwner": "kernel-owner",
+      "check": "Test value-taking argument named --dry-run does not bypass policy.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "K003",
+      "source": {
+        "path": "internal/cli/cli.go",
+        "startLine": 381,
+        "endLine": 381
+      },
+      "requirement": "Help returns metadata without performing a handler effect.",
+      "disposition": "preserve",
+      "verificationOwner": "kernel-owner",
+      "check": "Test help does not invoke execution or require a side effect.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "K004",
+      "source": {
+        "path": "internal/cli/cli.go",
+        "startLine": 231,
+        "endLine": 231
+      },
+      "requirement": "Unsupported JSON refuses explicitly; supported JSON is machine-readable output.",
+      "disposition": "preserve",
+      "verificationOwner": "kernel-owner",
+      "check": "Test JSON parse and exact typed unsupported-output result.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "K005",
+      "source": {
+        "path": "internal/clikit/mutation_authorization.go",
+        "startLine": 23,
+        "endLine": 23
+      },
+      "requirement": "Present-empty/unresolved inherited identity refuses before bootstrap or preview.",
+      "disposition": "preserve",
+      "verificationOwner": "identity-policy-owner",
+      "check": "Test empty/invalid/foreign identity refuses even outside a workspace and under dry-run.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "K006",
+      "source": {
+        "path": "internal/cli/cli.go",
+        "startLine": 328,
+        "endLine": 328
+      },
+      "requirement": "Explicit native/device/role/exact-GitHub auth routes are independent, not legacy grant bypass authority to copy.",
+      "disposition": "redesign",
+      "verificationOwner": "native-adapter-owner",
+      "check": "Future adapter authenticates independently; no Go credential reuse in first Rust slice.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "K007",
+      "source": {
+        "path": "internal/cli/cli.go",
+        "startLine": 350,
+        "endLine": 350
+      },
+      "requirement": "Mixed read/write commands authorize the exact declared parsed invocation.",
+      "disposition": "preserve",
+      "verificationOwner": "kernel-owner",
+      "check": "Test project show configuration flags and reconcile apply-safe remain mutations.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "K008",
+      "source": {
+        "path": "docs/TRUST.md",
+        "startLine": 20,
+        "endLine": 20
+      },
+      "requirement": "Workspace policy is not OS sandboxing; process containment belongs to explicit host adapter.",
+      "disposition": "preserve",
+      "verificationOwner": "host-adapter-owner",
+      "check": "Review records host confinement separately from path/grant checks.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "K009",
+      "source": {
+        "path": "docs/TRUST.md",
+        "startLine": 28,
+        "endLine": 28
+      },
+      "requirement": "Contain user paths and terminate Git options; caller-controlled names cannot escape workspace or become options.",
+      "disposition": "preserve",
+      "verificationOwner": "path-policy-owner",
+      "check": "Port equivalent traversal and option-injection fixtures before enabling filesystem/VCS effects.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "K010",
+      "source": {
+        "path": "docs/TRUST.md",
+        "startLine": 94,
+        "endLine": 94
+      },
+      "requirement": "Self-declared taint/provenance is a lower bound, not injection prevention or authenticity proof.",
+      "disposition": "preserve",
+      "verificationOwner": "provenance-owner",
+      "check": "UI/export schema labels provenance limits and untrusted agent text.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "K011",
+      "source": {
+        "path": "docs/TRUST.md",
+        "startLine": 155,
+        "endLine": 155
+      },
+      "requirement": "Never publish reusable credentials; expose bounded public IDs and redacted diagnostic metadata.",
+      "disposition": "preserve",
+      "verificationOwner": "identity-policy-owner",
+      "check": "Test error/JSON/log outputs do not reveal supplied credential values.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "K012",
+      "source": {
+        "path": "internal/cli/capability_invariant_test.go",
+        "startLine": 126,
+        "endLine": 126
+      },
+      "requirement": "Legacy Mutates=false includes effectful proposal/event paths; model query, proposal append and authoritative mutation distinctly.",
+      "disposition": "redesign",
+      "verificationOwner": "event-store-owner",
+      "check": "Complete effect inventory beyond these156 before claiming all writes governed.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "K013",
+      "source": {
+        "path": "internal/cli/trust_test.go",
+        "startLine": 22,
+        "endLine": 22
+      },
+      "requirement": "A trust-path mention is not semantic verification of effects, gates and undo.",
+      "disposition": "redesign",
+      "verificationOwner": "inventory-owner",
+      "check": "Validate exact catalog membership and independently review effect contracts.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "K014",
+      "source": {
+        "path": "internal/cli/cli.go",
+        "startLine": 337,
+        "endLine": 337
+      },
+      "requirement": "One typed registry replaces manually maintained secondary capability lists and invocation exceptions.",
+      "disposition": "redesign",
+      "verificationOwner": "kernel-owner",
+      "check": "Generated catalog/help/result consistency test uses the same ActionSpec entries.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    },
+    {
+      "id": "K015",
+      "source": {
+        "path": "AGENTS.md",
+        "startLine": 113,
+        "endLine": 113
+      },
+      "requirement": "Unresolved decisions or unverified implementation must block an all-mistakes-covered assertion.",
+      "disposition": "preserve",
+      "verificationOwner": "inventory-owner",
+      "check": "Machine checker refuses readiness while unresolved or planned rows remain.",
+      "implementationStatus": "planned",
+      "decisionStatus": "proposed",
+      "evidenceStatus": "source-audited; not runtime-reproduced"
+    }
+  ],
+  "commandInventory": "command-inventory.json",
+  "coverage": {
+    "sourceRuleCount": 80,
+    "coveredRuleCount": 80,
+    "mutatingCommandCount": 156,
+    "coveredMutatingCommandCount": 156,
+    "literalCommandCount": 148,
+    "factoryExpandedCommandCount": 8,
+    "documentedTableRowCount": 84,
+    "previewExceptionCount": 18,
+    "unresolvedCount": 10,
+    "unresolved": [
+      "CON011",
+      "catalog",
+      "escalate",
+      "github release",
+      "init",
+      "provider readiness",
+      "report",
+      "run",
+      "ship",
+      "taint"
+    ],
+    "runtimeVerifiedRuleCount": 0,
+    "allMistakesCovered": false,
+    "readiness": "blocked: unresolved decisions and planned/unimplemented rows; enumeration does not establish implementation or historical incident coverage"
+  },
+  "verificationOwnersAre": "proposed accountable roles, not grants, named authenticated reviewers, completed checks or approvals",
+  "initialSliceBoundary": {
+    "allowed": [
+      "One pure InspectProtocol query",
+      "Typed refusal for unavailable mutation",
+      "Shared ActionSpec decoding/policy/result and generated catalog"
+    ],
+    "excluded": [
+      "Go credential reuse",
+      "Native authority migration",
+      "Filesystem/process/storage effects",
+      "Task writer",
+      "Plugin execution",
+      "Old command compatibility claim",
+      "Farm rendering"
+    ]
+  }
+}

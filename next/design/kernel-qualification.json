@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "sourceBase": "cd7210a02637696c3b082e2eb7e113101565d457",
+  "platform": "macOS arm64",
+  "sourceSHA256": {
+    "next/Cargo.lock": "2def997161e69d90eafa9716c587128f55a47ff71a1c801d3451a171de7da593",
+    "next/Cargo.toml": "1eac5ed9eb303d51ddd22fa2f1d40f96a5fce3e98606cf8201399506643f482f",
+    "next/README.md": "764d67acedb4d30b34a853bb6060feba8191a3966ff5635ab156329af92a3718",
+    "next/crates/cli/Cargo.toml": "bc282894f60c3bd9d730bc5ad7dc609971da6ce964a84c04da71058e4bbfd67c",
+    "next/crates/cli/src/lib.rs": "b4cbae2378d18817719d5aee6f3fadd829eb7aa7de665b965b33369b98c57310",
+    "next/crates/cli/src/main.rs": "76f1617c5f4158b8f10e5a7281b0b06a9b1d24d4a4f31110cc3c81645200ab23",
+    "next/crates/cli/tests/transport.rs": "002728bb09e1b97108f52901052fb030d96be236dc5abfc78371eb93380ab084",
+    "next/crates/core-kernel/Cargo.toml": "92d51fef1657c7f9924107e2f9fa39a879ffa7e50295a600d47508ad7a07c36a",
+    "next/crates/core-kernel/src/lib.rs": "280ff57d99513f39ebd66c0a98252f9de89d111d3bc88c44eb668e1ac3f8cfcb",
+    "next/crates/core-kernel/tests/admission.rs": "3cd7d65f185c45dad8e148c1823ebc4be13ec0f562065fd20f2be1fcbb10ccac",
+    "next/crates/core-types/Cargo.toml": "b17cf9f877884e3344b7255dd5bed70b3e2d7b36201e2db450968f4258b3ad5c",
+    "next/crates/core-types/src/lib.rs": "d0bbd6476d13162eade15e1f4c414c114d0d3ee0a2d910d92dc37b188825c498",
+    "next/design/audit-notes.md": "c1d3882d9acd4b2ec14ef2d1303b0154aee013dabcff321fac4eda6995897e7f",
+    "next/design/audit-validation.json": "30e9d918c2f3309335cafef3fba4cdb7476d4455fe2a1d2adf9022f38bd877c6",
+    "next/design/build_ledger.py": "4a63173e0056bcd002a3a4714a92147e9ba9c961dbb9c3145a6ef2d0b330cadb",
+    "next/design/check_ledger.py": "82b6824236790e09edeab6ceeb11fc1d2c46d6c4e62432e39afe33dbec14aa5f",
+    "next/design/command-inventory.json": "4b2c6baeea19a10bc18858de26d97ff8ce90da6d152cbad58618cc13bf7c4d40",
+    "next/design/command-literals.snapshot.json": "e5351e0d757b3a6cc7584fc6690b05c52fd37ea4a77f74cd32b37822aceddac6",
+    "next/design/invariants.yaml": "3765d5417b8c044afb28a17932542d9b59bd190bdf1735f554b19ee13a2539ea",
+    "next/design/inventory_source.go.txt": "7ba0508069ea33ac40618813b74f30d6a9919de3710a715087127a92d069369a"
+  },
+  "rust": {
+    "rustc": "rustc 1.83.0 (90b35a623 2024-11-26)",
+    "cargo": "cargo 1.83.0 (5ffbef321 2024-10-29)",
+    "semanticTests": 12,
+    "causalNegativeProbes": 10,
+    "commands": [
+      {
+        "command": "cargo metadata --offline --locked --no-deps --format-version 1",
+        "exit": 0
+      },
+      {
+        "command": "cargo tree --offline --locked -p core-kernel",
+        "exit": 0
+      },
+      {
+        "command": "cargo fmt --all --check",
+        "exit": 0
+      },
+      {
+        "command": "cargo clippy --offline --locked -p core-kernel -p cli --all-targets -- -D warnings",
+        "exit": 0
+      },
+      {
+        "command": "cargo test --offline --locked -p core-kernel -p cli",
+        "exit": 0
+      }
+    ],
+    "materialFindingsAfterOrdinaryIndependentReview": 0
+  },
+  "legacyGo": {
+    "sourceUnchanged": true,
+    "formatExit": 0,
+    "vetExit": 0,
+    "initialLintExit": 127,
+    "initialLintReason": "Tool absent; retained initial failure. Installed pinned golangci-lint v2.12.2 in isolated tools directory.",
+    "pinnedLintExit": 0,
+    "pinnedLintResult": "0 issues.",
+    "initialFullTestsExit": 1,
+    "initialFullTestsReason": "sessions package exceeded default aggregate 10m timeout; no assertion failure. Exact timed-out subcase passed separately.",
+    "qualifiedFullTestsCommand": "GOMAXPROCS=2 go test -p 1 -timeout 20m ./...",
+    "qualifiedFullTestsExit": 0,
+    "isolatedSessionsExit": 0,
+    "isolatedSessionsSeconds": 705.681,
+    "goVersion": "go1.26.5",
+    "testAssertionsChanged": false
+  },
+  "logSHA256": {
+    "go-evidence/0-gofmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "go-evidence/1-go.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "go-evidence/2-golangci-lint.log": "17bce678bed3a98c3d63ef7cd991adf0f77b04c611e06c4f1ed8f36716262070",
+    "go-evidence/3-go.log": "070bdcb20bd2f88cb988ef0d90523c8c391088c886711d1792f8f5a6cbf6bb8a",
+    "go-evidence/lint-pinned.log": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+    "go-evidence/sessions-isolated-package.log": "1ef3b17eb2aac7e8b664f456be697d5d7830395fc5719b25e3c27fb6590710a3",
+    "go-evidence/full-tests-qualified.log": "e0024b2a7229e5fd697b75b23f856a9dae70a79ed2082301d03069f132ea7e61",
+    "rust-evidence/final-focused.log": "0df071d3dc968d7729b1dc3f4815c249f46db8e60e39fc1153aa34775ea179f1",
+    "rust-evidence/causal-results.json": "a11d72b9a61e599a52f75599d6d028ede03326f700eaf606abb6acaf71d0a45e",
+    "rust-evidence/restored-green.log": "a2e8cbe841b7ac5b573cc71960cbf311fe6220ecbfbf475c535670df6caa4792"
+  },
+  "governance": {
+    "commitWorkflow": "User explicitly authorized normal Git commit for this isolated branch as exception to AGENTS.md.",
+    "nativeReviewOrAcceptanceClaimed": false,
+    "configuredNativeConnection": "expired enrollment; no credential reuse, forged identity or owner fallback used"
+  },
+  "limits": [
+    "Static public protocol inspection only; credential verification and mutations unavailable.",
+    "236 invariant/inventory rows remain planned or unimplemented; 10 decisions unresolved.",
+    "No storage migration, Go replacement, production authority cutover, plugin execution or release."
+  ]
+}
