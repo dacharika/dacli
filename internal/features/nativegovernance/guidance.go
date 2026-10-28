@@ -122,4 +122,3 @@ func nativeGuidanceRefreshApply(ctx *clikit.Ctx, args []string) error {
 	}
 	return nil
 }
-
