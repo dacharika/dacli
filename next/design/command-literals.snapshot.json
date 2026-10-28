@@ -1,0 +1,3061 @@
+{
+  "method": "Go AST inspection of non-test command literals; aggregation membership cross-check required",
+  "rows": [
+    {
+      "path": "capabilities",
+      "source": "internal/cli/cli.go",
+      "line": 110,
+      "fields": {
+        "Brief": "\"Print the generated CLI, MCP, schema and prompt capability manifest\"",
+        "JSON": "true",
+        "Path": "\"capabilities\"",
+        "Run": "cmdCapabilities",
+        "Usage": "\"dacli capabilities [--json]\""
+      }
+    },
+    {
+      "path": "provider readiness",
+      "source": "internal/cli/cli.go",
+      "line": 111,
+      "fields": {
+        "Brief": "\"Inspect provider installation and optional read-only sign-in status\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"provider readiness\"",
+        "Run": "cmdAuthorizedProviderReadiness",
+        "Usage": "\"dacli provider readiness [--config \u003cfile\u003e] [--auth-status] [--json]\""
+      }
+    },
+    {
+      "path": "operator serve",
+      "source": "internal/cli/cli.go",
+      "line": 112,
+      "fields": {
+        "Brief": "\"Serve authenticated operator reads over app-owned local JSON lines\"",
+        "JSON": "true",
+        "Path": "\"operator serve\"",
+        "Run": "cmdOperatorServe",
+        "Usage": "\"dacli operator serve --connection \u003cprivate-file\u003e\""
+      }
+    },
+    {
+      "path": "mcp serve",
+      "source": "internal/cli/cli.go",
+      "line": 113,
+      "fields": {
+        "Brief": "\"Serve MCP over stdio with DACLI_AGENT identity; --operator explicitly permits local root when no token is set\"",
+        "Path": "\"mcp serve\"",
+        "Run": "cmdMcpServe",
+        "Usage": "\"dacli mcp serve [--operator]\""
+      }
+    },
+    {
+      "path": "accept apply-native",
+      "source": "internal/features/acceptance/acceptance.go",
+      "line": 44,
+      "fields": {
+        "Brief": "\"Explicit native owner consumes independently reviewed exact landed evidence and closes the canonical task\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"accept apply-native\"",
+        "Run": "cmdAcceptApplyNative",
+        "Usage": "nativeApplyUsage"
+      }
+    },
+    {
+      "path": "accept",
+      "source": "internal/features/acceptance/acceptance.go",
+      "line": 45,
+      "fields": {
+        "Brief": "\"Workspace owner validates a worker proposal against fixed acceptance and reviewed-head evidence, then closes it; this does not merge the branch\"",
+        "JSON": "true",
+        "Path": "\"accept\"",
+        "Run": "cmdAccept",
+        "Usage": "acceptUsage"
+      }
+    },
+    {
+      "path": "accept propose",
+      "source": "internal/features/acceptance/acceptance.go",
+      "line": 46,
+      "fields": {
+        "Brief": "\"Independent read-only reviewer records a verified, exact-tree acceptance handoff\"",
+        "JSON": "true",
+        "Path": "\"accept propose\"",
+        "Run": "cmdAcceptPropose",
+        "Usage": "acceptProposeUsage"
+      }
+    },
+    {
+      "path": "accept apply",
+      "source": "internal/features/acceptance/acceptance.go",
+      "line": 47,
+      "fields": {
+        "Brief": "\"Task owner atomically validates and applies one independent acceptance handoff\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"accept apply\"",
+        "Run": "cmdAcceptApply",
+        "Usage": "acceptApplyUsage"
+      }
+    },
+    {
+      "path": "context",
+      "source": "internal/features/briefing/briefing.go",
+      "line": 16,
+      "fields": {
+        "Brief": "\"Assemble a scoped context brief for an agent (the main event); --brief-tokens caps the BRIEF's size (alias: --budget) — it is not a spend ceiling, see --max-tokens\"",
+        "JSON": "true",
+        "Path": "\"context\"",
+        "Run": "cmdContext",
+        "Usage": "\"dacli context \u003ctask-ref\u003e [--budget N] [--record]\""
+      }
+    },
+    {
+      "path": "catchup",
+      "source": "internal/features/briefing/briefing.go",
+      "line": 17,
+      "fields": {
+        "Brief": "\"What your live siblings recorded since your brief was assembled (--since 20m) — cheap enough to run between steps\"",
+        "Path": "\"catchup\"",
+        "Run": "cmdCatchup",
+        "Usage": "\"dacli catchup [--since DUR] [--project slug] [--about ref] [--mine]\""
+      }
+    },
+    {
+      "path": "catalog",
+      "source": "internal/features/catalog/catalog.go",
+      "line": 35,
+      "fields": {
+        "Brief": "\"Generate a browsable role/skill catalog to docs/ROSTER.md (--publish-wiki mirrors it to the repo wiki, disclosure-gated)\"",
+        "Mutates": "true",
+        "Path": "\"catalog\"",
+        "Run": "cmdCatalog",
+        "Usage": "\"dacli catalog [--project slug] [--out path] [--publish-wiki]\""
+      }
+    },
+    {
+      "path": "cleanup",
+      "source": "internal/features/cleanup/cleanup.go",
+      "line": 17,
+      "fields": {
+        "Brief": "\"Plan or apply content-addressed, recoverable repository cleanup\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"cleanup\"",
+        "Run": "cmdCleanup",
+        "Usage": "\"dacli cleanup --project \u003cslug\u003e (--dry-run | --apply-safe \u003cplan-id\u003e | --restore \u003cplan-id\u003e --artifact \u003cidentity\u003e)\""
+      }
+    },
+    {
+      "path": "branches audit",
+      "source": "internal/features/cleanup/cleanup.go",
+      "line": 18,
+      "fields": {
+        "Brief": "\"Branch/worktree cleanup audit delegated to the canonical cleanup planner\"",
+        "JSON": "true",
+        "Path": "\"branches audit\"",
+        "Run": "cmdBranchesAudit",
+        "Usage": "\"dacli branches audit --project \u003cslug\u003e\""
+      }
+    },
+    {
+      "path": "branches prune",
+      "source": "internal/features/cleanup/cleanup.go",
+      "line": 19,
+      "fields": {
+        "Brief": "\"Apply an exact cleanup plan; never deletes outside the canonical planner\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"branches prune\"",
+        "Run": "cmdBranchesPrune",
+        "Usage": "\"dacli branches prune --project \u003cslug\u003e --apply-safe \u003cplan-id\u003e\""
+      }
+    },
+    {
+      "path": "sync",
+      "source": "internal/features/collab/collab.go",
+      "line": 26,
+      "fields": {
+        "Brief": "\"Apply pending child events to objects you own\"",
+        "Mutates": "true",
+        "Path": "\"sync\"",
+        "Run": "cmdSync",
+        "Usage": "\"dacli sync\""
+      }
+    },
+    {
+      "path": "events tail",
+      "source": "internal/features/collab/collab.go",
+      "line": 27,
+      "fields": {
+        "Brief": "\"Follow the append-only write log\"",
+        "Path": "\"events tail\"",
+        "Run": "cmdEventsTail",
+        "Usage": "\"dacli events tail [--limit N]\""
+      }
+    },
+    {
+      "path": "events pending",
+      "source": "internal/features/collab/collab.go",
+      "line": 28,
+      "fields": {
+        "Brief": "\"List pending proposals and dismissal authority\"",
+        "Path": "\"events pending\"",
+        "Run": "cmdEventsPending",
+        "Usage": "\"dacli events pending\""
+      }
+    },
+    {
+      "path": "events dismiss",
+      "source": "internal/features/collab/collab.go",
+      "line": 31,
+      "fields": {
+        "Brief": "\"Withdraw or reject a pending proposal with an audited reason\"",
+        "Path": "\"events dismiss\"",
+        "Run": "cmdEventsDismiss",
+        "Usage": "\"dacli events dismiss \u003cevent-id\u003e --reason \u003cwhy\u003e\""
+      }
+    },
+    {
+      "path": "ask",
+      "source": "internal/features/collab/collab.go",
+      "line": 32,
+      "fields": {
+        "Brief": "\"Ask a blocking question; the asking task blocks until answered\"",
+        "Path": "\"ask\"",
+        "Run": "cmdAsk",
+        "Usage": "\"dacli ask \\\\\""
+      }
+    },
+    {
+      "path": "answer",
+      "source": "internal/features/collab/collab.go",
+      "line": 33,
+      "fields": {
+        "Brief": "\"Answer a question; the answer becomes a durable note\"",
+        "Path": "\"answer\"",
+        "Run": "cmdAnswer",
+        "Usage": "\"dacli answer \u003cquestion-id-prefix\u003e \u003canswer...\u003e [--as decision|finding] [--rejected text --because text]\""
+      }
+    },
+    {
+      "path": "threads",
+      "source": "internal/features/collab/collab.go",
+      "line": 34,
+      "fields": {
+        "Brief": "\"Questions and their answers, open first\"",
+        "Path": "\"threads\"",
+        "Run": "cmdThreads",
+        "Usage": "\"dacli threads\""
+      }
+    },
+    {
+      "path": "escalate",
+      "source": "internal/features/collab/collab.go",
+      "line": 35,
+      "fields": {
+        "Brief": "\"Escalate out of the tree to a human (--github files an issue)\"",
+        "Mutates": "true",
+        "Path": "\"escalate\"",
+        "Run": "cmdEscalate",
+        "Usage": "\"dacli escalate \\\\\""
+      }
+    },
+    {
+      "path": "dashboard",
+      "source": "internal/features/dashboard/dashboard.go",
+      "line": 36,
+      "fields": {
+        "Brief": "\"Serve a local web UI: projects, burndown, and the live agent swarm\"",
+        "Path": "\"dashboard\"",
+        "Run": "cmdDashboard",
+        "Usage": "\"dacli dashboard [--port N] [--native-connection FILE]\""
+      }
+    },
+    {
+      "path": "auth login",
+      "source": "internal/features/deviceauth/deviceauth.go",
+      "line": 15,
+      "fields": {
+        "Brief": "\"Authorize a device through an explicit provider and store secrets in native OS credentials\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"auth login\"",
+        "Run": "login",
+        "Usage": "\"dacli auth login --provider URL --tenant ID --name NAME [--json]\""
+      }
+    },
+    {
+      "path": "auth logout",
+      "source": "internal/features/deviceauth/deviceauth.go",
+      "line": 16,
+      "fields": {
+        "Brief": "\"Revoke and remove the exact selected device credential\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"auth logout\"",
+        "Run": "logout",
+        "Usage": "\"dacli auth logout --provider URL --tenant ID --device ID [--json]\""
+      }
+    },
+    {
+      "path": "auth whoami",
+      "source": "internal/features/deviceauth/deviceauth.go",
+      "line": 17,
+      "fields": {
+        "Brief": "\"Refresh and read the selected device identity from its provider\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"auth whoami\"",
+        "Run": "whoami",
+        "Usage": "\"dacli auth whoami --provider URL --tenant ID --device ID [--json]\""
+      }
+    },
+    {
+      "path": "github doctor",
+      "source": "internal/features/ghmirror/ghmirror.go",
+      "line": 41,
+      "fields": {
+        "Brief": "\"Probe gh, auth, repository visibility, and autonomous-landing branch protection\"",
+        "JSON": "true",
+        "Path": "\"github doctor\"",
+        "Run": "cmdDoctor",
+        "Usage": "\"dacli github doctor\""
+      }
+    },
+    {
+      "path": "github projection",
+      "source": "internal/features/ghmirror/ghmirror.go",
+      "line": 42,
+      "fields": {
+        "Brief": "\"Show the typed public/private allowlist, withheld fields, and closure authority used by CLI and MCP publishers\"",
+        "JSON": "true",
+        "Path": "\"github projection\"",
+        "Run": "cmdProjection",
+        "Usage": "\"dacli github projection \u003cproject\u003e [--include-internal] [--terminal]\""
+      }
+    },
+    {
+      "path": "github link",
+      "source": "internal/features/ghmirror/ghmirror.go",
+      "line": 43,
+      "fields": {
+        "Brief": "\"Bind a project to the repo (--allow-public records public-safe consent; --allow-internal separately authorizes internal evidence)\"",
+        "Mutates": "true",
+        "Path": "\"github link\"",
+        "Run": "cmdLink",
+        "Usage": "\"dacli github link \u003cproject\u003e [--allow-public [--allow-internal]]\""
+      }
+    },
+    {
+      "path": "github push",
+      "source": "internal/features/ghmirror/ghmirror.go",
+      "line": 44,
+      "fields": {
+        "Brief": "\"Outbound mirror under the typed public/private projection policy; public defaults to task-safe fields and needs --include-internal plus recorded authority for findings/decisions\"",
+        "Mutates": "true",
+        "Path": "\"github push\"",
+        "Run": "cmdPush",
+        "Usage": "\"dacli github push \u003cproject\u003e [task-ref...] [--since \u003cdur\u003e] [--milestone-plan \u003cfile\u003e] [--findings-as-issues | --closure-only] [--include-internal] [--dry-run]\""
+      }
+    },
+    {
+      "path": "github sync",
+      "source": "internal/features/ghmirror/ghmirror.go",
+      "line": 45,
+      "fields": {
+        "Brief": "\"Bidirectional sync: pull then policy-governed push (--dry-run previews both halves)\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"github sync\"",
+        "Run": "cmdSync",
+        "Usage": "\"dacli github sync \u003cproject\u003e [task-ref...] [--since \u003cdur\u003e] [--findings-as-issues] [--with-tasks] [--include-internal] [--dry-run] [--limit N] [--cursor N] [--include-acceptance]\""
+      }
+    },
+    {
+      "path": "github pull",
+      "source": "internal/features/ghmirror/ghmirror.go",
+      "line": 46,
+      "fields": {
+        "Brief": "\"Inbound: adopt human-authored issues as local tasks (--dry-run previews the adoptions)\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"github pull\"",
+        "Run": "cmdPull",
+        "Usage": "\"dacli github pull \u003cproject\u003e [--dry-run] [--limit N] [--cursor N] [--include-acceptance]\""
+      }
+    },
+    {
+      "path": "github issue link",
+      "source": "internal/features/ghmirror/ghmirror.go",
+      "line": 47,
+      "fields": {
+        "Brief": "\"Preview an exact existing GitHub issue-to-task selection and apply its immutable mapping plan\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"github issue link\"",
+        "Run": "cmdExactIssueLink",
+        "Usage": "\"dacli github issue link \u003cproject\u003e \u003cissue-number[=task-id]\u003e... --dry-run | dacli github issue link --apply \u003cplan-id\u003e --owner-config \u003cprivate-file\u003e\""
+      }
+    },
+    {
+      "path": "task acceptance migrate",
+      "source": "internal/features/ghmirror/ghmirror.go",
+      "line": 48,
+      "fields": {
+        "Brief": "\"Preview or apply an immutable plan that imports acceptance from a task's mapped GitHub issue\"",
+        "Mutates": "true",
+        "Path": "\"task acceptance migrate\"",
+        "Run": "cmdTaskAcceptanceMigrate",
+        "Usage": "\"dacli task acceptance migrate \u003cref\u003e [--from-section \\\"Acceptance criteria\\\"] (--dry-run | --apply plan-id)\""
+      }
+    },
+    {
+      "path": "github project",
+      "source": "internal/features/ghmirror/ghmirror.go",
+      "line": 49,
+      "fields": {
+        "Brief": "\"Sync mirrored issues into a Project v2 board with mapped Status/Severity/Area fields (idempotent; --dry-run previews the board/items)\"",
+        "Mutates": "true",
+        "Path": "\"github project\"",
+        "Run": "cmdProject",
+        "Usage": "\"dacli github project \u003cproject\u003e [--dry-run]\""
+      }
+    },
+    {
+      "path": "github release",
+      "source": "internal/features/ghmirror/ghmirror.go",
+      "line": 50,
+      "fields": {
+        "Brief": "\"Cut a tagged GitHub release with generated notes on the linked repo (--notes overrides; idempotent — an existing release is reported, never duplicated; --dry-run previews the release)\"",
+        "Mutates": "true",
+        "Path": "\"github release\"",
+        "Run": "cmdRelease",
+        "Usage": "\"dacli github release \u003cproject\u003e \u003ctag\u003e [--title t] [--notes text] [--target ref] [--draft] [--prerelease] [--dry-run]\""
+      }
+    },
+    {
+      "path": "github codeowners",
+      "source": "internal/features/ghmirror/ghmirror.go",
+      "line": 51,
+      "fields": {
+        "Brief": "\"Emit .github/CODEOWNERS from role scopes (owner from the linked repo or --owner; --dry-run previews the file)\"",
+        "Mutates": "true",
+        "Path": "\"github codeowners\"",
+        "Run": "cmdCodeowners",
+        "Usage": "\"dacli github codeowners \u003cproject\u003e [--owner org] [--stdout] [--dry-run]\""
+      }
+    },
+    {
+      "path": "handoff show",
+      "source": "internal/features/history/handoff.go",
+      "line": 23,
+      "fields": {
+        "Brief": "\"Show a structured worker-to-root lifecycle handoff\"",
+        "JSON": "true",
+        "Path": "\"handoff show\"",
+        "Run": "cmdHandoffShow",
+        "Usage": "\"dacli handoff show \u003crun-id\u003e\""
+      }
+    },
+    {
+      "path": "handoff consume",
+      "source": "internal/features/history/handoff.go",
+      "line": 24,
+      "fields": {
+        "Brief": "\"Root re-observes exact worktree hashes and acknowledges a lifecycle handoff\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"handoff consume\"",
+        "Run": "cmdHandoffConsume",
+        "Usage": "\"dacli handoff consume \u003crun-id\u003e\""
+      }
+    },
+    {
+      "path": "runs list",
+      "source": "internal/features/history/history.go",
+      "line": 23,
+      "fields": {
+        "Brief": "\"List preserved agent runs\"",
+        "Path": "\"runs list\"",
+        "Run": "cmdRunsList",
+        "Usage": "\"dacli runs list\""
+      }
+    },
+    {
+      "path": "runs show",
+      "source": "internal/features/history/history.go",
+      "line": 24,
+      "fields": {
+        "Brief": "\"Read preserved invocation, outcome and transcript\"",
+        "Path": "\"runs show\"",
+        "Run": "cmdRunsShow",
+        "Usage": "\"dacli runs show \u003crun-id-prefix\u003e\""
+      }
+    },
+    {
+      "path": "agents",
+      "source": "internal/features/history/history.go",
+      "line": 25,
+      "fields": {
+        "Brief": "\"Read bounded sourced worker history\"",
+        "JSON": "true",
+        "Path": "\"agents\"",
+        "Run": "cmdAgents",
+        "Usage": "\"dacli agents [--project slug] [--active-only | --history] [--limit N] [--cursor RUN_ID]\""
+      }
+    },
+    {
+      "path": "logs",
+      "source": "internal/features/history/history.go",
+      "line": 26,
+      "fields": {
+        "Brief": "\"Read preserved transcript chunks\"",
+        "JSON": "true",
+        "Path": "\"logs\"",
+        "Run": "cmdLogs",
+        "Usage": "\"dacli logs \u003crun-id-prefix|child-id\u003e [-f] [--tail N] [--cursor BYTE] [--limit BYTES] [--full]\""
+      }
+    },
+    {
+      "path": "replay",
+      "source": "internal/features/history/replay.go",
+      "line": 24,
+      "fields": {
+        "Brief": "\"Reconstruct a run as brief+events interleaved (P3, offline)\"",
+        "Path": "\"replay\"",
+        "Run": "cmdReplay",
+        "Usage": "\"dacli replay \u003crun-id-prefix\u003e | dacli replay --task \u003cref\u003e [--full]\""
+      }
+    },
+    {
+      "path": "overview",
+      "source": "internal/features/insight/insight.go",
+      "line": 25,
+      "fields": {
+        "Brief": "\"Bounded workspace summary: projects, task/WIP counts, activity, and ready-now work\"",
+        "JSON": "true",
+        "Path": "\"overview\"",
+        "Run": "cmdOverview",
+        "Usage": "\"dacli overview\""
+      }
+    },
+    {
+      "path": "status",
+      "source": "internal/features/insight/insight.go",
+      "line": 26,
+      "fields": {
+        "Brief": "\"Tree-wide or project-scoped state in one screen\"",
+        "JSON": "true",
+        "Path": "\"status\"",
+        "Run": "cmdStatus",
+        "Usage": "\"dacli status [--project slug]\""
+      }
+    },
+    {
+      "path": "metrics",
+      "source": "internal/features/insight/insight.go",
+      "line": 27,
+      "fields": {
+        "Brief": "\"Stable scenario metrics with sample counts\"",
+        "JSON": "true",
+        "Path": "\"metrics\"",
+        "Run": "cmdMetrics",
+        "Usage": "\"dacli metrics [--project slug] [--since DUR] [--name NAME]\""
+      }
+    },
+    {
+      "path": "lint",
+      "source": "internal/features/insight/insight.go",
+      "line": 28,
+      "fields": {
+        "Brief": "\"Format, INVEST, requirements-quality, and ambiguity checks\"",
+        "Path": "\"lint\"",
+        "Run": "cmdLint",
+        "Usage": "\"dacli lint [\u003ctask-ref\u003e] [--project slug]\""
+      }
+    },
+    {
+      "path": "next",
+      "source": "internal/features/insight/insight.go",
+      "line": 29,
+      "fields": {
+        "Brief": "\"What to work on now: MoSCoW, then critical path (--parallel N)\"",
+        "JSON": "true",
+        "Path": "\"next\"",
+        "Run": "cmdNext",
+        "Usage": "\"dacli next [--project slug] [--parallel N] [--critical-path]\""
+      }
+    },
+    {
+      "path": "estimate",
+      "source": "internal/features/insight/insight.go",
+      "line": 30,
+      "fields": {
+        "Brief": "\"PERT three-point estimate widened by the Cone of Uncertainty\"",
+        "Path": "\"estimate\"",
+        "Run": "cmdEstimate",
+        "Usage": "\"dacli estimate \u003ctask-ref\u003e\""
+      }
+    },
+    {
+      "path": "critical-path",
+      "source": "internal/features/insight/insight.go",
+      "line": 31,
+      "fields": {
+        "Brief": "\"CPM: full schedule with slack; star marks the critical path\"",
+        "JSON": "true",
+        "Path": "\"critical-path\"",
+        "Run": "cmdCriticalPath",
+        "Usage": "\"dacli critical-path [--project slug]\""
+      }
+    },
+    {
+      "path": "wbs",
+      "source": "internal/features/insight/insight.go",
+      "line": 32,
+      "fields": {
+        "Brief": "\"Work breakdown tree (task add --parent builds it)\"",
+        "Path": "\"wbs\"",
+        "Run": "cmdWBS",
+        "Usage": "\"dacli wbs [--project slug]\""
+      }
+    },
+    {
+      "path": "burndown",
+      "source": "internal/features/insight/insight.go",
+      "line": 33,
+      "fields": {
+        "Brief": "\"Points remaining vs done, per-day completions\"",
+        "Path": "\"burndown\"",
+        "Run": "cmdBurndown",
+        "Usage": "\"dacli burndown [--project slug]\""
+      }
+    },
+    {
+      "path": "velocity",
+      "source": "internal/features/insight/insight.go",
+      "line": 34,
+      "fields": {
+        "Brief": "\"Completions per active day (time proxy until usage reporting)\"",
+        "Path": "\"velocity\"",
+        "Run": "cmdVelocity",
+        "Usage": "\"dacli velocity\""
+      }
+    },
+    {
+      "path": "calibrate",
+      "source": "internal/features/insight/insight.go",
+      "line": 35,
+      "fields": {
+        "Brief": "\"Te vs actuals: the empirical multiplier by size band (P2)\"",
+        "Path": "\"calibrate\"",
+        "Run": "cmdCalibrate",
+        "Usage": "\"dacli calibrate\""
+      }
+    },
+    {
+      "path": "taint",
+      "source": "internal/features/insight/insight.go",
+      "line": 36,
+      "fields": {
+        "Brief": "\"Blast radius of a suspect source over event/note origins (P4)\"",
+        "Mutates": "true",
+        "Path": "\"taint\"",
+        "Run": "cmdTaint",
+        "Usage": "\"dacli taint \u003corigin\u003e   (e.g. file:cron/settle.go, external:someuser, or just file: for all)\""
+      }
+    },
+    {
+      "path": "doctor",
+      "source": "internal/features/insight/insight.go",
+      "line": 37,
+      "fields": {
+        "Brief": "\"Detect management anti-patterns in tasks, risks, and the log\"",
+        "JSON": "true",
+        "Path": "\"doctor\"",
+        "Run": "cmdDoctor",
+        "Usage": "\"dacli doctor\""
+      }
+    },
+    {
+      "path": "standup",
+      "source": "internal/features/insight/insight.go",
+      "line": 38,
+      "fields": {
+        "Brief": "\"Per-agent roll-up: done, doing, impediments — derived, never filed\"",
+        "Path": "\"standup\"",
+        "Run": "cmdStandup",
+        "Usage": "\"dacli standup\""
+      }
+    },
+    {
+      "path": "events reconcile",
+      "source": "internal/features/journal/journal.go",
+      "line": 17,
+      "fields": {
+        "Brief": "\"Plan or apply append-only journal reconciliation and recoverable archival\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"events reconcile\"",
+        "Run": "cmdReconcile",
+        "Usage": "\"dacli events reconcile --project \u003cslug\u003e [--archive-class complete-journal] (--dry-run | --apply-safe \u003cplan-id\u003e)\""
+      }
+    },
+    {
+      "path": "note add",
+      "source": "internal/features/knowledge/knowledge.go",
+      "line": 17,
+      "fields": {
+        "Brief": "\"Record a decision, finding, metric, or reference\"",
+        "Path": "\"note add\"",
+        "Run": "cmdNoteAdd",
+        "Usage": "\"dacli note add \u003cdecision|finding|metric|ref\u003e \u003ctitle\u003e --project \u003cslug\u003e [--about ref] [--body text] [--rejected text --because text] [--severity major|moderate|minor] [--scope project|workspace] [--origin file:x] [--against agent-id]\""
+      }
+    },
+    {
+      "path": "retro",
+      "source": "internal/features/knowledge/knowledge.go",
+      "line": 18,
+      "fields": {
+        "Brief": "\"Harvest a task/project: went well, didn't, improve\"",
+        "Path": "\"retro\"",
+        "Run": "cmdRetro",
+        "Usage": "\"dacli retro \u003ctask-or-project-ref\u003e --well x [--well ...] --bad y --improve z\""
+      }
+    },
+    {
+      "path": "prompt list",
+      "source": "internal/features/knowledge/knowledge.go",
+      "line": 19,
+      "fields": {
+        "Brief": "\"The prompt registry; overrides marked\"",
+        "Path": "\"prompt list\"",
+        "Run": "cmdPromptList",
+        "Usage": "\"dacli prompt list\""
+      }
+    },
+    {
+      "path": "prompt show",
+      "source": "internal/features/knowledge/knowledge.go",
+      "line": 20,
+      "fields": {
+        "Brief": "\"One prompt's resolved template\"",
+        "Path": "\"prompt show\"",
+        "Run": "cmdPromptShow",
+        "Usage": "\"dacli prompt show \u003cname\u003e\""
+      }
+    },
+    {
+      "path": "native capacity upgrade",
+      "source": "internal/features/nativegovernance/capacity.go",
+      "line": 25,
+      "fields": {
+        "Brief": "\"Owner-upgrade native authority schema 20 to 21 for host capacity facts\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native capacity upgrade\"",
+        "Run": "capacityUpgrade",
+        "Usage": "\"dacli native capacity upgrade --config \u003cprivate-owner-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native capacity observer add",
+      "source": "internal/features/nativegovernance/capacity.go",
+      "line": 26,
+      "fields": {
+        "Brief": "\"Owner-enroll an exact independent host capacity observer\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native capacity observer add\"",
+        "Run": "capacityObserverAdd",
+        "Usage": "\"dacli native capacity observer add --config \u003cprivate-owner-file\u003e --request \u003cprivate-file\u003e --credential \u003cnew-private-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native capacity policy configure",
+      "source": "internal/features/nativegovernance/capacity.go",
+      "line": 27,
+      "fields": {
+        "Brief": "\"Owner-configure requested concurrency as a separate capacity fact\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native capacity policy configure\"",
+        "Run": "capacityPolicyConfigure",
+        "Usage": "\"dacli native capacity policy configure --config \u003cprivate-owner-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native capacity qualify",
+      "source": "internal/features/nativegovernance/capacity.go",
+      "line": 28,
+      "fields": {
+        "Brief": "\"Owner-record separately trusted host concurrency qualification\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native capacity qualify\"",
+        "Run": "capacityQualify",
+        "Usage": "\"dacli native capacity qualify --config \u003cprivate-owner-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native capacity observe",
+      "source": "internal/features/nativegovernance/capacity.go",
+      "line": 29,
+      "fields": {
+        "Brief": "\"Record one authenticated host capacity observation\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native capacity observe\"",
+        "Run": "capacityObserve",
+        "Usage": "\"dacli native capacity observe --connection \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native capacity status",
+      "source": "internal/features/nativegovernance/capacity.go",
+      "line": 30,
+      "fields": {
+        "Brief": "\"Read four independent host capacity facts without admitting work\"",
+        "JSON": "true",
+        "Path": "\"native capacity status\"",
+        "Run": "capacityStatus",
+        "Usage": "\"dacli native capacity status --connection \u003cprivate-file\u003e --host-session \u003cid\u003e --json\""
+      }
+    },
+    {
+      "path": "native capacity slots upgrade",
+      "source": "internal/features/nativegovernance/host_slots.go",
+      "line": 13,
+      "fields": {
+        "Brief": "\"Owner-upgrade native authority schema 21 to 22 for single-authority host-slot admission\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native capacity slots upgrade\"",
+        "Run": "hostSlotsUpgrade",
+        "Usage": "\"dacli native capacity slots upgrade --config \u003cprivate-owner-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native model-routing upgrade",
+      "source": "internal/features/nativegovernance/modelrouting.go",
+      "line": 14,
+      "fields": {
+        "Brief": "\"explicit owner schema17 model routing upgrade\"",
+        "Mutates": "true",
+        "Path": "\"native model-routing upgrade\"",
+        "Run": "func(ctx *clikit.Ctx, args []string) error { return modelRoutingOwner(ctx, args, true) }",
+        "Usage": "\"dacli native model-routing upgrade --config \u003cprivate-owner\u003e\""
+      }
+    },
+    {
+      "path": "native model-routing configure",
+      "source": "internal/features/nativegovernance/modelrouting.go",
+      "line": 15,
+      "fields": {
+        "Brief": "\"configure owner-approved native difficulty/model routes\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native model-routing configure\"",
+        "Run": "func(ctx *clikit.Ctx, args []string) error { return modelRoutingOwner(ctx, args, false) }",
+        "Usage": "\"dacli native model-routing configure --config \u003cprivate-owner\u003e --request \u003cpolicy-json\u003e [--json]\""
+      }
+    },
+    {
+      "path": "native landing record",
+      "source": "internal/features/nativegovernance/native_landing.go",
+      "line": 18,
+      "fields": {
+        "Brief": "\"Owner-record exact native task source and reviewed batch landing\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native landing record\"",
+        "Run": "recordNativeLanding",
+        "Usage": "nativeLandingUsage"
+      }
+    },
+    {
+      "path": "native reader add",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 23,
+      "fields": {
+        "Brief": "\"Owner provisions an independent read-only native governance MCP reader\"",
+        "Mutates": "true",
+        "Path": "\"native reader add\"",
+        "Run": "readerAdd",
+        "Usage": "\"dacli native reader add --config \u003cowner\u003e (--workspace | --project \u003cexact-slug\u003e | --task \u003ccanonical-id\u003e) --connection \u003cnew-private-file\u003e --credential \u003cnew-private-file\u003e [--expires \u003cduration\u003e]\""
+      }
+    },
+    {
+      "path": "native operator add",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 24,
+      "fields": {
+        "Brief": "\"Owner provisions an independent project-scoped read-only operator\"",
+        "Mutates": "true",
+        "Path": "\"native operator add\"",
+        "Run": "operatorAdd",
+        "Usage": "\"dacli native operator add --config \u003cowner\u003e --project \u003cslug\u003e --connection \u003cnew-private-file\u003e --credential \u003cnew-private-file\u003e [--expires \u003cduration\u003e]\""
+      }
+    },
+    {
+      "path": "native task claims preview",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 25,
+      "fields": {
+        "Brief": "\"Owner previews exact canonical task path claims\"",
+        "JSON": "true",
+        "Path": "\"native task claims preview\"",
+        "Run": "taskClaimsPreview",
+        "Usage": "\"dacli native task claims preview --config \u003cowner\u003e --task \u003cref\u003e --claims-file \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native task claims apply",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 26,
+      "fields": {
+        "Brief": "\"Owner applies digest-bound canonical task path claims\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native task claims apply\"",
+        "Run": "taskClaimsApply",
+        "Usage": "\"dacli native task claims apply --config \u003cowner\u003e --plan \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native doctor",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 27,
+      "fields": {
+        "Brief": "\"Read-only native runtime, plugin and authority compatibility diagnosis\"",
+        "JSON": "true",
+        "Path": "\"native doctor\"",
+        "Run": "nativeDoctor",
+        "Usage": "\"dacli native doctor --plugin-manifest \u003cmanifest\u003e [--package-artifact \u003cfile\u003e] [--runtime-artifact \u003cexecutable\u003e] [--runtime-capabilities \u003cmanifest\u003e] [--skill-root \u003cabsolute-dir\u003e] [--connection \u003cprivate-file\u003e] [--capability-file \u003cprivate-file\u003e --project \u003cid\u003e] --json\""
+      }
+    },
+    {
+      "path": "native guidance diagnose",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 28,
+      "fields": {
+        "Brief": "\"Inspect selected guidance and declared runtime capability requirements\"",
+        "JSON": "true",
+        "Path": "\"native guidance diagnose\"",
+        "Run": "nativeGuidanceDiagnose",
+        "Usage": "\"dacli native guidance diagnose [--skill-root \u003cabsolute-dir\u003e] [--runtime-capabilities \u003cmanifest\u003e] --json\""
+      }
+    },
+    {
+      "path": "native guidance refresh-preview",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 29,
+      "fields": {
+        "Brief": "\"Owner previews an immutable known-legacy guidance refresh\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native guidance refresh-preview\"",
+        "Run": "nativeGuidanceRefreshPreview",
+        "Usage": "\"dacli native guidance refresh-preview --config \u003cowner\u003e --skill-root \u003cabsolute-dir\u003e --plan-out \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native guidance refresh-apply",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 30,
+      "fields": {
+        "Brief": "\"Owner applies a reviewed guidance plan with private backups\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native guidance refresh-apply\"",
+        "Run": "nativeGuidanceRefreshApply",
+        "Usage": "\"dacli native guidance refresh-apply --config \u003cowner\u003e --plan \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native controller refresh-review",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 31,
+      "fields": {
+        "Brief": "\"Owner refresh exact independent review grant after checklist progress\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native controller refresh-review\"",
+        "Run": "controllerRefreshReview",
+        "Usage": "\"dacli native controller refresh-review --config \u003cowner\u003e --review-config \u003cprivate-profile\u003e --request \u003cprivate-file\u003e --out \u003cnew-private-profile\u003e --json\""
+      }
+    },
+    {
+      "path": "native controller upgrade",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 32,
+      "fields": {
+        "Brief": "\"upgrade durable bounded native controller\"",
+        "JSON": "false",
+        "Mutates": "true",
+        "Path": "\"native controller upgrade\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return controllerOwner(c, a, \"upgrade\") }",
+        "Usage": "\"dacli native controller upgrade --config \u003cowner\u003e\""
+      }
+    },
+    {
+      "path": "native controller configure",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 33,
+      "fields": {
+        "Brief": "\"configure durable bounded native controller\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native controller configure\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return controllerOwner(c, a, \"configure\") }",
+        "Usage": "\"dacli native controller configure --config \u003cowner\u003e --request \u003cprivate-file\u003e\""
+      }
+    },
+    {
+      "path": "native controller start",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 34,
+      "fields": {
+        "Brief": "\"start durable bounded native controller\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native controller start\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return controllerOwner(c, a, \"start\") }",
+        "Usage": "\"dacli native controller start --config \u003cowner\u003e --request \u003cprivate-file\u003e\""
+      }
+    },
+    {
+      "path": "native controller drive",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 35,
+      "fields": {
+        "Brief": "\"Drive one finite native invocation through explicitly selected independent producers\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native controller drive\"",
+        "Run": "controllerDrive",
+        "Usage": "controllerDriverUsage"
+      }
+    },
+    {
+      "path": "native controller step",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 36,
+      "fields": {
+        "Brief": "\"step durable bounded native controller\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native controller step\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return controllerCommand(c, a, \"step\") }",
+        "Usage": "\"dacli native controller step --connection \u003cprivate-file\u003e --capability-file \u003cprivate-file\u003e --request \u003cprivate-file\u003e\""
+      }
+    },
+    {
+      "path": "native controller reconcile",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 37,
+      "fields": {
+        "Brief": "\"reconcile durable bounded native controller\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native controller reconcile\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return controllerCommand(c, a, \"reconcile\") }",
+        "Usage": "\"dacli native controller reconcile --connection \u003cprivate-file\u003e --capability-file \u003cprivate-file\u003e --request \u003cprivate-file\u003e\""
+      }
+    },
+    {
+      "path": "native controller status",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 38,
+      "fields": {
+        "Brief": "\"status durable bounded native controller\"",
+        "JSON": "true",
+        "Mutates": "false",
+        "Path": "\"native controller status\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return controllerCommand(c, a, \"status\") }",
+        "Usage": "\"dacli native controller status --connection \u003cprivate-file\u003e --capability-file \u003cprivate-file\u003e --project \u003cid\u003e --invocation \u003cid\u003e\""
+      }
+    },
+    {
+      "path": "native storage observe",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 39,
+      "fields": {
+        "Brief": "\"Owner-only native authority inventory\"",
+        "JSON": "true",
+        "Path": "\"native storage observe\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return storageCommand(c, a, \"observe\") }",
+        "Usage": "\"dacli native storage observe --config \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native storage experiment",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 40,
+      "fields": {
+        "Brief": "\"Import an isolated non-authoritative storage projection\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native storage experiment\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return storageCommand(c, a, \"experiment\") }",
+        "Usage": "\"dacli native storage experiment --config \u003cprivate-file\u003e --destination \u003cseparate-private-dir\u003e --mode projection-only --json\""
+      }
+    },
+    {
+      "path": "native storage retention",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 41,
+      "fields": {
+        "Brief": "\"Dry-run exact artifacts with native evidence and protection holds\"",
+        "JSON": "true",
+        "Path": "\"native storage retention\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return storageCommand(c, a, \"retention\") }",
+        "Usage": "\"dacli native storage retention --config \u003cprivate-file\u003e --project \u003cid\u003e --json\""
+      }
+    },
+    {
+      "path": "native controller enroll",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 42,
+      "fields": {
+        "Brief": "\"enroll durable bounded native controller\"",
+        "JSON": "false",
+        "Mutates": "true",
+        "Path": "\"native controller enroll\"",
+        "Run": "controllerEnroll",
+        "Usage": "\"dacli native controller enroll --config \u003cowner\u003e --project \u003cid\u003e --connection \u003cnew-private-file\u003e --credential \u003cnew-private-file\u003e [--expires \u003cduration\u003e]\""
+      }
+    },
+    {
+      "path": "native policy upgrade",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 43,
+      "fields": {
+        "Brief": "\"Explicit owner upgrades native policy\"",
+        "Mutates": "true",
+        "Path": "\"native policy upgrade\"",
+        "Run": "nativePolicyUpgrade",
+        "Usage": "\"dacli native policy upgrade --config \u003cowner\u003e\""
+      }
+    },
+    {
+      "path": "native role registry upgrade",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 44,
+      "fields": {
+        "Brief": "\"Explicit owner upgrades authority to durable signed role provenance schema 20\"",
+        "Mutates": "true",
+        "Path": "\"native role registry upgrade\"",
+        "Run": "nativeRoleRegistryUpgrade",
+        "Usage": "\"dacli native role registry upgrade --config \u003cowner\u003e\""
+      }
+    },
+    {
+      "path": "native policy configure",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 45,
+      "fields": {
+        "Brief": "\"Owner configures exact native action policy\"",
+        "Mutates": "true",
+        "Path": "\"native policy configure\"",
+        "Run": "nativePolicyConfigure",
+        "Usage": "\"dacli native policy configure --config \u003cowner\u003e --request \u003cpolicy\u003e\""
+      }
+    },
+    {
+      "path": "native policy evaluate",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 46,
+      "fields": {
+        "Brief": "\"Owner evaluates exact native acceptance without canonical effect\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native policy evaluate\"",
+        "Run": "nativePolicyEvaluate",
+        "Usage": "\"dacli native policy evaluate --config \u003cowner\u003e --review-policy \u003cpolicy\u003e --request \u003cevaluation\u003e\""
+      }
+    },
+    {
+      "path": "native policy approve",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 47,
+      "fields": {
+        "Brief": "\"Owner records exact decision approval\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native policy approve\"",
+        "Run": "nativePolicyApprove",
+        "Usage": "\"dacli native policy approve --config \u003cowner\u003e --request \u003capproval\u003e\""
+      }
+    },
+    {
+      "path": "native policy status",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 48,
+      "fields": {
+        "Brief": "\"Owner observes historical decision and outcome\"",
+        "JSON": "true",
+        "Path": "\"native policy status\"",
+        "Run": "nativePolicyStatus",
+        "Usage": "\"dacli native policy status --config \u003cowner\u003e --decision \u003cid\u003e\""
+      }
+    },
+    {
+      "path": "native acceptance upgrade",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 49,
+      "fields": {
+        "Brief": "\"Explicit owner upgrades durable canonical acceptance\"",
+        "Mutates": "true",
+        "Path": "\"native acceptance upgrade\"",
+        "Run": "nativeAcceptanceUpgrade",
+        "Usage": "\"dacli native acceptance upgrade --config \u003cowner\u003e\""
+      }
+    },
+    {
+      "path": "native acceptance candidate",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 50,
+      "fields": {
+        "Brief": "\"Independent authenticated reviewer exports exact eligible producers\"",
+        "JSON": "true",
+        "Path": "\"native acceptance candidate\"",
+        "Run": "nativeAcceptanceCandidate",
+        "Usage": "\"dacli native acceptance candidate --connection \u003creviewer\u003e --review-config \u003cprofile\u003e --review \u003cid\u003e\""
+      }
+    },
+    {
+      "path": "native budget upgrade",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 51,
+      "fields": {
+        "Brief": "\"upgrade owner-estimated native budget policy\"",
+        "JSON": "false",
+        "Mutates": "true",
+        "Path": "\"native budget upgrade\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return budgetOwner(c, a, \"upgrade\") }",
+        "Usage": "\"dacli native budget upgrade --config \u003cprivate-file\u003e\""
+      }
+    },
+    {
+      "path": "native budget configure",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 52,
+      "fields": {
+        "Brief": "\"configure owner-estimated native budget policy\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native budget configure\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return budgetOwner(c, a, \"configure\") }",
+        "Usage": "\"dacli native budget configure --config \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native budget quote",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 53,
+      "fields": {
+        "Brief": "\"quote owner-estimated native budget allocations\"",
+        "JSON": "true",
+        "Mutates": "false",
+        "Path": "\"native budget quote\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return budgetCommand(c, a, \"quote\") }",
+        "Usage": "\"dacli native budget quote --connection \u003cprivate-file\u003e --capability-file \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native budget status",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 54,
+      "fields": {
+        "Brief": "\"status owner-estimated native budget allocations\"",
+        "JSON": "true",
+        "Mutates": "false",
+        "Path": "\"native budget status\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return budgetCommand(c, a, \"status\") }",
+        "Usage": "\"dacli native budget status --connection \u003cprivate-file\u003e --capability-file \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native budget settle",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 55,
+      "fields": {
+        "Brief": "\"settle owner-estimated native budget allocations\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native budget settle\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return budgetCommand(c, a, \"settle\") }",
+        "Usage": "\"dacli native budget settle --connection \u003cprivate-file\u003e --capability-file \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native budget controller add",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 56,
+      "fields": {
+        "Brief": "\"owner enroll scoped budget controller\"",
+        "Mutates": "true",
+        "Path": "\"native budget controller add\"",
+        "Run": "budgetControllerAdd",
+        "Usage": "\"dacli native budget controller add --config \u003cprivate-file\u003e --project \u003cproject\u003e --connection \u003cnew-private-file\u003e --credential \u003cnew-private-file\u003e [--expires \u003cduration\u003e]\""
+      }
+    },
+    {
+      "path": "native checkpoint upgrade",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 57,
+      "fields": {
+        "Brief": "\"upgrade native durable checkpoint policy\"",
+        "JSON": "false",
+        "Mutates": "true",
+        "Path": "\"native checkpoint upgrade\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return checkpointOwner(c, a, \"upgrade\") }",
+        "Usage": "\"dacli native checkpoint upgrade --config \u003cprivate-file\u003e\""
+      }
+    },
+    {
+      "path": "native checkpoint configure",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 58,
+      "fields": {
+        "Brief": "\"configure native durable checkpoint policy\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native checkpoint configure\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return checkpointOwner(c, a, \"configure\") }",
+        "Usage": "\"dacli native checkpoint configure --config \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native checkpoint record",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 59,
+      "fields": {
+        "Brief": "\"record durable bounded checkpoint\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native checkpoint record\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return checkpointCommand(c, a, \"record\") }",
+        "Usage": "\"dacli native checkpoint record --connection \u003cprivate-file\u003e --capability-file \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native checkpoint reconcile",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 60,
+      "fields": {
+        "Brief": "\"reconcile durable bounded checkpoint\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native checkpoint reconcile\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return checkpointCommand(c, a, \"reconcile\") }",
+        "Usage": "\"dacli native checkpoint reconcile --connection \u003cprivate-file\u003e --capability-file \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native checkpoint status",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 61,
+      "fields": {
+        "Brief": "\"status durable bounded checkpoint\"",
+        "JSON": "true",
+        "Mutates": "false",
+        "Path": "\"native checkpoint status\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return checkpointCommand(c, a, \"status\") }",
+        "Usage": "\"dacli native checkpoint status --connection \u003cprivate-file\u003e --capability-file \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native checkpoint controller add",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 62,
+      "fields": {
+        "Brief": "\"controller add native checkpoint session\"",
+        "Mutates": "true",
+        "Path": "\"native checkpoint controller add\"",
+        "Run": "checkpointControllerAdd",
+        "Usage": "\"dacli native checkpoint controller add --config \u003cprivate-file\u003e --project \u003cproject\u003e --connection \u003cnew-private-file\u003e --credential \u003cnew-private-file\u003e [--expires \u003cduration\u003e]\""
+      }
+    },
+    {
+      "path": "native preflight upgrade",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 63,
+      "fields": {
+        "Brief": "\"upgrade complete-loop native preflight\"",
+        "JSON": "false",
+        "Mutates": "true",
+        "Path": "\"native preflight upgrade\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return preflightOwner(c, a, \"upgrade\") }",
+        "Usage": "\"dacli native preflight upgrade --config \u003cprivate-file\u003e\""
+      }
+    },
+    {
+      "path": "native preflight configure",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 64,
+      "fields": {
+        "Brief": "\"configure complete-loop native preflight\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native preflight configure\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return preflightOwner(c, a, \"configure\") }",
+        "Usage": "\"dacli native preflight configure --config \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native preflight override",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 65,
+      "fields": {
+        "Brief": "\"override complete-loop native preflight\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native preflight override\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return preflightOwner(c, a, \"override\") }",
+        "Usage": "\"dacli native preflight override --config \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native preflight check",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 66,
+      "fields": {
+        "Brief": "\"check complete-loop native preflight\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native preflight check\"",
+        "Run": "preflightCheck",
+        "Usage": "\"dacli native preflight check --connection \u003cprivate-file\u003e --capability-file \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native recovery upgrade",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 67,
+      "fields": {
+        "Brief": "\"upgrade fenced owner native recovery\"",
+        "JSON": "false",
+        "Mutates": "true",
+        "Path": "\"native recovery upgrade\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return recoveryOperation(c, a, \"upgrade\") }",
+        "Usage": "\"dacli native recovery upgrade --config \u003cprivate-file\u003e\""
+      }
+    },
+    {
+      "path": "native recovery configure",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 68,
+      "fields": {
+        "Brief": "\"configure fenced owner native recovery\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native recovery configure\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return recoveryOperation(c, a, \"configure\") }",
+        "Usage": "\"dacli native recovery configure --config \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native recovery preview",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 69,
+      "fields": {
+        "Brief": "\"preview fenced owner native recovery\"",
+        "JSON": "true",
+        "Mutates": "false",
+        "Path": "\"native recovery preview\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return recoveryOperation(c, a, \"preview\") }",
+        "Usage": "\"dacli native recovery preview --config \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native recovery apply",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 70,
+      "fields": {
+        "Brief": "\"apply fenced owner native recovery\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native recovery apply\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return recoveryOperation(c, a, \"apply\") }",
+        "Usage": "\"dacli native recovery apply --config \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native lifecycle upgrade",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 71,
+      "fields": {
+        "Brief": "\"upgrade cooperative native lifecycle\"",
+        "JSON": "false",
+        "Mutates": "true",
+        "Path": "\"native lifecycle upgrade\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return lifecycleOwner(c, a, true) }",
+        "Usage": "\"dacli native lifecycle upgrade --config \u003cprivate-file\u003e\""
+      }
+    },
+    {
+      "path": "native lifecycle configure",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 72,
+      "fields": {
+        "Brief": "\"configure cooperative native lifecycle\"",
+        "JSON": "false",
+        "Mutates": "true",
+        "Path": "\"native lifecycle configure\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return lifecycleOwner(c, a, false) }",
+        "Usage": "\"dacli native lifecycle configure --config \u003cprivate-file\u003e --policy-file \u003cprivate-file\u003e\""
+      }
+    },
+    {
+      "path": "native lifecycle controller add",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 73,
+      "fields": {
+        "Brief": "\"controller add cooperative native lifecycle\"",
+        "JSON": "false",
+        "Mutates": "true",
+        "Path": "\"native lifecycle controller add\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return swarmScopedActorAdd(c, a, false, true) }",
+        "Usage": "\"dacli native lifecycle controller add --config \u003cprivate-file\u003e --project \u003cproject\u003e --connection \u003cnew-private-file\u003e --credential \u003cnew-private-file\u003e [--expires \u003cduration\u003e]\""
+      }
+    },
+    {
+      "path": "native lifecycle bridge add",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 74,
+      "fields": {
+        "Brief": "\"bridge add cooperative native lifecycle\"",
+        "JSON": "false",
+        "Mutates": "true",
+        "Path": "\"native lifecycle bridge add\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return swarmScopedActorAdd(c, a, true, true) }",
+        "Usage": "\"dacli native lifecycle bridge add --config \u003cprivate-file\u003e --project \u003cproject\u003e --connection \u003cnew-private-file\u003e --credential \u003cnew-private-file\u003e [--expires \u003cduration\u003e]\""
+      }
+    },
+    {
+      "path": "native lifecycle observe",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 75,
+      "fields": {
+        "Brief": "\"observe cooperative native lifecycle\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native lifecycle observe\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return lifecycleOperation(c, a, \"observe\") }",
+        "Usage": "\"dacli native lifecycle observe --connection \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native lifecycle cancel",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 76,
+      "fields": {
+        "Brief": "\"cancel cooperative native lifecycle\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native lifecycle cancel\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return lifecycleOperation(c, a, \"cancel\") }",
+        "Usage": "\"dacli native lifecycle cancel --connection \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native lifecycle cancel-ack",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 77,
+      "fields": {
+        "Brief": "\"cancel-ack cooperative native lifecycle\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native lifecycle cancel-ack\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return lifecycleOperation(c, a, \"cancel-ack\") }",
+        "Usage": "\"dacli native lifecycle cancel-ack --connection \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native lifecycle status",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 78,
+      "fields": {
+        "Brief": "\"status cooperative native lifecycle\"",
+        "JSON": "true",
+        "Mutates": "false",
+        "Path": "\"native lifecycle status\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return lifecycleOperation(c, a, \"status\") }",
+        "Usage": "\"dacli native lifecycle status --connection \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native dispatch upgrade",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 80,
+      "fields": {
+        "Brief": "\"Owner-upgrade authority schema7 to8 preserving history\"",
+        "Mutates": "true",
+        "Path": "\"native dispatch upgrade\"",
+        "Run": "dispatchUpgrade",
+        "Usage": "\"dacli native dispatch upgrade --config \u003cprivate-file\u003e\""
+      }
+    },
+    {
+      "path": "native dispatch bridge add",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 81,
+      "fields": {
+        "Brief": "\"Owner-enroll separate correlation-only native bridge\"",
+        "Mutates": "true",
+        "Path": "\"native dispatch bridge add\"",
+        "Run": "dispatchBridgeAdd",
+        "Usage": "\"dacli native dispatch bridge add --config \u003cprivate-file\u003e --project \u003cproject\u003e --connection \u003cnew-private-file\u003e --credential \u003cnew-private-file\u003e [--expires \u003cduration\u003e]\""
+      }
+    },
+    {
+      "path": "native dispatch request",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 82,
+      "fields": {
+        "Brief": "\"request cooperative native dispatch intent\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native dispatch request\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return swarmOperation(c, a, \"dispatch-request\") }",
+        "Usage": "\"dacli native dispatch request --connection \u003cprivate-file\u003e --capability-file \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native dispatch correlate",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 83,
+      "fields": {
+        "Brief": "\"correlate cooperative native dispatch intent\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native dispatch correlate\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return swarmOperation(c, a, \"dispatch-correlate\") }",
+        "Usage": "\"dacli native dispatch correlate --connection \u003cprivate-file\u003e --capability-file \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native dispatch acknowledge",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 84,
+      "fields": {
+        "Brief": "\"acknowledge cooperative native dispatch intent\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native dispatch acknowledge\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return swarmOperation(c, a, \"dispatch-acknowledge\") }",
+        "Usage": "\"dacli native dispatch acknowledge --connection \u003cprivate-file\u003e --capability-file \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native dispatch status",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 85,
+      "fields": {
+        "Brief": "\"status cooperative native dispatch intent\"",
+        "JSON": "true",
+        "Mutates": "false",
+        "Path": "\"native dispatch status\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return swarmOperation(c, a, \"dispatch-status\") }",
+        "Usage": "\"dacli native dispatch status --connection \u003cprivate-file\u003e --capability-file \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native swarm upgrade",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 86,
+      "fields": {
+        "Brief": "\"Owner-upgrade native authority from schema 6 to 7 preserving history\"",
+        "Mutates": "true",
+        "Path": "\"native swarm upgrade\"",
+        "Run": "swarmUpgrade",
+        "Usage": "\"dacli native swarm upgrade --config \u003cprivate-file\u003e\""
+      }
+    },
+    {
+      "path": "native swarm configure",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 87,
+      "fields": {
+        "Brief": "\"Owner-configure pinned native swarm placements and capacity\"",
+        "Mutates": "true",
+        "Path": "\"native swarm configure\"",
+        "Run": "swarmConfigure",
+        "Usage": "\"dacli native swarm configure --config \u003cprivate-file\u003e --policy-file \u003cprivate-file\u003e\""
+      }
+    },
+    {
+      "path": "native swarm controller add",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 88,
+      "fields": {
+        "Brief": "\"Owner-enroll a separate native swarm controller\"",
+        "Mutates": "true",
+        "Path": "\"native swarm controller add\"",
+        "Run": "swarmControllerAdd",
+        "Usage": "\"dacli native swarm controller add --config \u003cprivate-file\u003e --project \u003cproject\u003e --connection \u003cnew-private-file\u003e --credential \u003cnew-private-file\u003e [--expires \u003cduration\u003e]\""
+      }
+    },
+    {
+      "path": "native swarm plan",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 89,
+      "fields": {
+        "Brief": "\"Plan scoped native work using fresh owner-attested manual handoff capability\"",
+        "JSON": "true",
+        "Path": "\"native swarm plan\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return swarmOperation(c, a, \"plan\") }",
+        "Usage": "\"dacli native swarm plan --connection \u003cprivate-file\u003e --capability-file \u003cprivate-file\u003e --project \u003cproject\u003e --json\""
+      }
+    },
+    {
+      "path": "native swarm reserve",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 90,
+      "fields": {
+        "Brief": "\"Atomically reserve a fresh native swarm plan\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native swarm reserve\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return swarmOperation(c, a, \"reserve\") }",
+        "Usage": "\"dacli native swarm reserve --connection \u003cprivate-file\u003e --capability-file \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native swarm admit",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 91,
+      "fields": {
+        "Brief": "\"Freshly admit an exact reserved manual native dispatch\"",
+        "JSON": "true",
+        "Path": "\"native swarm admit\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return swarmOperation(c, a, \"admit\") }",
+        "Usage": "\"dacli native swarm admit --connection \u003cprivate-file\u003e --capability-file \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native swarm handoff",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 92,
+      "fields": {
+        "Brief": "\"Convert an admitted reservation to an independently enrolled worker lease\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native swarm handoff\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return swarmOperation(c, a, \"handoff\") }",
+        "Usage": "\"dacli native swarm handoff --connection \u003cprivate-file\u003e --capability-file \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native reviewer add",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 93,
+      "fields": {
+        "Brief": "\"Owner-configure a separate private native reviewer and derived named-check policy\"",
+        "Mutates": "true",
+        "Path": "\"native reviewer add\"",
+        "Run": "reviewerAdd",
+        "Usage": "\"dacli native reviewer add --config \u003cprivate-file\u003e --task \u003cref\u003e --worker-session \u003cid\u003e --runner-config \u003cprivate-file\u003e --policy-revision \u003cid\u003e --policy-out \u003cnew-private-file\u003e --review-config \u003cnew-private-file\u003e --connection \u003cnew-private-file\u003e --credential \u003cnew-private-file\u003e [--expires \u003cduration\u003e]\""
+      }
+    },
+    {
+      "path": "native verifier add",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 94,
+      "fields": {
+        "Brief": "\"Owner-configure private named checks with separately scoped verification authority\"",
+        "Mutates": "true",
+        "Path": "\"native verifier add\"",
+        "Run": "verifierAdd",
+        "Usage": "\"dacli native verifier add --config \u003cprivate-file\u003e --task \u003cref\u003e --checks-file \u003cprivate-file\u003e --out \u003cnew-private-file\u003e --credential \u003cnew-private-file\u003e [--expires \u003cduration\u003e]\""
+      }
+    },
+    {
+      "path": "native verify",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 95,
+      "fields": {
+        "Brief": "\"Run an owner-configured named check for a fenced native revision\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"native verify\"",
+        "Run": "verify",
+        "Usage": "\"dacli native verify --connection \u003cprivate-file\u003e --runner-config \u003cprivate-file\u003e --request \u003cprivate-file\u003e --json\""
+      }
+    },
+    {
+      "path": "native upgrade",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 96,
+      "fields": {
+        "Brief": "\"Owner-upgrade native authority from schema 5 to 6 without replacing credentials\"",
+        "Mutates": "true",
+        "Path": "\"native upgrade\"",
+        "Run": "upgrade",
+        "Usage": "\"dacli native upgrade --config \u003cprivate-file\u003e\""
+      }
+    },
+    {
+      "path": "native revoke",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 97,
+      "fields": {
+        "Brief": "\"Owner-revoke an exact native session using a private explicit owner configuration\"",
+        "Mutates": "true",
+        "Path": "\"native revoke\"",
+        "Run": "revoke",
+        "Usage": "\"dacli native revoke --config \u003cprivate-file\u003e --session \u003csession-id\u003e\""
+      }
+    },
+    {
+      "path": "native serve",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 98,
+      "fields": {
+        "Brief": "\"Serve scoped native governance MCP using a private explicit session connection\"",
+        "Path": "\"native serve\"",
+        "Run": "serve",
+        "Usage": "\"dacli native serve --connection \u003cprivate-file\u003e [--runner-config \u003cprivate-file\u003e | --review-config \u003cprivate-file\u003e | --orchestration-config \u003cprivate-file\u003e]\""
+      }
+    },
+    {
+      "path": "native bootstrap",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 99,
+      "fields": {
+        "Brief": "\"Initialize an absent native authority and privately save its owner credential\"",
+        "Mutates": "true",
+        "Path": "\"native bootstrap\"",
+        "Run": "bootstrap",
+        "Usage": "\"dacli native bootstrap --config \u003cprivate-file\u003e\""
+      }
+    },
+    {
+      "path": "native enroll",
+      "source": "internal/features/nativegovernance/nativegovernance.go",
+      "line": 100,
+      "fields": {
+        "Brief": "\"Owner-enroll a scoped native session for an existing canonical task\"",
+        "Mutates": "true",
+        "Path": "\"native enroll\"",
+        "Run": "enroll",
+        "Usage": "\"dacli native enroll --config \u003cprivate-file\u003e --task \u003cref\u003e --connection \u003cnew-private-file\u003e --credential \u003cnew-private-file\u003e [--path \u003crelative-path\u003e]... [--checkout \u003cabsolute-checkout\u003e]... [--expires \u003cduration\u003e] [--verification]\""
+      }
+    },
+    {
+      "path": "native queue diagnostics",
+      "source": "internal/features/nativegovernance/queue_diagnostics.go",
+      "line": 19,
+      "fields": {
+        "Brief": "\"Read bounded native queue diagnostics for one exact project\"",
+        "JSON": "true",
+        "Path": "\"native queue diagnostics\"",
+        "Run": "nativeQueueDiagnostics",
+        "Usage": "queueDiagnosticsUsage"
+      }
+    },
+    {
+      "path": "native verifier review-policy",
+      "source": "internal/features/nativegovernance/verification.go",
+      "line": 247,
+      "fields": {
+        "Brief": "\"owner pins complete routed verification policy for independent review\"",
+        "Mutates": "true",
+        "Path": "\"native verifier review-policy\"",
+        "Run": "verifierReviewPolicy",
+        "Usage": "\"dacli native verifier review-policy --config \u003cowner\u003e --task \u003cref\u003e --runner-config \u003cprofile\u003e --revision \u003cid\u003e --out \u003cnew-private-policy\u003e\""
+      }
+    },
+    {
+      "path": "native verifier inspect",
+      "source": "internal/features/nativegovernance/verification.go",
+      "line": 248,
+      "fields": {
+        "Brief": "\"inspect exact owner-routed checks without execution\"",
+        "JSON": "true",
+        "Path": "\"native verifier inspect\"",
+        "Run": "verifierInspect",
+        "Usage": "\"dacli native verifier inspect --connection \u003cworker\u003e --runner-config \u003crunner\u003e --request \u003cexact-revision\u003e --json\""
+      }
+    },
+    {
+      "path": "adopt",
+      "source": "internal/features/onboard/onboard.go",
+      "line": 30,
+      "fields": {
+        "Brief": "\"Onboard an existing repo: init, project, codebase map, TODO tasks, --provision-roles\"",
+        "Mutates": "true",
+        "Path": "\"adopt\"",
+        "Run": "cmdAdopt",
+        "Usage": "\"dacli adopt [--name n] [--project slug] [--goal text] [--todos] [--provision-roles] [--gitignore-workspace]\""
+      }
+    },
+    {
+      "path": "new",
+      "source": "internal/features/onboard/onboard.go",
+      "line": 31,
+      "fields": {
+        "Brief": "\"Start a greenfield product: init, project with a filled goal/scope/spec/architecture, detected stack, and a five-task starter backlog\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"new\"",
+        "Run": "cmdNew",
+        "Usage": "\"dacli new \\\\\""
+      }
+    },
+    {
+      "path": "project connect",
+      "source": "internal/features/planning/planning.go",
+      "line": 27,
+      "fields": {
+        "Brief": "\"Bind a local project to verified remote metadata sync\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"project connect\"",
+        "Run": "cmdProjectConnect",
+        "Usage": "\"dacli project connect \u003cslug\u003e --provider \u003curl\u003e --tenant \u003cid\u003e --device \u003cid\u003e --remote-project \u003cid\u003e --environment \u003cid\u003e --repository \u003cid\u003e\""
+      }
+    },
+    {
+      "path": "project disconnect",
+      "source": "internal/features/planning/planning.go",
+      "line": 28,
+      "fields": {
+        "Brief": "\"Preserve a local connection tombstone without disabling local work\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"project disconnect\"",
+        "Run": "cmdProjectDisconnect",
+        "Usage": "\"dacli project disconnect \u003cslug\u003e\""
+      }
+    },
+    {
+      "path": "project sync",
+      "source": "internal/features/planning/planning.go",
+      "line": 29,
+      "fields": {
+        "Brief": "\"Queue allowlisted signed metadata and receive proposal-only records\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"project sync\"",
+        "Run": "cmdProjectSync",
+        "Usage": "\"dacli project sync \u003cslug\u003e\""
+      }
+    },
+    {
+      "path": "project status",
+      "source": "internal/features/planning/planning.go",
+      "line": 30,
+      "fields": {
+        "Brief": "\"Inspect cloud connection health, cursor and pending backlog\"",
+        "JSON": "true",
+        "Path": "\"project status\"",
+        "Run": "cmdProjectStatus",
+        "Usage": "\"dacli project status \u003cslug\u003e\""
+      }
+    },
+    {
+      "path": "project add",
+      "source": "internal/features/planning/planning.go",
+      "line": 31,
+      "fields": {
+        "Brief": "\"Create a project\"",
+        "Mutates": "true",
+        "Path": "\"project add\"",
+        "Run": "cmdProjectAdd",
+        "Usage": "\"dacli project add \u003ctitle\u003e [--slug s] [--goal g] [--stage definition|elicitation|approach|design] [--landing-mode local|pr] [--landing-base BRANCH]\""
+      }
+    },
+    {
+      "path": "project list",
+      "source": "internal/features/planning/planning.go",
+      "line": 32,
+      "fields": {
+        "Brief": "\"List projects\"",
+        "Path": "\"project list\"",
+        "Run": "cmdProjectList",
+        "Usage": "\"dacli project list\""
+      }
+    },
+    {
+      "path": "project show",
+      "source": "internal/features/planning/planning.go",
+      "line": 33,
+      "fields": {
+        "Brief": "\"Show a project and configure its effective landing policy when landing flags are supplied\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"project show\"",
+        "Run": "cmdProjectShow",
+        "Usage": "\"dacli project show \u003cslug\u003e [--landing-mode local|pr] [--landing-base BRANCH]\""
+      }
+    },
+    {
+      "path": "project rm",
+      "source": "internal/features/planning/planning.go",
+      "line": 34,
+      "fields": {
+        "Brief": "\"Delete a project and everything filed under it (irreversible; requires --force)\"",
+        "Mutates": "true",
+        "Path": "\"project rm\"",
+        "Run": "cmdProjectRm",
+        "Usage": "\"dacli project rm \u003cslug\u003e --force\""
+      }
+    },
+    {
+      "path": "task add",
+      "source": "internal/features/planning/planning.go",
+      "line": 35,
+      "fields": {
+        "Brief": "\"Create a task\"",
+        "Path": "\"task add\"",
+        "Run": "cmdTaskAdd",
+        "Usage": "\"dacli task add \u003ctitle\u003e --project \u003cslug\u003e [--priority must|should|could|wont] [--estimate o,m,p] [--accept criterion]... [--so-that why] [--parent ref] [--depends-on ref[:TYPE]]... [--force]\""
+      }
+    },
+    {
+      "path": "task list",
+      "source": "internal/features/planning/planning.go",
+      "line": 36,
+      "fields": {
+        "Brief": "\"List tasks, optionally by status\"",
+        "JSON": "true",
+        "Path": "\"task list\"",
+        "Run": "cmdTaskList",
+        "Usage": "\"dacli task list [--project slug] [--status open|active|blocked|done]\""
+      }
+    },
+    {
+      "path": "task show",
+      "source": "internal/features/planning/planning.go",
+      "line": 37,
+      "fields": {
+        "Brief": "\"Show a task\"",
+        "JSON": "true",
+        "Path": "\"task show\"",
+        "Run": "cmdTaskShow",
+        "Usage": "\"dacli task show \u003cref\u003e\""
+      }
+    },
+    {
+      "path": "task claim",
+      "source": "internal/features/planning/planning.go",
+      "line": 38,
+      "fields": {
+        "Brief": "\"Take ownership of a task\"",
+        "Path": "\"task claim\"",
+        "Run": "cmdTaskClaim",
+        "Usage": "\"dacli task claim \u003cref\u003e\""
+      }
+    },
+    {
+      "path": "task takeover",
+      "source": "internal/features/planning/planning.go",
+      "line": 39,
+      "fields": {
+        "Brief": "\"Root recovers an orphaned unfinished task with an audited reason\"",
+        "Mutates": "true",
+        "Path": "\"task takeover\"",
+        "Run": "cmdTaskTakeover",
+        "Usage": "\"dacli task takeover \u003cref\u003e --force --reason \\\"why recovery is safe\\\"\""
+      }
+    },
+    {
+      "path": "task check",
+      "source": "internal/features/planning/planning.go",
+      "line": 40,
+      "fields": {
+        "Brief": "\"Check acceptance boxes (--n N or --all)\"",
+        "Path": "\"task check\"",
+        "Run": "cmdTaskCheck",
+        "Usage": "\"dacli task check \u003cref\u003e [--n N | --all] [--verify command] [--full-output]\""
+      }
+    },
+    {
+      "path": "task done",
+      "source": "internal/features/planning/planning.go",
+      "line": 41,
+      "fields": {
+        "Brief": "\"Task owner closes self-performed work only after every acceptance box and required verification pass; spawned workers propose, they do not close\"",
+        "Path": "\"task done\"",
+        "Run": "cmdTaskDone",
+        "Usage": "\"dacli task done \u003cref\u003e [--allow-unverified]\""
+      }
+    },
+    {
+      "path": "task block",
+      "source": "internal/features/planning/planning.go",
+      "line": 42,
+      "fields": {
+        "Brief": "\"Mark a task blocked\"",
+        "Path": "\"task block\"",
+        "Run": "cmdTaskBlock",
+        "Usage": "\"dacli task block \u003cref\u003e [--by ref] [--why text]\""
+      }
+    },
+    {
+      "path": "task reopen",
+      "source": "internal/features/planning/planning.go",
+      "line": 43,
+      "fields": {
+        "Brief": "\"Reopen a wrongly-closed task, clearing its acceptance boxes (--reason required)\"",
+        "Mutates": "true",
+        "Path": "\"task reopen\"",
+        "Run": "cmdTaskReopen",
+        "Usage": "\"dacli task reopen \u003cref\u003e --reason \\\"\u003cwhat makes the close wrong\u003e\\\"\""
+      }
+    },
+    {
+      "path": "task rm",
+      "source": "internal/features/planning/planning.go",
+      "line": 44,
+      "fields": {
+        "Brief": "\"Remove a task that should never have existed; owners may remove their own, while rw root may recover a child-owned task only after its owner is no longer live; history, active, and done tasks require --force\"",
+        "Mutates": "true",
+        "Path": "\"task rm\"",
+        "Run": "cmdTaskRm",
+        "Usage": "\"dacli task rm \u003cref\u003e [--force]\""
+      }
+    },
+    {
+      "path": "task estimate",
+      "source": "internal/features/planning/planning.go",
+      "line": 45,
+      "fields": {
+        "Brief": "\"Size an existing task: --estimate o,m,p (three-point; a scalar hides the risk). Sizing the backlog is what makes critical-path and `next --parallel` work\"",
+        "Path": "\"task estimate\"",
+        "Run": "cmdTaskEstimate",
+        "Usage": "\"dacli task estimate \u003cref\u003e --estimate o,m,p [--force]   (optimistic,probable,pessimistic)\""
+      }
+    },
+    {
+      "path": "task depend",
+      "source": "internal/features/planning/planning.go",
+      "line": 46,
+      "fields": {
+        "Brief": "\"Add or remove validated typed dependency edges on an existing task; non-owners propose for sync\"",
+        "Path": "\"task depend\"",
+        "Run": "cmdTaskDepend",
+        "Usage": "\"dacli task depend \u003cref\u003e [--add dep[:FS|SS|FF|SF]]... [--remove dep[:FS|SS|FF|SF]]...\""
+      }
+    },
+    {
+      "path": "task aggregate",
+      "source": "internal/features/planning/planning.go",
+      "line": 47,
+      "fields": {
+        "Brief": "\"Preview or apply an immutable repair that makes a descriptive parent a derived aggregate\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"task aggregate\"",
+        "Run": "cmdTaskAggregate",
+        "Usage": "\"dacli task aggregate \u003cref\u003e (--dry-run | --apply plan-id)\""
+      }
+    },
+    {
+      "path": "task decompose",
+      "source": "internal/features/planning/planning.go",
+      "line": 48,
+      "fields": {
+        "Brief": "\"Preview or explicitly apply a stable WBS proposal for an oversized leaf\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"task decompose\"",
+        "Run": "cmdTaskDecompose",
+        "Usage": "\"dacli task decompose \u003cref\u003e (--dry-run | --apply plan-id)\""
+      }
+    },
+    {
+      "path": "risk add",
+      "source": "internal/features/planning/planning.go",
+      "line": 49,
+      "fields": {
+        "Brief": "\"Record a risk in the impact x likelihood matrix\"",
+        "Path": "\"risk add\"",
+        "Run": "cmdRiskAdd",
+        "Usage": "\"dacli risk add \u003ctitle\u003e --project \u003cslug\u003e --impact high|medium|low --likelihood high|medium|low [--indicator text]... [--action text]\""
+      }
+    },
+    {
+      "path": "risk list",
+      "source": "internal/features/planning/planning.go",
+      "line": 50,
+      "fields": {
+        "Brief": "\"List risks by rank; rank 1 and 2 require an action plan\"",
+        "Path": "\"risk list\"",
+        "Run": "cmdRiskList",
+        "Usage": "\"dacli risk list \u003cproject\u003e\""
+      }
+    },
+    {
+      "path": "glossary",
+      "source": "internal/features/planning/planning.go",
+      "line": 51,
+      "fields": {
+        "Brief": "\"Show or edit the project term list\"",
+        "Path": "\"glossary\"",
+        "Run": "cmdGlossary",
+        "Usage": "\"dacli glossary \u003cproject\u003e [--term t --def text]\""
+      }
+    },
+    {
+      "path": "queue add",
+      "source": "internal/features/queues/queues.go",
+      "line": 14,
+      "fields": {
+        "Brief": "\"Create a queue of ordered steps\"",
+        "Mutates": "true",
+        "Path": "\"queue add\"",
+        "Run": "cmdAdd",
+        "Usage": "\"dacli queue add \u003cslug\u003e --step 'cmd or instruction'... [--title t]\""
+      }
+    },
+    {
+      "path": "queue rm",
+      "source": "internal/features/queues/queues.go",
+      "line": 15,
+      "fields": {
+        "Brief": "\"Remove a queue\"",
+        "Mutates": "true",
+        "Path": "\"queue rm\"",
+        "Run": "cmdQueueRm",
+        "Usage": "\"dacli queue rm \u003cname\u003e\""
+      }
+    },
+    {
+      "path": "queue list",
+      "source": "internal/features/queues/queues.go",
+      "line": 16,
+      "fields": {
+        "Brief": "\"List queues and their cursors\"",
+        "Path": "\"queue list\"",
+        "Run": "cmdList",
+        "Usage": "\"dacli queue list\""
+      }
+    },
+    {
+      "path": "queue next",
+      "source": "internal/features/queues/queues.go",
+      "line": 17,
+      "fields": {
+        "Brief": "\"Print the next step (dacli does not run it)\"",
+        "Path": "\"queue next\"",
+        "Run": "cmdNext",
+        "Usage": "\"dacli queue next \u003cslug\u003e\""
+      }
+    },
+    {
+      "path": "queue advance",
+      "source": "internal/features/queues/queues.go",
+      "line": 18,
+      "fields": {
+        "Brief": "\"Record an idempotent success, retryable failure, or terminal dead-letter transition\"",
+        "Mutates": "true",
+        "Path": "\"queue advance\"",
+        "Run": "cmdAdvance",
+        "Usage": "\"dacli queue advance \u003cslug\u003e [--key id] [--retry reason|--terminal reason|--fail reason]\""
+      }
+    },
+    {
+      "path": "reconcile",
+      "source": "internal/features/reconciliation/reconciliation.go",
+      "line": 16,
+      "fields": {
+        "Brief": "\"Observe canonical delivery state or apply one immutable delegated safe-repair plan\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"reconcile\"",
+        "Run": "cmdReconcile",
+        "Usage": "\"dacli reconcile --project \u003cslug\u003e [--dry-run | --apply-safe \u003cplan-id\u003e]\""
+      }
+    },
+    {
+      "path": "explain",
+      "source": "internal/features/reconciliation/reconciliation.go",
+      "line": 17,
+      "fields": {
+        "Brief": "\"Explain one task (or a project) including rank, workers, landing, and exact next actions with sourced freshness\"",
+        "JSON": "true",
+        "Path": "\"explain\"",
+        "Run": "cmdExplain",
+        "Usage": "\"dacli explain [\u003ctask\u003e] [--project \u003cslug\u003e]\""
+      }
+    },
+    {
+      "path": "task status",
+      "source": "internal/features/reconciliation/reconciliation.go",
+      "line": 18,
+      "fields": {
+        "Brief": "\"Task-scoped task, run, claim, review, landing, and next-action facts\"",
+        "JSON": "true",
+        "Path": "\"task status\"",
+        "Run": "cmdTaskStatus",
+        "Usage": "\"dacli task status \u003ctask\u003e [--project \u003cslug\u003e]\""
+      }
+    },
+    {
+      "path": "release train",
+      "source": "internal/features/releasetrain/releasetrain.go",
+      "line": 29,
+      "fields": {
+        "Brief": "\"Plan or resume one checks-gated source-to-target promotion PR; never tags or publishes\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"release train\"",
+        "Run": "cmdReleaseTrain",
+        "Usage": "\"dacli release train --project SLUG --source BRANCH --target BRANCH (--dry-run | --apply) [--required-check NAME] [--required-artifact NAME] [--required-reviews N] [--merge]\""
+      }
+    },
+    {
+      "path": "release train authority",
+      "source": "internal/features/releasetrain/releasetrain.go",
+      "line": 30,
+      "fields": {
+        "Brief": "\"Persist or revoke the project's explicit authority for release-train merges\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"release train authority\"",
+        "Run": "cmdAuthority",
+        "Usage": "\"dacli release train authority --project SLUG (--allow-merge | --revoke-merge)\""
+      }
+    },
+    {
+      "path": "review record",
+      "source": "internal/features/reviewing/reviewing.go",
+      "line": 108,
+      "fields": {
+        "Brief": "\"Record an identity-bound independent review verdict\"",
+        "Path": "\"review record\"",
+        "Run": "cmdReviewRecord",
+        "Usage": "\"dacli review record --task \u003cref\u003e --result \u003cJSON\u003e\""
+      }
+    },
+    {
+      "path": "review projection",
+      "source": "internal/features/reviewing/reviewing.go",
+      "line": 109,
+      "fields": {
+        "Brief": "\"Render public-safe structured review projection\"",
+        "JSON": "true",
+        "Path": "\"review projection\"",
+        "Run": "cmdReviewProjection",
+        "Usage": "\"dacli review projection --task \u003cref\u003e [--json]\""
+      }
+    },
+    {
+      "path": "role registry import",
+      "source": "internal/features/rolemanagement/rolemanagement.go",
+      "line": 22,
+      "fields": {
+        "Brief": "\"Cache explicit signed role files or a complete hosted catalog export\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"role registry import\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return run(c, a, \"import\") }",
+        "Usage": "\"dacli role registry import --config \u003cprivate-owner\u003e --project \u003cslug\u003e (--release \u003cfile\u003e --lifecycle \u003cfile\u003e | --catalog-export \u003cfile\u003e) [--json]\""
+      }
+    },
+    {
+      "path": "role registry verify",
+      "source": "internal/features/rolemanagement/rolemanagement.go",
+      "line": 23,
+      "fields": {
+        "Brief": "\"Verify one exact cached signed role release\"",
+        "JSON": "true",
+        "Path": "\"role registry verify\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return run(c, a, \"verify\") }",
+        "Usage": "\"dacli role registry verify --config \u003cprivate-owner\u003e --project \u003cslug\u003e --role \u003cid\u003e --version \u003csemver\u003e --digest \u003csha256:...\u003e [--json]\""
+      }
+    },
+    {
+      "path": "role registry pin",
+      "source": "internal/features/rolemanagement/rolemanagement.go",
+      "line": 24,
+      "fields": {
+        "Brief": "\"Pin one verified exact role release when no pin exists\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"role registry pin\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return run(c, a, \"pin\") }",
+        "Usage": "\"dacli role registry pin --config \u003cprivate-owner\u003e --project \u003cslug\u003e --role \u003cid\u003e --version \u003csemver\u003e --digest \u003csha256:...\u003e --expected-generation \u003cn\u003e --reason \u003ctext\u003e [--json]\""
+      }
+    },
+    {
+      "path": "role registry diff",
+      "source": "internal/features/rolemanagement/rolemanagement.go",
+      "line": 25,
+      "fields": {
+        "Brief": "\"Compare one exact release with current selection and canonical role\"",
+        "JSON": "true",
+        "Path": "\"role registry diff\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return run(c, a, \"diff\") }",
+        "Usage": "\"dacli role registry diff --config \u003cprivate-owner\u003e --project \u003cslug\u003e --role \u003cid\u003e --version \u003csemver\u003e --digest \u003csha256:...\u003e [--json]\""
+      }
+    },
+    {
+      "path": "role registry upgrade",
+      "source": "internal/features/rolemanagement/rolemanagement.go",
+      "line": 26,
+      "fields": {
+        "Brief": "\"Explicitly select a newer verified exact cached role release\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"role registry upgrade\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return run(c, a, \"upgrade\") }",
+        "Usage": "\"dacli role registry upgrade --config \u003cprivate-owner\u003e --project \u003cslug\u003e --role \u003cid\u003e --version \u003csemver\u003e --digest \u003csha256:...\u003e --expected-generation \u003cn\u003e --expected-version \u003csemver\u003e --expected-digest \u003csha256:...\u003e --reason \u003ctext\u003e [--json]\""
+      }
+    },
+    {
+      "path": "role registry rollback",
+      "source": "internal/features/rolemanagement/rolemanagement.go",
+      "line": 27,
+      "fields": {
+        "Brief": "\"Explicitly restore a real prior verified role selection\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"role registry rollback\"",
+        "Run": "func(c *clikit.Ctx, a []string) error { return run(c, a, \"rollback\") }",
+        "Usage": "\"dacli role registry rollback --config \u003cprivate-owner\u003e --project \u003cslug\u003e --role \u003cid\u003e --version \u003csemver\u003e --digest \u003csha256:...\u003e --expected-generation \u003cn\u003e --expected-version \u003csemver\u003e --expected-digest \u003csha256:...\u003e --reason \u003ctext\u003e [--json]\""
+      }
+    },
+    {
+      "path": "report",
+      "source": "internal/features/selfreport/selfreport.go",
+      "line": 26,
+      "fields": {
+        "Brief": "\"File a dacli-tool bug upstream via gh (explicit; never automatic)\"",
+        "Mutates": "true",
+        "Path": "\"report\"",
+        "Run": "cmdReport",
+        "Usage": "\"dacli report \\\\\""
+      }
+    },
+    {
+      "path": "version",
+      "source": "internal/features/selfreport/selfreport.go",
+      "line": 27,
+      "fields": {
+        "Brief": "\"Print binary identity or diagnose installed skill compatibility\"",
+        "JSON": "true",
+        "Path": "\"version\"",
+        "Run": "cmdVersion",
+        "Usage": "\"dacli version [--compatibility [requirements.json]] [--json]\""
+      }
+    },
+    {
+      "path": "ship",
+      "source": "internal/features/ship/ship.go",
+      "line": 63,
+      "fields": {
+        "Brief": "\"Wave owner composes accept + integrate + durable record (and optional push/release); it is the wave boundary, not a worker completion command\"",
+        "Mutates": "true",
+        "Path": "\"ship\"",
+        "Run": "cmdShip",
+        "Usage": "\"dacli ship [--project slug] [--tasks refs] [--pr | --landing-mode local] [--into BRANCH | --landing-base BRANCH] [--verify \\\"cmd\\\"] [--no-accept] [--no-integrate] [--auto] [--merge] [--no-merge] [--record-branch BRANCH] [--push] [--release TAG] [--dry-run]\""
+      }
+    },
+    {
+      "path": "shortcut add",
+      "source": "internal/features/shortcuts/shortcuts.go",
+      "line": 25,
+      "fields": {
+        "Brief": "\"Define a shortcut\"",
+        "Mutates": "true",
+        "Path": "\"shortcut add\"",
+        "Run": "cmdAdd",
+        "Usage": "\"dacli shortcut add \u003cname\u003e --command 'tmpl {{p}}' --effect read|write|destructive [--summary s] [--param name=default]... [--role r]... [--why text]\""
+      }
+    },
+    {
+      "path": "shortcut rm",
+      "source": "internal/features/shortcuts/shortcuts.go",
+      "line": 26,
+      "fields": {
+        "Brief": "\"Remove a shortcut — the inverse of add, for a command you no longer want runnable\"",
+        "Mutates": "true",
+        "Path": "\"shortcut rm\"",
+        "Run": "cmdShortcutRm",
+        "Usage": "\"dacli shortcut rm \u003cname\u003e\""
+      }
+    },
+    {
+      "path": "shortcut promote",
+      "source": "internal/features/shortcuts/shortcuts.go",
+      "line": 27,
+      "fields": {
+        "Brief": "\"Turn a repeated ad-hoc command into a shortcut\"",
+        "Mutates": "true",
+        "Path": "\"shortcut promote\"",
+        "Run": "cmdPromote",
+        "Usage": "\"dacli shortcut promote \u003cname\u003e --from-event \u003crun-event-id\u003e --effect read|write|destructive [--summary s] [--param name=default]... [--role r]... [--why text]\""
+      }
+    },
+    {
+      "path": "run",
+      "source": "internal/features/shortcuts/shortcuts.go",
+      "line": 28,
+      "fields": {
+        "Brief": "\"Expand and run a shortcut, or an ad-hoc command (--cmd, --dry-run, --confirm, --list)\"",
+        "Mutates": "true",
+        "Path": "\"run\"",
+        "Run": "cmdRun",
+        "Usage": "\"dacli run \u003cname\u003e [--\u003cparam\u003e value]... [--dry-run] [--confirm] | dacli run --cmd '\u003ccommand\u003e' [--dry-run] | dacli run --list\""
+      }
+    },
+    {
+      "path": "skill add",
+      "source": "internal/features/skillforge/skillforge.go",
+      "line": 26,
+      "fields": {
+        "Brief": "\"Author a workspace skill\"",
+        "Mutates": "true",
+        "Path": "\"skill add\"",
+        "Run": "cmdAdd",
+        "Usage": "skillAddUsage"
+      }
+    },
+    {
+      "path": "skill list",
+      "source": "internal/features/skillforge/skillforge.go",
+      "line": 27,
+      "fields": {
+        "Brief": "\"Workspace skills with sizes and delivery floors\"",
+        "Path": "\"skill list\"",
+        "Run": "cmdList",
+        "Usage": "\"dacli skill list\""
+      }
+    },
+    {
+      "path": "skill show",
+      "source": "internal/features/skillforge/skillforge.go",
+      "line": 28,
+      "fields": {
+        "Brief": "\"One skill: version, changelog, body, resources, est. tokens\"",
+        "Path": "\"skill show\"",
+        "Run": "cmdShow",
+        "Usage": "\"dacli skill show \u003cname\u003e\""
+      }
+    },
+    {
+      "path": "skill bump",
+      "source": "internal/features/skillforge/skillforge.go",
+      "line": 29,
+      "fields": {
+        "Brief": "\"Increment a skill's version (v1→v2) after a change\"",
+        "Mutates": "true",
+        "Path": "\"skill bump\"",
+        "Run": "cmdBump",
+        "Usage": "\"dacli skill bump \u003cname\u003e\""
+      }
+    },
+    {
+      "path": "skill import",
+      "source": "internal/features/skillforge/skillforge.go",
+      "line": 30,
+      "fields": {
+        "Brief": "\"Ingest a native skill tree losslessly\"",
+        "Mutates": "true",
+        "Path": "\"skill import\"",
+        "Run": "cmdImport",
+        "Usage": "\"dacli skill import \u003cdir\u003e   (e.g. ~/.claude/skills)\""
+      }
+    },
+    {
+      "path": "skill fetch",
+      "source": "internal/features/skillforge/skillforge.go",
+      "line": 31,
+      "fields": {
+        "Brief": "\"Fetch a skill from skills.sh (owner/repo) into the library\"",
+        "Mutates": "true",
+        "Path": "\"skill fetch\"",
+        "Run": "cmdFetch",
+        "Usage": "\"dacli skill fetch \u003cowner/repo\u003e   (from skills.sh, e.g. mattpocock/skills)\""
+      }
+    },
+    {
+      "path": "skill compile",
+      "source": "internal/features/skillforge/skillforge.go",
+      "line": 32,
+      "fields": {
+        "Brief": "\"Materialize skills for a role on a runtime (--dry-run)\"",
+        "Mutates": "true",
+        "Path": "\"skill compile\"",
+        "Run": "cmdCompile",
+        "Usage": "\"dacli skill compile --runtime \u003crt\u003e [--role \u003cr\u003e] [--dry-run]\""
+      }
+    },
+    {
+      "path": "skill promote",
+      "source": "internal/features/skillforge/skillforge.go",
+      "line": 33,
+      "fields": {
+        "Brief": "\"Owner-gated promotion of a lesson into a skill\"",
+        "Mutates": "true",
+        "Path": "\"skill promote\"",
+        "Run": "cmdPromote",
+        "Usage": "skillPromoteUsage"
+      }
+    },
+    {
+      "path": "slice add",
+      "source": "internal/features/slices/slices.go",
+      "line": 15,
+      "fields": {
+        "Brief": "\"Create an independently landable typed child task\"",
+        "Mutates": "true",
+        "Path": "\"slice add\"",
+        "Run": "cmdSliceAdd",
+        "Usage": "\"dacli slice add --task \u003cref\u003e --title \u003ctitle\u003e --accept \u003ccriterion\u003e... [--optional] [--terminal]\""
+      }
+    },
+    {
+      "path": "slice reconcile",
+      "source": "internal/features/slices/slices.go",
+      "line": 16,
+      "fields": {
+        "Brief": "\"Freshly bind exact GitHub PR and merge identities to a delivery generation\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"slice reconcile\"",
+        "Run": "cmdSliceReconcile",
+        "Usage": "\"dacli slice reconcile --task \u003cparent-ref\u003e\""
+      }
+    },
+    {
+      "path": "task progress",
+      "source": "internal/features/slices/slices.go",
+      "line": 17,
+      "fields": {
+        "Brief": "\"Show derived aggregate or delivery-slice progress for one parent task\"",
+        "JSON": "true",
+        "Path": "\"task progress\"",
+        "Run": "cmdTaskProgress",
+        "Usage": "\"dacli task progress \u003cref\u003e\""
+      }
+    },
+    {
+      "path": "template list",
+      "source": "internal/features/stagegate/stagegate.go",
+      "line": 16,
+      "fields": {
+        "Brief": "\"Available project templates and their stated cost\"",
+        "Path": "\"template list\"",
+        "Run": "cmdList",
+        "Usage": "\"dacli template list\""
+      }
+    },
+    {
+      "path": "template show",
+      "source": "internal/features/stagegate/stagegate.go",
+      "line": 17,
+      "fields": {
+        "Brief": "\"Stages, required docs, and gates for a template\"",
+        "Path": "\"template show\"",
+        "Run": "cmdShow",
+        "Usage": "\"dacli template show \u003cname\u003e\""
+      }
+    },
+    {
+      "path": "template add",
+      "source": "internal/features/stagegate/stagegate.go",
+      "line": 18,
+      "fields": {
+        "Brief": "\"Vendor a template into this workspace for editing\"",
+        "Mutates": "true",
+        "Path": "\"template add\"",
+        "Run": "cmdVendor",
+        "Usage": "\"dacli template add \u003cname\u003e\""
+      }
+    },
+    {
+      "path": "stage",
+      "source": "internal/features/stagegate/stagegate.go",
+      "line": 19,
+      "fields": {
+        "Brief": "\"Current stage and gate status for a project\"",
+        "Path": "\"stage\"",
+        "Run": "cmdStage",
+        "Usage": "\"dacli stage \u003cproject\u003e\""
+      }
+    },
+    {
+      "path": "stage advance",
+      "source": "internal/features/stagegate/stagegate.go",
+      "line": 20,
+      "fields": {
+        "Brief": "\"Record an idempotent gate success, retryable failure, or terminal dead-letter transition\"",
+        "Mutates": "true",
+        "Path": "\"stage advance\"",
+        "Run": "cmdAdvance",
+        "Usage": "\"dacli stage advance \u003cproject\u003e [--key id] [--retry reason|--terminal reason]\""
+      }
+    },
+    {
+      "path": "agent spawn",
+      "source": "internal/features/teamops/teamops.go",
+      "line": 27,
+      "fields": {
+        "Brief": "\"Mint a child agent identity and print its token once\"",
+        "Mutates": "true",
+        "Path": "\"agent spawn\"",
+        "Run": "cmdAgentSpawn",
+        "Usage": "\"dacli agent spawn [--role r] [--grant ro|rw]\""
+      }
+    },
+    {
+      "path": "agent tree",
+      "source": "internal/features/teamops/teamops.go",
+      "line": 28,
+      "fields": {
+        "Brief": "\"Show agent lineage, roles, current task and write attribution\"",
+        "Path": "\"agent tree\"",
+        "Run": "cmdAgentTree",
+        "Usage": "\"dacli agent tree\""
+      }
+    },
+    {
+      "path": "agent show",
+      "source": "internal/features/teamops/teamops.go",
+      "line": 29,
+      "fields": {
+        "Brief": "\"Resolve one agent id: role, lineage, runs, tasks, events\"",
+        "Path": "\"agent show\"",
+        "Run": "cmdAgentShow",
+        "Usage": "\"dacli agent show \u003cagent-id\u003e\""
+      }
+    },
+    {
+      "path": "agent retire",
+      "source": "internal/features/teamops/teamops.go",
+      "line": 30,
+      "fields": {
+        "Brief": "\"Mark an agent retired, freeing its WIP slot\"",
+        "Mutates": "true",
+        "Path": "\"agent retire\"",
+        "Run": "cmdAgentRetire",
+        "Usage": "\"dacli agent retire \u003cagent-id\u003e\""
+      }
+    },
+    {
+      "path": "role add",
+      "source": "internal/features/teamops/teamops.go",
+      "line": 31,
+      "fields": {
+        "Brief": "\"Define a role: skills, scope, shortcuts, escalation, and a provider-neutral model profile\"",
+        "Mutates": "true",
+        "Path": "\"role add\"",
+        "Run": "cmdRoleAdd",
+        "Usage": "\"dacli role add \u003cname\u003e [--runtime rt] [--model-id id] [--cost-tier 1..98] [--max-task-points N] [--context-limit N] [--capability-tag tag]...\""
+      }
+    },
+    {
+      "path": "role rm",
+      "source": "internal/features/teamops/teamops.go",
+      "line": 32,
+      "fields": {
+        "Brief": "\"Remove a role (refuses while a live agent holds it)\"",
+        "Mutates": "true",
+        "Path": "\"role rm\"",
+        "Run": "cmdRoleRm",
+        "Usage": "\"dacli role rm \u003cname\u003e\""
+      }
+    },
+    {
+      "path": "role list",
+      "source": "internal/features/teamops/teamops.go",
+      "line": 33,
+      "fields": {
+        "Brief": "\"List roles\"",
+        "Path": "\"role list\"",
+        "Run": "cmdRoleList",
+        "Usage": "\"dacli role list\""
+      }
+    },
+    {
+      "path": "role show",
+      "source": "internal/features/teamops/teamops.go",
+      "line": 34,
+      "fields": {
+        "Brief": "\"One role: version, changelog, capabilities\"",
+        "Path": "\"role show\"",
+        "Run": "cmdRoleShow",
+        "Usage": "\"dacli role show \u003cname\u003e\""
+      }
+    },
+    {
+      "path": "role bump",
+      "source": "internal/features/teamops/teamops.go",
+      "line": 35,
+      "fields": {
+        "Brief": "\"Increment a role's version (v1→v2) after a change\"",
+        "Mutates": "true",
+        "Path": "\"role bump\"",
+        "Run": "cmdRoleBump",
+        "Usage": "\"dacli role bump \u003cname\u003e\""
+      }
+    },
+    {
+      "path": "team",
+      "source": "internal/features/teamops/teamops.go",
+      "line": 36,
+      "fields": {
+        "Brief": "\"Roster: roles, live WIP occupancy, and headroom (identity history is separate)\"",
+        "Path": "\"team\"",
+        "Run": "cmdTeam",
+        "Usage": "\"dacli team\""
+      }
+    },
+    {
+      "path": "team route",
+      "source": "internal/features/teamops/teamops.go",
+      "line": 37,
+      "fields": {
+        "Brief": "\"Who owns this path, and the chain to reach them\"",
+        "Path": "\"team route\"",
+        "Run": "cmdTeamRoute",
+        "Usage": "\"dacli team route \u003cpath\u003e [--from role]\""
+      }
+    },
+    {
+      "path": "route",
+      "source": "internal/features/teamops/teamops.go",
+      "line": 38,
+      "fields": {
+        "Brief": "\"Alias for team route: who owns this path and the escalation chain\"",
+        "Path": "\"route\"",
+        "Run": "cmdRoute",
+        "Usage": "\"dacli route \u003cpath\u003e [--from role]\""
+      }
+    },
+    {
+      "path": "team assign",
+      "source": "internal/features/teamops/teamops.go",
+      "line": 39,
+      "fields": {
+        "Brief": "\"Which role should take this task: the cheapest model whose capacity covers its Te, for the phase's allowed kind\"",
+        "Path": "\"team assign\"",
+        "Run": "cmdTeamAssign",
+        "Usage": "\"dacli team assign \u003ctask-ref\u003e [--kind implementer|reviewer|researcher|planner|designer]\""
+      }
+    },
+    {
+      "path": "worktree add",
+      "source": "internal/features/vcs/lifecycle.go",
+      "line": 38,
+      "fields": {
+        "Brief": "\"Isolated worktree+branch for a task so parallel agents don't collide\"",
+        "Mutates": "true",
+        "Path": "\"worktree add\"",
+        "Run": "cmdWorktreeAdd",
+        "Usage": "\"dacli worktree add --task \u003cref\u003e\""
+      }
+    },
+    {
+      "path": "worktree list",
+      "source": "internal/features/vcs/lifecycle.go",
+      "line": 39,
+      "fields": {
+        "Brief": "\"Active worktrees and their branches\"",
+        "Path": "\"worktree list\"",
+        "Run": "cmdWorktreeList",
+        "Usage": "\"dacli worktree list\""
+      }
+    },
+    {
+      "path": "worktree remove",
+      "source": "internal/features/vcs/lifecycle.go",
+      "line": 40,
+      "fields": {
+        "Brief": "\"Tear down a task's worktree\"",
+        "Mutates": "true",
+        "Path": "\"worktree remove\"",
+        "Run": "cmdWorktreeRemove",
+        "Usage": "\"dacli worktree remove --task \u003cref\u003e\""
+      }
+    },
+    {
+      "path": "worktree prune",
+      "source": "internal/features/vcs/lifecycle.go",
+      "line": 41,
+      "fields": {
+        "Brief": "\"Reclaim every worktree whose branch has merged or whose run is finished (--into \u003ctrunk\u003e, default main; --dry-run to preview) — the loop runs this each cycle so checkouts don't pile up\"",
+        "Mutates": "true",
+        "Path": "\"worktree prune\"",
+        "Run": "cmdWorktreePrune",
+        "Usage": "\"dacli worktree prune [--into BRANCH] [--dry-run]\""
+      }
+    },
+    {
+      "path": "push",
+      "source": "internal/features/vcs/lifecycle.go",
+      "line": 42,
+      "fields": {
+        "Brief": "\"Push a task's branch to origin\"",
+        "Mutates": "true",
+        "Path": "\"push\"",
+        "Run": "cmdPush",
+        "Usage": "pushUsage"
+      }
+    },
+    {
+      "path": "pr",
+      "source": "internal/features/vcs/lifecycle.go",
+      "line": 43,
+      "fields": {
+        "Brief": "\"Open a policy-governed task or delivery-slice PR; partial slices reference but never close the parent issue\"",
+        "Mutates": "true",
+        "Path": "\"pr\"",
+        "Run": "cmdPR",
+        "Usage": "\"dacli pr [--task ref | --slice parent/generation] [--base BRANCH] [--with-verdicts] [--auto] [--draft] [--approve] [--request-changes] [--dry-run]\""
+      }
+    },
+    {
+      "path": "pr status",
+      "source": "internal/features/vcs/lifecycle.go",
+      "line": 44,
+      "fields": {
+        "Brief": "\"Did this task's branch land? Checks gh PR state first (merged/landing/orphaned) and only falls back to a fresh trunk fetch if no PR is found — never a stale local branch-vs-main compare, which misread in-flight --auto merges as orphaned (see tasks 157, 160)\"",
+        "Path": "\"pr status\"",
+        "Run": "cmdPRStatus",
+        "Usage": "\"dacli pr status [--task ref] [--into BRANCH]\""
+      }
+    },
+    {
+      "path": "pr diagnose",
+      "source": "internal/features/vcs/lifecycle.go",
+      "line": 45,
+      "fields": {
+        "Brief": "\"Classify the canonical task PR and its check annotations/workflow runs with stable evidence, retry, and next-action fields\"",
+        "JSON": "true",
+        "Path": "\"pr diagnose\"",
+        "Run": "cmdPRDiagnose",
+        "Usage": "\"dacli pr diagnose --task \u003cref\u003e\""
+      }
+    },
+    {
+      "path": "pr wait",
+      "source": "internal/features/vcs/lifecycle.go",
+      "line": 46,
+      "fields": {
+        "Brief": "\"Bounded wait on the canonical task PR diagnosis; permanent blockers refuse\"",
+        "JSON": "true",
+        "Path": "\"pr wait\"",
+        "Run": "cmdPRWait",
+        "Usage": "\"dacli pr wait --task \u003cref\u003e [--timeout SEC] [--interval SEC]\""
+      }
+    },
+    {
+      "path": "pr land",
+      "source": "internal/features/vcs/lifecycle.go",
+      "line": 47,
+      "fields": {
+        "Brief": "\"Task-level alias that delegates landing to integrate\"",
+        "Mutates": "true",
+        "Path": "\"pr land\"",
+        "Run": "cmdPRLand",
+        "Usage": "\"dacli pr land --task \u003cref\u003e [--base BRANCH] [--auto] [--merge]\""
+      }
+    },
+    {
+      "path": "merge",
+      "source": "internal/features/vcs/lifecycle.go",
+      "line": 48,
+      "fields": {
+        "Brief": "\"Merge a task's branch; a conflict blocks the task, never half-merges\"",
+        "Mutates": "true",
+        "Path": "\"merge\"",
+        "Run": "cmdMerge",
+        "Usage": "\"dacli merge --task \u003cref\u003e [--into BRANCH]\""
+      }
+    },
+    {
+      "path": "integrate",
+      "source": "internal/features/vcs/lifecycle.go",
+      "line": 49,
+      "fields": {
+        "Brief": "\"Integration owner lands already-accepted task branches under the project policy; it does not decide acceptance or finish the wave record\"",
+        "Mutates": "true",
+        "Path": "\"integrate\"",
+        "Run": "cmdIntegrate",
+        "Usage": "\"dacli integrate [--tasks refs] [--project slug] [--pr | --landing-mode local] [--into BRANCH | --landing-base BRANCH] [--auto] [--merge] [--no-merge] [--force]\""
+      }
+    },
+    {
+      "path": "commit",
+      "source": "internal/features/vcs/vcs.go",
+      "line": 38,
+      "fields": {
+        "Brief": "\"Commit as yourself: author = agent (role), with dacli trailers and explicit ownership/path-scope controls\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"commit\"",
+        "Run": "cmdCommit",
+        "Usage": "commitUsage"
+      }
+    },
+    {
+      "path": "worktree reclaim",
+      "source": "internal/features/vcs/vcs.go",
+      "line": 39,
+      "fields": {
+        "Brief": "\"Preview or apply an audited root recovery of a terminal agent worktree\"",
+        "Mutates": "true",
+        "Path": "\"worktree reclaim\"",
+        "Run": "cmdWorktreeReclaim",
+        "Usage": "\"dacli worktree reclaim --claim path,path [--apply]\""
+      }
+    },
+    {
+      "path": "blame",
+      "source": "internal/features/vcs/vcs.go",
+      "line": 40,
+      "fields": {
+        "Brief": "\"Who wrote each line — agent and role — for a file\"",
+        "Path": "\"blame\"",
+        "Run": "cmdBlame",
+        "Usage": "\"dacli blame \u003cfile\u003e\""
+      }
+    },
+    {
+      "path": "contrib",
+      "source": "internal/features/vcs/vcs.go",
+      "line": 41,
+      "fields": {
+        "Brief": "\"Per-role / per-agent contribution rollup from commit events\"",
+        "Path": "\"contrib\"",
+        "Run": "cmdContrib",
+        "Usage": "\"dacli contrib\""
+      }
+    },
+    {
+      "path": "init",
+      "source": "internal/features/wscore/wscore.go",
+      "line": 19,
+      "fields": {
+        "Brief": "\"Create a .dacli workspace (--template seeds a default process, --roster seeds roles)\"",
+        "JSON": "true",
+        "Mutates": "true",
+        "Path": "\"init\"",
+        "Run": "cmdInit",
+        "Usage": "\"dacli init [--name n] [--template t] [--roster r] [--gitignore-workspace]\""
+      }
+    },
+    {
+      "path": "whoami",
+      "source": "internal/features/wscore/wscore.go",
+      "line": 20,
+      "fields": {
+        "Brief": "\"Show the acting agent and its grant\"",
+        "JSON": "true",
+        "Path": "\"whoami\"",
+        "Run": "cmdWhoami",
+        "Usage": "\"dacli whoami\""
+      }
+    }
+  ],
+  "unresolvedMutatingPaths": []
+}

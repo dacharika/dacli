@@ -1,0 +1,35 @@
+{
+  "method": "static audit checks only; no dacli or Go test execution",
+  "sourceRevision": "cd7210a02637696c3b082e2eb7e113101565d457",
+  "receipts": [
+    {
+      "command": [
+        "python3",
+        "design/check_ledger.py",
+        "--self-check"
+      ],
+      "exitCode": 0,
+      "stdout": "PASS causal negative: forged allMistakesCovered rejected: allMistakesCovered contradicts unresolved or unverified rows\n{\"enumeration\": \"valid\", \"rules\": 80, \"mutatingCommands\": 156, \"unresolvedDecisions\": 10, \"pendingRows\": 236, \"allMistakesCovered\": false}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python3",
+        "design/check_ledger.py",
+        "--require-covered"
+      ],
+      "exitCode": 3,
+      "stdout": "{\"enumeration\": \"valid\", \"rules\": 80, \"mutatingCommands\": 156, \"unresolvedDecisions\": 10, \"pendingRows\": 236, \"allMistakesCovered\": false}\n",
+      "stderr": "REFUSED: unresolved or unverified ledger rows prevent all-covered claim\n"
+    }
+  ],
+  "sha256": {
+    "invariants.yaml": "3765d5417b8c044afb28a17932542d9b59bd190bdf1735f554b19ee13a2539ea",
+    "command-inventory.json": "4b2c6baeea19a10bc18858de26d97ff8ce90da6d152cbad58618cc13bf7c4d40",
+    "command-literals.snapshot.json": "e5351e0d757b3a6cc7584fc6690b05c52fd37ea4a77f74cd32b37822aceddac6",
+    "inventory_source.go.txt": "7ba0508069ea33ac40618813b74f30d6a9919de3710a715087127a92d069369a",
+    "build_ledger.py": "4a63173e0056bcd002a3a4714a92147e9ba9c961dbb9c3145a6ef2d0b330cadb",
+    "check_ledger.py": "82b6824236790e09edeab6ceeb11fc1d2c46d6c4e62432e39afe33dbec14aa5f",
+    "audit-notes.md": "c1d3882d9acd4b2ec14ef2d1303b0154aee013dabcff321fac4eda6995897e7f"
+  }
+}
