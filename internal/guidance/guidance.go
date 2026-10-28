@@ -1,5 +1,5 @@
 // Package guidance diagnoses known installed skill copies and provides a
-// reviewed, exact-file refresh plan (issue #1213).
+// reviewed, exact-file refresh plan (issues #1213 and #1246).
 package guidance
 
 import (
@@ -33,21 +33,24 @@ var currentFiles embed.FS
 type Status string
 
 const (
-	StatusMissing    Status = "missing"
-	StatusLegacy     Status = "known_legacy"
-	StatusCurrent    Status = "current"
-	StatusCustomized Status = "customized_or_unrecognized"
-	StatusConflict   Status = "conflicting"
-	StatusUnsafe     Status = "unsafe_or_unreadable"
+	StatusMissing         Status = "missing"
+	StatusLegacy          Status = "known_legacy"
+	StatusCurrent         Status = "current"
+	StatusPreviousCurrent Status = "reviewed_predecessor"
+	StatusCustomized      Status = "customized_or_unrecognized"
+	StatusConflict        Status = "conflicting"
+	StatusUnsafe          Status = "unsafe_or_unreadable"
 )
 
 type Copy struct {
-	Root          string `json:"root"`
-	Status        Status `json:"status"`
-	Identity      string `json:"identity,omitempty"`
-	Digest        string `json:"digest,omitempty"`
-	NextAction    string `json:"next_action"`
-	SelectedFiles int    `json:"selected_files"`
+	Root           string `json:"root"`
+	Status         Status `json:"status"`
+	Identity       string `json:"identity,omitempty"`
+	Digest         string `json:"digest,omitempty"`
+	BundleIdentity string `json:"bundle_identity,omitempty"`
+	BundleDigest   string `json:"bundle_digest,omitempty"`
+	NextAction     string `json:"next_action"`
+	SelectedFiles  int    `json:"selected_files"`
 }
 
 type Diagnosis struct {
@@ -77,15 +80,18 @@ type fileRecord struct {
 // Plan is immutable: PlanDigest binds the exact target, reviewed source bundle,
 // old bytes, replacement bytes, backup paths and target inodes.
 type Plan struct {
-	Schema         string       `json:"schema"`
-	Operation      string       `json:"operation"`
-	Root           string       `json:"root"`
-	RootIdentity   string       `json:"root_identity"`
-	SourceIdentity string       `json:"source_identity"`
-	SourceDigest   string       `json:"source_digest"`
-	CreatedAt      time.Time    `json:"created_at"`
-	Files          []fileRecord `json:"files"`
-	PlanDigest     string       `json:"plan_digest"`
+	Schema         string               `json:"schema"`
+	Operation      string               `json:"operation"`
+	Root           string               `json:"root"`
+	RootIdentity   string               `json:"root_identity"`
+	SourceIdentity string               `json:"source_identity"`
+	SourceDigest   string               `json:"source_digest"`
+	CreatedAt      time.Time            `json:"created_at"`
+	Files          []fileRecord         `json:"files"`
+	PlanDigest     string               `json:"plan_digest"`
+	BeforeBundle   *BeforeBundleBinding `json:"before_bundle,omitempty"`
+	Owner          *PlanOwnerBinding    `json:"owner,omitempty"`
+	OwnerSeal      string               `json:"owner_seal,omitempty"`
 }
 
 type Receipt struct {
@@ -279,6 +285,11 @@ func Diagnose(roots []string, runtimeIdentity, runtimeDigest, capabilityStatus, 
 		d.CombinedStatus = StatusUnsafe
 		return d
 	}
+	bundles, bundleErr := reviewedBundles()
+	if bundleErr != nil {
+		d.CombinedStatus = StatusUnsafe
+		return d
+	}
 	seen := map[string]bool{}
 	for _, root := range roots {
 		root = filepath.Clean(root)
@@ -316,15 +327,42 @@ func Diagnose(roots []string, runtimeIdentity, runtimeDigest, capabilityStatus, 
 			d.Copies = append(d.Copies, copy)
 			continue
 		}
+		matchedPrevious := -1
+		if !isCurrent && !isLegacy {
+			for i := 1; i < len(bundles); i++ {
+				matched, e := bundleMatch(root, bundles[i])
+				if e != nil {
+					copy.Status = StatusUnsafe
+					matchedPrevious = -2
+					break
+				}
+				if matched {
+					matchedPrevious = i
+					break
+				}
+			}
+		}
 		if isCurrent {
 			copy.Status, copy.NextAction = StatusCurrent, "Selected skill files match the reviewed current bundle; process and cached connection freshness remain unknown."
 		} else if isLegacy {
 			copy.Status, copy.SelectedFiles = StatusLegacy, legacyCount
 			copy.NextAction = "Review an exact refresh preview; apply only the pinned allowlisted instruction files after owner review."
+		} else if matchedPrevious >= 1 {
+			copy.Status = StatusPreviousCurrent
+			copy.BundleIdentity = bundles[matchedPrevious].identity
+			copy.BundleDigest = bundles[matchedPrevious].digest
+			copy.NextAction = "Review an authenticated owner refresh preview for this exact reviewed predecessor; no automatic overwrite is available."
+		} else if matchedPrevious == -2 {
+			copy.Status = StatusUnsafe
+			copy.NextAction = "Ask the owner to inspect a target file; only regular bounded files are inspected."
 		} else {
 			copy.Status, copy.NextAction = StatusCustomized, "Preserve this copy. Review or manually migrate customized files; no automatic overwrite is available."
 		}
 		copy.Digest, _, _, _ = candidateDigest(root, currentDigests(current))
+		if copy.Status == StatusLegacy {
+			copy.BundleIdentity = bundles[0].identity
+			copy.BundleDigest = bundles[0].digest
+		}
 		d.Copies = append(d.Copies, copy)
 	}
 	d.CombinedStatus = StatusMissing
@@ -448,6 +486,9 @@ func WritePlanAuthorized(path string, p Plan, authorize func() error) error {
 	if authorize == nil {
 		return errors.New("owner authorization callback is required")
 	}
+	if p.Schema != Schema || p.BeforeBundle != nil || p.Owner != nil || p.OwnerSeal != "" {
+		return errors.New("callback-only plan writer accepts v1 plans only")
+	}
 	return writePlan(path, p, authorize)
 }
 
@@ -513,8 +554,14 @@ func readPlanFrom(parent *guidanceDir, name string) (Plan, os.FileInfo, error) {
 	if d.Decode(&extra) != io.EOF {
 		return p, nil, errors.New("plan contains trailing data")
 	}
-	if p.Schema != Schema || p.Operation != "reviewed-refresh" || p.PlanDigest == "" || p.PlanDigest != planDigest(p) {
+	if (p.Schema != Schema && p.Schema != PlanSchemaV2) || p.Operation != "reviewed-refresh" || p.PlanDigest == "" || p.PlanDigest != planDigest(p) {
 		return p, nil, errors.New("plan schema or content digest is invalid")
+	}
+	if p.Schema == Schema && (p.BeforeBundle != nil || p.Owner != nil || p.OwnerSeal != "") {
+		return p, nil, errors.New("v1 plan contains v2 fields")
+	}
+	if p.Schema == PlanSchemaV2 && (p.BeforeBundle == nil || p.Owner == nil || p.OwnerSeal == "") {
+		return p, nil, errors.New("v2 plan owner/bundle binding is incomplete")
 	}
 	return p, info, nil
 }
@@ -552,12 +599,40 @@ func validatePlan(p Plan) (map[string][]byte, os.FileInfo, error) {
 	if digestSource(current) != p.SourceDigest {
 		return nil, zero, errors.New("reviewed source bundle identity changed")
 	}
+	beforeFiles := legacyDigests
+	backupID := digest([]byte(p.Root + "\x00" + p.RootIdentity + "\x00" + p.SourceDigest))
+	if p.Schema == PlanSchemaV2 {
+		if p.BeforeBundle == nil || p.Owner == nil {
+			return nil, zero, errors.New("v2 plan owner/bundle binding is incomplete")
+		}
+		bundles, e := reviewedBundles()
+		if e != nil {
+			return nil, zero, e
+		}
+		found := false
+		for _, b := range bundles {
+			if b.identity == p.BeforeBundle.Identity && b.digest == p.BeforeBundle.Digest && b.manifestDigest == p.BeforeBundle.ManifestDigest && b.origin == p.BeforeBundle.OriginCommit {
+				beforeFiles = b.files
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, zero, errors.New("before bundle is not an exact reviewed registry entry")
+		}
+		if p.Owner == nil {
+			return nil, zero, errors.New("v2 plan owner binding is missing")
+		}
+		backupID = backupIDV2(p)
+	} else if p.Schema != Schema {
+		return nil, zero, errors.New("unsupported plan schema")
+	}
 	if len(p.Files) != len(KnownFiles()) {
 		return nil, zero, errors.New("plan file set is incomplete")
 	}
 	for i, rel := range KnownFiles() {
 		entry := p.Files[i]
-		if entry.Path != rel || entry.Before != legacyDigests[rel] || entry.After != digest(current[rel]) || entry.BackupPath != filepath.Join(p.Root, backupDirectoryName, digest([]byte(p.Root+"\x00"+p.RootIdentity+"\x00"+p.SourceDigest)), filepath.FromSlash(rel)) {
+		if entry.Path != rel || entry.Before != beforeFiles[rel] || entry.After != digest(current[rel]) || entry.BackupPath != filepath.Join(p.Root, backupDirectoryName, backupID, filepath.FromSlash(rel)) {
 			return nil, zero, errors.New("plan target or source binding is invalid")
 		}
 		parents, parentErr := safeParents(p.Root, rel)
@@ -574,12 +649,22 @@ func ApplyAuthorized(path string, authorize func() error) (Receipt, error) {
 	if authorize == nil {
 		return Receipt{}, errors.New("owner authorization callback is required")
 	}
-	return apply(path, authorize)
+	return applyWithOwner(path, authorize, nil)
+}
+
+func ApplyOwned(path string, owner PlanOwner) (Receipt, error) {
+	if !validOwner(owner) {
+		return Receipt{}, errors.New("complete authenticated owner is required")
+	}
+	return applyWithOwner(path, owner.Authorize, &owner)
 }
 
 // apply revalidates the immutable plan and each opened target immediately
 // before making its exclusive byte-exact backup and atomic replacement.
 func apply(path string, authorize func() error) (Receipt, error) {
+	return applyWithOwner(path, authorize, nil)
+}
+func applyWithOwner(path string, authorize func() error, owner *PlanOwner) (Receipt, error) {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
 		return Receipt{}, errors.New("plan path must be absolute and clean")
 	}
@@ -591,6 +676,19 @@ func apply(path string, authorize func() error) (Receipt, error) {
 	p, planInfo, err := readPlanFrom(planParent, filepath.Base(path))
 	if err != nil {
 		return Receipt{}, err
+	}
+	if p.Schema == PlanSchemaV2 {
+		if owner == nil {
+			return Receipt{Schema: Schema, PlanDigest: p.PlanDigest, State: "refused"}, errors.New("v2 plan requires owner-sealed apply")
+		}
+		if err := verifyOwner(p, *owner); err != nil {
+			return Receipt{Schema: Schema, PlanDigest: p.PlanDigest, State: "refused"}, err
+		}
+		authorize = func() error { return verifyOwner(p, *owner) }
+	} else if owner != nil {
+		if err := owner.Authorize(); err != nil {
+			return Receipt{Schema: Schema, PlanDigest: p.PlanDigest, State: "refused"}, err
+		}
 	}
 	current, rootInfo, err := validatePlan(p)
 	if err != nil {
@@ -955,8 +1053,9 @@ func recoverExisting(plan Plan, root, backupRoot *guidanceDir, r *Receipt) (bool
 		}
 		targetParent, targetErr := root.OpenDir(filepath.ToSlash(filepath.Dir(filepath.FromSlash(entry.Path))))
 		var current []byte
+		var targetInfo os.FileInfo
 		if targetErr == nil {
-			current, _, targetErr = targetParent.ReadRegular(filepath.Base(filepath.FromSlash(entry.Path)), maxSkillFile)
+			current, targetInfo, targetErr = targetParent.ReadRegular(filepath.Base(filepath.FromSlash(entry.Path)), maxSkillFile)
 			_ = targetParent.Close()
 		}
 		if targetErr != nil {
@@ -968,10 +1067,47 @@ func recoverExisting(plan Plan, root, backupRoot *guidanceDir, r *Receipt) (bool
 			continue
 		}
 		targetDigest := digest(current)
-		if targetDigest == entry.After {
-			r.Replaced = append(r.Replaced, filepath.Join(plan.Root, filepath.FromSlash(entry.Path)))
+		if plan.Schema == PlanSchemaV2 && (!guidanceSingleLink(targetInfo) || targetInfo.Mode()&os.ModeSymlink != 0) {
+			complete = false
 			progress = true
-			if !backupPresent || digest(backup) != entry.Before {
+			if r.RecoveryPath == "" {
+				r.RecoveryPath = filepath.Join(plan.Root, filepath.FromSlash(entry.Path))
+			}
+			continue
+		}
+		validBackup := backupPresent && backupInfo.Mode().Perm() == 0o600 && guidanceSingleLink(backupInfo) && digest(backup) == entry.Before
+		if plan.Schema == PlanSchemaV2 && entry.Before == entry.After {
+			if backupPresent && !validBackup {
+				complete = false
+				if r.RecoveryPath == "" {
+					r.RecoveryPath = filepath.Join(backupRoot.path, filepath.FromSlash(rel))
+				}
+				continue
+			}
+			if targetDigest == entry.After && fileIdentity(targetInfo) != entry.TargetID && backupPresent && digest(backup) == entry.Before {
+				r.Replaced = append(r.Replaced, filepath.Join(plan.Root, filepath.FromSlash(entry.Path)))
+				progress = true
+			} else if targetDigest != entry.Before || fileIdentity(targetInfo) != entry.TargetID || backupPresent {
+				complete = false
+				progress = true
+				if r.RecoveryPath == "" {
+					r.RecoveryPath = filepath.Join(plan.Root, filepath.FromSlash(entry.Path))
+				}
+			}
+			continue
+		}
+		if targetDigest == entry.After {
+			if plan.Schema != PlanSchemaV2 || validBackup {
+				r.Replaced = append(r.Replaced, filepath.Join(plan.Root, filepath.FromSlash(entry.Path)))
+				progress = true
+			}
+			if plan.Schema == PlanSchemaV2 && !validBackup {
+				complete = false
+				progress = true
+				if r.RecoveryPath == "" {
+					r.RecoveryPath = filepath.Join(backupRoot.path, filepath.FromSlash(rel))
+				}
+			} else if !backupPresent || digest(backup) != entry.Before {
 				complete = false
 				if r.RecoveryPath == "" {
 					r.RecoveryPath = filepath.Join(backupRoot.path, filepath.FromSlash(rel))
