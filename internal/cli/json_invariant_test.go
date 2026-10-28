@@ -22,6 +22,7 @@ import (
 // deliberate act that says "I checked: this command honors --json."
 var jsonHonoringCommands = map[string]bool{
 	"provider readiness":       true,
+	"native controller drive":  true,
 	"native landing record":    true,
 	"native guidance diagnose": true, "native guidance refresh-preview": true, "native guidance refresh-apply": true,
 	"native queue diagnostics": true, "native capacity slots upgrade": true, "native capacity upgrade": true, "native capacity observer add": true, "native capacity policy configure": true,

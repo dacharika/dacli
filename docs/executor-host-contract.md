@@ -115,8 +115,8 @@ schema. Controller storage still requires its existing schema 16 prerequisite;
 optional bound host slots require schema 22. Current live schema 10 and its
 manual workflow remain unchanged. `Backend` remains synchronous: a caller
 context cannot forcibly stop an arbitrary blocking implementation. The finite
-driver must use separately qualified context-aware ports before claiming a
-wall-clock execution bound.
+driver uses the separate cooperative context contract below; legacy authority
+and filesystem overhead still prevents a hard end-to-end OS deadline claim.
 
 #1239 supplies this handoff. #1240 adds the finite effect driver; #1241 rolling
 admission and a scoped keeper, and #1242 shared trusted validation and honest
@@ -125,6 +125,33 @@ full acceptance. Real activation still requires separately selected #1216/#1217
 qualification and owner compatibility steps. Isolated fake-host tests do not
 prove a live executor, private provider handoff or twelve-worker capacity.
 CI remains manual only.
+
+## Cooperative context composition
+
+`ContextBackend` is an explicit contract rather than an implicit adapter for a
+synchronous `Backend`. Capabilities, registration, binding proof, dispatch,
+original-key lookup, observation read, cancellation and cancellation lookup all
+receive the current bounded context. No background timer goroutine abandons a
+blocking legacy host call. A selected backend must honor cancellation and retain
+original-key outcome knowledge; capability labels alone are not qualification.
+
+`ContextCoordinator.DispatchControllerOnce` retains the same authenticated
+worker, independent expected-slot and opaque first-use checks. Its read-only
+`LookupControllerDispatch` accepts the pinned historical `WorkerEnrollment` so a
+reopened application can identify an uncertain original execution without
+reauthenticating an expired worker, registering another attempt or restoring
+launch permission. The original controller must remain current and authorized.
+
+Host observation reads return a typed newer observation; the old `Observe`
+method remains an ingestion sink. Actual lifecycle ingestion uses the independent
+bridge and exact stored binding/source sequence. Cancellation lookup resolves a
+lost original request without another host cancellation. Acknowledgement never
+establishes terminal execution or releases writer protection.
+
+The [finite native driver](native-controller-driver.md) composes these ports with
+existing independently granted verification/review producers and explicit owner
+gates. Its CLI creates no host/provider backend or review decision, and current
+live schema10 is unchanged.
 
 ## Dispatch, lookup, observation, cancellation
 

@@ -623,6 +623,15 @@ func (a *Authority) controllerProgressWave(s *state, token, session string, iv *
 			}
 			continue
 		}
+		if s.Version < 18 && action.Kind == "integration_checkpoint" {
+			if !controllerLegacyIntegrationCheckpointCurrent(s, *iv, action, d, i, at, rev, ev, review, evidenceIDs) {
+				return ErrDenied
+			}
+			st.Phase = "integration"
+			st.HaltClass = "pending_local_integration"
+			st.NextAction = "owner applies exact592 integration under pinned target epoch; retain protection"
+			continue
+		}
 		handled, he := a.controllerIntegrationProgress(s, iv, n, action, at, rev, review)
 		if he != nil {
 			return he
@@ -954,4 +963,85 @@ func (a *Authority) controllerRequiredVerification(s *state, iv controllerInvoca
 		return nil, nil, ErrDenied
 	}
 	return required, requests, nil
+}
+
+// controllerLegacyIntegrationCheckpointCurrent recognizes only the exact
+// already-recorded integration checkpoint for schema-16/17 authorities. It
+// prevents the controller from replaying that key with a later sequence; it
+// does not run or authorize an integration producer.
+func controllerLegacyIntegrationCheckpointCurrent(s *state, iv controllerInvocation, action ControllerAction, dispatch DispatchReservation, intent DispatchIntent, attempt Attempt, revision AttemptRevision, evidence Evidence, review Review, evidenceIDs []string) bool {
+	st := iv.Status
+	if s == nil || action.Kind != "integration_checkpoint" || action.ActorID != "owner" || action.ID == "" || action.ID != action.OperationKey || !validID(action.OperationKey) || action.OperationKey != controllerKey(st, "integration", revision.ID) || action.TaskID == "" || action.DispatchID != dispatch.ID || action.AttemptID != attempt.ID || action.RevisionID != revision.ID || action.ReviewID != review.ID || action.ReservationFence != dispatch.Reservation.Fence || action.IntentID != "" && action.IntentID != intent.ID || action.EvidenceID != "" && action.EvidenceID != evidence.ID || dispatch.ProjectID != st.ProjectID || dispatch.Reservation.TaskID != action.TaskID || dispatch.AttemptID != attempt.ID || dispatch.WorkerSessionID != intent.WorkerSessionID || intent.DispatchID != dispatch.ID || intent.ControllerSessionID != st.ControllerSessionID || intent.State != "acknowledged" || intent.Reservation.ID != dispatch.ID || intent.Reservation.ProjectID != st.ProjectID || !reflect.DeepEqual(intent.Reservation.Reservation, dispatch.Reservation) || intent.Lease == nil || intent.Lease.ID != action.LeaseID || intent.Lease.Fence != action.Fence || attempt.ProjectID != st.ProjectID || attempt.Request.TaskID != action.TaskID || attempt.SessionID != intent.WorkerSessionID || revision.LeaseID != action.LeaseID || revision.Fence != action.Fence || review.ID == "" || review.Request.Outcome != "approve" || review.Request.AttemptID != attempt.ID || review.Request.LeaseID != action.LeaseID || review.Request.RevisionID != revision.ID || review.Request.ExpectedFence != action.Fence || !controllerDriverEvidenceIDsEqual(review.Request.EvidenceIDs, evidenceIDs) || !reflect.DeepEqual(action.EvidenceIDs, evidenceIDs) || len(evidenceIDs) == 0 || !subset([]string{evidence.ID}, evidenceIDs) {
+		return false
+	}
+	route, ok := iv.Routes[action.TaskID]
+	if !ok || route.WorkerSession != intent.WorkerSessionID {
+		return false
+	}
+	seenEvidence := make(map[string]struct{}, len(evidenceIDs))
+	for _, evidenceID := range evidenceIDs {
+		if evidenceID == "" {
+			return false
+		}
+		if _, duplicate := seenEvidence[evidenceID]; duplicate {
+			return false
+		}
+		seenEvidence[evidenceID] = struct{}{}
+		matches := 0
+		for _, ref := range st.Refs {
+			if ref.TaskID != action.TaskID || ref.DispatchID != dispatch.ID || ref.IntentID != intent.ID || ref.VerificationKey == "" || ref.RunnerSession != route.RunnerSession || ref.Verification.OperationKey != ref.VerificationKey {
+				continue
+			}
+			op, present := s.Operations[ref.VerificationKey]
+			if !present || op.Pending || op.Evidence == nil || op.Evidence.ID != evidenceID {
+				continue
+			}
+			matches++
+		}
+		if matches != 1 {
+			return false
+		}
+	}
+	if _, exists := s.NativeIntegrationOperations[action.OperationKey]; exists {
+		return false
+	}
+	var currentRef *CheckpointRefs
+	for i := range st.Refs {
+		ref := &st.Refs[i]
+		if ref.TaskID == action.TaskID && ref.DispatchID == dispatch.ID && ref.IntentID == intent.ID && ref.EvidenceID == evidence.ID && ref.ReviewID == review.ID && ref.IntegrationOperationID == action.OperationKey {
+			if currentRef != nil {
+				return false
+			}
+			currentRef = ref
+		}
+	}
+	if currentRef == nil {
+		return false
+	}
+	receipt, exists := s.CheckpointOperations[action.OperationKey]
+	if !exists {
+		return false
+	}
+	recorded := receipt.Status
+	if recorded.ID != st.CheckpointID || recorded.ProjectID != st.ProjectID || recorded.Phase != "integration" || recorded.Sequence == 0 || recorded.InvocationID != controllerCycleID(st) {
+		return false
+	}
+	refMatches := 0
+	for _, ref := range recorded.Refs {
+		if reflect.DeepEqual(ref, *currentRef) {
+			refMatches++
+		}
+	}
+	if refMatches != 1 {
+		return false
+	}
+	history := s.Checkpoints[recorded.ID]
+	if uint64(len(history)) < recorded.Sequence || !reflect.DeepEqual(history[recorded.Sequence-1], recorded) {
+		return false
+	}
+	request := CheckpointRequest{OperationKey: action.OperationKey, CheckpointID: recorded.ID, ProjectID: recorded.ProjectID, InvocationID: recorded.InvocationID, Phase: recorded.Phase, ExpectedSequence: recorded.Sequence - 1, Refs: recorded.Refs}
+	if receipt.Digest != identity("checkpoint.reconcile", st.ControllerSessionID, request) {
+		return false
+	}
+	return true
 }
