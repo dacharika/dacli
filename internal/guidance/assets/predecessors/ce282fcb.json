@@ -1,0 +1,61 @@
+{
+  "schema": "dacli-guidance-predecessor/v1",
+  "identity": "embedded-reviewed-dacli-skill/ce282fcb",
+  "origin_commit": "ce282fcb27f6ff7f41152cc4e7ab800900605e8b",
+  "before_bundle_digest": "6962ba499547efc4ffffbcc48f86299e1be174bde083a6797cfa56f441c0a0c1",
+  "target_bundle_digest": "30b7b362e6702d19627c6e1ca9f142f8bd559fa9bf956b1a804d38ec622257ae",
+  "files": [
+    {
+      "path": "SKILL.md",
+      "sha256": "d456c90361b33e94b09e1c7699becf0120b864a976978b1b3b4cf4e0d1c96ca3"
+    },
+    {
+      "path": "agents/openai.yaml",
+      "sha256": "8056a931848f39922359ae9d71d620010031ab5ec8516838ff7fa392289ae35f"
+    },
+    {
+      "path": "capabilities.json",
+      "sha256": "72fe3583a6a64b3534ebf7b22524638e1f57e497c6d2e579debb5eec5e2ed338"
+    },
+    {
+      "path": "references/continuous-operations.md",
+      "sha256": "174a5efdec8d40253affbaafab13129d1bc25e28323fb67f1196d14b0e7741df"
+    },
+    {
+      "path": "references/critical-path-github.md",
+      "sha256": "8da9992939d45bdb4f215bea82a965911c57c3ed6bedb04f50d31075b20c4594"
+    },
+    {
+      "path": "references/github-landing.md",
+      "sha256": "a2762505b8aee2630752e96b5d0d72788c2aa5bad45ff47ca507480ff32808f0"
+    },
+    {
+      "path": "references/model-economics.md",
+      "sha256": "d74f4b21e3a265524c9e1d418d1bface4fc5e3321f55688d739cc2fd8eea557c"
+    },
+    {
+      "path": "references/operating-profiles.md",
+      "sha256": "6deef3a43a2591fe0cb5e6f6d55f8d49808736a22072baea05c584749839bb44"
+    },
+    {
+      "path": "references/recovery.md",
+      "sha256": "2dd391bf24afc06d0dfe45c9145e9e917a42a2efc98ea60f961a3e1a154e531d"
+    },
+    {
+      "path": "references/roster-design.md",
+      "sha256": "4119acaea82cd4af594fe8d422c396b6a9eb08a839f70f6088c7efea692783dc"
+    },
+    {
+      "path": "references/runtimes-models-skills.md",
+      "sha256": "49ee1ce08d14c9145d2121484385d09cf621846a7b1be6c385bec90c7c1bbce5"
+    },
+    {
+      "path": "references/swarms-loops.md",
+      "sha256": "01885cb76bdf67fc330b3b0be2481418d06d612f4eade20009a44e140ef9e4ab"
+    },
+    {
+      "path": "references/workspace-tasks-projects.md",
+      "sha256": "76658b15eb1a87c6514f424b093bdd9b23fcf58802fd0974d65b3d3e20a1d8ee"
+    }
+  ]
+}
