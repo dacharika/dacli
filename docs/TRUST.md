@@ -509,6 +509,16 @@ fixes invocation bounds and independent producer routes. `native controller step
 atomically records bounded transitions; `native controller reconcile` records
 safe late observations without new effects. `native controller status` reads
 scoped historical knowledge and never supplies a host permit.
+`native controller drive` composes a finite invocation from explicitly pinned,
+independent native producer profiles. Its CLI provides no host backend or review
+decision; missing capabilities stop before new reservations/intents. The Go
+composition requires an explicit cooperative context host and independently
+supplied review decision. It reconciles original producer keys without creating
+another authority ledger, enrolling actors, upgrading storage, or performing
+owner integration, acceptance, publication or release. Historical worker lookup
+cannot restore launch authority. Context bounds do not promise OS containment;
+uncertain outcomes retain protection. See the
+[finite native driver](native-controller-driver.md).
 `native controller refresh-review` is a separate owner-authenticated operation that refreshes one
 exact independent review grant after canonical checklist progress. It requires
 the old private reviewer profile and a new, exclusive private output path; the

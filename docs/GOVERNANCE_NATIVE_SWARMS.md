@@ -398,3 +398,20 @@ an unattended Codex/Antigravity driver, twelve workers, additional sessions,
 physical host capacity, shared-host authorities or provider spending. See
 [executor contract](executor-host-contract.md) and
 [support matrix](governance-support-matrix.md) for the remaining boundaries.
+
+## Finite producer driver
+
+`native controller drive --profile <private-file> --request <private-file> --json`
+invokes the finite [native driver](native-controller-driver.md) over an existing
+controller invocation. It reconciles original effect identities and composes
+explicitly selected independent producers; it does not create another queue,
+daemon, coding-host launcher or authority ledger. Owner integration, acceptance,
+publication and release remain separate gates.
+
+The CLI has no host backend or independent review decision. It stops before new
+reservations/intents when those required capabilities are unavailable. The
+in-process composition can use an explicitly supplied cooperative context host
+and independent review-decision source; fake-host qualification does not activate
+a real adapter. Source support does not upgrade live schema10 or qualify capacity.
+Rolling admission/keeper and shared validation/measurements remain #1241/#1242;
+the complete #1218 milestone stays open. CI remains manual only.
