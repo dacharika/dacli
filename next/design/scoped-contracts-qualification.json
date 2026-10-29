@@ -1,0 +1,732 @@
+{
+  "schema": "dacli/scoped-contracts-qualification/v1",
+  "task": "https://github.com/dacharika/dacli/issues/1271",
+  "parentTask": "https://github.com/dacharika/dacli/issues/1258",
+  "sourceBase": "1142ab9cfc2d3aee57b8195c07c4ef8c9115ac45",
+  "sourceAnchor": "574b08811ead5afa4f1c8c80e20b911279e9af76",
+  "sourceManifest": "scoped-contracts.sources.json",
+  "qualifiedRustInputs": 31,
+  "sourceParity": {
+    "changes": []
+  },
+  "focusedChecks": 29,
+  "fullWorkspaceChecks": 40,
+  "rootGates": [
+    {
+      "command": [
+        "cargo",
+        "+1.97.1",
+        "fmt",
+        "--manifest-path",
+        "next/Cargo.toml",
+        "--all",
+        "--check"
+      ],
+      "exit": 0,
+      "seconds": 0.267,
+      "log": "/private/tmp/agents-valley-runtime-slices/evidence/auth-contracts/root-gates/0.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "cargo",
+        "+1.97.1",
+        "test",
+        "--locked",
+        "--offline",
+        "--manifest-path",
+        "next/Cargo.toml",
+        "--workspace"
+      ],
+      "exit": 0,
+      "seconds": 15.717,
+      "log": "/private/tmp/agents-valley-runtime-slices/evidence/auth-contracts/root-gates/1.log",
+      "sha256": "fe38d40a81d62b14edf806bb17bcf7dc1be38f595686cd218045b31d43f724dc"
+    },
+    {
+      "command": [
+        "cargo",
+        "+1.97.1",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--manifest-path",
+        "next/Cargo.toml",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit": 0,
+      "seconds": 2.197,
+      "log": "/private/tmp/agents-valley-runtime-slices/evidence/auth-contracts/root-gates/2.log",
+      "sha256": "4a42cbfac75ffab385d81b6e39337e9d702da00eb4558368088656fd341ab971"
+    }
+  ],
+  "workerFocusedGates": [
+    {
+      "command": [
+        "cargo",
+        "+1.97.1",
+        "fmt",
+        "--manifest-path",
+        "next/Cargo.toml",
+        "-p",
+        "core-kernel",
+        "-p",
+        "gateway-contracts",
+        "--check"
+      ],
+      "exit": 0,
+      "seconds": 0.255,
+      "log": "final-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "cargo",
+        "+1.97.1",
+        "test",
+        "--locked",
+        "--offline",
+        "--manifest-path",
+        "next/Cargo.toml",
+        "-p",
+        "core-kernel",
+        "-p",
+        "gateway-contracts",
+        "-p",
+        "cli"
+      ],
+      "exit": 0,
+      "seconds": 3.463,
+      "log": "final-tests.log",
+      "sha256": "39cc5dda9a3a9007c676bd91da7e57e8bc608ece55e6a4e043f2425c15e4ee5b"
+    },
+    {
+      "command": [
+        "cargo",
+        "+1.97.1",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--manifest-path",
+        "next/Cargo.toml",
+        "-p",
+        "core-kernel",
+        "-p",
+        "gateway-contracts",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit": 0,
+      "seconds": 0.363,
+      "log": "final-clippy.log",
+      "sha256": "7446117973851938d8ec0c70044f0079aee2d03f2fba433a04a2c6d9b29d2897"
+    }
+  ],
+  "causal": {
+    "count": 15,
+    "allNamedRed": true,
+    "restoredExit": 0,
+    "restoredChecks": 29,
+    "actualAndRestoredSourcesUnchanged": true,
+    "probes": [
+      {
+        "probe": "registry-effect",
+        "test": "scoped_resolver_refuses_forged_effect_payload_and_unknown_metadata",
+        "command": [
+          "cargo",
+          "+1.97.1",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "core-kernel",
+          "--test",
+          "scoped_registry",
+          "scoped_resolver_refuses_forged_effect_payload_and_unknown_metadata",
+          "--",
+          "--exact"
+        ],
+        "exit": 101,
+        "namedSemanticFailure": true,
+        "log": "registry-effect-red.log",
+        "logSHA256": "897c2dfed7867d9d72ac9f21f3c4a3b010a321c5bd61cdd9397a700b446ffa5c",
+        "failureLine": "thread 'scoped_resolver_refuses_forged_effect_payload_and_unknown_metadata' (175165760) panicked at crates/core-kernel/tests/scoped_registry.rs:36:5:"
+      },
+      {
+        "probe": "registry-payload",
+        "test": "scoped_resolver_refuses_forged_effect_payload_and_unknown_metadata",
+        "command": [
+          "cargo",
+          "+1.97.1",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "core-kernel",
+          "--test",
+          "scoped_registry",
+          "scoped_resolver_refuses_forged_effect_payload_and_unknown_metadata",
+          "--",
+          "--exact"
+        ],
+        "exit": 101,
+        "namedSemanticFailure": true,
+        "log": "registry-payload-red.log",
+        "logSHA256": "54ac05ef4f853c691e5e76a5027e45ea2b166f6e0d7cce9d78876787dad932b3",
+        "failureLine": "thread 'scoped_resolver_refuses_forged_effect_payload_and_unknown_metadata' (175166050) panicked at crates/core-kernel/tests/scoped_registry.rs:40:5:"
+      },
+      {
+        "probe": "legacy-view",
+        "test": "v1_discovery_and_refusals_do_not_gain_scoped_routes_or_authenticated_dispatch",
+        "command": [
+          "cargo",
+          "+1.97.1",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "core-kernel",
+          "--test",
+          "scoped_registry",
+          "v1_discovery_and_refusals_do_not_gain_scoped_routes_or_authenticated_dispatch",
+          "--",
+          "--exact"
+        ],
+        "exit": 101,
+        "namedSemanticFailure": true,
+        "log": "legacy-view-red.log",
+        "logSHA256": "5a95e1289062351cdaf985b06686ddf17d071e2736ad1d072b7796020407a064",
+        "failureLine": "thread 'v1_discovery_and_refusals_do_not_gain_scoped_routes_or_authenticated_dispatch' (175166301) panicked at crates/core-kernel/tests/scoped_registry.rs:61:5:"
+      },
+      {
+        "probe": "scoped-unavailable",
+        "test": "one_registry_drives_scoped_names_payloads_effects_permissions_and_discovery",
+        "command": [
+          "cargo",
+          "+1.97.1",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "core-kernel",
+          "--test",
+          "scoped_registry",
+          "one_registry_drives_scoped_names_payloads_effects_permissions_and_discovery",
+          "--",
+          "--exact"
+        ],
+        "exit": 101,
+        "namedSemanticFailure": true,
+        "log": "scoped-unavailable-red.log",
+        "logSHA256": "31f8453d11cba163980c943b5e2bb398325a4ef0134457c635b70a71dccbccaa",
+        "failureLine": "thread 'one_registry_drives_scoped_names_payloads_effects_permissions_and_discovery' (175166589) panicked at crates/core-kernel/tests/scoped_registry.rs:23:9:"
+      },
+      {
+        "probe": "grant-duplicate",
+        "test": "grants_refuse_missing_duplicates_public_actions_and_forged_effects",
+        "command": [
+          "cargo",
+          "+1.97.1",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "gateway-contracts",
+          "--test",
+          "contracts",
+          "grants_refuse_missing_duplicates_public_actions_and_forged_effects",
+          "--",
+          "--exact"
+        ],
+        "exit": 101,
+        "namedSemanticFailure": true,
+        "log": "grant-duplicate-red.log",
+        "logSHA256": "23807c92f69f81779999e4c0adc692148a481bd3d85e5749a66323fdb240ef0b",
+        "failureLine": "thread 'grants_refuse_missing_duplicates_public_actions_and_forged_effects' (175167027) panicked at crates/gateway-contracts/tests/contracts.rs:144:5:"
+      },
+      {
+        "probe": "grant-ordinal",
+        "test": "durable_grant_order_is_action_name_order_not_registry_declaration_order",
+        "command": [
+          "cargo",
+          "+1.97.1",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "gateway-contracts",
+          "--test",
+          "contracts",
+          "durable_grant_order_is_action_name_order_not_registry_declaration_order",
+          "--",
+          "--exact"
+        ],
+        "exit": 101,
+        "namedSemanticFailure": true,
+        "log": "grant-ordinal-red.log",
+        "logSHA256": "ef7212919ccc80f1ebfdf8b6e97e3bc70efb45f57e7e776a64b7402e5961887e",
+        "failureLine": "thread 'durable_grant_order_is_action_name_order_not_registry_declaration_order' (175167316) panicked at crates/gateway-contracts/tests/contracts.rs:574:5:"
+      },
+      {
+        "probe": "actor-binding",
+        "test": "canonical_task_framing_binds_actor_scope_key_and_each_semantic_field",
+        "command": [
+          "cargo",
+          "+1.97.1",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "gateway-contracts",
+          "--test",
+          "contracts",
+          "canonical_task_framing_binds_actor_scope_key_and_each_semantic_field",
+          "--",
+          "--exact"
+        ],
+        "exit": 101,
+        "namedSemanticFailure": true,
+        "log": "actor-binding-red.log",
+        "logSHA256": "f3a2c90b7e2ae98168ada5d7ccc8db67ca99ef19fbfa32496bac8cb745073ff5",
+        "failureLine": "thread 'canonical_task_framing_binds_actor_scope_key_and_each_semantic_field' (175167657) panicked at crates/gateway-contracts/tests/contracts.rs:229:5:"
+      },
+      {
+        "probe": "length-prefix",
+        "test": "canonical_task_framing_binds_actor_scope_key_and_each_semantic_field",
+        "command": [
+          "cargo",
+          "+1.97.1",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "gateway-contracts",
+          "--test",
+          "contracts",
+          "canonical_task_framing_binds_actor_scope_key_and_each_semantic_field",
+          "--",
+          "--exact"
+        ],
+        "exit": 101,
+        "namedSemanticFailure": true,
+        "log": "length-prefix-red.log",
+        "logSHA256": "5e7420b20512d8c4b8db74b3db9456b7d3c155bcc1aa4684c71551c2ed6656d6",
+        "failureLine": "thread 'canonical_task_framing_binds_actor_scope_key_and_each_semantic_field' (175167953) panicked at crates/gateway-contracts/tests/contracts.rs:260:5:"
+      },
+      {
+        "probe": "body-binding",
+        "test": "canonical_task_framing_binds_actor_scope_key_and_each_semantic_field",
+        "command": [
+          "cargo",
+          "+1.97.1",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "gateway-contracts",
+          "--test",
+          "contracts",
+          "canonical_task_framing_binds_actor_scope_key_and_each_semantic_field",
+          "--",
+          "--exact"
+        ],
+        "exit": 101,
+        "namedSemanticFailure": true,
+        "log": "body-binding-red.log",
+        "logSHA256": "9d872d522534c8a07130d99527b20d43a68d3f0b2b1ce501377b60abac71bd30",
+        "failureLine": "thread 'canonical_task_framing_binds_actor_scope_key_and_each_semantic_field' (175168252) panicked at crates/gateway-contracts/tests/contracts.rs:250:5:"
+      },
+      {
+        "probe": "receipt-scope",
+        "test": "v2_receipts_require_explicit_actor_attribution_and_bind_admission_metadata",
+        "command": [
+          "cargo",
+          "+1.97.1",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "gateway-contracts",
+          "--test",
+          "contracts",
+          "v2_receipts_require_explicit_actor_attribution_and_bind_admission_metadata",
+          "--",
+          "--exact"
+        ],
+        "exit": 101,
+        "namedSemanticFailure": true,
+        "log": "receipt-scope-red.log",
+        "logSHA256": "703e5dc5106296495e3fa53c90cf9b03eef740941319ca203da7b8c92e868b78",
+        "failureLine": "thread 'v2_receipts_require_explicit_actor_attribution_and_bind_admission_metadata' (175168535) panicked at crates/gateway-contracts/tests/contracts.rs:366:5:"
+      },
+      {
+        "probe": "public-delivery",
+        "test": "public_receipts_cannot_claim_secret_delivery_without_a_private_handoff",
+        "command": [
+          "cargo",
+          "+1.97.1",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "gateway-contracts",
+          "--test",
+          "contracts",
+          "public_receipts_cannot_claim_secret_delivery_without_a_private_handoff",
+          "--",
+          "--exact"
+        ],
+        "exit": 101,
+        "namedSemanticFailure": true,
+        "log": "public-delivery-red.log",
+        "logSHA256": "e184799e9ae8a77d2f33a1f00690486741af156571c62217764f88af6a5fb965",
+        "failureLine": "thread 'public_receipts_cannot_claim_secret_delivery_without_a_private_handoff' (175168771) panicked at crates/gateway-contracts/tests/contracts.rs:430:5:"
+      },
+      {
+        "probe": "query-scope",
+        "test": "query_and_read_result_bounds_refuse_foreign_scope_and_unsorted_rows",
+        "command": [
+          "cargo",
+          "+1.97.1",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "gateway-contracts",
+          "--test",
+          "contracts",
+          "query_and_read_result_bounds_refuse_foreign_scope_and_unsorted_rows",
+          "--",
+          "--exact"
+        ],
+        "exit": 101,
+        "namedSemanticFailure": true,
+        "log": "query-scope-red.log",
+        "logSHA256": "783fa865ea7b5d4b17146efcbb3e833a34c7dc37179e051b64a6e5d68459e35c",
+        "failureLine": "thread 'query_and_read_result_bounds_refuse_foreign_scope_and_unsorted_rows' (175169021) panicked at crates/gateway-contracts/tests/contracts.rs:478:5:"
+      },
+      {
+        "probe": "secret-debug",
+        "test": "BorrowedSecret",
+        "command": [
+          "cargo",
+          "+1.97.1",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "gateway-contracts",
+          "--doc"
+        ],
+        "exit": 101,
+        "namedSemanticFailure": true,
+        "log": "secret-debug-red.log",
+        "logSHA256": "fa31abf4c7a9fb506fb735be6fa4c2326a503c8f7c9f0720f5e0cf1970a0b886",
+        "failureLine": "Test compiled successfully, but it's marked `compile_fail`."
+      },
+      {
+        "probe": "secret-clone",
+        "test": "BorrowedSecret",
+        "command": [
+          "cargo",
+          "+1.97.1",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "gateway-contracts",
+          "--doc"
+        ],
+        "exit": 101,
+        "namedSemanticFailure": true,
+        "log": "secret-clone-red.log",
+        "logSHA256": "d014bab1cb88c42201e446c8620df341614831fda8346bebb89feae67a3bce49",
+        "failureLine": "Test compiled successfully, but it's marked `compile_fail`."
+      },
+      {
+        "probe": "public-context",
+        "test": "RawCredential",
+        "command": [
+          "cargo",
+          "+1.97.1",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "gateway-contracts",
+          "--doc"
+        ],
+        "exit": 101,
+        "namedSemanticFailure": true,
+        "log": "public-context-red.log",
+        "logSHA256": "2624d74ac4d8d8146d04425e1bdecbb0784661f9f6b147d880355c0c5081600d",
+        "failureLine": "Test compiled successfully, but it's marked `compile_fail`."
+      }
+    ],
+    "evidenceRoot": "/private/tmp/agents-valley-runtime-slices/evidence/auth-contracts/causal",
+    "resultsFile": {
+      "path": "/private/tmp/agents-valley-runtime-slices/evidence/auth-contracts/causal/results.json",
+      "sha256": "901d0cb814b5aac5e081b483ab619bc3496fad920492bae129a2e4825cd79937"
+    },
+    "restored": {
+      "command": [
+        "cargo",
+        "+1.97.1",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "core-kernel",
+        "-p",
+        "gateway-contracts",
+        "-p",
+        "cli"
+      ],
+      "exit": 0,
+      "checks": 29,
+      "log": "restored-green.log",
+      "logSHA256": "b3b1eeb7c2ed77902f5e1f4079f4961cf41da4dfdbac871aa2d8161ed37da7e4"
+    }
+  },
+  "review": {
+    "reviewer": "/root/rust_kernel/kernel_contract_review",
+    "ordinaryHostReadOnly": true,
+    "remainingMaterialFindings": 0,
+    "resolved": [
+      "Durable grant ordering now uses stable action-name UTF8 bytes, never registry discriminants; named before-fix red101 and restored green0 retained.",
+      "Canonical CredentialRecord includes selected authority ID, credential ID, session ID and generation for later pure-policy comparison; it contains no verifier or secret."
+    ],
+    "limits": "Source/test review only; no authenticated governance review or owner acceptance."
+  },
+  "goRegression": {
+    "candidate": "/Users/tahabsn/.codex/worktrees/scoped-auth-contracts/dacli",
+    "branch": "codex/scoped-auth-contracts",
+    "baseRequested": "1142ab9cfc2d3aee57b8195c07c4ef8c9115ac45",
+    "headBefore": "1142ab9cfc2d3aee57b8195c07c4ef8c9115ac45",
+    "headAfter": "574b08811ead5afa4f1c8c80e20b911279e9af76",
+    "scope": "Required Go regressions only for Rustcontracts issue1271; no implementation or new tests",
+    "environmentKeys": [
+      "PATH",
+      "HOME",
+      "TMPDIR",
+      "LANG",
+      "GOMAXPROCS",
+      "GOCACHE",
+      "GOLANGCI_LINT_CACHE"
+    ],
+    "environmentKeyCount": 7,
+    "inheritEnvironment": false,
+    "tools": {
+      "goVersion": "go version go1.26.5 darwin/arm64",
+      "lintVersion": "golangci-lint has version 2.12.2 built with go1.26.10 from (unknown, modified: ?, mod sum: \"h1:7+d1uY0bq1MU2UV3R5pW5Q7QWdcoq4naMRXM+gsJKrs=\") on (unknown)",
+      "lintSHA256": "03d78f72e7898305f10b298f96046e983f90c0c31df6ce20d17570ddddb2ba1a"
+    },
+    "requiredGates": {
+      "gofmt": {
+        "stage": "gofmt",
+        "command": [
+          "/opt/homebrew/bin/gofmt",
+          "-l",
+          "."
+        ],
+        "cwd": "/Users/tahabsn/.codex/worktrees/scoped-auth-contracts/dacli",
+        "childPID": 99302,
+        "startedAt": "2026-10-29T01:12:16.293955+00:00",
+        "finishedAt": "2026-10-29T01:12:16.566718+00:00",
+        "exitCode": 0,
+        "assertionExitCode": 0,
+        "seconds": 0.273,
+        "log": "/private/tmp/agents-valley-runtime-slices/evidence/auth-contracts-go-gates/gofmt.log",
+        "logBytes": 0,
+        "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "vet": {
+        "stage": "vet",
+        "command": [
+          "/opt/homebrew/bin/go",
+          "vet",
+          "./..."
+        ],
+        "cwd": "/Users/tahabsn/.codex/worktrees/scoped-auth-contracts/dacli",
+        "childPID": 99303,
+        "startedAt": "2026-10-29T01:12:16.567134+00:00",
+        "finishedAt": "2026-10-29T01:12:17.262271+00:00",
+        "exitCode": 0,
+        "assertionExitCode": 0,
+        "seconds": 0.695,
+        "log": "/private/tmp/agents-valley-runtime-slices/evidence/auth-contracts-go-gates/vet.log",
+        "logBytes": 0,
+        "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "lint": {
+        "stage": "lint",
+        "command": [
+          "/private/tmp/agents-valley-next-slices/tools/golangci-lint",
+          "run"
+        ],
+        "cwd": "/Users/tahabsn/.codex/worktrees/scoped-auth-contracts/dacli",
+        "childPID": 99314,
+        "startedAt": "2026-10-29T01:12:17.384140+00:00",
+        "finishedAt": "2026-10-29T01:12:18.290714+00:00",
+        "exitCode": 0,
+        "assertionExitCode": 0,
+        "seconds": 0.907,
+        "log": "/private/tmp/agents-valley-runtime-slices/evidence/auth-contracts-go-gates/lint.log",
+        "logBytes": 10,
+        "logSHA256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+      },
+      "test": {
+        "stage": "test",
+        "command": [
+          "/opt/homebrew/bin/go",
+          "test",
+          "-p",
+          "1",
+          "-timeout",
+          "20m",
+          "./..."
+        ],
+        "cwd": "/Users/tahabsn/.codex/worktrees/scoped-auth-contracts/dacli",
+        "childPID": 99601,
+        "startedAt": "2026-10-29T01:12:51.451586+00:00",
+        "finishedAt": "2026-10-29T01:42:49.958511+00:00",
+        "exitCode": 0,
+        "assertionExitCode": 0,
+        "seconds": 1798.46,
+        "log": "/private/tmp/agents-valley-runtime-slices/evidence/auth-contracts-go-gates/test.log",
+        "logBytes": 6395,
+        "logSHA256": "54074c24b2a61d0a662facefe10c48c91aa5d3fc1428a83715f638c51f81dd14"
+      }
+    },
+    "allRequiredGoGatesPassed": true,
+    "inputComparison": {
+      "beforeManifest": "source-before.json",
+      "afterManifest": "source-after.json",
+      "beforeFileCount": 950,
+      "afterFileCount": 950,
+      "beforeAggregateSHA256": "7880ef9992ae7677e13daff1d803ddf4dc6ce8448fe3ae1909faf9c963f53844",
+      "afterAggregateSHA256": "7880ef9992ae7677e13daff1d803ddf4dc6ce8448fe3ae1909faf9c963f53844",
+      "unchanged": true,
+      "comparisonExit": 0,
+      "selection": "git ls-files -z --cached --others --exclude-standard; all *.go,module/work files,.golangci* configs, scripts/** and .github/** qualification/workflow inputs."
+    },
+    "packages": {
+      "reported": 103,
+      "successfulWithTests": 97,
+      "withoutTests": 6,
+      "cached": 0
+    },
+    "terminalHandles": [
+      {
+        "phase": "initial-preflight-retained",
+        "terminal": 3444,
+        "terminalExit": 0
+      },
+      {
+        "phase": "canonical-preflight",
+        "terminal": 9409,
+        "terminalExit": 0
+      },
+      {
+        "phase": "full-go-test",
+        "terminal": 72846,
+        "goChildPID": 99601,
+        "terminalExit": 0,
+        "state": "complete"
+      }
+    ],
+    "fullTestProperAccess": "Started require_escalated for known loopback/child-process tests; no restricted full-test attempt or sandbox retry",
+    "retainedCorrection": "Initial inventory subprocess could not find rg under required PATH. Corrected to git ls-files without changing PATH; initial green preflight retained separately and canonical preflight rerun after complete before-input manifest. Initial commentary said8environment keys; actual requested/executed allowlist is7.",
+    "review": {
+      "agent": "/root/sdk_workshop/initial_review_test_audit",
+      "kind": "ordinary read-only evidence audit of canonical preflight/inventory/env/timeline",
+      "result": "Clean against exact seven-key requirement",
+      "finalTestAndAfterComparisonOutsideInitialAudit": true
+    },
+    "logSHA256": {
+      "source-before.json": "f4fd8e16fe8431e11839cba1e0c7f2239b887f4eba4202d26912b1dae827151c",
+      "source-after.json": "e10db2423a3eb0dc43f958423b5061bf17376c060129964d2b7a96857c288bba",
+      "execution.json": "42597247ae5a9b84f5f04f456b45c40a41579c423f301610d3196e394a0b4812",
+      "results.json": "47fc14693d46e43a3d3e6b28c610a8062a09e424f36554bd4bf09d4fc49118f7",
+      "package-results.json": "9cada9d2aaac7690eb70120f3918632ffdc86fdb963cc8db5b4e7c664dfc8879",
+      "terminal-handles.json": "38e9dba9e8046d20f5503a5c1786f875131cc71c778cb0073de50a957aba09e1",
+      "inventory-correction.json": "9d36833a60e2618e26e84375a16df809fe1570c7dade35599ff2ecf29404d60c",
+      "initial-preflight-results.json": "d9f25617a642aae109ddb9a121f8780241f98d5b7ef28ac43b09d2c347c80798",
+      "comparison.log": "c3df115d6e4f8298a927641473152a0b8acfb025b83e39d437dfdb97d68dffff"
+    },
+    "manualMutations": {
+      "sourceImplementation": false,
+      "newGoTests": false,
+      "gitOrGitHub": false,
+      "canonicalDacliEvents": false
+    },
+    "notRun": [
+      "Rust builds/tests",
+      "Swift builds/tests",
+      "Separate security scanner",
+      "New regression tests or causal mutations"
+    ],
+    "limitations": [
+      "Go qualification only; does not validate new Rust behavior or authorize integration/acceptance.",
+      "Default go test output reports packages, not a total individual test count.",
+      "Read-only scoped process metadata was observed separately without reading arguments or environment; one optional ps width format was unsupported and changed nothing."
+    ],
+    "evidenceRoot": "/private/tmp/agents-valley-runtime-slices/evidence/auth-contracts-go-gates"
+  },
+  "goFinalReview": {
+    "agent": "/root/sdk_workshop/initial_review_test_audit",
+    "kind": "ordinary independent read-only evidence audit; no authenticated runner/governance acceptance",
+    "result": "Clean",
+    "claimsChecked": [
+      "Four required gates exit/assertion0, gofmt0bytes",
+      "Actual103package rows:97ok,6no tests,0cached",
+      "All950before/after records identical with aggregate7880ef9992ae7677e13daff1d803ddf4dc6ce8448fe3ae1909faf9c963f53844",
+      "Recorded sequential timeline, cwd, versions, PIDs/terminal handles and log bytes/SHA256 agree",
+      "HEAD1142ab9c to574b0881 change recorded; evidence scoped to unchanged Go inputs"
+    ],
+    "reviewerCommandsTestsEditsAuthEvents": false,
+    "reviewedHashes": {
+      "handoff.json": "409dc6824e4143679f13fbdeda4810e678d261fe9a4398576694f269f799d012",
+      "report.md": "00ca57fe2147d274cb032d16442b733b212967e87ea14829a7aa4b520cccb0f8",
+      "results.json": "47fc14693d46e43a3d3e6b28c610a8062a09e424f36554bd4bf09d4fc49118f7",
+      "source-after.json": "e10db2423a3eb0dc43f958423b5061bf17376c060129964d2b7a96857c288bba",
+      "package-results.json": "9cada9d2aaac7690eb70120f3918632ffdc86fdb963cc8db5b4e7c664dfc8879",
+      "terminal-handles.json": "38e9dba9e8046d20f5503a5c1786f875131cc71c778cb0073de50a957aba09e1"
+    },
+    "note": "Separate review record preserves the immutable hashes of the reviewed handoff and report."
+  },
+  "nativeGovernanceAcceptance": false,
+  "limits": [
+    "v1 keeps exact original2-action discovery and refusal behavior.",
+    "All7 v2 catalog entries remain unavailable; no scoped dispatcher or authenticated task writer implemented.",
+    "Facts/receipt constructors validate bounds and syntax only; they do not authenticate rows, compare secrets or authorize owners.",
+    "AtomicScopedBackend is a trusted composition interface, not an OS or malicious-host security boundary; it never accepts supplied facts or policy decisions.",
+    "Canonical v2 encoding supplies checked versioned domain/length framing, not hashing or credential verification.",
+    "No crypto dependencies, vault/profile/ambient credential borrowing, owner enrollment, revocation implementation, API decoder, production activation or schema writes added.",
+    "No Go gates or canonical dacli writes performed by this lane; root owns broader gates and delivery.",
+    "All incident-ledger verification dispositions remain pending; no production authorization, API activation or task write is supplied by this slice.",
+    "A test/doctest count is not a claim to have implemented all parent #1258 acceptance."
+  ],
+  "worktree": "/Users/tahabsn/.codex/worktrees/scoped-auth-contracts/dacli",
+  "workerEvidenceRoot": "/private/tmp/agents-valley-runtime-slices/evidence/auth-contracts",
+  "rootGatesEvidenceRoot": "/private/tmp/agents-valley-runtime-slices/evidence/auth-contracts/root-gates",
+  "ledgerInventory": {
+    "command": [
+      "/usr/bin/python3",
+      "next/design/check_ledger.py"
+    ],
+    "exit": 0,
+    "rules": 80,
+    "mutatingCommands": 156,
+    "unresolvedDecisions": 10,
+    "pendingRows": 236,
+    "allMistakesCovered": false,
+    "interpretation": "Inventory only; no ledger verification disposition promoted."
+  }
+}

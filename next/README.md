@@ -6,6 +6,12 @@ It implements static protocol discovery and the common decoder, effect check,
 context gate and typed result path. `CreateTask` is registered as unavailable.
 The production CLI does not write tasks, start agents, execute plugins or replace the Go core.
 
+The [scoped contract slice](design/scoped-contracts.md) adds a pure
+`gateway-contracts` crate and a generated v2 metadata view from the same action
+registry. It preserves the v1 transport/catalog and keeps all scoped v2 execution
+unavailable. Bounded facts, prepared syntax and receipts are not authenticated
+grants; the concrete verifier/transaction/API integration remains under #1258.
+
 ## Run the slice
 
 The current workspace uses the explicit Rust 1.97.1 qualification toolchain.
