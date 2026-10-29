@@ -10,45 +10,18 @@ use core_types::{
 };
 
 #[derive(Clone, Copy)]
-enum Implementation {
+pub(crate) enum Implementation {
     Query(fn() -> Outcome),
     Unavailable,
 }
-struct RegisteredAction {
-    spec: ActionSpec,
-    implementation: Implementation,
-}
-
-// This is the only action registration list. The CLI does not keep route names,
-// effect metadata or help text separately. An unavailable mutation is visible
-// static protocol metadata, never a task write or a credential verifier.
-static ACTIONS: [RegisteredAction; 2] = [
-    RegisteredAction {
-        spec: ActionSpec {
-            name: "InspectProtocol",
-            summary: "Inspect this static protocol and action catalog.",
-            effect: Effect::ReadOnly,
-            authentication: Authentication::PublicProtocol,
-            availability: Availability::Available,
-            request_schema_version: PROTOCOL_VERSION,
-        },
-        implementation: Implementation::Query(inspect_protocol),
-    },
-    RegisteredAction {
-        spec: ActionSpec {
-            name: "CreateTask",
-            summary: "Unavailable: production task transport and scoped authentication are not implemented.",
-            effect: Effect::Mutation,
-            authentication: Authentication::VerifiedCapability("tasks.create"),
-            availability: Availability::Unavailable,
-            request_schema_version: PROTOCOL_VERSION,
-        },
-        implementation: Implementation::Unavailable,
-    },
-];
+mod registry;
+pub use registry::{
+    resolve_scoped, scoped_action_specs, ActionId, PayloadKind, RegistryError, ScopedActionSpec,
+    SCOPED_PROTOCOL_VERSION,
+};
 
 pub fn action_specs() -> impl ExactSizeIterator<Item = &'static ActionSpec> {
-    ACTIONS.iter().map(|registered| &registered.spec)
+    registry::LegacySpecs::new()
 }
 
 /// The request cannot invoke a handler directly or turn a claimed read effect
@@ -64,19 +37,28 @@ pub fn execute(request: Request<'_>) -> Outcome {
     }
 }
 
-fn decode_and_admit(request: Request<'_>) -> Result<&'static RegisteredAction, Refusal> {
+fn decode_and_admit(request: Request<'_>) -> Result<&'static registry::RegisteredAction, Refusal> {
     if request.protocol_version != PROTOCOL_VERSION {
         return Err(Refusal::UnsupportedProtocol);
     }
-    let registered = ACTIONS
+    let registered = registry::REGISTRY
         .iter()
-        .find(|registered| registered.spec.name == request.action)
+        .find(|registered| {
+            registered
+                .legacy
+                .as_ref()
+                .is_some_and(|spec| spec.name == request.action)
+        })
         .ok_or(Refusal::UnregisteredAction)?;
     let effect = Effect::decode(request.effect).ok_or(Refusal::UnknownEffect)?;
-    if effect != registered.spec.effect {
+    let spec = registered
+        .legacy
+        .as_ref()
+        .ok_or(Refusal::UnregisteredAction)?;
+    if effect != spec.effect {
         return Err(Refusal::EffectMismatch);
     }
-    admit_context(&registered.spec, request.context)?;
+    admit_context(spec, request.context)?;
     Ok(registered)
 }
 

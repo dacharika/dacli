@@ -1,0 +1,25 @@
+//! Bounded failures never contain caller strings, secrets or private records.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ValidationError {
+    Identifier,
+    Scope,
+    Time,
+    Generation,
+    Epoch,
+    GrantCount,
+    GrantEmpty,
+    GrantDuplicate,
+    GrantPublic,
+    GrantEffect,
+    Depth,
+    Lifetime,
+    Command,
+    Payload,
+    QueryLimit,
+    Version,
+    CredentialEmpty,
+    CredentialSize,
+    Receipt,
+    FrameSize,
+    CounterOverflow,
+}
