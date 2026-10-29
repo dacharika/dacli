@@ -1,0 +1,29 @@
+[package]
+name = "store-sqlite"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+qualification = []
+
+[dependencies]
+store-contracts.workspace = true
+rusqlite = { workspace = true, features = ["fallible_uint"] }
+sha2.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+# Test-only feature unification enables fixed crash checkpoints in test builds.
+# Normal downstream builds do not inherit dev-dependencies or this feature.
+[dev-dependencies]
+store-sqlite = { path = ".", features = ["qualification"] }
+
+[[bin]]
+name = "store-sqlite-fixture"
+path = "src/bin/fixture.rs"
+required-features = ["qualification"]

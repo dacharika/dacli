@@ -1,16 +1,21 @@
 [workspace]
-members = ["crates/core-types", "crates/core-kernel", "crates/cli"]
+members = ["crates/core-types", "crates/core-kernel", "crates/cli", "crates/store-contracts", "crates/store-sqlite"]
 resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.83"
+rust-version = "1.97"
 license = "BSD-3-Clause"
 publish = false
 
 [workspace.dependencies]
 core-types = { path = "crates/core-types" }
 core-kernel = { path = "crates/core-kernel" }
+store-contracts = { path = "crates/store-contracts" }
+store-sqlite = { path = "crates/store-sqlite" }
 serde = { version = "=1.0.210", features = ["derive"] }
 serde_json = "=1.0.128"
+rusqlite = { version = "=0.41.1", default-features = false, features = ["bundled", "backup", "hooks"] }
+sha2 = "=0.10.8"
+libc = "=0.2.191"

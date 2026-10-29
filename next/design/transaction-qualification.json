@@ -1,0 +1,713 @@
+{
+  "scope": "isolated create-only fixture storage; no production task transport",
+  "baseCommit": "6ab20881846bd9c38e50a731a81876c6069ab5f8",
+  "toolchain": {
+    "testedRust": "1.97.1",
+    "workspaceDeclaredRustVersion": "1.97",
+    "productMSRVDecision": "unresolved",
+    "olderCompilerSupportQualified": false
+  },
+  "authorHandoffSHA256": "8e81e341007e54a51dd3264add20cd69f2e9e2ac25c395bdbf820214ae7f4668",
+  "authorEvidence": {
+    "schemaVersion": 1,
+    "baseCommit": "6ab20881846bd9c38e50a731a81876c6069ab5f8",
+    "worktree": "/private/tmp/agents-valley-next-slices/worktrees/rust-kernel",
+    "branch": "codex/rust-task-transactions",
+    "ownedFiles": {
+      "next/crates/store-contracts/Cargo.toml": "256e36fd34841a7902a4de1ca0dbb954e41ee681ba33fd81771a8533910824ba",
+      "next/crates/store-contracts/README.md": "98c32352d5324872cddf6c548a2fa260706eca716cabc75bc9df1fa0cdfa0f25",
+      "next/crates/store-contracts/src/lib.rs": "2549eefd4f54804336f108b377b9203516bc35a0529ad921da417fc626f15a61",
+      "next/crates/store-sqlite/Cargo.toml": "094eec9a47cd300cd090525ffeeac2390af11c33c313797cfeb33f9edd9874e1",
+      "next/crates/store-sqlite/README.md": "090a72b2807d1e400dd9e4f5814977d753f78d74605a777f0bd65e91f148a455",
+      "next/crates/store-sqlite/src/artifacts.rs": "bea84b6d2656fffa0a633d8c0a6302582730d7c4c59f455ec21c7c34c4755f18",
+      "next/crates/store-sqlite/src/bin/fixture.rs": "ff4206f93471e6f92dd169d4d2a729259c0dc4e91ae1b1bac3c39786ed39fc21",
+      "next/crates/store-sqlite/src/lib.rs": "395abd63046bc1f58616d78ee44aa277b5bfed3214a6fb5afbd281a30d1f4155",
+      "next/crates/store-sqlite/src/schema.sql": "3c3697a12c72b4a467153d1ec3481d66641fc2edaf3bcc6b3753b0f0c4e1f707",
+      "next/crates/store-sqlite/src/store.rs": "0c0e7ff775ddfe38a5fa6fce331d086315735bb99731171d2d3d5224d64fa82c",
+      "next/crates/store-sqlite/tests/task_transaction.rs": "0d44b20fbfba431e572dd6eba57c8f7feeef4ae7a1b8907f9e312bec4e9f418e"
+    },
+    "workspaceInputs": {
+      "next/Cargo.toml": "e0acaa6af73eae0b073b592f5c861d25e96bba62510e8cc8119871c757702080",
+      "next/Cargo.lock": "5c39ff59e977b7b829a991881f54fa621029c572bf06874fd634c47aa1478638"
+    },
+    "tools": {
+      "selectedRust": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+      "selectedCargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+      "unchangedDefaultRust": "rustc 1.83.0 (90b35a623 2024-11-26)",
+      "platform": "Darwin arm64"
+    },
+    "pins": {
+      "libc": "0.2.191",
+      "libsqlite3-sys": "0.39.1",
+      "rusqlite": "0.41.1",
+      "sha2": "0.10.8"
+    },
+    "linkedSQLiteVersion": "SQLite 3.54.1 (3054001); rusqlite qualification executable",
+    "focusedGate": {
+      "command": "cargo +1.97.1 test --locked --manifest-path next/Cargo.toml -p core-kernel -p cli -p store-contracts -p store-sqlite",
+      "exit": 0,
+      "semanticTests": 23,
+      "transactionTests": 11,
+      "kernelTests": 6,
+      "cliTests": 6,
+      "networkContext": "Exact locked old CLI dependencies were fetched after an offline cache miss; the final test run did not use --offline. No lock changes."
+    },
+    "otherGates": [
+      {
+        "command": "cargo +1.97.1 fmt --manifest-path next/Cargo.toml -p store-contracts -p store-sqlite --check",
+        "exit": 0
+      },
+      {
+        "command": "cargo +1.97.1 clippy --locked --offline --manifest-path next/Cargo.toml -p store-contracts -p store-sqlite --all-targets -- -D warnings",
+        "exit": 0
+      },
+      {
+        "command": "cargo +1.97.1 build --locked --offline --manifest-path next/Cargo.toml -p store-sqlite --lib --no-default-features",
+        "exit": 0,
+        "features": []
+      }
+    ],
+    "defaultFeatureProof": {
+      "libraryBuildExit": 0,
+      "libraryFeatures": [],
+      "fixtureBuildCommand": [
+        "cargo",
+        "+1.97.1",
+        "build",
+        "--locked",
+        "--offline",
+        "-p",
+        "store-sqlite",
+        "--bin",
+        "store-sqlite-fixture",
+        "--no-default-features"
+      ],
+      "fixtureBuildExit": 101,
+      "fixtureExcludedWithoutExplicitQualification": true,
+      "packagingCorrection": "First verifier expected a required-features substring; actual Cargo uses requires the features. Initial refusal retained, verifier corrected and same no-effect compile guard reread."
+    },
+    "causal": {
+      "probes": [
+        {
+          "probe": "digest-conflict",
+          "test": "two_independent_processes_replay_one_atomic_command_and_changed_input_refuses",
+          "command": [
+            "cargo",
+            "+1.97.1",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "store-sqlite",
+            "--test",
+            "task_transaction",
+            "two_independent_processes_replay_one_atomic_command_and_changed_input_refuses",
+            "--",
+            "--exact"
+          ],
+          "exit": 101,
+          "namedSemanticFailure": true,
+          "logSHA256": "e3a041ab21f9c30d37d9f367e7ffbd2af446ff1ff0dcf052958a1bbf6f6980ca",
+          "failureLines": [
+            "thread 'two_independent_processes_replay_one_atomic_command_and_changed_input_refuses' (173639802) panicked at crates/store-sqlite/tests/task_transaction.rs:186:5:",
+            "assertion `left == right` failed",
+            "  left: 0",
+            " right: 3"
+          ]
+        },
+        {
+          "probe": "omit-operation-result",
+          "test": "stable_id_version_reads_and_rebuilt_query_match_canonical_records_without_replaying_events",
+          "command": [
+            "cargo",
+            "+1.97.1",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "store-sqlite",
+            "--test",
+            "task_transaction",
+            "stable_id_version_reads_and_rebuilt_query_match_canonical_records_without_replaying_events",
+            "--",
+            "--exact"
+          ],
+          "exit": 101,
+          "namedSemanticFailure": true,
+          "logSHA256": "10456551dd7f584a22dddfaf9314aaecf86ccbc385e17135d7572d45c1851937",
+          "failureLines": [
+            "thread 'stable_id_version_reads_and_rebuilt_query_match_canonical_records_without_replaying_events' (173640347) panicked at crates/store-sqlite/tests/task_transaction.rs:292:5:",
+            "assertion `left == right` failed",
+            "  left: FixtureCounts { tasks: 3, versions: 3, events: 3, results: 0 }",
+            " right: FixtureCounts { tasks: 3, versions: 3, events: 3, results: 3 }"
+          ]
+        },
+        {
+          "probe": "rollback-instead-of-commit",
+          "test": "kill_before_and_after_commit_recovers_all_rows_or_none_and_reuses_the_same_key",
+          "command": [
+            "cargo",
+            "+1.97.1",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "store-sqlite",
+            "--test",
+            "task_transaction",
+            "kill_before_and_after_commit_recovers_all_rows_or_none_and_reuses_the_same_key",
+            "--",
+            "--exact"
+          ],
+          "exit": 101,
+          "namedSemanticFailure": true,
+          "logSHA256": "2330ad4792b88c366924508a0fa684675c4bf1cc9ff64b7b8ecea7b2d63db8d7",
+          "failureLines": [
+            "thread 'kill_before_and_after_commit_recovers_all_rows_or_none_and_reuses_the_same_key' (173640853) panicked at crates/store-sqlite/tests/task_transaction.rs:241:9:",
+            "assertion `left == right` failed",
+            "  left: FixtureCounts { tasks: 0, versions: 0, events: 0, results: 0 }",
+            " right: FixtureCounts { tasks: 1, versions: 1, events: 1, results: 1 }"
+          ]
+        },
+        {
+          "probe": "ignore-commit-error",
+          "test": "uncertain_commit_never_acknowledges_blocks_further_writes_and_reconciles_on_fresh_connection",
+          "command": [
+            "cargo",
+            "+1.97.1",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "store-sqlite",
+            "--test",
+            "task_transaction",
+            "uncertain_commit_never_acknowledges_blocks_further_writes_and_reconciles_on_fresh_connection",
+            "--",
+            "--exact"
+          ],
+          "exit": 101,
+          "namedSemanticFailure": true,
+          "logSHA256": "cbc5ce4c8e30e0e2d209c6746a4e64612909116c4e5fa3a1324f69490e6a697e",
+          "failureLines": [
+            "thread 'uncertain_commit_never_acknowledges_blocks_further_writes_and_reconciles_on_fresh_connection' (173641346) panicked at crates/store-sqlite/tests/task_transaction.rs:369:5:",
+            "assertion `left == right` failed",
+            "  left: Ok(CreateTaskResult { receipt: CommandReceipt { reference: TaskReference { scope: TaskScope { authority_id: \"fixture-authority\", workspace_id: \"fixture-workspace\", project_id: \"fixture-project\" }, task_id: \"task\" }, operation_key: \"uncertain\", version: 1, event_sequence: 1, input_digest: ContentDigest([163, 187, 132, 218, 204, 74, 255, 209, 7, 255, 154, 38, 111, 210, 222, 186, 25, 92, 14, 49, 87, 244, 197, 212, 80, 23, 112, 135, 61, 39, 207, 164]), body_digest: ContentDigest([35, 13, 131, 88, 220, 142, 136, 144, 180, 197, 141, 238, 182, 41, 18, 238, 47, 32, 53, 122, 233, 42, 92, 200, 97, 185, 142, 104, 254, 49, 172, 181]) }, replayed: false })",
+            " right: Err(UnknownCommitOutcome)"
+          ]
+        },
+        {
+          "probe": "held-write-identity",
+          "test": "held_handle_rechecks_schema_and_authority_before_replay_or_new_write",
+          "command": [
+            "cargo",
+            "+1.97.1",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "store-sqlite",
+            "--test",
+            "task_transaction",
+            "held_handle_rechecks_schema_and_authority_before_replay_or_new_write",
+            "--",
+            "--exact"
+          ],
+          "exit": 101,
+          "namedSemanticFailure": true,
+          "logSHA256": "6015f39362f399d5e9d031af7a643b2f98dc4a01c62f24d84204a6cf0fee2be7",
+          "failureLines": [
+            "thread 'held_handle_rechecks_schema_and_authority_before_replay_or_new_write' (173641820) panicked at crates/store-sqlite/tests/task_transaction.rs:648:9:",
+            "assertion `left == right` failed",
+            "  left: Ok(CreateTaskResult { receipt: CommandReceipt { reference: TaskReference { scope: TaskScope { authority_id: \"fixture-authority\", workspace_id: \"fixture-workspace\", project_id: \"fixture-project\" }, task_id: \"task\" }, operation_key: \"original\", version: 1, event_sequence: 1, input_digest: ContentDigest([163, 187, 132, 218, 204, 74, 255, 209, 7, 255, 154, 38, 111, 210, 222, 186, 25, 92, 14, 49, 87, 244, 197, 212, 80, 23, 112, 135, 61, 39, 207, 164]), body_digest: ContentDigest([35, 13, 131, 88, 220, 142, 136, 144, 180, 197, 141, 238, 182, 41, 18, 238, 47, 32, 53, 122, 233, 42, 92, 200, 97, 185, 142, 104, 254, 49, 172, 181]) }, replayed: true })",
+            " right: Err(UnsupportedSchema)"
+          ]
+        },
+        {
+          "probe": "held-read-identity",
+          "test": "held_handle_rechecks_schema_and_authority_before_replay_or_new_write",
+          "command": [
+            "cargo",
+            "+1.97.1",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "store-sqlite",
+            "--test",
+            "task_transaction",
+            "held_handle_rechecks_schema_and_authority_before_replay_or_new_write",
+            "--",
+            "--exact"
+          ],
+          "exit": 101,
+          "namedSemanticFailure": true,
+          "logSHA256": "365a629e09ae92881054efa799e278dbf7a38e147a1357ee2c421ef6b15f075d",
+          "failureLines": [
+            "thread 'held_handle_rechecks_schema_and_authority_before_replay_or_new_write' (173642350) panicked at crates/store-sqlite/tests/task_transaction.rs:663:9:",
+            "assertion `left == right` failed",
+            "  left: Ok(Some(TaskRecord { reference: TaskReference { scope: TaskScope { authority_id: \"fixture-authority\", workspace_id: \"fixture-workspace\", project_id: \"fixture-project\" }, task_id: \"task\" }, version: 1, title: \"Fixture task\", body: [98, 111, 100, 121], body_digest: ContentDigest([35, 13, 131, 88, 220, 142, 136, 144, 180, 197, 141, 238, 182, 41, 18, 238, 47, 32, 53, 122, 233, 42, 92, 200, 97, 185, 142, 104, 254, 49, 172, 181]), artifact_references: [], event_sequence: 1 }))",
+            " right: Err(UnsupportedSchema)"
+          ]
+        },
+        {
+          "probe": "mixed-count-snapshots",
+          "test": "counts_observed_during_an_independent_writer_are_one_snapshot",
+          "command": [
+            "cargo",
+            "+1.97.1",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "store-sqlite",
+            "--test",
+            "task_transaction",
+            "counts_observed_during_an_independent_writer_are_one_snapshot",
+            "--",
+            "--exact"
+          ],
+          "exit": 101,
+          "namedSemanticFailure": true,
+          "logSHA256": "281e0c6a29889762fa00c9709a69a989473407870eeec1ebc99e7f29c6c8bff7",
+          "failureLines": [
+            "thread 'counts_observed_during_an_independent_writer_are_one_snapshot' (173642925) panicked at crates/store-sqlite/tests/task_transaction.rs:700:9:",
+            "assertion `left == right` failed: one command cannot appear half-recorded to a reader",
+            "  left: FixtureCounts { tasks: 0, versions: 1, events: 1, results: 1 }",
+            " right: FixtureCounts { tasks: 0, versions: 0, events: 0, results: 0 }"
+          ]
+        },
+        {
+          "probe": "rebuild-without-canonical-check",
+          "test": "immutable_audit_and_versions_reject_edits_and_corrupt_body_is_not_silently_rebuilt",
+          "command": [
+            "cargo",
+            "+1.97.1",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "store-sqlite",
+            "--test",
+            "task_transaction",
+            "immutable_audit_and_versions_reject_edits_and_corrupt_body_is_not_silently_rebuilt",
+            "--",
+            "--exact"
+          ],
+          "exit": 101,
+          "namedSemanticFailure": true,
+          "logSHA256": "055adfa9da3efe619cca33084e63285e770b8786d05b72500aac1483446f54bb",
+          "failureLines": [
+            "thread 'immutable_audit_and_versions_reject_edits_and_corrupt_body_is_not_silently_rebuilt' (173643497) panicked at crates/store-sqlite/tests/task_transaction.rs:584:5:",
+            "assertion `left == right` failed",
+            "  left: Ok(1)",
+            " right: Err(CorruptData)"
+          ]
+        },
+        {
+          "probe": "expired-budget",
+          "test": "busy_expired_budget_and_real_sqlite_full_do_not_acknowledge_or_leave_partial_rows",
+          "command": [
+            "cargo",
+            "+1.97.1",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "store-sqlite",
+            "--test",
+            "task_transaction",
+            "busy_expired_budget_and_real_sqlite_full_do_not_acknowledge_or_leave_partial_rows",
+            "--",
+            "--exact"
+          ],
+          "exit": 101,
+          "namedSemanticFailure": true,
+          "logSHA256": "b6edf8f12c70d8b7146bf0652bffd4e5d3641ad43ccb04bf4598b655c6fb2bb4",
+          "failureLines": [
+            "thread 'busy_expired_budget_and_real_sqlite_full_do_not_acknowledge_or_leave_partial_rows' (173644001) panicked at crates/store-sqlite/tests/task_transaction.rs:333:5:",
+            "assertion `left == right` failed",
+            "  left: Ok(CreateTaskResult { receipt: CommandReceipt { reference: TaskReference { scope: TaskScope { authority_id: \"fixture-authority\", workspace_id: \"fixture-workspace\", project_id: \"fixture-project\" }, task_id: \"task\" }, operation_key: \"expired\", version: 1, event_sequence: 1, input_digest: ContentDigest([163, 187, 132, 218, 204, 74, 255, 209, 7, 255, 154, 38, 111, 210, 222, 186, 25, 92, 14, 49, 87, 244, 197, 212, 80, 23, 112, 135, 61, 39, 207, 164]), body_digest: ContentDigest([35, 13, 131, 88, 220, 142, 136, 144, 180, 197, 141, 238, 182, 41, 18, 238, 47, 32, 53, 122, 233, 42, 92, 200, 97, 185, 142, 104, 254, 49, 172, 181]) }, replayed: false })",
+            " right: Err(DeadlineExceeded)"
+          ]
+        },
+        {
+          "probe": "backup-main-file-only",
+          "test": "consistent_online_backup_includes_wal_and_reports_real_missing_or_corrupt_artifact_files",
+          "command": [
+            "cargo",
+            "+1.97.1",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "store-sqlite",
+            "--test",
+            "task_transaction",
+            "consistent_online_backup_includes_wal_and_reports_real_missing_or_corrupt_artifact_files",
+            "--",
+            "--exact"
+          ],
+          "exit": 101,
+          "namedSemanticFailure": true,
+          "logSHA256": "fec96aaf083d0b593c399af4dad77599f35c4216508201da84fc4fdfa502a882",
+          "failureLines": [
+            "thread 'consistent_online_backup_includes_wal_and_reports_real_missing_or_corrupt_artifact_files' (173644449) panicked at crates/store-sqlite/tests/task_transaction.rs:416:10:"
+          ]
+        },
+        {
+          "probe": "artifact-digest",
+          "test": "consistent_online_backup_includes_wal_and_reports_real_missing_or_corrupt_artifact_files",
+          "command": [
+            "cargo",
+            "+1.97.1",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "store-sqlite",
+            "--test",
+            "task_transaction",
+            "consistent_online_backup_includes_wal_and_reports_real_missing_or_corrupt_artifact_files",
+            "--",
+            "--exact"
+          ],
+          "exit": 101,
+          "namedSemanticFailure": true,
+          "logSHA256": "3bb9eb7b15d70f771d521713f2a5318488042a8466859616f434ccedc2fb1436",
+          "failureLines": [
+            "thread 'consistent_online_backup_includes_wal_and_reports_real_missing_or_corrupt_artifact_files' (173644985) panicked at crates/store-sqlite/tests/task_transaction.rs:443:5:",
+            "assertion `left == right` failed",
+            "  left: []",
+            " right: [ArtifactProblem { digest: ContentDigest([220, 243, 236, 207, 153, 252, 215, 186, 56, 93, 103, 208, 167, 67, 41, 82, 32, 128, 121, 161, 86, 8, 117, 145, 11, 68, 163, 201, 15, 253, 119, 246]), state: Corrupt }]"
+          ]
+        },
+        {
+          "probe": "artifact-final-symlink",
+          "test": "consistent_online_backup_includes_wal_and_reports_real_missing_or_corrupt_artifact_files",
+          "command": [
+            "cargo",
+            "+1.97.1",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "store-sqlite",
+            "--test",
+            "task_transaction",
+            "consistent_online_backup_includes_wal_and_reports_real_missing_or_corrupt_artifact_files",
+            "--",
+            "--exact"
+          ],
+          "exit": 101,
+          "namedSemanticFailure": true,
+          "logSHA256": "3c3c26ada9de84008b6fe0232cda2bc3b179c3736f02973098d6415f2a3d0688",
+          "failureLines": [
+            "thread 'consistent_online_backup_includes_wal_and_reports_real_missing_or_corrupt_artifact_files' (173645530) panicked at crates/store-sqlite/tests/task_transaction.rs:456:9:",
+            "assertion `left == right` failed",
+            "  left: []",
+            " right: [ArtifactProblem { digest: ContentDigest([220, 243, 236, 207, 153, 252, 215, 186, 56, 93, 103, 208, 167, 67, 41, 82, 32, 128, 121, 161, 86, 8, 117, 145, 11, 68, 163, 201, 15, 253, 119, 246]), state: Unreadable }]"
+          ]
+        },
+        {
+          "probe": "immutable-version",
+          "test": "immutable_audit_and_versions_reject_edits_and_corrupt_body_is_not_silently_rebuilt",
+          "command": [
+            "cargo",
+            "+1.97.1",
+            "test",
+            "--locked",
+            "--offline",
+            "-p",
+            "store-sqlite",
+            "--test",
+            "task_transaction",
+            "immutable_audit_and_versions_reject_edits_and_corrupt_body_is_not_silently_rebuilt",
+            "--",
+            "--exact"
+          ],
+          "exit": 101,
+          "namedSemanticFailure": true,
+          "logSHA256": "8deb98379615abe2f559af253383fbc4ab925de3109b91c3e5fa343c0b25d01a",
+          "failureLines": [
+            "thread 'immutable_audit_and_versions_reject_edits_and_corrupt_body_is_not_silently_rebuilt' (173645979) panicked at crates/store-sqlite/tests/task_transaction.rs:573:5:",
+            "assertion failed: raw.execute(\"UPDATE task_versions SET body=x'00'\", []).is_err()"
+          ]
+        }
+      ],
+      "restoredTests": 11,
+      "finalOwnedSourcesUnchanged": true
+    },
+    "review": {
+      "reviewer": "/root/rust_kernel/kernel_contract_review",
+      "mode": "ordinary host read-only; no authenticated governance review",
+      "materialFindingsResolved": [
+        "Held handles did not revalidate schema/authority inside a new transaction",
+        "Four separate COUNT queries could fabricate partial-looking cross-commit observations"
+      ],
+      "remainingMaterialFindings": 0
+    },
+    "observedCorrections": [
+      "Initial NOFOLLOW open refused ordinary macOS /var temporary parent symlinks; selected parent canonicalization plus final-component NOFOLLOW fixed it without weakening assertions",
+      "Rust1.83 rejected current rusqlite; explicit already-installed1.97.1 selected with root-approved workspace build requirement; no global default change",
+      "Final wider offline gate lacked older CLI crates in new Cargo cache; locked online fetch completed and full23 tests passed",
+      "First qualification-exclusion verifier expected the wrong Cargo diagnostic substring; actual refusal retained, verifier corrected and same no-effect guard rechecked"
+    ],
+    "logs": {
+      "final-fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "final-clippy.log": "8976803bd6cf8b8ae2133fbdb45aee05dd30867c2a1516ddf6b6af20a16f136b",
+      "final-rust-tests.log": "6c9de220a7260665cac5e0362d7dcd1023d89a52aeb48081e1830e7375e2b289",
+      "final-default-build.jsonl": "94cb3ced9753acff6e0b7e48b44e92167d9c764f5716d07f2d41b1bda3d99b69",
+      "final-default-build.log": "46198d384eb046513a974350c44910acc6ded957c52376f033fc99a6507866e9",
+      "default-fixture-excluded.log": "dd5e3cdcca479623cbc08a4f6a5db431b0cdb5f191cb87054c0e8639a457734c",
+      "default-feature-proof.json": "2d9649bc2ccbeb24baba4a7bd362ff6d119c1836d5e3ffea8956341f8fe325f2",
+      "linked-sqlite-version.txt": "64da6cd8f3697095db52b3fabd0aee969624799d0951069027501d51f473e546",
+      "causal/results.json": "1e56d73f3dde64c234b8fa4bd28805a6794b473cb79370620a84a4cde28f9bed",
+      "causal/restored-green.log": "39661f148207acba822ec211c4606807fabd94dcfd1c3b50afc5d31eb3ed4d17",
+      "noncanonical-parent-red.log": "6976c28956846802bab8e7e30385395761dc6cec792e498b29483593128e09a5",
+      "rusqlite-patch-comparison.json": "18f07df2004c0e3c3d9976dc4ae142c508ac2436488cc2a47ecbc1d8e5de8aaa",
+      "rusqlite-0.41.0-msrv-refusal.log": "25b4377fd0da7cc1be5709629b58c7b37871ad7a3884e2216772bfc22dc11ab9",
+      "rusqlite-0.41.1-info.log": "396f8dcbc08ac6833bfcd97ae587c871753b958206c6c46ec3b8091371f74a14",
+      "offline-workspace-cache-gap.log": "f5712e6845be426953a754c20f074f7357348dddb263892ec4be99c6812e369a"
+    },
+    "limits": [
+      "Fixture task storage only; production CLI CreateTask remains unavailable until scoped authentication gateway",
+      "Go repository-wide gates, canonical tasks, governed commits and GitHub integration remain with root; none performed by this lane",
+      "SIGKILL proves application-process interruption recovery on this host, not power-loss/hardware/filesystem durability",
+      "SQLITE_FULL is real SQLite page-capacity exhaustion, not filling the host volume",
+      "Commit hook refusal exercises conservative unknown-outcome handling, not a physical I/O failure",
+      "Backup verifies SQLite state and reports actual missing/corrupt local content-addressed files; not a complete backup/export product",
+      "Fixture limits1024 tasks/256KiB body/16 references/1024 query rows; production scale/paging is separate",
+      "No claims of an OS sandbox, privileged whole-file rollback defense, distributed SQLite, automatic engine switching, legacy activation, cross-platform runtime qualification or release",
+      "Artifact Unix no-follow verified; unqualified non-Unix reads fail closed as unreadable",
+      "No live process handles remain after these completed focused gates"
+    ]
+  },
+  "rootSourceSHA256": {
+    "next/README.md": "7b8ec90d8b2fa06dc8b81c5a6b6d87dea89a8448d421b8e76e25e655912562a7",
+    "next/design/audit-notes.md": "e0c10b4a8b500f9601e7180addf549d1760e6256504c657d22d86fce527451b2",
+    "next/crates/core-kernel/src/lib.rs": "26ee05920b20f89da460d487b32de96882702a92ee2bc53bbb0eb28d810cca6b",
+    "next/design/storage-engine-decision.md": "279ff92ea42493c85f5ac63579bf26b79ea84e6cf1e303ec27a43646b35a3d61"
+  },
+  "rootFinalRustAfterCatalogWording": [
+    {
+      "command": [
+        "cargo",
+        "+1.97.1",
+        "fmt",
+        "--manifest-path",
+        "next/Cargo.toml",
+        "--all",
+        "--check"
+      ],
+      "exit": 0,
+      "seconds": 1.04,
+      "log": "/private/tmp/agents-valley-runtime-slices/evidence/rust-root-final/0.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "cargo",
+        "+1.97.1",
+        "test",
+        "--locked",
+        "--offline",
+        "--manifest-path",
+        "next/Cargo.toml",
+        "-p",
+        "core-kernel",
+        "-p",
+        "cli",
+        "-p",
+        "store-contracts",
+        "-p",
+        "store-sqlite"
+      ],
+      "exit": 0,
+      "seconds": 26.285,
+      "log": "/private/tmp/agents-valley-runtime-slices/evidence/rust-root-final/1.log",
+      "sha256": "33de7f716a4c9f4afd934f65e172bb77601383d55cfd26c77ab8c15b6c3be1e7"
+    },
+    {
+      "command": [
+        "cargo",
+        "+1.97.1",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--manifest-path",
+        "next/Cargo.toml",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit": 0,
+      "seconds": 3.088,
+      "log": "/private/tmp/agents-valley-runtime-slices/evidence/rust-root-final/2.log",
+      "sha256": "56f8024eb41dbcf3f1aa6585605606f598a2676607a2568a15b2033515f4c761"
+    }
+  ],
+  "rootGoGates": {
+    "schemaVersion": 1,
+    "worktree": "/private/tmp/agents-valley-next-slices/worktrees/rust-kernel",
+    "sourceBase": "6ab20881846bd9c38e50a731a81876c6069ab5f8",
+    "requiredGoGates": [
+      {
+        "command": [
+          "gofmt",
+          "-l",
+          "."
+        ],
+        "exit": 0,
+        "seconds": 0.596,
+        "log": "0.log"
+      },
+      {
+        "command": [
+          "go",
+          "vet",
+          "./..."
+        ],
+        "exit": 0,
+        "seconds": 4.013,
+        "log": "1.log"
+      },
+      {
+        "command": [
+          "/private/tmp/agents-valley-next-slices/tools/golangci-lint",
+          "run"
+        ],
+        "exit": 0,
+        "seconds": 19.323,
+        "log": "lint-corrected.log",
+        "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+      },
+      {
+        "command": [
+          "go",
+          "test",
+          "-p",
+          "1",
+          "-timeout",
+          "20m",
+          "./..."
+        ],
+        "exit": 0,
+        "seconds": 2127.367,
+        "log": "go-test-loopback.log",
+        "sha256": "9b30e2918a7feeb26626b7f0e6abc139f0d0a6a5f1b67dcd729b5bba763282a7"
+      }
+    ],
+    "allRequiredGatesExitZero": true,
+    "gofmtOutputEmpty": true,
+    "explicitMinimalChildEnvironment": true,
+    "environmentDefinition": "run-loopback-gate.py",
+    "noInheritedCredentialsPassed": true,
+    "versions": {
+      "go": "go version go1.26.5 darwin/arm64",
+      "golangciLint": "golangci-lint has version 2.12.2 built with go1.26.10 from (unknown, modified: ?, mod sum: \"h1:7+d1uY0bq1MU2UV3R5pW5Q7QWdcoq4naMRXM+gsJKrs=\") on (unknown)"
+    },
+    "pinnedLintBinarySHA256": "03d78f72e7898305f10b298f96046e983f90c0c31df6ce20d17570ddddb2ba1a",
+    "retainedEarlierFailures": {
+      "initialLintExit": 7,
+      "initialLintLog": "2.log",
+      "originalFullTestExit": 1,
+      "originalFullTestLog": "go-test.log",
+      "failedPackages": [
+        "FAIL\tgithub.com/mlnomadpy/dacli/internal/cloudsync\t0.936s",
+        "FAIL\tgithub.com/mlnomadpy/dacli/internal/deviceidentity\t0.574s",
+        "FAIL\tgithub.com/mlnomadpy/dacli/internal/features/nativegovernance\t1030.072s",
+        "FAIL\tgithub.com/mlnomadpy/dacli/internal/governance/sessions\t1200.709s",
+        "FAIL\tgithub.com/mlnomadpy/dacli/internal/store\t266.391s"
+      ],
+      "directlyObservedRestrictions": [
+        "httptest localhost bind operation not permitted",
+        "/bin/ps process observer operation not permitted"
+      ],
+      "otherObservedOutcomes": [
+        "generic driver authority_refused/operation_outcome_unknown (underlying original cause not isolated)",
+        "sessions aggregate20m timeout; active named test had run only2s at alarm"
+      ],
+      "retryComparison": "All five formerly failing packages passed with unchanged source, child environment and package timeout; execution context permits local test servers and child-process checks. This does not isolate each original generic driver denial cause."
+    },
+    "retryPackages": {
+      "okPackageLines": 97,
+      "noTestFilePackageLines": 6,
+      "selectedFormerlyFailingPackages": [
+        "ok  \tgithub.com/mlnomadpy/dacli/internal/cloudsync\t3.057s",
+        "ok  \tgithub.com/mlnomadpy/dacli/internal/deviceidentity\t2.595s",
+        "ok  \tgithub.com/mlnomadpy/dacli/internal/features/nativegovernance\t1060.430s",
+        "ok  \tgithub.com/mlnomadpy/dacli/internal/governance/sessions\t837.224s",
+        "ok  \tgithub.com/mlnomadpy/dacli/internal/store\t123.266s"
+      ]
+    },
+    "sourceUnchanged": {
+      "trackedGoInputsCommand": [
+        "git",
+        "diff",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--exit-code",
+        "--",
+        "*.go",
+        "go.mod",
+        "go.sum",
+        ".golangci.yml",
+        ".golangci.yaml"
+      ],
+      "exit": 0,
+      "untrackedGoInputsCommand": [
+        "git",
+        "ls-files",
+        "--others",
+        "--exclude-standard",
+        "--",
+        "*.go",
+        "go.mod",
+        "go.sum",
+        ".golangci.yml",
+        ".golangci.yaml"
+      ],
+      "exitUntracked": 0,
+      "unchangedOwnedRustFileCount": 11,
+      "rustTestsRerunByThisVerificationTask": false
+    },
+    "ownedActiveToolHandles": [],
+    "artifacts": {
+      "0.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "1.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "2.log": "d7b6c23e3c5c830d3b030fc8be5566afb0fb2e20858f1bb0d0811e04ceef0158",
+      "results.json": "4e1d1020e315238a08d3048c0acfd09363c3a58653c202a9d7598631e97048c0",
+      "lint-corrected.log": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+      "go-test.log": "3c5578e4b5ff3f4eaa189146294562a9c9d6b9e1f1fd999223d5fa3be0189245",
+      "results-corrected.json": "7f36529e3f6cfda002bd4fb494cf62058db374befe6ca1d16260c9a072c688d4",
+      "go-test-loopback.log": "9b30e2918a7feeb26626b7f0e6abc139f0d0a6a5f1b67dcd729b5bba763282a7",
+      "results-loopback.json": "09d9a3a1a6b285e340cc07dbe26b9aedfe931ebfd4eb1732c1845c99b0f42933",
+      "run-loopback-gate.py": "9cc36cccf950783bcd0e1fe2546164298bf7b71ccf23a90e363e4d1fc1e93c5e",
+      "live-handles.json": "ddc93850906ee2dd9d2bcfdf3e77993e91d0dc49f2e8e54af6752c31681e2a10"
+    }
+  },
+  "semanticTests": 23,
+  "transactionTests": 11,
+  "kernelTests": 6,
+  "cliTests": 6,
+  "causalNegativeProbes": 13,
+  "restoredTransactionTests": 11,
+  "authenticatedGovernanceReviewClaimed": false,
+  "productionCreateTaskAvailable": false,
+  "scopedAuthenticatorImplemented": false,
+  "issue1258Qualified": false,
+  "historicalKernelReport": "kernel-qualification.json retains original #1256 source and toolchain; not current gate evidence",
+  "rootGoReportSHA256": "9381d5614f1602b82a8b562e0632d5d3b174212d3a41747538d8e2ff1c301a22",
+  "rootGoVerificationSHA256": "2a11caf966e47de37c7e7ac16f923928df5909c4c93f4df84357687f30a0b412",
+  "ledgerCheck": {
+    "command": "python3 next/design/check_ledger.py",
+    "exit": 0,
+    "pendingRows": 236,
+    "unresolvedDecisions": 10,
+    "allMistakesCovered": false
+  },
+  "readyForCommit": true,
+  "commitAuthority": "User authorized this branch and gave standing authorization for routine Git operations in the requested work; normal Git exception to AGENTS.md. No authenticated dacli owner acceptance is claimed."
+}

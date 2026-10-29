@@ -42,3 +42,21 @@ python3 design/check_ledger.py --require-covered
 The generator requires the frozen Git HEAD and checks exact command-set equality against the source capability guard. It consumes the retained AST snapshot; `inventory_source.go.txt` is the original standard-library AST extraction helper, stored with a non-Go suffix to avoid adding a Go package to the repository. To refresh the snapshot deliberately, copy that helper to an isolated temporary `.go` file and run it against the same frozen source with an isolated Go cache, then review the resulting snapshot before regeneration. Neither helper executes dacli, imports its packages, reads credentials, or creates authority events.
 
 `--self-check` rejects an in-memory forged `allMistakesCovered=true` claim. `--require-covered` currently exits **3** with a named unresolved/unverified refusal. This is an audit checker result, not evidence of running the new Rust kernel. `audit-validation.json` records the actual checker outcomes and exact artifact hashes.
+
+
+## Isolated transaction fixture (#1257)
+
+Issue #1257 separately qualifies an isolated create-only SQLite fixture: atomic
+task/version/event/result persistence, scoped operation replay, process-interruption
+recovery, checked reads and query rebuilds, typed failure outcomes, online database
+backup and artifact-file diagnostics. Its [transaction qualification report](transaction-qualification.json)
+records the exact source, toolchain, tests and limits. This evidence does not
+verify the complete legacy obligations in this ledger, enable production
+CreateTask, implement #1258 authentication, settle engine selection or resolve
+CON011's product MSRV decision. All 236 pending rows, ten unresolved decisions,
+runtimeVerifiedRuleCount=0 and allMistakesCovered=false remain unchanged.
+
+The initialSliceBoundary and kernel-qualification.json describe the historical
+#1256 candidate (Rust 1.83 and 12 tests). Storage effects excluded from that
+candidate now exist only in the separately qualified fixture. Its historical
+manifest/lock/README hashes are not the current workspace hashes.
