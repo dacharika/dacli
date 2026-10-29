@@ -12,6 +12,13 @@ registry. It preserves the v1 transport/catalog and keeps all scoped v2 executio
 unavailable. Bounded facts, prepared syntax and receipts are not authenticated
 grants; the concrete verifier/transaction/API integration remains under #1258.
 
+The [scoped policy slice](design/scoped-policy.md) adds pure current-fact,
+lineage, delegation-attenuation and revocation predicates under [#1272](https://github.com/dacharika/dacli/issues/1272).
+Its [qualification](design/scoped-policy-qualification.json) records 76 policy
+tests, 54 named red/restored probes, integrated workspace and Go regression gates.
+Policy success does not authenticate caller facts or enable scoped v2 execution;
+credential verification and atomic backend integration remain under #1258.
+
 ## Run the slice
 
 The current workspace uses the explicit Rust 1.97.1 qualification toolchain.
