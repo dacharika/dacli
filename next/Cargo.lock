@@ -51,6 +51,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "core-policy"
+version = "0.1.0"
+dependencies = [
+ "core-kernel",
+ "core-types",
+ "gateway-contracts",
+ "store-contracts",
+]
+
+[[package]]
 name = "core-types"
 version = "0.1.0"
 
