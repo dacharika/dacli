@@ -37,7 +37,7 @@ static ACTIONS: [RegisteredAction; 2] = [
     RegisteredAction {
         spec: ActionSpec {
             name: "CreateTask",
-            summary: "Unavailable: task storage and authenticated admission are not implemented.",
+            summary: "Unavailable: production task transport and scoped authentication are not implemented.",
             effect: Effect::Mutation,
             authentication: Authentication::VerifiedCapability("tasks.create"),
             availability: Availability::Unavailable,
